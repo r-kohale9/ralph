@@ -23,10 +23,25 @@ const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const CONCURRENCY = parseInt(process.env.RALPH_CONCURRENCY || '2', 10);
 const REPO_DIR = process.env.RALPH_REPO_DIR || path.join(__dirname, 'repo');
 const RALPH_SCRIPT = path.join(__dirname, 'ralph.sh');
+const USE_NODE_PIPELINE = process.env.RALPH_USE_NODE_PIPELINE === '1';
 
 // Rate limiter: max 10 builds per hour
 const RATE_LIMIT_MAX = parseInt(process.env.RALPH_RATE_MAX || '10', 10);
 const RATE_LIMIT_DURATION = parseInt(process.env.RALPH_RATE_DURATION || '3600000', 10);
+
+// ─── E7: Failure categorization ───────────────────────────────────────────────
+function categorizeFailure(failureDesc) {
+  const desc = failureDesc.toLowerCase();
+  if (/render|dom|element|visible|display/.test(desc)) return 'rendering';
+  if (/gamestate|state|init/.test(desc)) return 'state';
+  if (/score|star|progress/.test(desc)) return 'scoring';
+  if (/timer|timeout|countdown/.test(desc)) return 'timing';
+  if (/click|input|touch|interact/.test(desc)) return 'interaction';
+  if (/postmessage|message|event/.test(desc)) return 'messaging';
+  if (/layout|responsive|width|480/.test(desc)) return 'layout';
+  if (/endgame|complete|finish/.test(desc)) return 'completion';
+  return 'unknown';
+}
 
 // ─── Redis connection ───────────────────────────────────────────────────────
 const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
@@ -108,10 +123,22 @@ const worker = new Worker(
       }
     }
 
-    // Run Ralph
+    // Run Ralph — E3: choose between bash (ralph.sh) and Node.js (pipeline.js)
     let report;
     try {
-      report = await runRalph(gameId, specPath, buildId);
+      if (USE_NODE_PIPELINE) {
+        const { runPipeline } = require('./lib/pipeline');
+        const gameDir = specPath
+          ? path.join(path.dirname(specPath), '..', 'game')
+          : path.join(REPO_DIR, 'game-spec', 'templates', gameId, 'game');
+        const specFile = specPath
+          || path.join(REPO_DIR, 'game-spec', 'templates', gameId, 'spec.md');
+        fs.mkdirSync(gameDir, { recursive: true });
+        console.log(`[worker] Running Node.js pipeline (E3) for ${gameId}`);
+        report = await runPipeline(gameDir, specFile, { metrics, logger });
+      } else {
+        report = await runRalph(gameId, specPath, buildId);
+      }
     } catch (err) {
       // Record metrics even on failure
       const buildDuration = (Date.now() - buildStartTime) / 1000;
@@ -124,6 +151,18 @@ const worker = new Worker(
     // Update DB: build completed
     if (buildId) {
       db.completeBuild(buildId, report);
+    }
+
+    // E7: Record failure patterns for analysis
+    if (report.status === 'FAILED' && Array.isArray(report.test_results)) {
+      const lastResult = report.test_results[report.test_results.length - 1];
+      if (lastResult && lastResult.failures) {
+        const failures = lastResult.failures.split(', ').filter(Boolean);
+        for (const failure of failures) {
+          const category = categorizeFailure(failure);
+          db.recordFailurePattern(gameId, failure, category);
+        }
+      }
     }
 
     // Record metrics

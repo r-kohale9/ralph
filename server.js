@@ -125,8 +125,8 @@ function getNextMidnight(timezone) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 // ─── GitHub webhook endpoint ────────────────────────────────────────────────
+// Express 5: async errors are caught automatically — no try/catch needed
 app.post('/webhook/github', verifyGitHubSignature, async (req, res) => {
-  try {
   const event = req.headers['x-github-event'];
 
   if (event !== 'push') {
@@ -169,16 +169,10 @@ app.post('/webhook/github', verifyGitHubSignature, async (req, res) => {
 
   logger.info(`${changedSpecs.size} games queued for immediate build`, { event: 'immediate_queue' });
   return res.json({ queued: changedSpecs.size, scheduled: 'immediate' });
-  } catch (err) {
-    logger.error(`Webhook error: ${err.message}`, { event: 'webhook_error' });
-    sentry.captureException(err, { step: 'webhook' });
-    return res.status(500).json({ error: 'Internal error processing webhook' });
-  }
 });
 
 // ─── Manual build trigger ───────────────────────────────────────────────────
 app.post('/api/build', async (req, res) => {
-  try {
   const { gameId, all, specPath } = req.body;
 
   if (all) {
@@ -228,11 +222,6 @@ app.post('/api/build', async (req, res) => {
 
   logger.info(`Build queued for ${gameId}`, { gameId, buildId, event: 'manual_build' });
   return res.json({ queued: true, buildId, gameId });
-  } catch (err) {
-    logger.error(`Build API error: ${err.message}`, { event: 'api_error' });
-    sentry.captureException(err, { step: 'api_build' });
-    return res.status(500).json({ error: 'Internal error queuing build' });
-  }
 });
 
 // ─── Build status and history ───────────────────────────────────────────────
@@ -258,6 +247,16 @@ app.get('/api/games/:gameId/builds', (req, res) => {
   const limit = Math.min(parseInt(req.query.limit || '10', 10), 100);
   const builds = db.getBuildsByGame(req.params.gameId, limit);
   res.json(builds);
+});
+
+// ─── Failure patterns API (E7) ───────────────────────────────────────────────
+app.get('/api/failure-patterns', (req, res) => {
+  const gameId = req.query.gameId || null;
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  const patterns = db.getFailurePatterns(gameId, limit);
+  const stats = db.getFailureStats();
+  const top = db.getTopFailurePatterns(10);
+  res.json({ stats, top_patterns: top, patterns });
 });
 
 // ─── Metrics endpoint (Prometheus) ──────────────────────────────────────────
@@ -287,8 +286,13 @@ app.get('/health', async (req, res) => {
   });
 });
 
-// ─── Sentry error handler (must be after all routes) ────────────────────────
+// ─── Error handler (Express 5: catches async rejections automatically) ──────
 app.use(sentry.expressErrorHandler());
+app.use((err, _req, res, _next) => {
+  logger.error(`Unhandled error: ${err.message}`, { event: 'unhandled_error' });
+  sentry.captureException(err, { step: 'express_error_handler' });
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 // ─── Start server ───────────────────────────────────────────────────────────
 const server = app.listen(PORT, () => {

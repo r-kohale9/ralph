@@ -20,7 +20,7 @@ GitHub webhook → server.js (Express) → BullMQ queue → worker.js → ralph.
 ```bash
 npm start              # Start webhook server (port 3000)
 npm run worker         # Start BullMQ worker
-npm test               # Run all 189 tests (14 test files)
+npm test               # Run all 219 tests (16 test files)
 npm run validate       # Run static HTML validator on a file
 npm run validate:contract  # Run contract validator on a file
 npm run lint           # ESLint check
@@ -32,13 +32,13 @@ npm run format:check   # Prettier check
 Tests use Node.js built-in test runner (`node --test`). No external test framework.
 
 ```bash
-node --test test/*.test.js           # All 189 tests
+node --test test/*.test.js           # All 219 tests
 node --test test/db.test.js          # Single file
 ```
 
 Tests mock external dependencies (Redis, fetch, filesystem) — no infrastructure needed.
 
-**Test files:** db, llm, logger, metrics, sentry, server, slack, validate-static, validate-contract, worker, ralph-sh, e2e, proxy-contract, load.
+**Test files:** db, llm, logger, metrics, sentry, server, slack, validate-static, validate-contract, worker, ralph-sh, e2e, proxy-contract, load, pipeline, failure-patterns.
 
 ## Key Files
 
@@ -54,7 +54,8 @@ Tests mock external dependencies (Redis, fetch, filesystem) — no infrastructur
 | lib/slack.js | Slack webhook notifications |
 | lib/logger.js | Structured JSON logging (optional GCP) |
 | lib/sentry.js | Error monitoring (optional Sentry, v8 API normalized) |
-| lib/llm.js | Node.js LLM client (used by tests; ralph.sh uses curl, planned E3 migration target) |
+| lib/pipeline.js | Node.js pipeline (E3): full pipeline replacement for ralph.sh |
+| lib/llm.js | Node.js LLM client (used by pipeline.js and tests) |
 | nginx.conf | Nginx reverse proxy: TLS, rate limiting, security headers |
 | Dockerfile | Multi-stage build: node:20-slim, non-root user, healthcheck |
 | monitoring/alerts.yml | 6 Prometheus alert rules |
@@ -76,6 +77,7 @@ Optional: `@sentry/node` (SENTRY_DSN), `@google-cloud/logging` (GOOGLE_CLOUD_PRO
 - `RALPH_WAREHOUSE_DIR` — Warehouse directory for E9 spec validation
 - `RALPH_DEPLOY_ENABLED=1` — Enable E10 post-approval deployment
 - `RALPH_DEPLOY_DIR` — Deployment artifact directory
+- `RALPH_USE_NODE_PIPELINE=1` — Use Node.js pipeline (E3) instead of ralph.sh
 
 ## Code Style
 
@@ -83,16 +85,16 @@ Optional: `@sentry/node` (SENTRY_DSN), `@google-cloud/logging` (GOOGLE_CLOUD_PRO
 - CommonJS (`require`/`module.exports`)
 - No TypeScript
 - ESLint + Prettier configured (see `.eslintrc.js`, `.prettierrc.json`)
-- Express 4.x (not 5) — async routes need manual try/catch
+- Express 5.x — async errors caught automatically, no try/catch needed
 - SQLite via better-sqlite3 (synchronous API)
 - `lastInsertRowid` must be wrapped in `Number()` (BigInt issue)
 
 ## Known Constraints
 
-- `llm.js` is used by tests but ralph.sh calls CLIProxyAPI via curl directly. Kept as E3 migration target.
+- `llm.js` is used by `pipeline.js` (E3) and tests. ralph.sh still calls CLIProxyAPI via curl.
 - validate-static.js checks `id="gameContent"` via regex (improved from bare string match).
-- Express 4.x requires manual try/catch in async routes (Express 5 migration planned).
+- Worker supports dual-mode: bash (ralph.sh, default) or Node.js (pipeline.js, opt-in via `RALPH_USE_NODE_PIPELINE=1`).
 
 ## Roadmap
 
-See `ROADMAP.md` for full tracking across 6 pillars (52 items, 48 done, 4 planned).
+See `ROADMAP.md` for full tracking across 6 pillars (52 items, 51 done, 1 planned).

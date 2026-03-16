@@ -35,7 +35,7 @@
 | T2 contract validation layer | done | lib/validate-contract.js | Validates gameState shape, postMessage contracts, scoring/init contracts |
 | Load/stress tests | done | test/load.test.js | 47-template bulk creates, rapid cycles, 100+ record performance, metrics throughput |
 
-**Test count: 189 tests, 47 suites, 0 failures**
+**Test count: 219 tests, 52 suites, 0 failures**
 
 ## P2 — Spec Compliance & Feature Completeness
 
@@ -72,7 +72,7 @@
 | Optional dependencies | done | package.json | `@google-cloud/logging` and `@sentry/node` moved to `optionalDependencies` |
 | CLAUDE.md project context | done | CLAUDE.md | Architecture, commands, key files, code style, known constraints |
 | llm.js status: kept for E3 | done | lib/llm.js | Documented as E3 migration target; used by contract/proxy tests |
-| Express 5 migration | planned | package.json | Express 5 handles async rejections natively; removes need for try/catch wrappers |
+| Express 5 migration | done | server.js, package.json | Express 5 handles async rejections natively; removed try/catch wrappers |
 | ESLint + Prettier | done | .eslintrc.js, .prettierrc.json | Rules aligned with code style; devDependencies added |
 
 ## P5 — Scalability & Intelligence (from spec E1-E10)
@@ -81,10 +81,10 @@
 |------|--------|-------|
 | E1 parallel batch runner | done | BullMQ concurrency=2 + rate limiter handles this |
 | E2 smart retry escalation | done | ralph.sh, diagnosis mode on iteration 3+ |
-| E3 migrate CLI to API | planned | Replace `claude -p` / curl with direct API calls; enables cost tracking, streaming, structured I/O |
+| E3 migrate CLI to API | done | lib/pipeline.js, worker.js: dual-mode (bash/Node.js); opt-in via RALPH_USE_NODE_PIPELINE=1 |
 | E4 warehouse-aware context | planned | Deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt |
 | E6 caching / incremental runs | done | ralph.sh: check_cache/update_cache with sha256sum; gated by RALPH_ENABLE_CACHE=1 |
-| E7 failure pattern database | planned | Track systematic failures across 47 templates to improve warehouse |
+| E7 failure pattern database | done | lib/db.js, worker.js, server.js: failure_patterns table, categorization, /api/failure-patterns endpoint |
 | E8 diff-based fix prompts | done | ralph.sh: sends only `<script>` section for HTML >20KB on iteration 2+ |
 | E9 spec validation against warehouse | done | ralph.sh: validate_spec_against_warehouse checks part references exist |
 | E10 deployment step | done | ralph.sh: versioned artifact dirs, latest symlink, manifest.json; gated by RALPH_DEPLOY_ENABLED=1 |
@@ -99,13 +99,10 @@
 | P1 Testing & Validation | 8 | 0 | 8 |
 | P2 Spec Compliance | 6 | 0 | 6 |
 | P3 DevOps & Operations | 11 | 0 | 11 |
-| P4 Code Quality | 5 | 1 | 6 |
-| P5 Scalability | 6 | 3 | 9 |
-| **Total** | **48** | **4** | **52** |
+| P4 Code Quality | 6 | 0 | 6 |
+| P5 Scalability | 8 | 1 | 9 |
+| **Total** | **51** | **1** | **52** |
 
-## What's Next (suggested sprint order)
+## What's Next
 
-1. **E3 migrate to API** — enables cost tracking, structured I/O, and makes llm.js the primary LLM interface
-2. **Express 5 migration** — Express 5 handles async rejections natively, removes try/catch boilerplate
-3. **E4 warehouse-aware context** — deterministic prompt assembly from spec capabilities
-4. **E7 failure pattern database** — track patterns to improve future runs
+1. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
