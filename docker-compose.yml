@@ -1,0 +1,22 @@
+version: '3'
+services:
+  cliproxyapi:
+    image: ghcr.io/router-for-me/cliproxyapi:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./auths:/app/auths
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: always
+    command: redis-server --appendonly yes
+
+volumes:
+  redis-data:

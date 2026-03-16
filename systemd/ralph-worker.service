@@ -1,0 +1,24 @@
+[Unit]
+Description=Ralph Build Worker
+After=redis.service docker.service ralph-server.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=ralph
+WorkingDirectory=/srv/ralph
+ExecStart=/usr/bin/node worker.js
+Restart=always
+RestartSec=10
+EnvironmentFile=/srv/ralph/.env
+
+# Worker needs more time for graceful shutdown (may be mid-build)
+TimeoutStopSec=60
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/srv/ralph
+
+[Install]
+WantedBy=multi-user.target

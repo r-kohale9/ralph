@@ -1,0 +1,80 @@
+groups:
+  - name: ralph_pipeline
+    rules:
+      - alert: BuildFailureRateHigh
+        expr: >
+          (
+            sum(rate(ralph_builds_completed_total{status="failure"}[1h]))
+            /
+            clamp_min(sum(rate(ralph_builds_completed_total[1h])), 1)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ralph build failure rate is above 50%"
+          description: >-
+            More than 50% of builds completed in the last hour have failed.
+            Current failure rate: {{ $value | humanizePercentage }}.
+
+      - alert: BuildStuck
+        expr: ralph_builds_active > 0
+        for: 45m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ralph build appears stuck"
+          description: >-
+            There have been active builds for more than 45 minutes continuously.
+            Active builds: {{ $value }}.
+
+      - alert: QueueBacklog
+        expr: ralph_queue_depth{state="waiting"} > 20
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ralph queue backlog is growing"
+          description: >-
+            The waiting queue depth has exceeded 20 for more than 15 minutes.
+            Current depth: {{ $value }}.
+
+      - alert: LLMRateLimited
+        expr: increase(ralph_llm_rate_limits_total[10m]) > 5
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ralph LLM rate limiting detected"
+          description: >-
+            More than 5 LLM rate limit events in the last 10 minutes
+            for model {{ $labels.model }}. Count: {{ $value }}.
+
+      - alert: WorkerDown
+        expr: ralph_builds_active == 0 and ralph_queue_depth{state="waiting"} > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ralph worker appears down"
+          description: >-
+            No active builds but items are waiting in the queue for over 10 minutes.
+            Waiting items: {{ $value }}.
+
+      - alert: HighBuildDuration
+        expr: >
+          histogram_quantile(0.99,
+            rate(ralph_build_duration_seconds{status="success"}[1h])
+          ) > 1800
+          or
+          (
+            ralph_build_duration_seconds{quantile="0.99"} > 1800
+          )
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ralph p99 build duration exceeds 30 minutes"
+          description: >-
+            The 99th percentile build duration has exceeded 1800 seconds (30 minutes).
+            Current p99: {{ $value | humanizeDuration }}.

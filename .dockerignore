@@ -1,0 +1,43 @@
+# Dependencies (rebuilt in Docker build)
+node_modules
+
+# Git
+.git
+.gitignore
+
+# SQLite databases (persisted via volume, not baked into image)
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Documentation
+*.md
+LICENSE
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Test artifacts
+test/
+coverage/
+
+# Docker files (avoid recursive context)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Misc config not needed at runtime
+systemd/
+config.yaml.example

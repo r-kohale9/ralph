@@ -1,0 +1,35 @@
+{
+  "name": "ralph-pipeline",
+  "version": "1.0.0",
+  "description": "Automated game-building pipeline — generates, validates, and approves HTML game artifacts from specs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "worker": "node worker.js",
+    "validate": "node lib/validate-static.js",
+    "validate:contract": "node lib/validate-contract.js",
+    "test": "node --test test/*.test.js",
+    "lint": "eslint *.js lib/*.js",
+    "lint:fix": "eslint --fix *.js lib/*.js",
+    "format": "prettier --write '*.js' 'lib/*.js' 'test/*.js'",
+    "format:check": "prettier --check '*.js' 'lib/*.js' 'test/*.js'"
+  },
+  "dependencies": {
+    "bullmq": "^5.0.0",
+    "better-sqlite3": "^11.0.0",
+    "express": "^5.0.0",
+    "ioredis": "^5.4.0"
+  },
+  "optionalDependencies": {
+    "@google-cloud/logging": "^11.0.0",
+    "@sentry/node": "^8.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

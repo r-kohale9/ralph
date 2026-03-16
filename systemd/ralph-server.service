@@ -1,0 +1,21 @@
+[Unit]
+Description=Ralph Webhook + API Server
+After=redis.service docker.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=ralph
+WorkingDirectory=/srv/ralph
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+EnvironmentFile=/srv/ralph/.env
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/srv/ralph/data
+
+[Install]
+WantedBy=multi-user.target
