@@ -4,47 +4,10 @@ const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 
-// ─── Test extractChangedSpecs and getNextMidnight in isolation ───────────────
-// These are pure functions we can extract-and-test by loading server.js source
-
-// We can't easily require server.js (it starts Express + Redis).
-// Instead, we replicate the functions here for unit testing.
-// This is safer than mocking all of Express+Redis+BullMQ.
-
-function extractChangedSpecs(payload) {
-  const gameIds = new Set();
-  const commits = payload.commits || [];
-  for (const commit of commits) {
-    const files = [
-      ...(commit.added || []),
-      ...(commit.modified || []),
-      ...(commit.removed || []),
-    ];
-    for (const file of files) {
-      const match = file.match(/game-spec\/templates\/([^/]+)\/spec\.md$/);
-      if (match) {
-        gameIds.add(match[1]);
-      }
-    }
-  }
-  return gameIds;
-}
-
-function getNextMidnight(timezone) {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false,
-  }).formatToParts(now);
-
-  const get = (type) => parseInt(parts.find(p => p.type === type).value, 10);
-  const h = get('hour'), m = get('minute'), s = get('second');
-
-  const msUntilMidnight = ((23 - h) * 3600 + (59 - m) * 60 + (60 - s)) * 1000;
-  return now.getTime() + (msUntilMidnight < 60000 ? msUntilMidnight + 86400000 : msUntilMidnight);
-}
+// ─── Import pure functions from server.js ───────────────────────────────────
+// server.js now exports createApp, extractChangedSpecs, getNextMidnight
+// without starting Express or connecting to Redis.
+const { extractChangedSpecs, getNextMidnight } = require('../server');
 
 function verifySignature(body, secret) {
   return 'sha256=' + crypto
