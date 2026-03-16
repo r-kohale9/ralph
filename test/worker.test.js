@@ -145,6 +145,102 @@ describe('worker error handling patterns', () => {
   });
 });
 
+describe('worker fetchSpec (URL-based spec)', () => {
+  // Replicate fetchSpec logic for unit testing
+  async function fetchSpec(url, destPath) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch spec from ${url}: ${res.status} ${res.statusText}`);
+    }
+    const text = await res.text();
+    if (text.length < 100) {
+      throw new Error(`Fetched spec is too small (${text.length} chars) — likely not a valid spec`);
+    }
+    fs.mkdirSync(path.dirname(destPath), { recursive: true });
+    fs.writeFileSync(destPath, text, 'utf-8');
+    return destPath;
+  }
+
+  const originalFetch = global.fetch;
+
+  it('downloads spec and saves to disk', async () => {
+    const specContent = '# Game Spec\n\n' + 'A'.repeat(200) + '\n\nThis is a valid spec with enough content for testing purposes.';
+    global.fetch = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => specContent,
+    });
+
+    const destPath = path.join(os.tmpdir(), 'ralph-fetch-test', 'spec.md');
+    try {
+      const result = await fetchSpec('https://example.com/spec.md', destPath);
+      assert.equal(result, destPath);
+      assert.ok(fs.existsSync(destPath));
+      assert.equal(fs.readFileSync(destPath, 'utf-8'), specContent);
+    } finally {
+      try { fs.unlinkSync(destPath); } catch {}
+      try { fs.rmdirSync(path.dirname(destPath)); } catch {}
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('throws on HTTP error', async () => {
+    global.fetch = async () => ({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+    });
+
+    try {
+      await fetchSpec('https://example.com/missing.md', '/tmp/nope.md');
+      assert.fail('Should have thrown');
+    } catch (err) {
+      assert.ok(err.message.includes('404'));
+      assert.ok(err.message.includes('Not Found'));
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('throws on spec too small', async () => {
+    global.fetch = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => 'tiny',
+    });
+
+    try {
+      await fetchSpec('https://example.com/tiny.md', '/tmp/nope.md');
+      assert.fail('Should have thrown');
+    } catch (err) {
+      assert.ok(err.message.includes('too small'));
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('creates parent directories if needed', async () => {
+    const specContent = '# Spec\n' + 'B'.repeat(200) + '\nContent for directory creation test.';
+    global.fetch = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => specContent,
+    });
+
+    const deepPath = path.join(os.tmpdir(), 'ralph-fetch-deep', 'a', 'b', 'spec.md');
+    try {
+      await fetchSpec('https://example.com/deep.md', deepPath);
+      assert.ok(fs.existsSync(deepPath));
+    } finally {
+      try { fs.unlinkSync(deepPath); } catch {}
+      try { fs.rmdirSync(path.join(os.tmpdir(), 'ralph-fetch-deep', 'a', 'b')); } catch {}
+      try { fs.rmdirSync(path.join(os.tmpdir(), 'ralph-fetch-deep', 'a')); } catch {}
+      try { fs.rmdirSync(path.join(os.tmpdir(), 'ralph-fetch-deep')); } catch {}
+      global.fetch = originalFetch;
+    }
+  });
+});
+
 describe('worker concurrency and rate limit config', () => {
   it('default concurrency is 2', () => {
     const concurrency = parseInt(process.env.RALPH_CONCURRENCY || '2', 10);

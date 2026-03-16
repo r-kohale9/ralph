@@ -43,6 +43,23 @@ function categorizeFailure(failureDesc) {
   return 'unknown';
 }
 
+// ─── Fetch spec from URL ────────────────────────────────────────────────────
+async function fetchSpec(url, destPath) {
+  console.log(`[worker] Downloading spec from ${url}`);
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch spec from ${url}: ${res.status} ${res.statusText}`);
+  }
+  const text = await res.text();
+  if (text.length < 100) {
+    throw new Error(`Fetched spec is too small (${text.length} chars) — likely not a valid spec`);
+  }
+  fs.mkdirSync(path.dirname(destPath), { recursive: true });
+  fs.writeFileSync(destPath, text, 'utf-8');
+  console.log(`[worker] Spec saved to ${destPath} (${text.length} chars)`);
+  return destPath;
+}
+
 // ─── Redis connection ───────────────────────────────────────────────────────
 const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
 
@@ -96,7 +113,8 @@ async function runRalph(gameId, specPath, buildId) {
 const worker = new Worker(
   'ralph-builds',
   async (job) => {
-    const { gameId, commitSha, buildId, specPath } = job.data;
+    const { gameId, commitSha, buildId, specUrl } = job.data;
+    let { specPath } = job.data;
 
     logger.info(`Processing job ${job.id}: ${gameId}`, { gameId, buildId, event: 'build_start' });
     metrics.recordBuildStarted(gameId);
@@ -121,6 +139,14 @@ const worker = new Worker(
       } catch (err) {
         console.warn(`[worker] Git pull failed (continuing): ${err.message}`);
       }
+    }
+
+    // Download spec from URL if provided
+    if (specUrl && !specPath) {
+      const tmpSpecDir = path.join(REPO_DIR, 'game-spec', 'templates', gameId);
+      const tmpSpecPath = path.join(tmpSpecDir, 'spec.md');
+      await fetchSpec(specUrl, tmpSpecPath);
+      specPath = tmpSpecPath;
     }
 
     // Run Ralph — E3: choose between bash (ralph.sh) and Node.js (pipeline.js)

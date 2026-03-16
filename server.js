@@ -157,7 +157,7 @@ function createApp(deps = {}) {
 
   // ─── Manual build trigger ─────────────────────────────────────────────────
   app.post('/api/build', async (req, res) => {
-    const { gameId, all, specPath } = req.body;
+    const { gameId, all, specPath, specUrl } = req.body;
 
     if (all) {
       const fs = require('fs');
@@ -195,11 +195,22 @@ function createApp(deps = {}) {
       return res.status(400).json({ error: 'gameId is required' });
     }
 
+    if (specUrl && specPath) {
+      return res.status(400).json({ error: 'Provide specPath or specUrl, not both' });
+    }
+
+    if (specUrl) {
+      try { new URL(specUrl); } catch {
+        return res.status(400).json({ error: 'specUrl must be a valid URL' });
+      }
+    }
+
     const buildId = db.createBuild(gameId, null);
     await queue.add('build-game', {
       gameId,
       buildId,
       specPath: specPath || null,
+      specUrl: specUrl || null,
     });
 
     logger.info(`Build queued for ${gameId}`, { gameId, buildId, event: 'manual_build' });

@@ -216,6 +216,37 @@ describe('Server integration: builds API', () => {
     const job = mockQueue.jobs[mockQueue.jobs.length - 1];
     assert.equal(job.data.specPath, '/some/spec.md');
   });
+
+  it('POST /api/build passes specUrl when provided', async () => {
+    const res = await request(server, 'POST', '/api/build', {
+      gameId: 'url-game',
+      specUrl: 'https://example.com/specs/my-game.md',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.queued, true);
+    const job = mockQueue.jobs[mockQueue.jobs.length - 1];
+    assert.equal(job.data.specUrl, 'https://example.com/specs/my-game.md');
+    assert.equal(job.data.specPath, null);
+  });
+
+  it('POST /api/build rejects both specPath and specUrl', async () => {
+    const res = await request(server, 'POST', '/api/build', {
+      gameId: 'conflict-game',
+      specPath: '/some/spec.md',
+      specUrl: 'https://example.com/spec.md',
+    });
+    assert.equal(res.status, 400);
+    assert.ok(res.body.error.includes('not both'));
+  });
+
+  it('POST /api/build rejects invalid specUrl', async () => {
+    const res = await request(server, 'POST', '/api/build', {
+      gameId: 'bad-url-game',
+      specUrl: 'not-a-url',
+    });
+    assert.equal(res.status, 400);
+    assert.ok(res.body.error.includes('valid URL'));
+  });
 });
 
 describe('Server integration: failure patterns API', () => {
