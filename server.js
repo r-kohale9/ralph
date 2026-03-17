@@ -379,7 +379,7 @@ function createApp(deps = {}) {
   function getMcpServer() {
     try {
       const { createMcpServer } = require('./lib/mcp');
-      return createMcpServer({ db, queue, logger });
+      return createMcpServer({ db, queue, logger, repoDir: process.env.RALPH_REPO_DIR || '.' });
     } catch (err) {
       console.warn(`[mcp] MCP unavailable: ${err.message}`);
       return null;

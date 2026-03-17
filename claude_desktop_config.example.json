@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ralph": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://YOUR_SERVER_IP/mcp",
+        "--allow-http"
+      ]
+    }
+  }
+}
