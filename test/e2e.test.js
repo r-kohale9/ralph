@@ -28,7 +28,9 @@ function httpRequest(options, body) {
   return new Promise((resolve, reject) => {
     const req = http.request(options, (res) => {
       let data = '';
-      res.on('data', chunk => { data += chunk; });
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
       res.on('end', () => {
         try {
           resolve({ status: res.statusCode, headers: res.headers, body: JSON.parse(data) });
@@ -62,8 +64,12 @@ describe('E2E: Server API (no Redis)', { skip: !SKIP_REDIS_TESTS ? false : 'Requ
 
   after(() => {
     db.close();
-    try { fs.unlinkSync(dbPath); } catch {}
-    try { fs.rmdirSync(tmpDir); } catch {}
+    try {
+      fs.unlinkSync(dbPath);
+    } catch {}
+    try {
+      fs.rmdirSync(tmpDir);
+    } catch {}
     delete process.env.RALPH_DB_PATH;
   });
 
@@ -133,22 +139,37 @@ describe('E2E: Server API (no Redis)', { skip: !SKIP_REDIS_TESTS ? false : 'Requ
     }
 
     // Start all
-    ids.forEach(id => db.startBuild(id));
+    ids.forEach((id) => db.startBuild(id));
 
     // Complete some, fail others
     db.completeBuild(ids[0], {
-      status: 'APPROVED', iterations: 1, generation_time_s: 10,
-      total_time_s: 20, test_results: [], review_result: 'ok', models: {},
+      status: 'APPROVED',
+      iterations: 1,
+      generation_time_s: 10,
+      total_time_s: 20,
+      test_results: [],
+      review_result: 'ok',
+      models: {},
     });
     db.completeBuild(ids[1], {
-      status: 'APPROVED', iterations: 3, generation_time_s: 15,
-      total_time_s: 60, test_results: [], review_result: 'ok', models: {},
+      status: 'APPROVED',
+      iterations: 3,
+      generation_time_s: 15,
+      total_time_s: 60,
+      test_results: [],
+      review_result: 'ok',
+      models: {},
     });
     db.failBuild(ids[2], 'timeout');
     db.failBuild(ids[3], 'oom');
     db.completeBuild(ids[4], {
-      status: 'REJECTED', iterations: 2, generation_time_s: 20,
-      total_time_s: 40, test_results: [], review_result: 'REJECTED: bad UI', models: {},
+      status: 'REJECTED',
+      iterations: 2,
+      generation_time_s: 20,
+      total_time_s: 40,
+      test_results: [],
+      review_result: 'REJECTED: bad UI',
+      models: {},
     });
 
     const stats = db.getBuildStats();
@@ -163,30 +184,26 @@ describe('E2E: HMAC webhook signature', () => {
 
   function signPayload(payload, secret) {
     const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
-    return 'sha256=' + crypto
-      .createHmac('sha256', secret)
-      .update(body)
-      .digest('hex');
+    return 'sha256=' + crypto.createHmac('sha256', secret).update(body).digest('hex');
   }
 
   it('produces correct signature for a push payload', () => {
     const payload = {
       ref: 'refs/heads/main',
       after: 'abc123',
-      commits: [{
-        added: ['warehouse/templates/doubles/spec.md'],
-        modified: [],
-      }],
+      commits: [
+        {
+          added: ['warehouse/templates/doubles/spec.md'],
+          modified: [],
+        },
+      ],
     };
 
     const body = JSON.stringify(payload);
     const sig = signPayload(body, SECRET);
 
     // Verify signature matches
-    const expected = 'sha256=' + crypto
-      .createHmac('sha256', SECRET)
-      .update(body)
-      .digest('hex');
+    const expected = 'sha256=' + crypto.createHmac('sha256', SECRET).update(body).digest('hex');
 
     assert.equal(sig, expected);
   });
@@ -215,11 +232,7 @@ describe('E2E: extractChangedSpecs comprehensive', () => {
     const gameIds = new Set();
     const commits = payload.commits || [];
     for (const commit of commits) {
-      const files = [
-        ...(commit.added || []),
-        ...(commit.modified || []),
-        ...(commit.removed || []),
-      ];
+      const files = [...(commit.added || []), ...(commit.modified || []), ...(commit.removed || [])];
       for (const file of files) {
         const match = file.match(/warehouse\/templates\/([^/]+)\/spec\.md$/);
         if (match) gameIds.add(match[1]);
@@ -235,25 +248,14 @@ describe('E2E: extractChangedSpecs comprehensive', () => {
       commits: [
         {
           id: 'commit1',
-          added: [
-            'warehouse/templates/doubles/spec.md',
-            'warehouse/templates/doubles/assets/preview.png',
-          ],
-          modified: [
-            'README.md',
-            'warehouse/templates/triples/spec.md',
-          ],
-          removed: [
-            'warehouse/templates/old-game/spec.md',
-          ],
+          added: ['warehouse/templates/doubles/spec.md', 'warehouse/templates/doubles/assets/preview.png'],
+          modified: ['README.md', 'warehouse/templates/triples/spec.md'],
+          removed: ['warehouse/templates/old-game/spec.md'],
         },
         {
           id: 'commit2',
           added: [],
-          modified: [
-            'warehouse/templates/memory/spec.md',
-            'package.json',
-          ],
+          modified: ['warehouse/templates/memory/spec.md', 'package.json'],
           removed: [],
         },
       ],
@@ -269,11 +271,13 @@ describe('E2E: extractChangedSpecs comprehensive', () => {
 
   it('handles push with no spec changes (code-only commit)', () => {
     const payload = {
-      commits: [{
-        added: ['src/index.js'],
-        modified: ['package.json', 'README.md'],
-        removed: ['old-file.js'],
-      }],
+      commits: [
+        {
+          added: ['src/index.js'],
+          modified: ['package.json', 'README.md'],
+          removed: ['old-file.js'],
+        },
+      ],
     };
 
     const specs = extractChangedSpecs(payload);

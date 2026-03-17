@@ -56,10 +56,14 @@ mkdir -p data
 # Configure environment
 cp .env.example .env
 # Edit .env with your values:
+#   PROXY_URL=http://localhost:8317
+#   PROXY_KEY=<must match api-keys in config.yaml>
+#   RALPH_REPO_DIR=.  (or /opt/ralph if that's your checkout root)
 #   GITHUB_WEBHOOK_SECRET=<from GitHub webhook settings>
 #   SLACK_WEBHOOK_URL=<from Slack app>
-#   PROXY_KEY=<your proxy API key>
 #   NODE_ENV=production
+# Note: systemd loads .env via EnvironmentFile directive.
+# For manual runs: set -a && source .env && set +a && node server.js
 ```
 
 ### 3. CLIProxyAPI + Redis
@@ -67,10 +71,35 @@ cp .env.example .env
 ```bash
 # Configure proxy
 cp config.yaml.example config.yaml
-# Edit config.yaml with provider credentials
+# Edit config.yaml:
+#   - Set your Gemini API key
+#   - Set your api-keys (proxy authentication)
+#   - auth-dir must be "~/.cli-proxy-api" (required, proxy crashes without it)
+
+# Create auths directory for OAuth credentials
+mkdir -p auths
+
+# Authenticate Claude (opens browser for OAuth)
+docker run --rm -p 54545:54545 \
+  -v "$(pwd)/config.yaml:/CLIProxyAPI/config.yaml" \
+  -v "$(pwd)/auths:/root/.cli-proxy-api" \
+  eceasy/cli-proxy-api:latest /CLIProxyAPI/CLIProxyAPI --claude-login
+
+# Authenticate Codex/OpenAI (opens browser for OAuth)
+docker run --rm -p 1455:1455 \
+  -v "$(pwd)/config.yaml:/CLIProxyAPI/config.yaml" \
+  -v "$(pwd)/auths:/root/.cli-proxy-api" \
+  eceasy/cli-proxy-api:latest /CLIProxyAPI/CLIProxyAPI --codex-login
+
+# For headless servers, use SSH tunnel from a machine with a browser:
+#   ssh -L 54545:127.0.0.1:54545 user@server  (for Claude)
+#   ssh -L 1455:127.0.0.1:1455 user@server     (for Codex)
 
 # Start services
 docker compose up -d
+
+# Verify proxy is up with all providers
+curl -s http://localhost:8317/v1/models -H "x-api-key: your-key" | jq '.data | length'
 ```
 
 ### 4. systemd services
@@ -168,13 +197,13 @@ sudo systemctl restart ralph-worker
 
 ```bash
 # Test proxy connectivity
-curl -s http://localhost:8080/health
+curl -s http://localhost:8317/health
 
 # Check proxy logs
 docker compose logs cliproxyapi --tail=50
 
 # Test LLM call
-curl -X POST http://localhost:8080/v1/messages \
+curl -X POST http://localhost:8317/v1/messages \
   -H 'Content-Type: application/json' \
   -H 'x-api-key: your-key' \
   -d '{"model":"claude-sonnet-4-6","max_tokens":100,"messages":[{"role":"user","content":"Hi"}]}'

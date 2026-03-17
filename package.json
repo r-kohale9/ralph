@@ -18,11 +18,15 @@
     "bullmq": "^5.0.0",
     "better-sqlite3": "^11.0.0",
     "express": "^5.0.0",
-    "ioredis": "^5.4.0"
+    "ioredis": "^5.4.0",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.0"
   },
   "optionalDependencies": {
     "@google-cloud/logging": "^11.0.0",
-    "@sentry/node": "^8.0.0"
+    "@google-cloud/storage": "^7.0.0",
+    "@sentry/node": "^8.0.0",
+    "@slack/web-api": "^7.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

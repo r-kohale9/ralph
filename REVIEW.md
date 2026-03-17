@@ -157,7 +157,7 @@ Summaries include p50 and p99 quantiles. Memory-bounded (last 1000 observations 
 |---|---|
 | Webhook spoofing | HMAC-SHA256 with `crypto.timingSafeEqual` (`server.js:40-52`) |
 | Proxy access | API key required on all proxy requests (`ralph.sh:98`, `lib/llm.js:25`) |
-| Proxy binding | `docker-compose.yml` ports `8080:8080` (can be changed to `127.0.0.1:8080:8080` for localhost-only) |
+| Proxy binding | `docker-compose.yml` ports `8317:8317` (can be changed to `127.0.0.1:8317:8317` for localhost-only) |
 | Secrets in code | `.env.example` has placeholders, `.gitignore` excludes `.env` and `config.yaml` |
 | Sentry data scrub | `lib/sentry.js:37-41` removes API keys from error reports |
 | SQL injection | All SQLite queries use parameterized statements (`lib/db.js`) |

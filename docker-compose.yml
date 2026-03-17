@@ -1,12 +1,11 @@
-version: '3'
 services:
   cliproxyapi:
-    image: ghcr.io/router-for-me/cliproxyapi:latest
+    image: eceasy/cli-proxy-api:latest
     ports:
-      - "8080:8080"
+      - "8317:8317"
     volumes:
-      - ./config.yaml:/app/config.yaml
-      - ./auths:/app/auths
+      - ./config.yaml:/CLIProxyAPI/config.yaml
+      - ./auths:/root/.cli-proxy-api
     restart: always
 
   redis:

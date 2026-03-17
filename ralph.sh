@@ -7,7 +7,7 @@
 #   spec-path: Path to the game's spec.md
 #
 # Environment variables (all optional, with sane defaults):
-#   PROXY_URL           - CLIProxyAPI endpoint (default: http://localhost:8080)
+#   PROXY_URL           - CLIProxyAPI endpoint (default: http://localhost:8317)
 #   PROXY_KEY           - API key for the proxy
 #   RALPH_GEN_MODEL     - Model for HTML generation (default: claude-opus-4-6)
 #   RALPH_TEST_MODEL    - Model for test generation (default: gemini-2.5-pro)
@@ -31,8 +31,8 @@ SPEC_PATH="$(cd "$(dirname "$SPEC_PATH")" && pwd)/$(basename "$SPEC_PATH")"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ─── Configuration ───────────────────────────────────────────────────────────
-PROXY_URL="${PROXY_URL:-http://localhost:8080}"
-PROXY_KEY="${PROXY_KEY:-ralph-pipeline-key}"
+PROXY_URL="${PROXY_URL:-http://localhost:8317}"
+PROXY_KEY="${PROXY_KEY:-ralph-pipeline-key-change-this}"
 
 # Model assignments (T5: correct defaults — Opus for gen, Sonnet for fixes)
 GEN_MODEL="${RALPH_GEN_MODEL:-claude-opus-4-6}"

@@ -72,7 +72,11 @@ describe('ralph.sh extract_html function', () => {
   // Test extract_html by sourcing just the function
   function testExtractHtml(input) {
     try {
-      const result = execFileSync('bash', ['-c', `
+      const result = execFileSync(
+        'bash',
+        [
+          '-c',
+          `
         extract_html() {
           local OUTPUT="$1"
           local EXTRACTED
@@ -93,7 +97,12 @@ describe('ralph.sh extract_html function', () => {
           return 1
         }
         extract_html "$1"
-      `, '--', input], { encoding: 'utf-8', timeout: 5000 });
+      `,
+          '--',
+          input,
+        ],
+        { encoding: 'utf-8', timeout: 5000 },
+      );
       return { exitCode: 0, output: result.trim() };
     } catch (err) {
       return { exitCode: err.status, output: (err.stdout || '').trim() };
@@ -132,7 +141,11 @@ describe('ralph.sh extract_html function', () => {
 describe('ralph.sh extract_tests function', () => {
   function testExtractTests(input) {
     try {
-      const result = execFileSync('bash', ['-c', `
+      const result = execFileSync(
+        'bash',
+        [
+          '-c',
+          `
         extract_tests() {
           local OUTPUT="$1"
           local EXTRACTED
@@ -154,7 +167,12 @@ describe('ralph.sh extract_tests function', () => {
           return 1
         }
         extract_tests "$1"
-      `, '--', input], { encoding: 'utf-8', timeout: 5000 });
+      `,
+          '--',
+          input,
+        ],
+        { encoding: 'utf-8', timeout: 5000 },
+      );
       return { exitCode: 0, output: result.trim() };
     } catch (err) {
       return { exitCode: err.status, output: (err.stdout || '').trim() };
@@ -202,7 +220,11 @@ describe('ralph.sh validate_spec function', () => {
     const { tmpDir, specFile } = createSpec(sections);
 
     try {
-      const result = execFileSync('bash', ['-c', `
+      const result = execFileSync(
+        'bash',
+        [
+          '-c',
+          `
         SPEC_PATH="${specFile}"
         LOG_FILE="/dev/null"
         log() { true; }
@@ -217,7 +239,10 @@ describe('ralph.sh validate_spec function', () => {
         }
 
         validate_spec
-      `], { encoding: 'utf-8', timeout: 5000 });
+      `,
+        ],
+        { encoding: 'utf-8', timeout: 5000 },
+      );
     } catch (err) {
       assert.fail('validate_spec should pass for valid spec');
     } finally {
@@ -229,7 +254,11 @@ describe('ralph.sh validate_spec function', () => {
     const { tmpDir, specFile } = createSpec('# Short spec\nToo small.');
 
     try {
-      execFileSync('bash', ['-c', `
+      execFileSync(
+        'bash',
+        [
+          '-c',
+          `
         SPEC_PATH="${specFile}"
         LOG_FILE="/dev/null"
         log() { true; }
@@ -244,7 +273,10 @@ describe('ralph.sh validate_spec function', () => {
         }
 
         validate_spec
-      `], { encoding: 'utf-8', timeout: 5000 });
+      `,
+        ],
+        { encoding: 'utf-8', timeout: 5000 },
+      );
       assert.fail('Should have failed for small spec');
     } catch (err) {
       assert.ok(err.status !== 0);
@@ -255,7 +287,11 @@ describe('ralph.sh validate_spec function', () => {
 
   it('fails when spec file does not exist', () => {
     try {
-      execFileSync('bash', ['-c', `
+      execFileSync(
+        'bash',
+        [
+          '-c',
+          `
         SPEC_PATH="/tmp/nonexistent-ralph-spec.md"
         LOG_FILE="/dev/null"
         log() { true; }
@@ -268,7 +304,10 @@ describe('ralph.sh validate_spec function', () => {
         }
 
         validate_spec
-      `], { encoding: 'utf-8', timeout: 5000 });
+      `,
+        ],
+        { encoding: 'utf-8', timeout: 5000 },
+      );
       assert.fail('Should have failed for missing spec');
     } catch (err) {
       assert.ok(err.status !== 0);
@@ -328,8 +367,19 @@ describe('ralph.sh report format', () => {
   it('write_report produces valid JSON structure', () => {
     // Verify the jq template in write_report has all required fields
     const content = fs.readFileSync(RALPH_SH, 'utf-8');
-    const reportFields = ['game_id', 'spec', 'status', 'iterations', 'generation_time_s',
-      'total_time_s', 'test_results', 'review_result', 'models', 'artifacts', 'timestamp'];
+    const reportFields = [
+      'game_id',
+      'spec',
+      'status',
+      'iterations',
+      'generation_time_s',
+      'total_time_s',
+      'test_results',
+      'review_result',
+      'models',
+      'artifacts',
+      'timestamp',
+    ];
     for (const field of reportFields) {
       assert.ok(content.includes(field), `Report should include ${field} field`);
     }
@@ -370,7 +420,11 @@ describe('ralph.sh E6 caching', () => {
 
     try {
       // No cache should return 1
-      const result = execFileSync('bash', ['-c', `
+      const result = execFileSync(
+        'bash',
+        [
+          '-c',
+          `
         SPEC_PATH="${specFile}"
         GAME_ID="test-game"
         SPEC_CACHE_DIR="${cacheDir}"
@@ -394,7 +448,10 @@ describe('ralph.sh E6 caching', () => {
         }
 
         check_cache && echo "HIT" || echo "MISS"
-      `], { encoding: 'utf-8', timeout: 5000 });
+      `,
+        ],
+        { encoding: 'utf-8', timeout: 5000 },
+      );
       assert.ok(result.trim() === 'MISS');
     } finally {
       fs.rmSync(tmpDir, { recursive: true });

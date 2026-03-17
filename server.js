@@ -17,11 +17,7 @@ function extractChangedSpecs(payload) {
   const commits = payload.commits || [];
 
   for (const commit of commits) {
-    const files = [
-      ...(commit.added || []),
-      ...(commit.modified || []),
-      ...(commit.removed || []),
-    ];
+    const files = [...(commit.added || []), ...(commit.modified || []), ...(commit.removed || [])];
     for (const file of files) {
       // Match warehouse/templates/{game-id}/spec.md
       const match = file.match(/warehouse\/templates\/([^/]+)\/spec\.md$/);
@@ -40,13 +36,19 @@ function getNextMidnight(timezone) {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
     hour12: false,
   }).formatToParts(now);
 
-  const get = (type) => parseInt(parts.find(p => p.type === type).value, 10);
-  const h = get('hour'), m = get('minute'), s = get('second');
+  const get = (type) => parseInt(parts.find((p) => p.type === type).value, 10);
+  const h = get('hour'),
+    m = get('minute'),
+    s = get('second');
 
   // Milliseconds remaining until midnight in that timezone
   const msUntilMidnight = ((23 - h) * 3600 + (59 - m) * 60 + (60 - s)) * 1000;
@@ -84,10 +86,7 @@ function createApp(deps = {}) {
       return res.status(401).json({ error: 'Missing signature' });
     }
 
-    const expected = 'sha256=' + crypto
-      .createHmac('sha256', webhookSecret)
-      .update(req.body)
-      .digest('hex');
+    const expected = 'sha256=' + crypto.createHmac('sha256', webhookSecret).update(req.body).digest('hex');
 
     const sigBuf = Buffer.from(signature);
     const expBuf = Buffer.from(expected);
@@ -169,7 +168,7 @@ function createApp(deps = {}) {
         return res.status(400).json({ error: `Templates directory not found: ${templatesDir}` });
       }
 
-      const gameIds = fs.readdirSync(templatesDir).filter(d => {
+      const gameIds = fs.readdirSync(templatesDir).filter((d) => {
         const specFile = path.join(templatesDir, d, 'spec.md');
         return fs.statSync(path.join(templatesDir, d)).isDirectory() && fs.existsSync(specFile);
       });
@@ -200,7 +199,9 @@ function createApp(deps = {}) {
     }
 
     if (specUrl) {
-      try { new URL(specUrl); } catch {
+      try {
+        new URL(specUrl);
+      } catch {
         return res.status(400).json({ error: 'specUrl must be a valid URL' });
       }
     }
@@ -230,8 +231,16 @@ function createApp(deps = {}) {
     if (!build) {
       return res.status(404).json({ error: 'Build not found' });
     }
-    try { if (build.test_results) build.test_results = JSON.parse(build.test_results); } catch { /* keep raw */ }
-    try { if (build.models) build.models = JSON.parse(build.models); } catch { /* keep raw */ }
+    try {
+      if (build.test_results) build.test_results = JSON.parse(build.test_results);
+    } catch {
+      /* keep raw */
+    }
+    try {
+      if (build.models) build.models = JSON.parse(build.models);
+    } catch {
+      /* keep raw */
+    }
     res.json(build);
   });
 
@@ -251,6 +260,196 @@ function createApp(deps = {}) {
     res.json({ stats, top_patterns: top, patterns });
   });
 
+  // ─── Games API ─────────────────────────────────────────────────────────────
+  app.get('/api/games', (req, res) => {
+    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+    const games = db.listGames(limit);
+    res.json(games);
+  });
+
+  app.post('/api/games', (req, res) => {
+    const { gameId, title, description, specContent } = req.body;
+    if (!gameId) {
+      return res.status(400).json({ error: 'gameId is required' });
+    }
+    const specHash = specContent ? crypto.createHash('sha256').update(specContent).digest('hex').slice(0, 16) : null;
+    db.createGame(gameId, { title, description, specContent, specHash });
+    logger.info(`Game created: ${gameId}`, { gameId, event: 'game_created' });
+    res.json({ gameId, created: true });
+  });
+
+  app.get('/api/games/:gameId', (req, res) => {
+    const game = db.getGame(req.params.gameId);
+    if (!game) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+    res.json(game);
+  });
+
+  // ─── Learnings API ─────────────────────────────────────────────────────────
+  app.get('/api/learnings', (req, res) => {
+    const learnings = db.getLearnings({
+      gameId: req.query.gameId || null,
+      category: req.query.category || null,
+      level: req.query.level || null,
+      includeResolved: req.query.includeResolved === 'true',
+    });
+    const stats = db.getLearningStats();
+    res.json({ stats, learnings });
+  });
+
+  app.post('/api/learnings', (req, res) => {
+    const { gameId, buildId, content, category, level, source } = req.body;
+    if (!content) {
+      return res.status(400).json({ error: 'content is required' });
+    }
+    const id = db.addLearning(gameId || null, { buildId, category, level, content, source });
+    logger.info(`Learning added: ${id}`, { learningId: id, event: 'learning_added' });
+    res.json({ id, created: true });
+  });
+
+  // ─── Targeted fix API ──────────────────────────────────────────────────────
+  app.post('/api/fix', async (req, res) => {
+    const { gameId, feedbackPrompt, buildId } = req.body;
+    if (!gameId || !feedbackPrompt) {
+      return res.status(400).json({ error: 'gameId and feedbackPrompt are required' });
+    }
+
+    const newBuildId = db.createBuild(gameId, null);
+    db.updateBuildFeedback(newBuildId, feedbackPrompt);
+
+    if (queue) {
+      await queue.add('build-game', {
+        type: 'fix',
+        gameId,
+        buildId: newBuildId,
+        parentBuildId: buildId || null,
+        feedbackPrompt,
+      });
+    }
+
+    logger.info(`Targeted fix queued for ${gameId}`, { gameId, buildId: newBuildId, event: 'fix_queued' });
+    res.json({ queued: true, buildId: newBuildId, gameId });
+  });
+
+  // ─── Slack Events API ──────────────────────────────────────────────────────
+  app.post(
+    '/slack/events',
+    slack.createEventsHandler(async (feedback) => {
+      // Look up game by thread_ts
+      const games = db.listGames(200);
+      const game = games.find((g) => g.slack_thread_ts === feedback.threadTs);
+
+      if (!game) {
+        console.log(`[slack-events] No game found for thread ${feedback.threadTs}`);
+        return;
+      }
+
+      // Queue a targeted fix
+      const buildId = db.createBuild(game.game_id, null);
+      db.updateBuildFeedback(buildId, feedback.text);
+
+      if (queue) {
+        await queue.add('build-game', {
+          type: 'fix',
+          gameId: game.game_id,
+          buildId,
+          feedbackPrompt: feedback.text,
+        });
+      }
+
+      // Post acknowledgment in thread
+      await slack.postThreadUpdate(
+        feedback.threadTs,
+        feedback.channelId,
+        `🔧 Targeted fix queued (build #${buildId}) based on your feedback.`,
+      );
+
+      logger.info(`Slack feedback triggered fix for ${game.game_id}`, {
+        gameId: game.game_id,
+        buildId,
+        event: 'slack_feedback_fix',
+      });
+    }),
+  );
+
+  // ─── MCP Streamable HTTP endpoint ──────────────────────────────────────────
+  const mcpSessions = new Map();
+
+  function getMcpServer() {
+    try {
+      const { createMcpServer } = require('./lib/mcp');
+      return createMcpServer({ db, queue, logger });
+    } catch (err) {
+      console.warn(`[mcp] MCP unavailable: ${err.message}`);
+      return null;
+    }
+  }
+
+  app.post('/mcp', async (req, res) => {
+    const mcpServer = getMcpServer();
+    if (!mcpServer) {
+      return res.status(501).json({ error: 'MCP not available — install @modelcontextprotocol/sdk' });
+    }
+
+    try {
+      const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
+      const sessionId = req.headers['mcp-session-id'];
+      let transport;
+
+      if (sessionId && mcpSessions.has(sessionId)) {
+        transport = mcpSessions.get(sessionId);
+      } else {
+        transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => crypto.randomUUID() });
+        await mcpServer.connect(transport);
+        transport.onclose = () => {
+          if (transport.sessionId) mcpSessions.delete(transport.sessionId);
+        };
+      }
+
+      await transport.handleRequest(req, res, req.body);
+
+      if (transport.sessionId && !mcpSessions.has(transport.sessionId)) {
+        mcpSessions.set(transport.sessionId, transport);
+      }
+    } catch (err) {
+      logger.error(`MCP error: ${err.message}`, { event: 'mcp_error' });
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'MCP request failed' });
+      }
+    }
+  });
+
+  app.get('/mcp', async (req, res) => {
+    const sessionId = req.headers['mcp-session-id'];
+    const transport = sessionId ? mcpSessions.get(sessionId) : null;
+    if (!transport) {
+      return res.status(400).json({ error: 'No active MCP session — send POST /mcp first' });
+    }
+
+    try {
+      await transport.handleRequest(req, res);
+    } catch (err) {
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'MCP SSE connection failed' });
+      }
+    }
+  });
+
+  app.delete('/mcp', async (req, res) => {
+    const sessionId = req.headers['mcp-session-id'];
+    const transport = sessionId ? mcpSessions.get(sessionId) : null;
+    if (transport) {
+      try {
+        await transport.close();
+      } catch {
+        /* ignore */
+      }
+      mcpSessions.delete(sessionId);
+    }
+    res.json({ ok: true });
+  });
+
   // ─── Metrics endpoint (Prometheus) ────────────────────────────────────────
   app.get('/metrics', metrics.metricsMiddleware);
 
@@ -268,7 +467,9 @@ function createApp(deps = {}) {
       if (connection) await connection.ping();
       redisOk = !!connection;
       if (queue) queueCounts = await queue.getJobCounts('waiting', 'active', 'completed', 'failed');
-    } catch { /* Redis down — report degraded */ }
+    } catch {
+      /* Redis down — report degraded */
+    }
 
     res.json({
       status: redisOk ? 'ok' : 'degraded',
@@ -313,11 +514,16 @@ if (require.main === module) {
 
   const app = createApp({ queue, connection, webhookSecret: GITHUB_WEBHOOK_SECRET });
 
+  // Initialize Slack Web API
+  slack.init();
+
   const server = app.listen(PORT, () => {
     console.log(`[ralph-server] Listening on port ${PORT}`);
     console.log(`[ralph-server] Webhook: POST /webhook/github`);
     console.log(`[ralph-server] API:     POST /api/build`);
     console.log(`[ralph-server] Status:  GET  /api/builds`);
+    console.log(`[ralph-server] MCP:     POST /mcp`);
+    console.log(`[ralph-server] Games:   GET  /api/games`);
     console.log(`[ralph-server] Health:  GET  /health`);
   });
 

@@ -5,15 +5,20 @@ Automated game-building pipeline. Takes game specs (Markdown), generates validat
 ## Architecture
 
 ```
-GitHub webhook → server.js (Express) → BullMQ queue → worker.js → ralph.sh (bash pipeline)
-                                                                      ↓
-                                                              CLIProxyAPI → Claude/Gemini/Codex
+MCP client (Claude) → /mcp endpoint ─┐
+GitHub webhook → /webhook/github ────┤
+Slack Events → /slack/events ────────┤
+                                     └→ server.js (Express) → BullMQ queue → worker.js → pipeline.js / ralph.sh
+                                                                                            ↓
+                                                                                    CLIProxyAPI → Claude/Gemini/Codex
+                                                                                            ↓
+                                                                                    Slack thread + GCP upload
 ```
 
-- **server.js** — Webhook receiver + REST API. Verifies HMAC-SHA256, extracts changed specs, queues jobs. Refuses to start without webhook secret in production.
-- **worker.js** — BullMQ consumer. Runs ralph.sh via `execFile`, reads ralph-report.json, updates DB + Slack.
+- **server.js** — Webhook receiver + REST API + MCP endpoint + Slack Events. Verifies HMAC-SHA256, extracts changed specs, queues jobs. Refuses to start without webhook secret in production.
+- **worker.js** — BullMQ consumer. Runs pipeline.js or ralph.sh. Manages Slack threads, GCP uploads, learning extraction. Handles targeted fix jobs.
 - **ralph.sh** — Core bash pipeline: generate HTML → static + contract validation → generate tests → test/fix loop (up to 5 iterations with smart retry escalation) → review → post-approval (inputSchema, deploy).
-- **lib/** — Shared modules: db (SQLite), metrics (Prometheus), slack, logger, sentry, validate-static, validate-contract, llm.
+- **lib/** — Shared modules: db (SQLite), metrics (Prometheus), slack, gcp, mcp, logger, sentry, validate-static, validate-contract, llm, pipeline.
 
 ## Commands
 
@@ -38,23 +43,25 @@ node --test test/db.test.js          # Single file
 
 Tests mock external dependencies (Redis, fetch, filesystem) — no infrastructure needed.
 
-**Test files:** db, llm, logger, metrics, sentry, server, slack, validate-static, validate-contract, worker, ralph-sh, e2e, proxy-contract, load, pipeline, failure-patterns.
+**Test files:** db, games-learnings, gcp, llm, logger, mcp, metrics, sentry, server, slack, validate-static, validate-contract, worker, ralph-sh, e2e, proxy-contract, load, pipeline, failure-patterns.
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| server.js | Express app: webhook + API routes |
-| worker.js | BullMQ worker: job processing |
+| server.js | Express app: webhook + API + MCP + Slack Events routes |
+| worker.js | BullMQ worker: job processing, Slack threading, GCP upload, learnings |
 | ralph.sh | Bash pipeline: LLM generation + validation + deploy |
-| lib/db.js | SQLite: builds table, CRUD, stats |
+| lib/db.js | SQLite: builds, games, learnings, failure_patterns tables + CRUD |
 | lib/metrics.js | Prometheus counters/gauges/histograms |
 | lib/validate-static.js | T1 static HTML checks (CLI tool, 10 error checks + 2 warnings) |
 | lib/validate-contract.js | T2 contract validation (gameState, postMessage, scoring contracts) |
-| lib/slack.js | Slack webhook notifications |
+| lib/slack.js | Dual-mode Slack (Web API threading + webhook fallback), Events API handler |
+| lib/gcp.js | GCP Cloud Storage upload (optional dep, Application Default Credentials) |
+| lib/mcp.js | MCP server with 5 tools (register_spec, get_build_status, list_games, add_learning, get_learnings) |
 | lib/logger.js | Structured JSON logging (optional GCP) |
 | lib/sentry.js | Error monitoring (optional Sentry, v8 API normalized) |
-| lib/pipeline.js | Node.js pipeline (E3): full pipeline replacement for ralph.sh |
+| lib/pipeline.js | Node.js pipeline (E3) + targeted fix: full pipeline + feedback-driven fix |
 | lib/llm.js | Node.js LLM client (used by pipeline.js and tests) |
 | nginx.conf | Nginx reverse proxy: TLS, rate limiting, security headers |
 | Dockerfile | Multi-stage build: node:20-slim, non-root user, healthcheck |
@@ -65,9 +72,11 @@ Tests mock external dependencies (Redis, fetch, filesystem) — no infrastructur
 
 ## Environment
 
-Requires Node.js >=20, Redis for BullMQ. See `.env.example` for all 39 config vars.
+Requires Node.js >=20, Redis for BullMQ. See `.env.example` for all config vars.
 
-Optional: `@sentry/node` (SENTRY_DSN), `@google-cloud/logging` (GOOGLE_CLOUD_PROJECT), Slack (SLACK_WEBHOOK_URL). These are `optionalDependencies` — install failures won't block the app.
+Optional: `@sentry/node` (SENTRY_DSN), `@google-cloud/logging` (GOOGLE_CLOUD_PROJECT), `@slack/web-api` (SLACK_BOT_TOKEN), `@google-cloud/storage` (RALPH_GCP_BUCKET). These are `optionalDependencies` — install failures won't block the app.
+
+Required: `@modelcontextprotocol/sdk` and `zod` (in dependencies for MCP server).
 
 **Critical:** `GITHUB_WEBHOOK_SECRET` is required when `NODE_ENV=production`.
 
@@ -78,6 +87,39 @@ Optional: `@sentry/node` (SENTRY_DSN), `@google-cloud/logging` (GOOGLE_CLOUD_PRO
 - `RALPH_DEPLOY_ENABLED=1` — Enable E10 post-approval deployment
 - `RALPH_DEPLOY_DIR` — Deployment artifact directory
 - `RALPH_USE_NODE_PIPELINE=1` — Use Node.js pipeline (E3) instead of ralph.sh
+- `SLACK_BOT_TOKEN` — Slack Bot User OAuth Token for Web API (threading, Block Kit)
+- `SLACK_SIGNING_SECRET` — Slack signing secret for Events API signature verification
+- `SLACK_CHANNEL_ID` — Default Slack channel for game build threads
+- `RALPH_GCP_BUCKET` — GCP Cloud Storage bucket for game artifact uploads
+- `RALPH_GCP_PROJECT` — GCP project ID (optional, uses Application Default Credentials)
+
+## Database Tables
+
+| Table | Purpose |
+|-------|---------|
+| builds | Build records: id, game_id, status, iterations, test_results, feedback_prompt, gcp_url |
+| games | Game registry: game_id (PK), title, spec_content, spec_hash, status, slack_thread_ts, gcp_url |
+| learnings | Accumulated insights: game_id, build_id, level, category, content, source, resolved |
+| failure_patterns | E7 failure tracking: game_id, pattern, category, occurrences |
+
+## API Routes
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | /webhook/github | GitHub push webhook |
+| POST | /api/build | Manual build trigger |
+| GET | /api/builds | Build list + stats |
+| GET | /api/builds/:id | Build details |
+| GET | /api/games/:gameId/builds | Builds for a game |
+| GET/POST | /api/games | List/create games |
+| GET | /api/games/:gameId | Game details |
+| GET/POST | /api/learnings | List/create learnings |
+| POST | /api/fix | Trigger targeted fix |
+| POST/GET/DELETE | /mcp | MCP Streamable HTTP transport |
+| POST | /slack/events | Slack Events API handler |
+| GET | /api/failure-patterns | Failure patterns |
+| GET | /metrics | Prometheus metrics |
+| GET | /health | Health check |
 
 ## Code Style
 

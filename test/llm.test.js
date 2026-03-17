@@ -63,10 +63,7 @@ describe('llm', () => {
     });
 
     llm = require('../lib/llm');
-    await assert.rejects(
-      () => llm.callLlm('test', 'prompt', 'model', { timeout: 1000 }),
-      /Proxy returned HTTP 500/
-    );
+    await assert.rejects(() => llm.callLlm('test', 'prompt', 'model', { timeout: 1000 }), /Proxy returned HTTP 500/);
   });
 
   it('throws when no text in response', async () => {
@@ -76,10 +73,7 @@ describe('llm', () => {
     });
 
     llm = require('../lib/llm');
-    await assert.rejects(
-      () => llm.callLlm('test', 'prompt'),
-      /No text content/
-    );
+    await assert.rejects(() => llm.callLlm('test', 'prompt'), /No text content/);
   });
 
   it('uses default model from env or fallback', async () => {

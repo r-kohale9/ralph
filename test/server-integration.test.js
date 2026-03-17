@@ -63,10 +63,16 @@ function request(server, method, urlPath, body, headers = {}) {
 
     const req = http.request(opts, (res) => {
       let data = '';
-      res.on('data', (chunk) => { data += chunk; });
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
       res.on('end', () => {
         let json;
-        try { json = JSON.parse(data); } catch { json = null; }
+        try {
+          json = JSON.parse(data);
+        } catch {
+          json = null;
+        }
         resolve({ status: res.statusCode, headers: res.headers, body: json, raw: data });
       });
     });
@@ -111,8 +117,16 @@ describe('Server integration: health & metrics', () => {
   });
 
   it('GET /health returns degraded when connection fails', async () => {
-    const failConn = { ping: async () => { throw new Error('Connection refused'); } };
-    const failQueue = { getJobCounts: async () => { throw new Error('nope'); } };
+    const failConn = {
+      ping: async () => {
+        throw new Error('Connection refused');
+      },
+    };
+    const failQueue = {
+      getJobCounts: async () => {
+        throw new Error('nope');
+      },
+    };
     const app2 = createApp({ queue: failQueue, connection: failConn });
     const server2 = await new Promise((resolve) => {
       const s = app2.listen(0, () => resolve(s));
@@ -368,11 +382,13 @@ describe('Server integration: webhook endpoint', () => {
     const payload = JSON.stringify({
       ref: 'refs/heads/main',
       after: 'abc123',
-      commits: [{
-        added: ['warehouse/templates/doubles/spec.md'],
-        modified: ['warehouse/templates/triples/spec.md'],
-        removed: [],
-      }],
+      commits: [
+        {
+          added: ['warehouse/templates/doubles/spec.md'],
+          modified: ['warehouse/templates/triples/spec.md'],
+          removed: [],
+        },
+      ],
     });
     const sig = signPayload(payload, SECRET);
     const res = await request(server, 'POST', '/webhook/github', payload, {
@@ -395,18 +411,20 @@ describe('Server integration: webhook endpoint', () => {
     const payload = JSON.stringify({
       ref: 'refs/heads/main',
       after: 'def456',
-      commits: [{
-        added: [
-          'warehouse/templates/g1/spec.md',
-          'warehouse/templates/g2/spec.md',
-          'warehouse/templates/g3/spec.md',
-          'warehouse/templates/g4/spec.md',
-          'warehouse/templates/g5/spec.md',
-          'warehouse/templates/g6/spec.md',
-        ],
-        modified: [],
-        removed: [],
-      }],
+      commits: [
+        {
+          added: [
+            'warehouse/templates/g1/spec.md',
+            'warehouse/templates/g2/spec.md',
+            'warehouse/templates/g3/spec.md',
+            'warehouse/templates/g4/spec.md',
+            'warehouse/templates/g5/spec.md',
+            'warehouse/templates/g6/spec.md',
+          ],
+          modified: [],
+          removed: [],
+        },
+      ],
     });
     const sig = signPayload(payload, SECRET);
     const res = await request(server, 'POST', '/webhook/github', payload, {
@@ -426,11 +444,13 @@ describe('Server integration: webhook endpoint', () => {
     const payload = JSON.stringify({
       ref: 'refs/heads/c_code',
       after: 'xyz789',
-      commits: [{
-        added: ['warehouse/templates/cc-game/spec.md'],
-        modified: [],
-        removed: [],
-      }],
+      commits: [
+        {
+          added: ['warehouse/templates/cc-game/spec.md'],
+          modified: [],
+          removed: [],
+        },
+      ],
     });
     const sig = signPayload(payload, SECRET);
     const res = await request(server, 'POST', '/webhook/github', payload, {
@@ -466,11 +486,13 @@ describe('Server integration: webhook without secret', () => {
     const payload = JSON.stringify({
       ref: 'refs/heads/main',
       after: 'nosecret123',
-      commits: [{
-        added: ['warehouse/templates/no-secret-game/spec.md'],
-        modified: [],
-        removed: [],
-      }],
+      commits: [
+        {
+          added: ['warehouse/templates/no-secret-game/spec.md'],
+          modified: [],
+          removed: [],
+        },
+      ],
     });
     const res = await request(server, 'POST', '/webhook/github', payload, {
       'x-github-event': 'push',

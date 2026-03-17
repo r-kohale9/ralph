@@ -56,7 +56,7 @@ This splits the load: ~40% of calls go to Gemini (free of window constraints), ~
 │  │  CODEX      1 Pro account  (OAuth) ── overflow fallback           │    │
 │  │  GEMINI     API key access         ── direct, no window limit     │    │
 │  │                                                                   │    │
-│  │  Exposes: http://localhost:8080/v1/messages                       │    │
+│  │  Exposes: http://localhost:8317/v1/messages                       │    │
 │  │  Routes by model name → right provider + account                  │    │
 │  └──────────────────────────────────────────────────────────────────┘    │
 │         ▲                                                                │
@@ -104,15 +104,14 @@ This splits the load: ~40% of calls go to Gemini (free of window constraints), ~
 
 ```yaml
 # docker-compose.yml
-version: '3'
 services:
   cliproxyapi:
-    image: ghcr.io/router-for-me/cliproxyapi:latest
+    image: eceasy/cli-proxy-api:latest
     ports:
-      - "8080:8080"
+      - "8317:8317"
     volumes:
-      - ./config.yaml:/app/config.yaml
-      - ./auths:/app/auths
+      - ./config.yaml:/CLIProxyAPI/config.yaml
+      - ./auths:/root/.cli-proxy-api
     restart: always
 ```
 
@@ -120,36 +119,29 @@ services:
 
 ```yaml
 # config.yaml
-server:
-  port: 8080
-  api_key: "ralph-pipeline-key-change-this"
+port: 8317
 
-claude:
-  enabled: true
-  load_balance: round_robin
-  # 2 Max accounts — authenticated via OAuth below
+api-keys:
+  - "ralph-pipeline-key-change-this"
 
-openai:  # Codex / GPT
-  enabled: true
-  load_balance: round_robin
-  # 1 Pro account — authenticated via OAuth below
-
-gemini:
-  enabled: true
-  api_key: "your-gemini-api-key"
-  # Direct API access — no OAuth needed, no window quota
+gemini-api-key:
+  - api-key: "your-gemini-api-key"
 ```
 
 **Account authentication (one-time per account):**
 
 ```bash
-# Claude accounts (repeat for each Max account holder)
-docker exec -it cliproxyapi ./cliproxyapi auth claude add
-# → Follow OAuth flow, token stored in /app/auths/
+# Claude accounts (opens browser for OAuth on port 54545)
+docker run --rm -p 54545:54545 \
+  -v ./config.yaml:/CLIProxyAPI/config.yaml \
+  -v ./auths:/root/.cli-proxy-api \
+  eceasy/cli-proxy-api:latest /CLIProxyAPI/CLIProxyAPI --claude-login
 
-# Codex / OpenAI account
-docker exec -it cliproxyapi ./cliproxyapi auth openai add
-# → Follow OAuth flow
+# Codex / OpenAI account (opens browser for OAuth on port 1455)
+docker run --rm -p 1455:1455 \
+  -v ./config.yaml:/CLIProxyAPI/config.yaml \
+  -v ./auths:/root/.cli-proxy-api \
+  eceasy/cli-proxy-api:latest /CLIProxyAPI/CLIProxyAPI --codex-login
 
 # Gemini — no auth step, API key is in config.yaml
 ```
@@ -159,7 +151,7 @@ docker exec -it cliproxyapi ./cliproxyapi auth openai add
 The core change to `ralph.sh`. Replaces the old `run_claude()` with a generic function that calls any model through the proxy. The proxy handles routing — Ralph just specifies the model name.
 
 ```bash
-PROXY_URL="${PROXY_URL:-http://localhost:8080}"
+PROXY_URL="${PROXY_URL:-http://localhost:8317}"
 PROXY_KEY="${PROXY_KEY:-ralph-pipeline-key}"
 
 # ─── Provider-agnostic LLM call ──────────────────────────────────────────
@@ -438,7 +430,7 @@ curl -X POST http://ralph.server/api/build -d '{"gameId":"doubles"}'
 curl -X POST http://ralph.server/api/build -d '{"all":true}'
 
 # Check proxy health + which providers are up
-curl http://localhost:8080/health
+curl http://localhost:8317/health
 
 # Queue depth
 redis-cli LLEN bull:ralph-builds:wait
@@ -448,7 +440,7 @@ sqlite3 /srv/ralph/data/builds.db \
   "SELECT game_id, status, iterations, duration_s FROM builds ORDER BY completed_at DESC LIMIT 20"
 
 # Add a new Claude account to the pool
-docker exec -it cliproxy-cliproxyapi-1 ./cliproxyapi auth claude add
+# Run --claude-login again (see Account authentication above)
 
 # Re-route fix calls to Codex temporarily (if Claude is rate-limited)
 # Edit .env: RALPH_FIX_MODEL=gpt-4.1
@@ -469,7 +461,7 @@ No setup, no SSH, no CLI. Pure read-only visibility.
 
 ```bash
 # Proxy
-PROXY_URL=http://localhost:8080
+PROXY_URL=http://localhost:8317
 PROXY_KEY=ralph-pipeline-key-change-this
 
 # Model routing (override to reroute any step)
@@ -508,20 +500,33 @@ su - ralph
 # ─── CLIProxyAPI ──────────────────────────────────────────────────────────
 mkdir -p /srv/cliproxy && cd /srv/cliproxy
 # Set up docker-compose.yml + config.yaml (see Component Details above)
-# config.yaml must include: claude (enabled), openai (enabled), gemini (API key)
-docker-compose up -d
+# CRITICAL: config.yaml MUST include auth-dir: "~/.cli-proxy-api" (proxy crashes without it)
+# config.yaml must also include: api-keys, gemini-api-key
+mkdir -p auths
 
-# Authenticate Claude accounts (2 Max accounts)
-docker exec -it cliproxy-cliproxyapi-1 ./cliproxyapi auth claude add  # Account 1
-docker exec -it cliproxy-cliproxyapi-1 ./cliproxyapi auth claude add  # Account 2
+# Authenticate Claude accounts (2 Max accounts — each opens browser for OAuth)
+# From a machine with a browser, open SSH tunnel first:
+#   ssh -L 54545:127.0.0.1:54545 user@server
+docker run --rm -p 54545:54545 \
+  -v "$(pwd)/config.yaml:/CLIProxyAPI/config.yaml" \
+  -v "$(pwd)/auths:/root/.cli-proxy-api" \
+  eceasy/cli-proxy-api:latest /CLIProxyAPI/CLIProxyAPI --claude-login  # Account 1
+# Repeat for Account 2
 
 # Authenticate Codex account (1 Pro account)
-docker exec -it cliproxy-cliproxyapi-1 ./cliproxyapi auth openai add
+# SSH tunnel: ssh -L 1455:127.0.0.1:1455 user@server
+docker run --rm -p 1455:1455 \
+  -v "$(pwd)/config.yaml:/CLIProxyAPI/config.yaml" \
+  -v "$(pwd)/auths:/root/.cli-proxy-api" \
+  eceasy/cli-proxy-api:latest /CLIProxyAPI/CLIProxyAPI --codex-login
 
 # Gemini — no auth needed, API key is in config.yaml
 
+# Start proxy + Redis
+docker compose up -d
+
 # Verify all providers are up:
-curl -H "x-api-key: $PROXY_KEY" http://localhost:8080/health
+curl -s -H "x-api-key: $PROXY_KEY" http://localhost:8317/v1/models | jq '.data | length'
 
 # ─── Ralph ────────────────────────────────────────────────────────────────
 mkdir -p /srv/ralph && cd /srv/ralph
@@ -532,15 +537,21 @@ npx playwright install chromium --with-deps
 
 # Environment + systemd services
 cat > .env << 'EOF'
-PROXY_URL=http://localhost:8080
+PROXY_URL=http://localhost:8317
 PROXY_KEY=ralph-pipeline-key-change-this
+RALPH_REPO_DIR=.
+RALPH_USE_NODE_PIPELINE=1
 RALPH_GEN_MODEL=claude-opus-4-6
 RALPH_TEST_MODEL=gemini-2.5-pro
 RALPH_FIX_MODEL=claude-sonnet-4-6
 RALPH_REVIEW_MODEL=gemini-2.5-pro
+RALPH_FALLBACK_MODEL=gpt-4.1
 GITHUB_WEBHOOK_SECRET=your-webhook-secret
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T.../B.../...
+NODE_ENV=production
 EOF
+# Note: systemd loads .env via EnvironmentFile.
+# For manual runs: set -a && source .env && set +a
 
 sudo systemctl enable --now ralph-server ralph-worker
 
@@ -556,12 +567,12 @@ sudo systemctl enable --now ralph-server ralph-worker
 |---|---|---|
 | Webhook not firing | GitHub → Webhooks → Recent Deliveries | Re-enter URL + secret |
 | Jobs queued but stuck | `systemctl status ralph-worker` | `systemctl restart ralph-worker` |
-| HTTP 401 from proxy (Claude) | Claude OAuth tokens expired | `docker exec ... auth claude add` per account |
-| HTTP 401 from proxy (Codex) | Codex OAuth token expired | `docker exec ... auth openai add` |
+| HTTP 401 from proxy (Claude) | Claude OAuth tokens expired | Re-run `--claude-login` (see Account authentication) |
+| HTTP 401 from proxy (Codex) | Codex OAuth token expired | Re-run `--codex-login` (see Account authentication) |
 | HTTP 429 on Claude calls | Both Claude accounts rate-limited | Builds pause until window resets; fix calls can fall back to Codex |
 | HTTP 4xx on Gemini calls | API key invalid or quota exceeded | Check Gemini API key in config.yaml, check GCP billing |
 | Playwright OOM | `free -m` | Reduce concurrency to 1 |
-| Proxy container down | `docker ps` | `docker-compose up -d` |
+| Proxy container down | `docker ps` | `docker compose up -d` |
 | Generation quality drop | Wrong model routing | Check env vars: `RALPH_GEN_MODEL` should be `claude-opus-4-6` |
 
 ---

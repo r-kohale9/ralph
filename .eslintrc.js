@@ -23,7 +23,7 @@ module.exports = {
     'valid-typeof': 'error',
 
     // ─── Best practices ──────────────────────────────────────────────
-    'eqeqeq': ['error', 'always', { null: 'ignore' }],
+    eqeqeq: ['error', 'always', { null: 'ignore' }],
     'no-eval': 'error',
     'no-implied-eval': 'error',
     'no-new-func': 'error',
@@ -32,8 +32,8 @@ module.exports = {
     'prefer-promise-reject-errors': 'error',
 
     // ─── Style (aligned with Prettier) ───────────────────────────────
-    'semi': ['error', 'always'],
-    'quotes': ['error', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
+    semi: ['error', 'always'],
+    quotes: ['error', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
     'comma-dangle': ['error', 'always-multiline'],
     'no-trailing-spaces': 'error',
     'eol-last': ['error', 'always'],
@@ -41,7 +41,7 @@ module.exports = {
 
     // ─── Node.js ─────────────────────────────────────────────────────
     'no-process-exit': 'off', // We use process.exit intentionally
-    'strict': ['error', 'global'],
+    strict: ['error', 'global'],
   },
   overrides: [
     {

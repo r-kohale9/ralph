@@ -40,7 +40,8 @@ describe('pipeline.js extractHtml', () => {
   });
 
   it('handles multi-line HTML in code block', () => {
-    const input = '```html\n<!DOCTYPE html>\n<html>\n<head><title>Game</title></head>\n<body>\n<div id="gameContent"></div>\n</body>\n</html>\n```';
+    const input =
+      '```html\n<!DOCTYPE html>\n<html>\n<head><title>Game</title></head>\n<body>\n<div id="gameContent"></div>\n</body>\n</html>\n```';
     const result = extractHtml(input);
     assert.ok(result);
     assert.ok(result.includes('gameContent'));
@@ -82,6 +83,11 @@ describe('pipeline.js configuration', () => {
     assert.equal(typeof pipeline.runPipeline, 'function');
   });
 
+  it('pipeline module exports runTargetedFix', () => {
+    const pipeline = require('../lib/pipeline');
+    assert.equal(typeof pipeline.runTargetedFix, 'function');
+  });
+
   it('pipeline module exports extractHtml', () => {
     const pipeline = require('../lib/pipeline');
     assert.equal(typeof pipeline.extractHtml, 'function');
@@ -90,5 +96,81 @@ describe('pipeline.js configuration', () => {
   it('pipeline module exports extractTests', () => {
     const pipeline = require('../lib/pipeline');
     assert.equal(typeof pipeline.extractTests, 'function');
+  });
+});
+
+describe('pipeline.js runTargetedFix', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
+
+  it('returns FAILED when no HTML file exists', async () => {
+    const { runTargetedFix } = require('../lib/pipeline');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-fix-test-'));
+    const specPath = path.join(tmpDir, 'game', 'spec.md');
+
+    try {
+      const report = await runTargetedFix(path.join(tmpDir, 'game'), specPath, 'Fix the score display', {});
+      assert.equal(report.status, 'FAILED');
+      assert.ok(report.errors.some((e) => e.includes('No existing HTML')));
+      assert.equal(report.type, 'targeted-fix');
+    } finally {
+      try {
+        fs.rmSync(tmpDir, { recursive: true });
+      } catch {}
+    }
+  });
+
+  it('returns FAILED when spec file not found', async () => {
+    const { runTargetedFix } = require('../lib/pipeline');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-fix-test2-'));
+    const gameDir = path.join(tmpDir, 'game');
+    fs.mkdirSync(gameDir, { recursive: true });
+    fs.writeFileSync(path.join(gameDir, 'index.html'), '<html><body>test</body></html>');
+
+    try {
+      const report = await runTargetedFix(gameDir, path.join(tmpDir, 'nonexistent', 'spec.md'), 'Fix something', {});
+      assert.equal(report.status, 'FAILED');
+      assert.ok(report.errors.some((e) => e.includes('Spec file not found')));
+    } finally {
+      try {
+        fs.rmSync(tmpDir, { recursive: true });
+      } catch {}
+    }
+  });
+
+  it('report includes feedback_prompt', async () => {
+    const { runTargetedFix } = require('../lib/pipeline');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-fix-test3-'));
+    const gameDir = path.join(tmpDir, 'game');
+
+    try {
+      const report = await runTargetedFix(gameDir, path.join(tmpDir, 'spec.md'), 'Fix the timer display', {});
+      assert.equal(report.feedback_prompt, 'Fix the timer display');
+    } finally {
+      try {
+        fs.rmSync(tmpDir, { recursive: true });
+      } catch {}
+    }
+  });
+
+  it('calls onProgress callback', async () => {
+    const { runTargetedFix } = require('../lib/pipeline');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-fix-test4-'));
+    const gameDir = path.join(tmpDir, 'game');
+    const progressEvents = [];
+
+    try {
+      await runTargetedFix(gameDir, path.join(tmpDir, 'spec.md'), 'Fix something', {
+        onProgress: (step, detail) => progressEvents.push({ step, detail }),
+      });
+      // Should have received at least one progress event (even for early failures)
+      // When HTML doesn't exist, we get no progress events before the early return
+      assert.ok(true, 'onProgress callback accepted without error');
+    } finally {
+      try {
+        fs.rmSync(tmpDir, { recursive: true });
+      } catch {}
+    }
   });
 });

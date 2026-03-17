@@ -10,10 +10,7 @@ const crypto = require('crypto');
 const { extractChangedSpecs, getNextMidnight } = require('../server');
 
 function verifySignature(body, secret) {
-  return 'sha256=' + crypto
-    .createHmac('sha256', secret)
-    .update(body)
-    .digest('hex');
+  return 'sha256=' + crypto.createHmac('sha256', secret).update(body).digest('hex');
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -21,9 +18,7 @@ function verifySignature(body, secret) {
 describe('extractChangedSpecs', () => {
   it('extracts game IDs from added spec.md files', () => {
     const result = extractChangedSpecs({
-      commits: [
-        { added: ['warehouse/templates/doubles/spec.md'], modified: [] },
-      ],
+      commits: [{ added: ['warehouse/templates/doubles/spec.md'], modified: [] }],
     });
     assert.equal(result.size, 1);
     assert.ok(result.has('doubles'));
@@ -31,9 +26,7 @@ describe('extractChangedSpecs', () => {
 
   it('extracts game IDs from modified spec.md files', () => {
     const result = extractChangedSpecs({
-      commits: [
-        { added: [], modified: ['warehouse/templates/triples/spec.md'] },
-      ],
+      commits: [{ added: [], modified: ['warehouse/templates/triples/spec.md'] }],
     });
     assert.ok(result.has('triples'));
   });
@@ -52,10 +45,7 @@ describe('extractChangedSpecs', () => {
     const result = extractChangedSpecs({
       commits: [
         {
-          added: [
-            'warehouse/templates/doubles/spec.md',
-            'warehouse/templates/triples/spec.md',
-          ],
+          added: ['warehouse/templates/doubles/spec.md', 'warehouse/templates/triples/spec.md'],
           modified: ['warehouse/templates/memory/spec.md'],
         },
       ],
@@ -67,11 +57,7 @@ describe('extractChangedSpecs', () => {
     const result = extractChangedSpecs({
       commits: [
         {
-          added: [
-            'warehouse/templates/doubles/config.json',
-            'warehouse/templates/doubles/assets/bg.png',
-            'README.md',
-          ],
+          added: ['warehouse/templates/doubles/config.json', 'warehouse/templates/doubles/assets/bg.png', 'README.md'],
           modified: [],
         },
       ],
@@ -98,9 +84,7 @@ describe('extractChangedSpecs', () => {
 
   it('detects removed spec files', () => {
     const result = extractChangedSpecs({
-      commits: [
-        { added: [], modified: [], removed: ['warehouse/templates/old-game/spec.md'] },
-      ],
+      commits: [{ added: [], modified: [], removed: ['warehouse/templates/old-game/spec.md'] }],
     });
     assert.equal(result.size, 1);
     assert.ok(result.has('old-game'));

@@ -213,7 +213,8 @@ describe('validate-static.js', () => {
   it('exits with code 2 when file does not exist', () => {
     try {
       execFileSync('node', [VALIDATOR, '/tmp/nonexistent-ralph-test.html'], {
-        encoding: 'utf-8', timeout: 5000,
+        encoding: 'utf-8',
+        timeout: 5000,
       });
       assert.fail('Should have exited with code 2');
     } catch (err) {

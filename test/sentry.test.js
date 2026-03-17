@@ -60,8 +60,13 @@ describe('sentry (disabled mode)', () => {
     const mockErr = new Error('test');
     const mockReq = {};
     const mockRes = {
-      status(code) { statusCode = code; return this; },
-      json(body) { responseBody = body; },
+      status(code) {
+        statusCode = code;
+        return this;
+      },
+      json(body) {
+        responseBody = body;
+      },
     };
     handler(mockErr, mockReq, mockRes, () => {});
     assert.equal(statusCode, 500);

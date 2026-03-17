@@ -65,12 +65,13 @@ describe('validate-contract', () => {
     });
 
     it('allows score set in initGame instead of declaration', () => {
-      const html = VALID_HTML
-        .replace('let gameState = { score: 0, total: 10, currentQuestion: 0, totalQuestions: 10 };', 'let gameState = {};')
-        .replace('gameState = { score: 0', 'gameState.score = 0; gameState = { score: 0');
+      const html = VALID_HTML.replace(
+        'let gameState = { score: 0, total: 10, currentQuestion: 0, totalQuestions: 10 };',
+        'let gameState = {};',
+      ).replace('gameState = { score: 0', 'gameState.score = 0; gameState = { score: 0');
       const errors = validateGameStateContract(html);
       // Should find gameState init (the empty one) but score is set via assignment
-      assert.equal(errors.filter(e => e.includes('"score"')).length, 0);
+      assert.equal(errors.filter((e) => e.includes('"score"')).length, 0);
     });
   });
 
@@ -83,28 +84,28 @@ describe('validate-contract', () => {
     it('fails when postMessage is missing score', () => {
       const html = VALID_HTML.replace(
         "{ type: 'gameOver', score: gameState.score, stars: stars, total: gameState.totalQuestions }",
-        "{ type: 'gameOver', stars: stars, total: gameState.totalQuestions }"
+        "{ type: 'gameOver', stars: stars, total: gameState.totalQuestions }",
       );
       const errors = validatePostMessageContract(html);
-      assert.ok(errors.some(e => e.includes('score')));
+      assert.ok(errors.some((e) => e.includes('score')));
     });
 
     it('fails when postMessage is missing stars', () => {
       const html = VALID_HTML.replace(
         "{ type: 'gameOver', score: gameState.score, stars: stars, total: gameState.totalQuestions }",
-        "{ type: 'gameOver', score: gameState.score, total: gameState.totalQuestions }"
+        "{ type: 'gameOver', score: gameState.score, total: gameState.totalQuestions }",
       );
       const errors = validatePostMessageContract(html);
-      assert.ok(errors.some(e => e.includes('stars')));
+      assert.ok(errors.some((e) => e.includes('stars')));
     });
 
     it('fails when postMessage is missing total', () => {
       const html = VALID_HTML.replace(
         "{ type: 'gameOver', score: gameState.score, stars: stars, total: gameState.totalQuestions }",
-        "{ type: 'gameOver', score: gameState.score, stars: stars }"
+        "{ type: 'gameOver', score: gameState.score, stars: stars }",
       );
       const errors = validatePostMessageContract(html);
-      assert.ok(errors.some(e => e.includes('total')));
+      assert.ok(errors.some((e) => e.includes('total')));
     });
   });
 
@@ -117,7 +118,7 @@ describe('validate-contract', () => {
     it('fails when endGame body not found', () => {
       const html = VALID_HTML.replace('function endGame()', 'function finishGame()');
       const errors = validateScoringContract(html);
-      assert.ok(errors.some(e => e.includes('endGame function body')));
+      assert.ok(errors.some((e) => e.includes('endGame function body')));
     });
   });
 
@@ -130,7 +131,7 @@ describe('validate-contract', () => {
     it('fails when initGame body not found', () => {
       const html = VALID_HTML.replace('function initGame()', 'function startGame()');
       const errors = validateInitGameContract(html);
-      assert.ok(errors.some(e => e.includes('initGame function body')));
+      assert.ok(errors.some((e) => e.includes('initGame function body')));
     });
   });
 });
@@ -182,7 +183,8 @@ describe('validate-contract CLI', () => {
   it('exits 2 when file does not exist', () => {
     try {
       execFileSync('node', [VALIDATOR, '/tmp/nonexistent-contract.html'], {
-        encoding: 'utf-8', timeout: 5000,
+        encoding: 'utf-8',
+        timeout: 5000,
       });
       assert.fail('Should have exited with code 2');
     } catch (err) {

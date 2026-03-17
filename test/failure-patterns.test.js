@@ -23,8 +23,12 @@ describe('E7: failure patterns', () => {
 
   after(() => {
     db.close();
-    try { fs.unlinkSync(dbPath); } catch {}
-    try { fs.rmdirSync(tmpDir); } catch {}
+    try {
+      fs.unlinkSync(dbPath);
+    } catch {}
+    try {
+      fs.rmdirSync(tmpDir);
+    } catch {}
     delete process.env.RALPH_DB_PATH;
   });
 
@@ -40,7 +44,7 @@ describe('E7: failure patterns', () => {
     db.recordFailurePattern('doubles', 'Score display missing', 'rendering');
 
     const patterns = db.getFailurePatterns('doubles');
-    const pattern = patterns.find(p => p.pattern === 'Score display missing');
+    const pattern = patterns.find((p) => p.pattern === 'Score display missing');
     assert.ok(pattern);
     assert.equal(pattern.occurrences, 3);
   });
@@ -66,7 +70,7 @@ describe('E7: failure patterns', () => {
     const top = db.getTopFailurePatterns(5);
     assert.ok(top.length > 0);
 
-    const starsPattern = top.find(p => p.pattern === 'Stars not calculated');
+    const starsPattern = top.find((p) => p.pattern === 'Stars not calculated');
     assert.ok(starsPattern);
     assert.equal(starsPattern.affected_games, 3);
     assert.equal(starsPattern.total_occurrences, 3);
@@ -77,14 +81,14 @@ describe('E7: failure patterns', () => {
     db.resolveFailurePattern('resolve-test', 'Layout broken');
 
     const patterns = db.getFailurePatterns('resolve-test');
-    const resolved = patterns.find(p => p.pattern === 'Layout broken');
+    const resolved = patterns.find((p) => p.pattern === 'Layout broken');
     assert.ok(resolved);
     assert.equal(resolved.resolved, 1);
   });
 
   it('getTopFailurePatterns excludes resolved patterns', () => {
     const top = db.getTopFailurePatterns(100);
-    const resolvedPattern = top.find(p => p.pattern === 'Layout broken');
+    const resolvedPattern = top.find((p) => p.pattern === 'Layout broken');
     assert.equal(resolvedPattern, undefined);
   });
 

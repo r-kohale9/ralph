@@ -78,8 +78,12 @@ describe('metrics', () => {
     let body = '';
     const mockReq = {};
     const mockRes = {
-      set(key, val) { headers[key] = val; },
-      send(data) { body = data; },
+      set(key, val) {
+        headers[key] = val;
+      },
+      send(data) {
+        body = data;
+      },
     };
     metrics.metricsMiddleware(mockReq, mockRes);
     assert.equal(headers['Content-Type'], 'text/plain; version=0.0.4; charset=utf-8');

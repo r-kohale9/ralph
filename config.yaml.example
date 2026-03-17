@@ -1,20 +1,14 @@
-# CLIProxyAPI configuration
-# Copy to config.yaml and fill in your credentials
-server:
-  port: 8080
-  api_key: "ralph-pipeline-key-change-this"
+port: 8317
+auth-dir: "~/.cli-proxy-api"
 
-claude:
-  enabled: true
-  load_balance: round_robin
-  # 2 Max accounts — authenticated via: docker exec -it cliproxyapi ./cliproxyapi auth claude add
+api-keys:
+  - "ralph-pipeline-key-change-this"
 
-openai:  # Codex / GPT
-  enabled: true
-  load_balance: round_robin
-  # 1 Pro account — authenticated via: docker exec -it cliproxyapi ./cliproxyapi auth openai add
+gemini-api-key:
+  - api-key: "your-gemini-api-key-here"
 
-gemini:
-  enabled: true
-  api_key: "your-gemini-api-key-here"
-  # Direct API access — no OAuth needed, no window quota
+# Claude accounts — authenticated via:
+#   docker run --rm -p 54545:54545 -v ./config.yaml:/CLIProxyAPI/config.yaml -v ./auths:/root/.cli-proxy-api eceasy/cli-proxy-api:latest /CLIProxyAPI/CLIProxyAPI --claude-login
+
+# Codex/OpenAI accounts — authenticated via:
+#   docker run --rm -p 1455:1455 -v ./config.yaml:/CLIProxyAPI/config.yaml -v ./auths:/root/.cli-proxy-api eceasy/cli-proxy-api:latest /CLIProxyAPI/CLIProxyAPI --codex-login

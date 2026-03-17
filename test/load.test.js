@@ -26,8 +26,12 @@ describe('load: database under concurrent writes', () => {
 
   after(() => {
     db.close();
-    try { fs.unlinkSync(dbPath); } catch {}
-    try { fs.rmdirSync(tmpDir); } catch {}
+    try {
+      fs.unlinkSync(dbPath);
+    } catch {}
+    try {
+      fs.rmdirSync(tmpDir);
+    } catch {}
     delete process.env.RALPH_DB_PATH;
   });
 

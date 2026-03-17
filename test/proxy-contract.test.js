@@ -123,11 +123,13 @@ describe('CLIProxyAPI contract', () => {
       mockProxy({
         id: 'chatcmpl-123',
         object: 'chat.completion',
-        choices: [{
-          index: 0,
-          message: { role: 'assistant', content: 'OpenAI response' },
-          finish_reason: 'stop',
-        }],
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'OpenAI response' },
+            finish_reason: 'stop',
+          },
+        ],
         usage: { prompt_tokens: 100, completion_tokens: 200 },
       });
       const result = await llm.callLlm('test', 'hello');
@@ -138,34 +140,22 @@ describe('CLIProxyAPI contract', () => {
   describe('error handling', () => {
     it('throws on HTTP 500 with error message', async () => {
       mockProxy({ error: 'Internal Server Error' }, 500);
-      await assert.rejects(
-        () => llm.callLlm('test', 'hello', 'model', { timeout: 1000 }),
-        /Proxy returned HTTP 500/
-      );
+      await assert.rejects(() => llm.callLlm('test', 'hello', 'model', { timeout: 1000 }), /Proxy returned HTTP 500/);
     });
 
     it('throws when response has empty content array', async () => {
       mockProxy({ content: [] });
-      await assert.rejects(
-        () => llm.callLlm('test', 'hello'),
-        /No text content/
-      );
+      await assert.rejects(() => llm.callLlm('test', 'hello'), /No text content/);
     });
 
     it('throws when response has null content', async () => {
       mockProxy({ content: null });
-      await assert.rejects(
-        () => llm.callLlm('test', 'hello'),
-        /No text content/
-      );
+      await assert.rejects(() => llm.callLlm('test', 'hello'), /No text content/);
     });
 
     it('throws when response has no recognized format', async () => {
       mockProxy({ data: 'unrecognized' });
-      await assert.rejects(
-        () => llm.callLlm('test', 'hello'),
-        /No text content/
-      );
+      await assert.rejects(() => llm.callLlm('test', 'hello'), /No text content/);
     });
   });
 

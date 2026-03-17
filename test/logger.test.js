@@ -36,7 +36,10 @@ describe('logger', () => {
   it('info writes structured JSON to stdout', async () => {
     let output = '';
     const origWrite = process.stdout.write;
-    process.stdout.write = (chunk) => { output += chunk; return true; };
+    process.stdout.write = (chunk) => {
+      output += chunk;
+      return true;
+    };
 
     try {
       await logger.info('test message', { gameId: 'doubles' });
@@ -53,7 +56,10 @@ describe('logger', () => {
   it('error writes with ERROR severity', async () => {
     let output = '';
     const origWrite = process.stdout.write;
-    process.stdout.write = (chunk) => { output += chunk; return true; };
+    process.stdout.write = (chunk) => {
+      output += chunk;
+      return true;
+    };
 
     try {
       await logger.error('something broke');
@@ -67,7 +73,10 @@ describe('logger', () => {
   it('buildLog includes gameId and buildId in labels', async () => {
     let output = '';
     const origWrite = process.stdout.write;
-    process.stdout.write = (chunk) => { output += chunk; return true; };
+    process.stdout.write = (chunk) => {
+      output += chunk;
+      return true;
+    };
 
     try {
       await logger.buildLog('doubles', 42, 'info', 'build started');

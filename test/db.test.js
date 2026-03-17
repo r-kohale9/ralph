@@ -20,8 +20,12 @@ describe('db', () => {
 
   after(() => {
     db.close();
-    try { fs.unlinkSync(dbPath); } catch {}
-    try { fs.rmdirSync(tmpDir); } catch {}
+    try {
+      fs.unlinkSync(dbPath);
+    } catch {}
+    try {
+      fs.rmdirSync(tmpDir);
+    } catch {}
     delete process.env.RALPH_DB_PATH;
   });
 
@@ -99,7 +103,7 @@ describe('db', () => {
     db.createBuild('unique-game-xyz', null);
     const builds = db.getBuildsByGame('unique-game-xyz');
     assert.ok(builds.length >= 1);
-    assert.ok(builds.every(b => b.game_id === 'unique-game-xyz'));
+    assert.ok(builds.every((b) => b.game_id === 'unique-game-xyz'));
   });
 
   it('getBuildStats returns aggregate stats', () => {

@@ -18,8 +18,7 @@ describe('worker path resolution', () => {
   }
 
   function resolveSpecFile(gameId, specPath) {
-    return specPath
-      || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
+    return specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
   }
 
   it('resolves default game dir from gameId', () => {
@@ -77,9 +76,7 @@ describe('worker report parsing', () => {
       iterations: 5,
       generation_time_s: 120,
       total_time_s: 180,
-      test_results: [
-        { iteration: 5, passed: 7, failures: 3 },
-      ],
+      test_results: [{ iteration: 5, passed: 7, failures: 3 }],
       review_result: null,
       models: { generation: 'claude-sonnet-4-6' },
     };
@@ -125,8 +122,12 @@ describe('worker error handling patterns', () => {
   it('models fallback object has no crash on .generation access', () => {
     // This simulates the failed-job handler path where models = {}
     const failedReport = {
-      status: 'FAILED', iterations: 0, total_time_s: 0,
-      test_results: [], review_result: null, models: {},
+      status: 'FAILED',
+      iterations: 0,
+      total_time_s: 0,
+      test_results: [],
+      review_result: null,
+      models: {},
     };
     const model = failedReport.models?.generation || 'unknown';
     assert.equal(model, 'unknown');
@@ -164,7 +165,8 @@ describe('worker fetchSpec (URL-based spec)', () => {
   const originalFetch = global.fetch;
 
   it('downloads spec and saves to disk', async () => {
-    const specContent = '# Game Spec\n\n' + 'A'.repeat(200) + '\n\nThis is a valid spec with enough content for testing purposes.';
+    const specContent =
+      '# Game Spec\n\n' + 'A'.repeat(200) + '\n\nThis is a valid spec with enough content for testing purposes.';
     global.fetch = async () => ({
       ok: true,
       status: 200,
@@ -178,8 +180,12 @@ describe('worker fetchSpec (URL-based spec)', () => {
       assert.ok(fs.existsSync(destPath));
       assert.equal(fs.readFileSync(destPath, 'utf-8'), specContent);
     } finally {
-      try { fs.unlinkSync(destPath); } catch {}
-      try { fs.rmdirSync(path.dirname(destPath)); } catch {}
+      try {
+        fs.unlinkSync(destPath);
+      } catch {}
+      try {
+        fs.rmdirSync(path.dirname(destPath));
+      } catch {}
       global.fetch = originalFetch;
     }
   });
@@ -232,10 +238,18 @@ describe('worker fetchSpec (URL-based spec)', () => {
       await fetchSpec('https://example.com/deep.md', deepPath);
       assert.ok(fs.existsSync(deepPath));
     } finally {
-      try { fs.unlinkSync(deepPath); } catch {}
-      try { fs.rmdirSync(path.join(os.tmpdir(), 'ralph-fetch-deep', 'a', 'b')); } catch {}
-      try { fs.rmdirSync(path.join(os.tmpdir(), 'ralph-fetch-deep', 'a')); } catch {}
-      try { fs.rmdirSync(path.join(os.tmpdir(), 'ralph-fetch-deep')); } catch {}
+      try {
+        fs.unlinkSync(deepPath);
+      } catch {}
+      try {
+        fs.rmdirSync(path.join(os.tmpdir(), 'ralph-fetch-deep', 'a', 'b'));
+      } catch {}
+      try {
+        fs.rmdirSync(path.join(os.tmpdir(), 'ralph-fetch-deep', 'a'));
+      } catch {}
+      try {
+        fs.rmdirSync(path.join(os.tmpdir(), 'ralph-fetch-deep'));
+      } catch {}
       global.fetch = originalFetch;
     }
   });
