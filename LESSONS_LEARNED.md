@@ -150,6 +150,40 @@ Set this env var to use `claude -p` instead of CLIProxyAPI for HTML generation a
 ### Timeout needs to be generous
 `claude -p` has startup overhead (loading CLAUDE.md, reading files via tools). Set `RALPH_LLM_TIMEOUT=600` (10 min) minimum for large specs.
 
+## Server Deployment with Claude CLI
+
+### Systemd user must match Claude auth user
+Claude Code auth is per-user. If you authenticate as `the-hw-app`, the systemd services must also run as `the-hw-app` (not root). Update the service files:
+```bash
+sudo sed -i 's/User=root/User=the-hw-app/' /etc/systemd/system/ralph-server.service
+sudo sed -i 's/User=root/User=the-hw-app/' /etc/systemd/system/ralph-worker.service
+sudo systemctl daemon-reload
+```
+
+### File ownership after switching users
+After changing systemd services from root to another user, fix ownership for the **entire** repo:
+```bash
+sudo chown -R the-hw-app:the-hw-app /opt/ralph/
+```
+Otherwise SQLite fails with `attempt to write a readonly database`, and Playwright fails with `EACCES: permission denied, unlink '/opt/ralph/test-results/.last-run.json'`. The partial fix (`data/` + `warehouse/` only) misses `test-results/` and any other directories created while running as root.
+
+### Game output goes to `data/games/{gameId}/`
+Build artifacts (index.html, tests, reports) are written to `data/games/{gameId}/`, NOT inside the warehouse. The warehouse directory is the knowledge base — it should only contain specs, parts, rules, and contracts. This also prevents parallel builds from overwriting each other.
+
+### Playwright `test-results/` permissions cause silent 0/0 failures
+If `test-results/.last-run.json` is owned by root, Playwright crashes with `EACCES` on every run. The worker's catch block swallows the crash and reports `{ expected: 0, unexpected: 0 }`, causing the fix loop to run all 5 iterations with no real feedback. Fix: `sudo chown -R the-hw-app:the-hw-app /opt/ralph/`
+
+### systemd `TimeoutStopSec` kills worker mid-job
+The default systemd stop timeout is 90 seconds. If `claude -p` is running a fix iteration (which can take several minutes), systemd will SIGKILL the worker when `systemctl stop` or a restart is triggered. Fix: add `TimeoutStopSec=600` and `KillMode=process` to the service file:
+```ini
+TimeoutStopSec=600
+KillMode=process
+```
+`KillMode=process` only kills the main node process on stop, not the child `claude` subprocess (which systemd would otherwise SIGKILL immediately).
+
+### Game output goes to `data/games/{gameId}/`
+Build artifacts (index.html, tests, reports) are written to `data/games/{gameId}/`, NOT inside the warehouse. The warehouse directory is the knowledge base — it should only contain specs, parts, rules, and contracts. This also prevents parallel builds from overwriting each other.
+
 ## Ports Reference
 
 | Service | Port |
