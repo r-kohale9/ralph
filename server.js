@@ -23,8 +23,8 @@ function extractChangedSpecs(payload) {
       ...(commit.removed || []),
     ];
     for (const file of files) {
-      // Match game-spec/templates/{game-id}/spec.md
-      const match = file.match(/game-spec\/templates\/([^/]+)\/spec\.md$/);
+      // Match warehouse/templates/{game-id}/spec.md
+      const match = file.match(/warehouse\/templates\/([^/]+)\/spec\.md$/);
       if (match) {
         gameIds.add(match[1]);
       }
@@ -163,7 +163,7 @@ function createApp(deps = {}) {
       const fs = require('fs');
       const path = require('path');
       const repoDir = process.env.RALPH_REPO_DIR || path.join(__dirname, 'repo');
-      const templatesDir = path.join(repoDir, 'game-spec', 'templates');
+      const templatesDir = path.join(repoDir, 'warehouse', 'templates');
 
       if (!fs.existsSync(templatesDir)) {
         return res.status(400).json({ error: `Templates directory not found: ${templatesDir}` });

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GameState",
+  "description": "The mandatory shape of the gameState object in every game",
+  "type": "object",
+  "required": [
+    "currentRound",
+    "totalRounds",
+    "score",
+    "attempts",
+    "events",
+    "startTime",
+    "isActive",
+    "content",
+    "duration_data"
+  ],
+  "properties": {
+    "currentRound": {
+      "type": "integer",
+      "description": "Current round index (0-based)"
+    },
+    "totalRounds": {
+      "type": "integer",
+      "description": "Total number of rounds"
+    },
+    "score": {
+      "type": "number",
+      "description": "Current score"
+    },
+    "attempts": {
+      "type": "array",
+      "items": { "$ref": "attempt.schema.json" },
+      "description": "All user attempts"
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "target", "timestamp"],
+        "properties": {
+          "type": { "type": "string" },
+          "target": { "type": "string" },
+          "timestamp": { "type": "number" }
+        }
+      },
+      "description": "All tracked events"
+    },
+    "startTime": {
+      "type": ["number", "null"],
+      "description": "Game start timestamp (Date.now())"
+    },
+    "isActive": {
+      "type": "boolean",
+      "description": "Whether game is currently active"
+    },
+    "content": {
+      "description": "Runtime content from postMessage or hardcoded fallback"
+    },
+    "duration_data": {
+      "$ref": "duration-data.schema.json"
+    }
+  },
+  "additionalProperties": true,
+  "additionalPropertiesNote": "Game-specific fields (streak, hintsUsed, etc.) allowed alongside mandatory fields"
+}

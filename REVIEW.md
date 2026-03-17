@@ -186,7 +186,7 @@ $ bash -n ralph.sh           → OK
 
 **Runtime validation (7 automated tests):**
 - Test 1: HMAC-SHA256 webhook verification produces correct signatures
-- Test 2: `extractChangedSpecs` regex matches `game-spec/templates/{id}/spec.md` correctly
+- Test 2: `extractChangedSpecs` regex matches `warehouse/templates/{id}/spec.md` correctly
 - Test 3: DB module: create → start → complete → query → stats → fail (all work)
 - Test 4: Slack module degrades gracefully without webhook URL
 - Test 5: Logger outputs structured JSON compatible with Google Cloud Logging

@@ -16,7 +16,7 @@
 │  3. Claude loads game-builder skill + warehouse                     │
 │  4. Iterate: human reviews, refines, challenges                     │
 │  5. Test logic via artifact builder (playable preview in chat)      │
-│  6. Publish spec → game-spec/templates/{game-id}/spec.md            │
+│  6. Publish spec → warehouse/templates/{game-id}/spec.md            │
 │                                                                     │
 │  OUTPUT: A reviewed, iterated, human-approved spec.md               │
 └──────────────────────────┬──────────────────────────────────────────┘
@@ -214,7 +214,7 @@ Wrap Ralph in a batch script that runs N games concurrently:
 ```bash
 # batch-ralph.sh
 MAX_PARALLEL=${MAX_PARALLEL:-4}
-find game-spec/templates/*/spec.md | xargs -P $MAX_PARALLEL -I {} \
+find warehouse/templates/*/spec.md | xargs -P $MAX_PARALLEL -I {} \
   ./ralph.sh "$(dirname {})/game" "{}"
 ```
 
@@ -331,7 +331,7 @@ Claude loads the game-builder skill, which includes the warehouse. Through conve
 
 The designer tests the game logic by having Claude build a playable artifact preview in the chat. They play it, find issues, refine.
 
-When satisfied, the spec is published: `game-spec/templates/doubles/spec.md`.
+When satisfied, the spec is published: `warehouse/templates/doubles/spec.md`.
 
 ### Phase 2: Automated Build (Ralph)
 

@@ -453,17 +453,16 @@ log "Step 1: Generate HTML"
 GEN_START=$(date +%s)
 
 if [ "$CACHE_HIT" -eq 0 ]; then
-  GEN_PROMPT="You are an expert HTML game developer. Generate a complete, single-file HTML game based on the following specification.
+  GEN_PROMPT="You are an expert HTML game assembler. The following specification is a self-contained assembly book — it contains ALL code blocks, element IDs, function signatures, CSS, game logic, and verification checks needed to produce a working game.
 
-REQUIREMENTS:
+INSTRUCTIONS:
+- Follow the specification EXACTLY — do not invent new element IDs, function names, or game logic
+- Assemble all sections into a single index.html file (all CSS in <style>, all JS in <script>)
+- Copy code blocks from the spec verbatim, filling in only where placeholders exist
+- Use the element IDs, class names, and function signatures defined in the spec
+- Use the star calculation logic defined in the spec (Section 11 or Parts table), not a generic formula
+- The spec's Section 15 (Verification Checklist) lists every requirement — ensure all items pass
 - Output ONLY the complete HTML file content, wrapped in a \`\`\`html code block
-- Single file: all CSS in <style>, all JS in <script>
-- Must include #gameContent and #gameArea containers
-- Must implement: initGame(), checkAnswer(), endGame() functions
-- Must use postMessage for communication with parent frame
-- Must be fully self-contained and playable
-- Star thresholds: 80% = 3 stars, 50% = 2 stars, >0% = 1 star, 0% = 0 stars
-- Mobile-first: max-width 480px, touch-friendly
 
 SPECIFICATION:
 $SPEC_CONTENT"
@@ -520,7 +519,10 @@ $STATIC_ERRORS
 CURRENT HTML:
 $(cat "$HTML_FILE")
 
-Fix ALL the listed structural issues. Output the complete corrected HTML wrapped in a \`\`\`html code block."
+SPECIFICATION (for reference — use exact element IDs, function names, and structure from this spec):
+$SPEC_CONTENT
+
+Fix ALL the listed structural issues while keeping the game aligned with the specification. Output the complete corrected HTML wrapped in a \`\`\`html code block."
 
   call_llm "static-fix-$STATIC_ATTEMPTS" "$STATIC_FIX_PROMPT" "$FIX_MODEL" || break
   FIXED_HTML=$(extract_html "$LLM_OUTPUT") || break
@@ -532,19 +534,14 @@ log ""
 log "Step 2: Generate Playwright tests"
 
 HTML_CONTENT=$(cat "$HTML_FILE")
-TEST_PROMPT="You are an expert Playwright test writer. Generate a comprehensive Playwright test suite for the following HTML game.
+TEST_PROMPT="You are an expert Playwright test writer. Generate a Playwright test suite for the following HTML game.
 
-Write tests covering these 8 MANDATORY categories:
-1. Initial render — correct DOM structure, elements visible
-2. Game state initialization — gameState object has required fields
-3. User interaction — clicks, inputs, game responses
-4. Score/progress tracking — score updates correctly
-5. Timer behavior — countdown works if applicable
-6. Completion flow — endGame triggers correctly, stars calculated
-7. Responsive layout — fits within 480px width
-8. Edge cases — empty inputs, rapid clicks, boundary values
+The SPECIFICATION contains a 'Test Scenarios' section (Section 14) with exact test scenarios including specific selectors, user actions, and assertions. Use these as the PRIMARY source for your tests. Translate each scenario into one or more Playwright test cases.
 
-9. postMessage event validation (E5) — verify gameOver event contains: type='gameOver', score (number), stars (0-3), total (number >= 1)
+Additionally, include these structural tests:
+1. postMessage validation — verify gameOver event contains: type, score (number), stars (0-3), total (number >= 1)
+2. Game state initialization — gameState object has required fields per Section 3
+3. Responsive layout — fits within 480px width
 
 IMPORTANT:
 - Use \`@playwright/test\` imports
@@ -552,7 +549,7 @@ IMPORTANT:
 - Tests run against index.html served at the root
 - Use page.goto('/') to load the game
 - Wait for game initialization before testing
-- Include a test that listens for postMessage events and validates the gameOver payload schema
+- Use the EXACT element selectors from the specification and HTML, not invented ones
 - Output ONLY the test code wrapped in a \`\`\`javascript code block
 
 SPECIFICATION:
@@ -704,10 +701,14 @@ $(echo "$TEST_OUTPUT" | head -100)
 CURRENT HTML:
 $CONTEXT_HTML
 
-SPECIFICATION (for reference):
+SPECIFICATION (for reference — use Section 8 for exact function signatures, Section 15 for verification):
 $SPEC_CONTENT
 
-Output the complete fixed HTML wrapped in a \`\`\`html code block. Fix the HTML to make the failing tests pass."
+IMPORTANT:
+- Fix the HTML to make the failing tests pass
+- Use the EXACT element IDs, function names, and logic from the specification
+- Do NOT rename functions, change selectors, or alter game logic — match the spec
+- Output the complete fixed HTML wrapped in a \`\`\`html code block"
 
   # Track fix history for smart retry
   FIX_HISTORY="$FIX_HISTORY
@@ -751,21 +752,13 @@ fi
 
 REVIEW_PROMPT="You are a game quality reviewer. Review the following HTML game against its specification.
 
-Check this EXACT checklist:
-1. ✅ All game mechanics match the specification
-2. ✅ UI layout is correct (480px max-width, mobile-friendly)
-3. ✅ Score tracking works as specified
-4. ✅ Timer behavior matches spec (if applicable)
-5. ✅ Star thresholds: 80% = 3 stars, 50% = 2 stars, >0% = 1 star, 0% = 0 stars
-6. ✅ endGame() produces correct metrics
-7. ✅ postMessage communication is correct
-8. ✅ No forbidden patterns (document.write, inline handlers)
-9. ✅ All content is within #gameContent
-10. ✅ Game is fully playable from start to finish
+The SPECIFICATION contains a 'Verification Checklist' section (Section 15) with detailed checks across Structural, Functional, Design & Layout, Rules Compliance, Game-Specific, and Contract Compliance categories. Use that checklist as your PRIMARY review guide.
+
+Walk through EVERY item in Section 15. For each item, verify it passes in the HTML.
 
 Respond with EXACTLY one of:
 - APPROVED — if all checklist items pass
-- REJECTED: <reason> — if any item fails
+- REJECTED: <list the specific checklist items that failed>
 
 SPECIFICATION:
 $SPEC_CONTENT

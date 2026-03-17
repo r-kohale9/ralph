@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HTML Structure Contract",
+  "description": "Required structural elements in every game HTML file",
+
+  "required_scripts": {
+    "description": "CDN scripts that MUST be present in <head>, in this exact order",
+    "order": [
+      "https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js",
+      "https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js",
+      "https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"
+    ]
+  },
+
+  "required_elements": {
+    "always": [
+      { "selector": "#game-screen", "description": "Main gameplay container" },
+      { "selector": "#results-screen", "description": "Results display, hidden by default" },
+      { "selector": "#result-score", "description": "Score display element" },
+      { "selector": "#result-time", "description": "Time display element" },
+      { "selector": "#result-correct", "description": "Correct count display" },
+      { "selector": "#stars-display", "description": "Star rating display" }
+    ],
+    "if_timer": [
+      { "selector": "#timer-container", "description": "Timer mount point" }
+    ],
+    "if_stories": [
+      { "selector": "#story-container", "description": "Story mount point" }
+    ]
+  },
+
+  "required_functions": {
+    "global_scope": [
+      "setupGame",
+      "endGame",
+      "recordAttempt",
+      "trackEvent",
+      "showResults",
+      "handlePostMessage"
+    ],
+    "window_attached": [
+      "debugGame",
+      "debugAudio",
+      "testAudio",
+      "testPause",
+      "testResume"
+    ],
+    "inside_DOMContentLoaded": [
+      "waitForPackages"
+    ]
+  },
+
+  "required_calls": {
+    "in_DOMContentLoaded": [
+      "waitForPackages()",
+      "FeedbackManager.init()",
+      "new VisibilityTracker({...})",
+      "setupGame()"
+    ],
+    "in_endGame": [
+      "console.log('Final Metrics:'...)",
+      "console.log('Attempt History:'...)",
+      "trackEvent('game_end'...)",
+      "showResults(metrics)",
+      "window.parent.postMessage({type:'game_complete'...})",
+      "timer.destroy()",
+      "visibilityTracker.destroy()",
+      "FeedbackManager.sound.stopAll()",
+      "FeedbackManager.stream.stopAll()"
+    ]
+  },
+
+  "forbidden_patterns": [
+    "new Audio(",
+    "setInterval(",
+    "SubtitleComponent.show("
+  ]
+}

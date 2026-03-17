@@ -43,7 +43,7 @@ This splits the load: ~40% of calls go to Gemini (free of window constraints), ~
 │  Branch: feature/doubles-spec → PR → Merge to c_code                     │
 └──────────────┬───────────────────────────────────────────────────────────┘
                │
-               │  GitHub webhook (push to c_code, path: game-spec/templates/**)
+               │  GitHub webhook (push to c_code, path: warehouse/templates/**)
                │
                ▼
 ┌──────────────────────────────────────────────────────────────────────────┐

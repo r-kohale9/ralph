@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "mathai-core": {
+      "command": "npx",
+      "args": ["-y", "@beingtmk/core-mcp"],
+      "env": {
+        "USER_SECRET": "your-secret-here"
+      }
+    },
+    "mathai-feedback": {
+      "command": "npx",
+      "args": ["-y", "@beingtmk/feedback-mcp"],
+      "env": {
+        "USER_SECRET": "your-secret-here"
+      }
+    }
+  }
+}

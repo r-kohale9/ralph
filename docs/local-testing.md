@@ -93,15 +93,15 @@ The worker prints progress to stdout:
 
 ```
 [worker] Running ralph.sh for my-game
-[worker]   game-dir: /srv/ralph/repo/game-spec/templates/my-game/game
-[worker]   spec:     /srv/ralph/repo/game-spec/templates/my-game/spec.md
+[worker]   game-dir: /srv/ralph/repo/warehouse/templates/my-game/game
+[worker]   spec:     /srv/ralph/repo/warehouse/templates/my-game/spec.md
 ```
 
 For URL specs, you'll also see:
 
 ```
 [worker] Downloading spec from https://example.com/specs/my-game.md
-[worker] Spec saved to /srv/ralph/repo/game-spec/templates/my-game/spec.md (4523 chars)
+[worker] Spec saved to /srv/ralph/repo/warehouse/templates/my-game/spec.md (4523 chars)
 ```
 
 ## 4. Run Tests (No Infrastructure Needed)

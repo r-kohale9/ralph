@@ -1,0 +1,448 @@
+{
+  "version": "1.1.0",
+  "description": "Registry of all available parts in the warehouse",
+
+  "parts": [
+    {
+      "id": "PART-001",
+      "name": "HTML Shell",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-001-html-shell.md",
+      "dependencies": []
+    },
+    {
+      "id": "PART-002",
+      "name": "Package Scripts",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-002-packages.md",
+      "dependencies": []
+    },
+    {
+      "id": "PART-003",
+      "name": "waitForPackages",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-003-wait-for-packages.md",
+      "dependencies": ["PART-002"]
+    },
+    {
+      "id": "PART-004",
+      "name": "Initialization Block",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-004-initialization.md",
+      "dependencies": ["PART-003"]
+    },
+    {
+      "id": "PART-005",
+      "name": "VisibilityTracker",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-005-visibility-tracker.md",
+      "dependencies": ["PART-003", "PART-004"]
+    },
+    {
+      "id": "PART-006",
+      "name": "TimerComponent",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game has time pressure (countdown or visible count-up timer)",
+      "file": "PART-006-timer.md",
+      "dependencies": ["PART-003", "PART-004"]
+    },
+    {
+      "id": "PART-007",
+      "name": "Game State Object",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-007-game-state.md",
+      "dependencies": []
+    },
+    {
+      "id": "PART-008",
+      "name": "PostMessage Protocol",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game (games are templates receiving runtime content)",
+      "file": "PART-008-postmessage.md",
+      "dependencies": ["PART-007"]
+    },
+    {
+      "id": "PART-009",
+      "name": "Attempt Tracking",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game with user answers",
+      "file": "PART-009-attempt-tracking.md",
+      "dependencies": ["PART-007"]
+    },
+    {
+      "id": "PART-010",
+      "name": "Event Tracking & SignalCollector",
+      "version": "2.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-010-event-tracking.md",
+      "dependencies": ["PART-003", "PART-004", "PART-007"]
+    },
+    {
+      "id": "PART-011",
+      "name": "End Game & Metrics",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-011-end-game.md",
+      "dependencies": ["PART-007", "PART-009", "PART-010"]
+    },
+    {
+      "id": "PART-012",
+      "name": "Debug Functions",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-012-debug.md",
+      "dependencies": ["PART-007"]
+    },
+    {
+      "id": "PART-013",
+      "name": "Validation — Fixed Answer",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game has single correct answers",
+      "file": "PART-013-validation-fixed.md",
+      "dependencies": []
+    },
+    {
+      "id": "PART-014",
+      "name": "Validation — Function-Based",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game has rule-based answers (any even number, sums to X, etc.)",
+      "file": "PART-014-validation-function.md",
+      "dependencies": []
+    },
+    {
+      "id": "PART-015",
+      "name": "Validation — LLM Subjective",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game has open-ended answers requiring AI evaluation",
+      "file": "PART-015-validation-llm.md",
+      "dependencies": ["PART-003"]
+    },
+    {
+      "id": "PART-016",
+      "name": "StoriesComponent",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game has narrative/story elements",
+      "file": "PART-016-stories.md",
+      "dependencies": ["PART-003"]
+    },
+    {
+      "id": "PART-017",
+      "name": "Feedback Integration",
+      "version": "1.0.0",
+      "category": "EXTENSION",
+      "condition": "Added after initial HTML is approved (Phase 3)",
+      "file": "PART-017-feedback.md",
+      "dependencies": ["PART-003"]
+    },
+    {
+      "id": "PART-018",
+      "name": "Case Converter",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game sends/receives data to/from backend",
+      "file": "PART-018-case-converter.md",
+      "dependencies": ["PART-003"]
+    },
+    {
+      "id": "PART-019",
+      "name": "Results Screen UI",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-019-results-screen.md",
+      "dependencies": ["PART-011"]
+    },
+    {
+      "id": "PART-020",
+      "name": "CSS Variables & Colors",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-020-css-variables.md",
+      "dependencies": []
+    },
+    {
+      "id": "PART-021",
+      "name": "Screen Layout CSS",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-021-screen-layout.md",
+      "dependencies": ["PART-020"]
+    },
+    {
+      "id": "PART-022",
+      "name": "Game Buttons",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game with user interactions",
+      "file": "PART-022-buttons.md",
+      "dependencies": ["PART-020", "PART-021"]
+    },
+    {
+      "id": "PART-023",
+      "name": "ProgressBar Component",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game has multiple rounds with visible progress",
+      "file": "PART-023-progress-bar.md",
+      "dependencies": ["PART-002", "PART-021"]
+    },
+    {
+      "id": "PART-024",
+      "name": "TransitionScreen Component",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game needs start/victory/game-over/level-transition screens",
+      "file": "PART-024-transition-screen.md",
+      "dependencies": ["PART-002", "PART-021"]
+    },
+    {
+      "id": "PART-025",
+      "name": "ScreenLayout Component",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game uses ProgressBar or TransitionScreen components",
+      "file": "PART-025-screen-layout-component.md",
+      "dependencies": ["PART-002"]
+    },
+    {
+      "id": "PART-026",
+      "name": "Anti-Patterns",
+      "version": "1.0.0",
+      "category": "REFERENCE",
+      "condition": "Always loaded as a verification checklist (not a code-generating part)",
+      "file": "PART-026-anti-patterns.md",
+      "dependencies": ["PART-002", "PART-003"]
+    },
+    {
+      "id": "PART-027",
+      "name": "Play Area Construction",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-027-play-area-construction.md",
+      "dependencies": ["PART-021"]
+    },
+    {
+      "id": "PART-028",
+      "name": "InputSchema Patterns",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game (defines content structure)",
+      "file": "PART-028-input-schema.md",
+      "dependencies": ["PART-008"]
+    },
+    {
+      "id": "PART-029",
+      "name": "Story-Only Game Variant",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game only displays stories without questions/validation",
+      "file": "PART-029-story-only-game.md",
+      "dependencies": ["PART-002", "PART-016"]
+    },
+    {
+      "id": "PART-030",
+      "name": "Sentry Error Tracking",
+      "version": "1.0.0",
+      "category": "EXTENSION",
+      "condition": "Production error monitoring (added after approval)",
+      "file": "PART-030-sentry-error-tracking.md",
+      "dependencies": ["PART-002", "PART-003"]
+    },
+    {
+      "id": "PART-031",
+      "name": "API Helper & Session Tracking",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game submits results to backend API",
+      "file": "PART-031-api-helper.md",
+      "dependencies": ["PART-002", "PART-011"]
+    },
+    {
+      "id": "PART-032",
+      "name": "AnalyticsManager",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game requires multi-platform analytics",
+      "file": "PART-032-analytics-manager.md",
+      "dependencies": ["PART-002", "PART-004"]
+    },
+    {
+      "id": "PART-033",
+      "name": "Interaction Patterns",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game uses drag-and-drop, grids, or tag/chip inputs",
+      "file": "PART-033-interaction-patterns.md",
+      "dependencies": ["PART-021", "PART-027"]
+    },
+    {
+      "id": "PART-034",
+      "name": "Variable Schema Serialization",
+      "version": "1.0.0",
+      "category": "POST_GEN",
+      "condition": "Every game (post-generation step — serializes template Section 4 to JSON)",
+      "file": "PART-034-variable-schema-extraction.md",
+      "dependencies": ["PART-008", "PART-028"]
+    },
+    {
+      "id": "PART-035",
+      "name": "Test Plan Generation",
+      "version": "1.0.0",
+      "category": "POST_GEN",
+      "condition": "Every game (post-generation step)",
+      "file": "PART-035-test-plan-generation.md",
+      "dependencies": ["PART-011", "PART-027"]
+    },
+    {
+      "id": "PART-037",
+      "name": "Playwright Testing & Ralph Loop",
+      "version": "1.0.0",
+      "category": "POST_GEN",
+      "condition": "Every game (automated testing pipeline)",
+      "file": "PART-037-playwright-testing.md",
+      "dependencies": ["PART-011", "PART-027", "PART-035"]
+    }
+  ],
+
+  "capability_matrix": {
+    "any_game": [
+      "PART-001", "PART-002", "PART-003", "PART-004", "PART-005",
+      "PART-007", "PART-008", "PART-009", "PART-010", "PART-011",
+      "PART-012", "PART-019", "PART-020", "PART-021", "PART-022",
+      "PART-027", "PART-028"
+    ],
+    "post_gen": ["PART-034", "PART-035", "PART-037"],
+    "verification": ["PART-026"],
+    "has_timer": ["PART-006"],
+    "has_stories": ["PART-016"],
+    "has_fixed_validation": ["PART-013"],
+    "has_function_validation": ["PART-014"],
+    "has_llm_validation": ["PART-015"],
+    "has_case_conversion": ["PART-018"],
+    "has_feedback": ["PART-017"],
+    "has_progress_bar": ["PART-023", "PART-025"],
+    "has_transition_screen": ["PART-024", "PART-025"],
+    "is_story_only": ["PART-029"],
+    "has_error_tracking": ["PART-030"],
+    "has_api_submission": ["PART-031"],
+    "has_analytics": ["PART-032"],
+    "has_drag_drop": ["PART-033"],
+    "has_grid_interaction": ["PART-033"],
+    "has_tag_input": ["PART-033"]
+  },
+
+  "dependency_validation": {
+    "_description": "Rules for validating the dependency graph. LLM should check these when selecting parts.",
+    "rules": [
+      "The dependency graph must be acyclic (no part can transitively depend on itself)",
+      "Every part in any_game must have all its dependencies also in any_game",
+      "When selecting a conditional part, its dependencies must be in the selected set or in any_game",
+      "POST_GEN parts run after HTML generation — their dependencies are informational only"
+    ],
+    "any_game_closure_valid": true,
+    "_closure_note": "All transitive dependencies of any_game parts resolve within the any_game set. Last verified: 2026-03-10."
+  },
+
+  "deep_references": {
+    "PART-002": "mathai-game-builder/workflows/checklists/package-loading.md",
+    "PART-005": "mathai-game-builder/components/visibility-tracker.md",
+    "PART-006": "mathai-game-builder/components/timer-component.md",
+    "PART-015": "mathai-game-builder/workflows/checklists/subjective-evaluation.md",
+    "PART-016": "mathai-game-builder/components/stories-component.md",
+    "PART-017": "mathai-game-builder/components/feedback-manager.md",
+    "PART-018": "mathai-game-builder/helpers/case-converter.md",
+    "PART-020": "mathai-game-builder/reference/css-variables-reference.md",
+    "PART-021": "mathai-game-builder/reference/screen-layout.md",
+    "PART-023": "mathai-game-builder/workflows/choices/progressbar-options.md",
+    "PART-024": "mathai-game-builder/workflows/choices/transitionscreen-options.md",
+    "PART-025": "mathai-game-builder/workflows/choices/screenlayout-options.md",
+    "PART-026": "mathai-game-builder/examples/anti-patterns.md",
+    "PART-027": "mathai-game-builder/reference/play-area-construction.md",
+    "PART-028": "mathai-game-builder/reference/inputschema-guide.md",
+    "PART-029": "mathai-game-builder/workflows/story-only-games.md",
+    "PART-030": "mathai-game-builder/reference/sentry-integration.md",
+    "PART-031": "mathai-game-builder/helpers/api-helper.md",
+    "PART-010": "mathai-game-builder/components/signal-collector.md",
+    "PART-032": "mathai-game-builder/components/analytics-manager.md"
+  },
+
+  "skill_folder_coverage": {
+    "_description": "Maps every skill folder file to its warehouse part (or N/A). Use this to detect gaps when new files are added to the skill folder.",
+    "components": {
+      "feedback-manager.md": "PART-017",
+      "timer-component.md": "PART-006",
+      "stories-component.md": "PART-016",
+      "subtitle-component.md": "PART-017 (internal to FeedbackManager)",
+      "visibility-tracker.md": "PART-005",
+      "analytics-manager.md": "PART-032",
+      "game-analytics-events.md": "PART-032",
+      "signal-collector.md": "PART-010",
+      "interaction-manager.md": "N/A — not used in generated games"
+    },
+    "helpers": {
+      "api-helper.md": "PART-031",
+      "case-converter.md": "PART-018",
+      "tracker-helper.md": "PART-031"
+    },
+    "reference": {
+      "architecture.md": "PART-008 (postMessage protocol)",
+      "answer-component.md": "Deep reference only — too large for inline part",
+      "component-props.md": "PART-006, PART-005, PART-017",
+      "components-library.md": "PART-023, PART-024, PART-025",
+      "color-guidelines.md": "PART-020",
+      "css-variables-reference.md": "PART-020",
+      "screen-layout.md": "PART-021",
+      "play-area-construction.md": "PART-027",
+      "inputschema-guide.md": "PART-028",
+      "validation-types.md": "PART-013, PART-014, PART-015",
+      "sentry-integration.md": "PART-030",
+      "error-messages.md": "PART-026 (key errors distilled into anti-patterns)",
+      "debug-functions.md": "PART-012",
+      "mcp-integration.md": "N/A — workflow tooling, not HTML generation",
+      "mcp-server-setup.md": "N/A — workflow tooling",
+      "claude-code-usage.md": "N/A — skill usage docs",
+      "file-operations.md": "N/A — workflow tooling"
+    },
+    "workflows": {
+      "story-only-games.md": "PART-029",
+      "phase-0 through phase-5": "N/A — workflow orchestration, not HTML content",
+      "prompt-dispatch.md": "N/A — skill workflow guard",
+      "checklist-verification-guard.md": "N/A — skill workflow guard",
+      "game-resumption.md": "N/A — workflow tooling",
+      "message-logging-system.md": "N/A — workflow tooling"
+    },
+    "examples": {
+      "correct-patterns.md": "Deep reference — linked from PART-026",
+      "anti-patterns.md": "PART-026",
+      "QUICK-REFERENCE.md": "Deep reference — linked from SPEC.md",
+      "story-only-game-example.md": "PART-029",
+      "attempt-history-examples.md": "PART-009",
+      "signal-capture-patterns.md": "PART-010"
+    }
+  }
+}

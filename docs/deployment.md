@@ -203,5 +203,5 @@ df -h /opt/ralph
 sudo journalctl --vacuum-time=7d
 
 # Clean old Playwright artifacts
-rm -rf /opt/ralph/repo/game-spec/templates/*/game/test-results/
+rm -rf /opt/ralph/repo/warehouse/templates/*/game/test-results/
 ```

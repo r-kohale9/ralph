@@ -1,0 +1,49 @@
+{
+  "version": "1.0.0",
+  "description": "Registry of all universal rules that apply to every game",
+
+  "rules": [
+    {
+      "id": "RULE-001",
+      "name": "Global Scope for HTML Handlers",
+      "file": "RULE-001-global-scope.md",
+      "severity": "CRITICAL"
+    },
+    {
+      "id": "RULE-002",
+      "name": "Async/Await",
+      "file": "RULE-002-async-await.md",
+      "severity": "CRITICAL"
+    },
+    {
+      "id": "RULE-003",
+      "name": "Error Handling",
+      "file": "RULE-003-error-handling.md",
+      "severity": "CRITICAL"
+    },
+    {
+      "id": "RULE-004",
+      "name": "Structured Logging",
+      "file": "RULE-004-structured-logging.md",
+      "severity": "REQUIRED"
+    },
+    {
+      "id": "RULE-005",
+      "name": "Cleanup on End",
+      "file": "RULE-005-cleanup.md",
+      "severity": "REQUIRED"
+    },
+    {
+      "id": "RULE-006",
+      "name": "No Custom Implementations",
+      "file": "RULE-006-no-custom.md",
+      "severity": "CRITICAL"
+    },
+    {
+      "id": "RULE-007",
+      "name": "Single File Architecture",
+      "file": "RULE-007-single-file.md",
+      "severity": "REQUIRED"
+    }
+  ]
+}

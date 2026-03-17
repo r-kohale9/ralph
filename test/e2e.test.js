@@ -174,7 +174,7 @@ describe('E2E: HMAC webhook signature', () => {
       ref: 'refs/heads/main',
       after: 'abc123',
       commits: [{
-        added: ['game-spec/templates/doubles/spec.md'],
+        added: ['warehouse/templates/doubles/spec.md'],
         modified: [],
       }],
     };
@@ -221,7 +221,7 @@ describe('E2E: extractChangedSpecs comprehensive', () => {
         ...(commit.removed || []),
       ];
       for (const file of files) {
-        const match = file.match(/game-spec\/templates\/([^/]+)\/spec\.md$/);
+        const match = file.match(/warehouse\/templates\/([^/]+)\/spec\.md$/);
         if (match) gameIds.add(match[1]);
       }
     }
@@ -236,22 +236,22 @@ describe('E2E: extractChangedSpecs comprehensive', () => {
         {
           id: 'commit1',
           added: [
-            'game-spec/templates/doubles/spec.md',
-            'game-spec/templates/doubles/assets/preview.png',
+            'warehouse/templates/doubles/spec.md',
+            'warehouse/templates/doubles/assets/preview.png',
           ],
           modified: [
             'README.md',
-            'game-spec/templates/triples/spec.md',
+            'warehouse/templates/triples/spec.md',
           ],
           removed: [
-            'game-spec/templates/old-game/spec.md',
+            'warehouse/templates/old-game/spec.md',
           ],
         },
         {
           id: 'commit2',
           added: [],
           modified: [
-            'game-spec/templates/memory/spec.md',
+            'warehouse/templates/memory/spec.md',
             'package.json',
           ],
           removed: [],

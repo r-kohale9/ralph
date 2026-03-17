@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PostMessage — Outgoing (game_complete)",
+  "description": "Shape of the message the game sends back to the platform",
+  "type": "object",
+  "required": ["type", "data"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "game_complete"
+    },
+    "data": {
+      "type": "object",
+      "required": ["metrics", "events", "completedAt"],
+      "properties": {
+        "metrics": {
+          "$ref": "metrics.schema.json"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "target", "timestamp"]
+          }
+        },
+        "completedAt": {
+          "type": "number",
+          "description": "Timestamp when game completed"
+        }
+      }
+    }
+  }
+}

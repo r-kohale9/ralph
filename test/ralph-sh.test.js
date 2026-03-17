@@ -483,7 +483,7 @@ describe('ralph.sh T2 contract validation integration', () => {
 describe('ralph.sh E5 event schema validation', () => {
   it('includes postMessage validation in test generation prompt', () => {
     const content = fs.readFileSync(RALPH_SH, 'utf-8');
-    assert.ok(content.includes('postMessage event validation (E5)'));
-    assert.ok(content.includes('gameOver payload schema'));
+    assert.ok(content.includes('postMessage validation'));
+    assert.ok(content.includes('gameOver event'));
   });
 });

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PostMessage — Incoming (game_init)",
+  "description": "Shape of the message the game receives from the platform",
+  "type": "object",
+  "required": ["type", "data"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "game_init"
+    },
+    "data": {
+      "type": "object",
+      "required": ["gameId", "content"],
+      "properties": {
+        "gameId": {
+          "type": "string",
+          "description": "Game instance identifier"
+        },
+        "content": {
+          "type": "object",
+          "description": "Game-specific content (defined by inputSchema)"
+        },
+        "context": {
+          "type": "object",
+          "description": "Student's previous performance data"
+        },
+        "goals": {
+          "type": "object",
+          "description": "Target metrics for this session"
+        }
+      }
+    }
+  }
+}

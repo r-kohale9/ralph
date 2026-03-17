@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Attempt",
+  "description": "The mandatory shape of each attempt recorded by recordAttempt()",
+  "type": "object",
+  "required": [
+    "attempt_timestamp",
+    "time_since_start_of_game",
+    "input_of_user",
+    "attempt_number",
+    "correct",
+    "metadata"
+  ],
+  "properties": {
+    "attempt_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO timestamp when attempt was made"
+    },
+    "time_since_start_of_game": {
+      "type": "number",
+      "description": "Seconds from game start"
+    },
+    "input_of_user": {
+      "description": "What user submitted (any type)"
+    },
+    "attempt_number": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Sequential attempt number (1, 2, 3...)"
+    },
+    "correct": {
+      "type": "boolean",
+      "description": "Whether the answer was correct"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["round", "question", "correctAnswer", "validationType"],
+      "properties": {
+        "round": {
+          "type": "integer",
+          "description": "Current round number"
+        },
+        "question": {
+          "description": "The question content"
+        },
+        "correctAnswer": {
+          "description": "The correct answer"
+        },
+        "validationType": {
+          "type": "string",
+          "enum": ["fixed", "function", "llm"],
+          "description": "How the answer was validated"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

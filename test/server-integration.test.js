@@ -183,7 +183,7 @@ describe('Server integration: builds API', () => {
     assert.equal(res.body.error, 'Build not found');
   });
 
-  it('GET /api/games/:gameId/builds returns game-specific builds', async () => {
+  it('GET /api/games/:gameId/builds returns warehouseific builds', async () => {
     db.createBuild('specific-game', null);
     const res = await request(server, 'GET', '/api/games/specific-game/builds');
     assert.equal(res.status, 200);
@@ -369,8 +369,8 @@ describe('Server integration: webhook endpoint', () => {
       ref: 'refs/heads/main',
       after: 'abc123',
       commits: [{
-        added: ['game-spec/templates/doubles/spec.md'],
-        modified: ['game-spec/templates/triples/spec.md'],
+        added: ['warehouse/templates/doubles/spec.md'],
+        modified: ['warehouse/templates/triples/spec.md'],
         removed: [],
       }],
     });
@@ -397,12 +397,12 @@ describe('Server integration: webhook endpoint', () => {
       after: 'def456',
       commits: [{
         added: [
-          'game-spec/templates/g1/spec.md',
-          'game-spec/templates/g2/spec.md',
-          'game-spec/templates/g3/spec.md',
-          'game-spec/templates/g4/spec.md',
-          'game-spec/templates/g5/spec.md',
-          'game-spec/templates/g6/spec.md',
+          'warehouse/templates/g1/spec.md',
+          'warehouse/templates/g2/spec.md',
+          'warehouse/templates/g3/spec.md',
+          'warehouse/templates/g4/spec.md',
+          'warehouse/templates/g5/spec.md',
+          'warehouse/templates/g6/spec.md',
         ],
         modified: [],
         removed: [],
@@ -427,7 +427,7 @@ describe('Server integration: webhook endpoint', () => {
       ref: 'refs/heads/c_code',
       after: 'xyz789',
       commits: [{
-        added: ['game-spec/templates/cc-game/spec.md'],
+        added: ['warehouse/templates/cc-game/spec.md'],
         modified: [],
         removed: [],
       }],
@@ -467,7 +467,7 @@ describe('Server integration: webhook without secret', () => {
       ref: 'refs/heads/main',
       after: 'nosecret123',
       commits: [{
-        added: ['game-spec/templates/no-secret-game/spec.md'],
+        added: ['warehouse/templates/no-secret-game/spec.md'],
         modified: [],
         removed: [],
       }],

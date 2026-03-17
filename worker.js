@@ -68,10 +68,10 @@ async function runRalph(gameId, specPath, buildId) {
   // Resolve paths
   const gameDir = specPath
     ? path.join(path.dirname(specPath), '..', 'game')
-    : path.join(REPO_DIR, 'game-spec', 'templates', gameId, 'game');
+    : path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'game');
 
   const specFile = specPath
-    || path.join(REPO_DIR, 'game-spec', 'templates', gameId, 'spec.md');
+    || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
 
   // Ensure game directory exists
   fs.mkdirSync(gameDir, { recursive: true });
@@ -143,7 +143,7 @@ const worker = new Worker(
 
     // Download spec from URL if provided
     if (specUrl && !specPath) {
-      const tmpSpecDir = path.join(REPO_DIR, 'game-spec', 'templates', gameId);
+      const tmpSpecDir = path.join(REPO_DIR, 'warehouse', 'templates', gameId);
       const tmpSpecPath = path.join(tmpSpecDir, 'spec.md');
       await fetchSpec(specUrl, tmpSpecPath);
       specPath = tmpSpecPath;
@@ -156,9 +156,9 @@ const worker = new Worker(
         const { runPipeline } = require('./lib/pipeline');
         const gameDir = specPath
           ? path.join(path.dirname(specPath), '..', 'game')
-          : path.join(REPO_DIR, 'game-spec', 'templates', gameId, 'game');
+          : path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'game');
         const specFile = specPath
-          || path.join(REPO_DIR, 'game-spec', 'templates', gameId, 'spec.md');
+          || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
         fs.mkdirSync(gameDir, { recursive: true });
         console.log(`[worker] Running Node.js pipeline (E3) for ${gameId}`);
         report = await runPipeline(gameDir, specFile, { metrics, logger });

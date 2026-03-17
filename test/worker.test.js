@@ -14,22 +14,22 @@ describe('worker path resolution', () => {
   function resolveGameDir(gameId, specPath) {
     return specPath
       ? path.join(path.dirname(specPath), '..', 'game')
-      : path.join(REPO_DIR, 'game-spec', 'templates', gameId, 'game');
+      : path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'game');
   }
 
   function resolveSpecFile(gameId, specPath) {
     return specPath
-      || path.join(REPO_DIR, 'game-spec', 'templates', gameId, 'spec.md');
+      || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
   }
 
   it('resolves default game dir from gameId', () => {
     const dir = resolveGameDir('doubles', null);
-    assert.equal(dir, '/mock/repo/game-spec/templates/doubles/game');
+    assert.equal(dir, '/mock/repo/warehouse/templates/doubles/game');
   });
 
   it('resolves default spec file from gameId', () => {
     const spec = resolveSpecFile('doubles', null);
-    assert.equal(spec, '/mock/repo/game-spec/templates/doubles/spec.md');
+    assert.equal(spec, '/mock/repo/warehouse/templates/doubles/spec.md');
   });
 
   it('resolves custom game dir from specPath', () => {

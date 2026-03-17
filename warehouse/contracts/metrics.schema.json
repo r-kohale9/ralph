@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Metrics",
+  "description": "The mandatory shape of metrics produced by endGame()",
+  "type": "object",
+  "required": ["accuracy", "time", "stars", "attempts", "duration_data"],
+  "properties": {
+    "accuracy": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Accuracy percentage (0-100)"
+    },
+    "time": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Time taken in seconds"
+    },
+    "stars": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3,
+      "description": "Star rating (0-3). Default thresholds: accuracy >= 80% → 3★, >= 50% → 2★, > 0% → 1★, 0% → 0★. Can be overridden with game-specific logic."
+    },
+    "star_thresholds": {
+      "type": "object",
+      "description": "The star calculation thresholds used for this game. Defaults below, can be overridden.",
+      "default": { "3": 80, "2": 50, "1": 1, "0": 0 },
+      "properties": {
+        "3": { "type": "number", "description": "Minimum accuracy % for 3 stars (default: 80)" },
+        "2": { "type": "number", "description": "Minimum accuracy % for 2 stars (default: 50)" },
+        "1": { "type": "number", "description": "Minimum accuracy % for 1 star (default: 1)" },
+        "0": { "type": "number", "description": "Minimum accuracy % for 0 stars (default: 0)" }
+      }
+    },
+    "attempts": {
+      "type": "array",
+      "items": { "$ref": "attempt.schema.json" },
+      "description": "Full attempt history"
+    },
+    "duration_data": {
+      "$ref": "duration-data.schema.json"
+    }
+  },
+  "additionalProperties": true
+}

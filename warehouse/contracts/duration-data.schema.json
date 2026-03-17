@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DurationData",
+  "description": "The mandatory shape of duration_data in gameState and metrics",
+  "type": "object",
+  "required": [
+    "startTime",
+    "preview",
+    "attempts",
+    "evaluations",
+    "inActiveTime",
+    "totalInactiveTime",
+    "currentTime"
+  ],
+  "properties": {
+    "startTime": {
+      "type": ["string", "null"],
+      "description": "ISO timestamp when game started (null before start)"
+    },
+    "preview": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "duration": { "type": "number" }
+        }
+      },
+      "description": "Preview/instruction viewing times"
+    },
+    "attempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "startTime": { "type": "string" },
+          "time_to_first_attempt": { "type": "number" },
+          "duration": { "type": "number" }
+        }
+      },
+      "description": "Timing for each attempt"
+    },
+    "evaluations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "duration": { "type": "number" }
+        }
+      },
+      "description": "Evaluation/feedback timing"
+    },
+    "inActiveTime": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["start"],
+        "properties": {
+          "start": { "type": "number" },
+          "end": { "type": "number" }
+        }
+      },
+      "description": "Inactive periods (from VisibilityTracker)"
+    },
+    "totalInactiveTime": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Sum of all inactive durations in milliseconds"
+    },
+    "currentTime": {
+      "type": ["string", "null"],
+      "description": "ISO timestamp when game ended (null before end)"
+    }
+  }
+}

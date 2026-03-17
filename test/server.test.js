@@ -22,7 +22,7 @@ describe('extractChangedSpecs', () => {
   it('extracts game IDs from added spec.md files', () => {
     const result = extractChangedSpecs({
       commits: [
-        { added: ['game-spec/templates/doubles/spec.md'], modified: [] },
+        { added: ['warehouse/templates/doubles/spec.md'], modified: [] },
       ],
     });
     assert.equal(result.size, 1);
@@ -32,7 +32,7 @@ describe('extractChangedSpecs', () => {
   it('extracts game IDs from modified spec.md files', () => {
     const result = extractChangedSpecs({
       commits: [
-        { added: [], modified: ['game-spec/templates/triples/spec.md'] },
+        { added: [], modified: ['warehouse/templates/triples/spec.md'] },
       ],
     });
     assert.ok(result.has('triples'));
@@ -41,8 +41,8 @@ describe('extractChangedSpecs', () => {
   it('deduplicates across multiple commits', () => {
     const result = extractChangedSpecs({
       commits: [
-        { added: ['game-spec/templates/doubles/spec.md'], modified: [] },
-        { added: [], modified: ['game-spec/templates/doubles/spec.md'] },
+        { added: ['warehouse/templates/doubles/spec.md'], modified: [] },
+        { added: [], modified: ['warehouse/templates/doubles/spec.md'] },
       ],
     });
     assert.equal(result.size, 1);
@@ -53,10 +53,10 @@ describe('extractChangedSpecs', () => {
       commits: [
         {
           added: [
-            'game-spec/templates/doubles/spec.md',
-            'game-spec/templates/triples/spec.md',
+            'warehouse/templates/doubles/spec.md',
+            'warehouse/templates/triples/spec.md',
           ],
-          modified: ['game-spec/templates/memory/spec.md'],
+          modified: ['warehouse/templates/memory/spec.md'],
         },
       ],
     });
@@ -68,8 +68,8 @@ describe('extractChangedSpecs', () => {
       commits: [
         {
           added: [
-            'game-spec/templates/doubles/config.json',
-            'game-spec/templates/doubles/assets/bg.png',
+            'warehouse/templates/doubles/config.json',
+            'warehouse/templates/doubles/assets/bg.png',
             'README.md',
           ],
           modified: [],
@@ -99,7 +99,7 @@ describe('extractChangedSpecs', () => {
   it('detects removed spec files', () => {
     const result = extractChangedSpecs({
       commits: [
-        { added: [], modified: [], removed: ['game-spec/templates/old-game/spec.md'] },
+        { added: [], modified: [], removed: ['warehouse/templates/old-game/spec.md'] },
       ],
     });
     assert.equal(result.size, 1);
