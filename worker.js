@@ -279,10 +279,50 @@ const worker = new Worker(
         if (msg) {
           slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
         }
-        // Post test cases to Slack for human review
+        // Upload test cases as per-category markdown to GCP, post links to Slack
         if (step === 'test-cases-ready' && Array.isArray(detail?.testCases) && detail.testCases.length > 0) {
-          const caseLines = detail.testCases.map((tc, i) => `${i + 1}. *${tc.name}*: ${tc.description}`).join('\n');
-          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `📋 *Test cases (${detail.testCases.length})*:\n${caseLines}`).catch(() => {});
+          (async () => {
+            try {
+              // Group by category
+              const byCategory = {};
+              for (const tc of detail.testCases) {
+                const cat = tc.category || 'general';
+                if (!byCategory[cat]) byCategory[cat] = [];
+                byCategory[cat].push(tc);
+              }
+
+              if (gcp.isEnabled()) {
+                const links = [];
+                for (const [cat, cases] of Object.entries(byCategory)) {
+                  const md = [`# Test Cases: ${cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`, '']
+                    .concat(cases.map((tc, i) => [
+                      `## ${i + 1}. ${tc.name}`,
+                      `**Description:** ${tc.description}`,
+                      '**Steps:**',
+                      tc.steps.map((s, j) => `${j + 1}. ${s}`).join('\n'),
+                      '',
+                    ].join('\n')))
+                    .join('\n');
+
+                  const dest = `games/${gameId}/builds/${buildId}/test-cases/${cat}.md`;
+                  const url = await gcp.uploadContent(md, dest, { contentType: 'text/markdown' });
+                  if (url) links.push({ cat, url });
+                }
+
+                if (links.length > 0) {
+                  const linkText = links.map(({ cat, url }) => `<${url}|${cat}>`).join('  ·  ');
+                  slack.postThreadUpdate(threadInfo.ts, threadInfo.channel,
+                    `📋 *Test cases (${detail.testCases.length} total)* — ${linkText}`).catch(() => {});
+                }
+              } else {
+                // No GCP — just post count summary
+                slack.postThreadUpdate(threadInfo.ts, threadInfo.channel,
+                  `📋 *Test cases generated* (${detail.testCases.length} total, ${Object.keys(byCategory).join(', ')})`).catch(() => {});
+              }
+            } catch (err) {
+              console.warn(`[worker] Failed to upload test cases: ${err.message}`);
+            }
+          })();
         }
         // Upload HTML preview as soon as it's ready (after generation, before testing)
         if (step === 'html-ready' && detail?.htmlFile && gcp.isEnabled()) {
@@ -422,6 +462,7 @@ const worker = new Worker(
   {
     connection,
     concurrency: CONCURRENCY,
+    lockDuration: 600000, // 10 minutes (jobs can take up to 30 min — renewed every lockDuration/2)
     limiter: {
       max: RATE_LIMIT_MAX,
       duration: RATE_LIMIT_DURATION,
