@@ -269,6 +269,8 @@ const worker = new Worker(
           'validate-spec': '📋 Validating spec...',
           'generate-html': `🏗️ Generating HTML (model: ${detail?.model || 'unknown'})...`,
           'static-validation': '🔍 Running static validation...',
+          'static-validation-fixed': '✅ Static validation issues auto-fixed',
+          'static-validation-fix-failed': '❌ Static validation fix failed — build may be unstable',
           'generate-test-cases': `📋 Generating test cases (model: ${detail?.model || 'unknown'})...`,
           'generate-tests': '🧪 Generating Playwright tests...',
           'test-fix-loop': `🔄 Starting test/fix loop (max ${detail?.maxIterations || 5} iterations)...`,
@@ -278,6 +280,18 @@ const worker = new Worker(
         const msg = messages[step];
         if (msg) {
           slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
+        }
+        // Post static validation errors inline
+        if (step === 'static-validation-failed' && detail?.errors) {
+          const snippet = detail.errors.slice(0, 500) + (detail.errors.length > 500 ? '…' : '');
+          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel,
+            `⚠️ *Static validation errors (auto-fixing):*\n\`\`\`\n${snippet}\n\`\`\``).catch(() => {});
+        }
+        // Post contract validation issues
+        if (step === 'contract-validation-issues' && detail?.errors?.length) {
+          const snippet = detail.errors.slice(0, 5).join('\n') + (detail.errors.length > 5 ? `\n…(${detail.errors.length - 5} more)` : '');
+          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel,
+            `⚠️ *Contract validation: ${detail.count} issue(s)*\n\`\`\`\n${snippet}\n\`\`\``).catch(() => {});
         }
         // Upload test cases as per-category markdown to GCP, post links to Slack
         if (step === 'test-cases-ready' && Array.isArray(detail?.testCases) && detail.testCases.length > 0) {
