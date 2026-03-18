@@ -636,6 +636,8 @@ Rules:
 - Pure JavaScript only — no TypeScript type annotations (no : any[], no : string, etc.)
 - Use double quotes for test() names: test("test name", async...) — never single quotes in names
 - Do NOT access window.timer directly — only use gameState properties from the context below
+- Do NOT assert timer text changes (e.g. expect(timer).not.toBe("00:00")) — Playwright headless sets visibilityState=hidden which pauses the timer; it stays at 00:00 always
+- Do NOT assert #timer-container visibility on start/transition screens — it is hidden there (only visible on game screen)
 - Wrap in \`\`\`javascript code block
 ${testContextText ? `\n${testContextText}\n` : ''}
 ${domSnapshotText ? `\n${domSnapshotText}\n` : ''}
