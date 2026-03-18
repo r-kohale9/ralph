@@ -21,7 +21,7 @@
 //   all       — Run all steps in sequence
 // ─────────────────────────────────────────────────────────────────────────────
 
-try { require('dotenv').config(); } catch { /* dotenv optional */ }
+try { require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }); } catch { /* dotenv optional */ }
 
 const fs = require('fs');
 const path = require('path');
