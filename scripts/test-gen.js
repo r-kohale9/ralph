@@ -527,6 +527,11 @@ async function submitAnswer(page, answer) {
 }
 
 test.beforeEach(async ({ page }) => {
+  // Override visibilityState so VisibilityTracker never pauses (Playwright headless sets hidden)
+  await page.addInitScript(() => {
+    Object.defineProperty(document, 'visibilityState', { get: () => 'visible' });
+    Object.defineProperty(document, 'hidden', { get: () => false });
+  });
   await page.goto('/');
   try {
     const okayBtn = page.locator('button:has-text("Okay!")');
