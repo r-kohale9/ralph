@@ -278,6 +278,27 @@ const worker = new Worker(
         if (msg) {
           slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
         }
+        // Upload HTML preview as soon as it's ready (after generation, before testing)
+        if (step === 'html-ready' && detail?.htmlFile && gcp.isEnabled()) {
+          gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile).then((gcpUrl) => {
+            if (gcpUrl) {
+              if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
+              db.updateGameGcpUrl(gameId, gcpUrl);
+              slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🔗 HTML generated — preview: ${gcpUrl}`).catch(() => {});
+            }
+          }).catch(() => {});
+        }
+        // Upload updated HTML after each fix iteration
+        if (step === 'html-fixed' && detail?.htmlFile && gcp.isEnabled()) {
+          const { iteration: iter, passed: p, failed: f } = detail;
+          gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile).then((gcpUrl) => {
+            if (gcpUrl) {
+              if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
+              db.updateGameGcpUrl(gameId, gcpUrl);
+              slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🔧 Fix iter ${iter} applied (${p}→?) — preview: ${gcpUrl}`).catch(() => {});
+            }
+          }).catch(() => {});
+        }
       }
     };
 
@@ -371,6 +392,8 @@ const worker = new Worker(
     // Post result to Slack thread or webhook
     const gcpUrl = db.getGame(gameId)?.gcp_url;
     if (threadInfo) {
+      // Update opener with final status + post summary reply
+      await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
       await slack.postThreadResult(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
     } else {
       await slack.notifyBuildResult(gameId, report, commitSha, gcpUrl);
