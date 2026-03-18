@@ -151,8 +151,8 @@
       "id": "PART-017",
       "name": "Feedback Integration",
       "version": "1.0.0",
-      "category": "EXTENSION",
-      "condition": "Added after initial HTML is approved (Phase 3)",
+      "category": "CONDITIONAL",
+      "condition": "Game has audio feedback or sticker moments",
       "file": "PART-017-feedback.md",
       "dependencies": ["PART-003"]
     },
@@ -268,8 +268,8 @@
       "id": "PART-030",
       "name": "Sentry Error Tracking",
       "version": "1.0.0",
-      "category": "EXTENSION",
-      "condition": "Production error monitoring (added after approval)",
+      "category": "MANDATORY",
+      "condition": "Every game",
       "file": "PART-030-sentry-error-tracking.md",
       "dependencies": ["PART-002", "PART-003"]
     },
@@ -326,6 +326,15 @@
       "condition": "Every game (automated testing pipeline)",
       "file": "PART-037-playwright-testing.md",
       "dependencies": ["PART-011", "PART-027", "PART-035"]
+    },
+    {
+      "id": "PART-038",
+      "name": "InteractionManager",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game needs interaction suppression during audio feedback or evaluation",
+      "file": "PART-038-interaction-manager.md",
+      "dependencies": ["PART-002", "PART-003"]
     }
   ],
 
@@ -334,7 +343,7 @@
       "PART-001", "PART-002", "PART-003", "PART-004", "PART-005",
       "PART-007", "PART-008", "PART-009", "PART-010", "PART-011",
       "PART-012", "PART-019", "PART-020", "PART-021", "PART-022",
-      "PART-027", "PART-028"
+      "PART-027", "PART-028", "PART-030"
     ],
     "post_gen": ["PART-034", "PART-035", "PART-037"],
     "verification": ["PART-026"],
@@ -348,12 +357,12 @@
     "has_progress_bar": ["PART-023", "PART-025"],
     "has_transition_screen": ["PART-024", "PART-025"],
     "is_story_only": ["PART-029"],
-    "has_error_tracking": ["PART-030"],
     "has_api_submission": ["PART-031"],
     "has_analytics": ["PART-032"],
     "has_drag_drop": ["PART-033"],
     "has_grid_interaction": ["PART-033"],
-    "has_tag_input": ["PART-033"]
+    "has_tag_input": ["PART-033"],
+    "has_interaction_manager": ["PART-038"]
   },
 
   "dependency_validation": {
@@ -382,6 +391,7 @@
     "PART-024": "mathai-game-builder/workflows/choices/transitionscreen-options.md",
     "PART-025": "mathai-game-builder/workflows/choices/screenlayout-options.md",
     "PART-026": "mathai-game-builder/examples/anti-patterns.md",
+    "PART-038": "mathai-game-builder/components/interaction-manager.md",
     "PART-027": "mathai-game-builder/reference/play-area-construction.md",
     "PART-028": "mathai-game-builder/reference/inputschema-guide.md",
     "PART-029": "mathai-game-builder/workflows/story-only-games.md",

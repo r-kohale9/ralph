@@ -46,14 +46,17 @@ Inside DOMContentLoaded (PART-004), BEFORE VisibilityTracker (so tracker can ref
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `start()` | void | Start timer |
-| `pause()` | void | Pause timer |
-| `resume()` | void | Resume timer |
+| `pause(options?)` | void | Pause timer. `options: { fromAudio?: bool, fromVisibilityTracker?: bool }` |
+| `resume(options?)` | void | Resume timer. Same options as pause. Cross-system blocking: audio resume won't unpause a visibility-paused timer and vice versa |
 | `stop()` | void | Stop timer |
 | `reset()` | void | Reset to startTime |
 | `destroy()` | void | Cleanup |
 | `getCurrentTime()` | number | Current seconds |
 | `getTimeTaken()` | number | Elapsed seconds |
 | `getFormattedTime()` | string | Formatted time string |
+| `getElapsedTimes()` | number[] | Array of elapsed times across resets |
+| `updateConfig(config)` | void | Update timer config (e.g. `{ seconds }` to set time) |
+| `setTime(seconds)` | void | Set current time to specific value |
 
 ## Properties
 
@@ -61,7 +64,23 @@ Inside DOMContentLoaded (PART-004), BEFORE VisibilityTracker (so tracker can ref
 |----------|------|-------------|
 | `isRunning` | boolean | Timer is actively counting |
 | `isPaused` | boolean | Timer is paused |
+| `isPausedByAudio` | boolean | Timer was paused by audio system |
+| `isPausedByVisibilityTracker` | boolean | Timer was paused by visibility tracker |
 | `currentSeconds` | number | Current time value |
+
+## Cross-System Pause/Resume
+
+The timer tracks WHO paused it (`fromAudio` vs `fromVisibilityTracker`). When resume is called with a source flag, the timer checks if it's also paused by the OTHER system — if so, it stays paused. This prevents conflicts between FeedbackManager audio (which auto-pauses/resumes the timer) and VisibilityTracker.
+
+```javascript
+// FeedbackManager does this internally — you don't write this:
+timer.pause({ fromAudio: true });
+timer.resume({ fromAudio: true });
+
+// VisibilityTracker callbacks MUST pass their flag:
+timer.pause({ fromVisibilityTracker: true });
+timer.resume({ fromVisibilityTracker: true });
+```
 
 ## Count-Up Timer Without End Limit
 

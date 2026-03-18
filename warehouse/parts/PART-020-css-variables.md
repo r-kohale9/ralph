@@ -44,6 +44,10 @@ CSS variables load automatically when the Components package (PART-002) is inclu
   --mathai-cell-bg-red: #FFD9D9;    /* Incorrect answer */
   --mathai-cell-bg-grey: #E0E0E0;   /* Disabled */
 
+  /* Aliases — used in PART-027/033 code blocks */
+  --mathai-light-green: #D9F8D9;    /* Alias for --mathai-cell-bg-green */
+  --mathai-light-red: #FFD9D9;      /* Alias for --mathai-cell-bg-red */
+
   /* Borders */
   --mathai-cell-border-green: #27ae60; /* Correct answer border */
   --mathai-cell-border-red: #e74c3c;   /* Incorrect answer border */
@@ -70,6 +74,12 @@ CSS variables load automatically when the Components package (PART-002) is inclu
   --mathai-border-radius: 24px;
   --mathai-border-radius-small: 8px;
   --mathai-border-radius-button: 10px;
+  --mathai-border-radius-card: 12px;  /* Used in PART-027 grid cells */
+
+  /* ===================== FONT SIZES (additional) ===================== */
+  --mathai-font-size-body: 16px;      /* Used in PART-027 grid cells */
+  --mathai-font-size-small: 14px;
+  --mathai-font-size-large: 24px;
 }
 ```
 

@@ -56,7 +56,7 @@ SignalCollector is a **separate, complementary** system that captures every atom
 - **Tier 3 (Engagement):** How engaged they were — hesitations, frustration, flow
 - **Tier 4 (Context):** What surrounded it — position in session, time of day, error streaks
 
-SignalCollector is auto-loaded via the Helpers package. No extra script tag needed.
+**Note:** SignalCollector is auto-loaded via the Helpers package. No extra script tag needed.
 
 **CRITICAL: Do NOT define an inline stub/polyfill/fallback class for SignalCollector.** The real CDN script checks `if (window.SignalCollector)` and skips initialization if it already exists. An inline stub like `window.SignalCollector = window.SignalCollector || class { ... }` will permanently shadow the real package. Let `waitForPackages()` (PART-003) handle the loading wait. See Anti-Pattern 18 (PART-026).
 

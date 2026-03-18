@@ -98,7 +98,7 @@ What + when covers all observable behavior. There is no signal a game can produc
 - Send to platform → PART-008 (postMessage out, game_complete)
 - Optional: send to backend API → PART-031 (API helper)
 - Optional: send to analytics → PART-032 (AnalyticsManager)
-- Optional: send errors to monitoring → PART-030 (Sentry)
+- Send errors to monitoring → PART-030 (Sentry)
 - Cleanup resources → RULE-005
 
 **Is anything missing?** Results go to exactly 4 possible destinations: the student (results screen), the platform (postMessage), a backend (API), or monitoring (Sentry/analytics). All four are covered. There is no 5th destination for game output.

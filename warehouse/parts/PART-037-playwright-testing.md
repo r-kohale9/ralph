@@ -102,6 +102,7 @@ Shared utilities available to all game tests:
 | `assertSingleActionButton(page)` | Verify only one of Submit/Retry/Next visible |
 | `validateMetrics(metrics)` | Validate metrics against contract |
 | `validateAttempt(attempt)` | Validate attempt against contract |
+| `verifySentryIntegration(page)` | Verify full Sentry setup: config, SDK, init, script order, debug functions |
 
 ## Playwright Config
 
@@ -121,7 +122,8 @@ Every generated `game.spec.js` must include tests for:
 4. **Button States** — mutual exclusivity, correct show/hide
 5. **Validation** — correct/incorrect answers, visual feedback, attempt recording
 6. **Metrics** — accuracy, stars, postMessage shape
-7. **Game-Specific** — unique mechanics of this game (≥3 tests)
+7. **Sentry Integration** — SentryConfig + SDK loaded, initialized, script order correct, debug functions exist (use `verifySentryIntegration` helper)
+8. **Game-Specific** — unique mechanics of this game (≥3 tests)
 
 ## Key Design Decision: Tests Are Fixed
 
@@ -141,7 +143,7 @@ Tests are generated **once** (Step 2) and **never modified** by the fix loop. Th
 - [ ] `ralph.sh` exists and is executable
 - [ ] `playwright.config.js` uses port 8787, viewport 480x800
 - [ ] `test-helpers.js` has all shared utilities
-- [ ] Generated `game.spec.js` covers all 7 mandatory categories
+- [ ] Generated `game.spec.js` covers all 8 mandatory categories (including Sentry)
 - [ ] Test file uses helpers from `test-helpers.js`
 - [ ] Tests simulate real user interactions (not just evaluate())
 - [ ] Audio tests mock/spy, don't assert actual playback

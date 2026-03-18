@@ -167,11 +167,11 @@ Stage 3: Post-Generation                 →  inputSchema.json + tests.md
 
 ## Capability Matrix (Quick Reference)
 
-When the LLM builds a game, it loads `any_game` (17 code parts) + `verification` (1) + `post_gen` (2) = 20 always-loaded parts, then adds conditional parts based on game features:
+When the LLM builds a game, it loads `any_game` (18 code parts) + `verification` (1) + `post_gen` (2) = 21 always-loaded parts, then adds conditional parts based on game features:
 
 | Game Feature | Parts Added |
 |-------------|-------------|
-| Every game (code) | PART-001 through 012, 019 through 022, 027, 028 (17 parts) |
+| Every game (code) | PART-001 through 012, 019 through 022, 027, 028, 030 (18 parts) |
 | Every game (verification) | PART-026 (anti-patterns checklist) |
 | Every game (post-gen) | PART-034 (schema serialization), PART-035 (test plan) |
 | Has timer | + PART-006 |
@@ -184,7 +184,6 @@ When the LLM builds a game, it loads `any_game` (17 code parts) + `verification`
 | Progress bar | + PART-023, PART-025 |
 | Transition screens | + PART-024, PART-025 |
 | Story-only game | + PART-029 |
-| Error tracking (Sentry) | + PART-030 |
 | API result submission | + PART-031 |
 | Multi-platform analytics | + PART-032 |
 | Drag-and-drop | + PART-033 |

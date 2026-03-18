@@ -43,6 +43,7 @@ Top of the `<script>` block, before any other functions.
 ## Rules
 
 - Must check all four: FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector
+- TimerComponent is checked even for games without timers — the Components package always registers it globally
 - Must have 10s timeout
 - Must show fallback UI on failure
 - Must throw error on failure (prevents further initialization)

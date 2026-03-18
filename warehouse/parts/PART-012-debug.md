@@ -28,17 +28,29 @@ window.testAudio = async function(id) {
 };
 
 window.testPause = function() {
-  // Simulate what happens when user switches tabs
-  // Call the same callbacks that VisibilityTracker fires on inactive
-  if (timer) timer.pause();
-  FeedbackManager.sound.stopAll();
-  FeedbackManager.stream.stopAll();
+  // Use VisibilityTracker's built-in method — triggers the same onInactive callback
+  // CORRECT: triggerInactive()  |  WRONG: simulatePause() (does not exist)
+  if (visibilityTracker) {
+    visibilityTracker.triggerInactive();
+  } else {
+    // Fallback if no visibilityTracker: manually do what onInactive does
+    if (timer) timer.pause();
+    FeedbackManager.sound.pause();
+    FeedbackManager.stream.pauseAll();
+  }
   console.log(JSON.stringify({ event: 'testPause', timerPaused: true }));
 };
 
 window.testResume = function() {
-  // Simulate what happens when user returns to tab
-  if (timer) timer.resume();
+  // Use VisibilityTracker's built-in method — triggers the same onResume callback
+  // CORRECT: triggerResume()  |  WRONG: simulateResume() (does not exist)
+  if (visibilityTracker) {
+    visibilityTracker.triggerResume();
+  } else {
+    if (timer?.isPaused) timer.resume();
+    FeedbackManager.sound.resume();
+    FeedbackManager.stream.resumeAll();
+  }
   console.log(JSON.stringify({ event: 'testResume', timerResumed: true }));
 };
 

@@ -33,13 +33,12 @@ Parts are correctly classified into 5 categories with clear semantics:
 
 | Category | Count | What it means |
 |---|---|---|
-| MANDATORY | 17 | Code-generating parts in every game's HTML |
-| CONDITIONAL | 13 | Loaded only when game features require them |
-| EXTENSION | 2 | Added after initial approval (feedback, Sentry) |
+| MANDATORY | 18 | Code-generating parts in every game's HTML |
+| CONDITIONAL | 14 | Loaded only when game features require them |
 | REFERENCE | 1 | Verification checklist, not code-generating |
 | POST_GEN | 2 | Run after HTML generation (schema serialization, test plan) |
 
-The capability matrix cleanly separates these: `any_game` (17 code parts), `verification` (1), `post_gen` (2), then 15 conditional capabilities. No ambiguity about what loads when.
+The capability matrix cleanly separates these: `any_game` (18 code parts), `verification` (1), `post_gen` (3), then 14 conditional capabilities. No ambiguity about what loads when.
 
 ### 3. Dependency Graph
 
@@ -88,7 +87,7 @@ The assembly book format (template-schema.md) has 13 sections:
 | 8 | Functions | Every function with signatures | ✓ |
 | 9 | Event Schema | Lifecycle + game-specific events | ✓ |
 | 10 | Scaffold Points | Where hints can be injected | ✓ |
-| 11 | Feedback Triggers | Audio/sticker moments for Phase 3 | ✓ |
+| 11 | Feedback Triggers | Audio/sticker moments | ✓ |
 | 12 | Visual Spec | Colors, typography, spacing | ✓ |
 | 13 | Verification Checklist | Structural + functional + design + rules + contracts | ✓ |
 
@@ -141,7 +140,7 @@ Out-of-scope items explicitly named (multiplayer, physics, open-world) with just
 | 8 | Deep references point to skill folder paths | Acknowledged. Warehouse used alongside skill folder in practice. Deep refs loaded from skill folder during code gen. Not a blocker. |
 | 9 | Template missing event schema, scaffold points, feedback triggers | Fixed. Sections 9, 10, 11 added to template-schema.md. |
 | 10 | COVERAGE.md had no completeness argument | Fixed. Section 16 added with 6-dimension model + gap analysis. |
-| 11 | Capability matrix "21 mandatory" without breakdown | Fixed. Now: "17 code parts + 1 verification + 2 post-gen = 20 always-loaded". |
+| 11 | Capability matrix "21 mandatory" without breakdown | Fixed. Now: "18 code parts + 1 verification + 3 post-gen = 22 always-loaded". |
 
 ---
 

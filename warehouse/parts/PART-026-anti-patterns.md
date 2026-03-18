@@ -15,7 +15,7 @@ Critical mistakes that LLMs commonly make when generating game HTML. Avoid ALL o
 let seconds = 60;
 setInterval(() => {
   seconds--;
-  document.getElementById('timer').textContent = seconds;
+  document.getElementById("timer").textContent = seconds;
 }, 1000);
 ```
 
@@ -25,11 +25,48 @@ setInterval(() => {
 
 ```javascript
 // WRONG - Do NOT use new Audio()
-const sound = new Audio('correct.mp3');
+const sound = new Audio("correct.mp3");
 sound.play();
 ```
 
 **Correct:** Use `FeedbackManager.sound.play()` from PART-017.
+
+## Anti-Pattern 0: Hallucinated or Relative Script URLs
+
+```html
+<!-- WRONG: Relative paths — these files do NOT exist on disk -->
+<script src="../../../warehouse/packages/timer-component.js"></script>
+<script src="../../../warehouse/packages/progress-bar-component.js"></script>
+<script src="../../../warehouse/packages/signal-collector.js"></script>
+
+<!-- WRONG: Invented CDN domains — none of these exist -->
+<script src="https://cdn.homeworkapp.ai/packages/FeedbackManager.js"></script>
+<script src="https://cdn.homeworkapp.ai/packages/Components.js"></script>
+<script src="https://cdn.homeworkapp.ai/packages/Helpers.js"></script>
+<script src="https://cdn.homeworkapp.ai/sentry/helpers/sentry/index.js"></script>
+<script src="https://cdn.homeworkapp.ai/packages/mathai-widgets/latest/MathAIWidgets.js"></script>
+```
+
+**The game has exactly 4 script URLs. Copy them verbatim — never invent alternatives:**
+
+| What it loads | Exact URL |
+|---------------|-----------|
+| SentryConfig | `https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js` |
+| FeedbackManager | `https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js` |
+| Components | `https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js` |
+| Helpers | `https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js` |
+
+**These 3 bundles expose ALL game classes.** There are no separate script files per class:
+
+| Class | Comes from |
+|-------|-----------|
+| `FeedbackManager` | `feedback-manager/index.js` |
+| `TimerComponent` | `components/index.js` |
+| `ProgressBarComponent` | `components/index.js` |
+| `TransitionScreenComponent` | `components/index.js` |
+| `ScreenLayout` | `components/index.js` |
+| `VisibilityTracker` | `helpers/index.js` |
+| `SignalCollector` | `helpers/index.js` |
 
 ## Anti-Pattern 3: Wrong Package Loading Order
 
@@ -45,7 +82,7 @@ sound.play();
 
 ```javascript
 // WRONG - Packages may not be loaded yet
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener("DOMContentLoaded", async () => {
   await FeedbackManager.init(); // May throw "FeedbackManager is not defined"
 });
 ```
@@ -56,7 +93,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 ```javascript
 // WRONG - SubtitleComponent is internal to FeedbackManager
-SubtitleComponent.show({ text: 'Great job!' });
+SubtitleComponent.show({ text: "Great job!" });
 ```
 
 **Correct:** Pass subtitle as prop to `FeedbackManager.sound.play(id, { subtitle: '...' })`.
@@ -66,8 +103,8 @@ SubtitleComponent.show({ text: 'Great job!' });
 ```javascript
 // WRONG - Hangs forever if CDN is down
 async function waitForPackages() {
-  while (typeof FeedbackManager === 'undefined') {
-    await new Promise(r => setTimeout(r, 50));
+  while (typeof FeedbackManager === "undefined") {
+    await new Promise((r) => setTimeout(r, 50));
   }
 }
 ```
@@ -78,8 +115,12 @@ async function waitForPackages() {
 
 ```css
 /* WRONG - Hardcoded values */
-.correct { background: #219653; }
-.incorrect { background: #E35757; }
+.correct {
+  background: #219653;
+}
+.incorrect {
+  background: #e35757;
+}
 ```
 
 **Correct:** Use CSS variables: `var(--mathai-green)`, `var(--mathai-red)` (PART-020).
@@ -88,8 +129,10 @@ async function waitForPackages() {
 
 ```javascript
 // WRONG - Function defined inside DOMContentLoaded
-window.addEventListener('DOMContentLoaded', () => {
-  function handleClick() { /* ... */ } // Not accessible from HTML onclick
+window.addEventListener("DOMContentLoaded", () => {
+  function handleClick() {
+    /* ... */
+  } // Not accessible from HTML onclick
 });
 ```
 
@@ -110,7 +153,7 @@ timer.start();
 
 ```javascript
 // WRONG - Objects don't display properly in some environments
-console.log('State:', gameState);
+console.log("State:", gameState);
 ```
 
 **Correct:** `console.log('State:', JSON.stringify(gameState, null, 2))` (RULE-004).
@@ -119,10 +162,18 @@ console.log('State:', gameState);
 
 ```html
 <!-- WRONG - Multiple blocks -->
-<style>/* block 1 */</style>
-<style>/* block 2 */</style>
-<script>/* block 1 */</script>
-<script>/* block 2 */</script>
+<style>
+  /* block 1 */
+</style>
+<style>
+  /* block 2 */
+</style>
+<script>
+  /* block 1 */
+</script>
+<script>
+  /* block 2 */
+</script>
 ```
 
 **Correct:** Single `<style>` in `<head>`, single `<script>` in `<body>` (RULE-007).
@@ -131,7 +182,9 @@ console.log('State:', gameState);
 
 ```css
 /* WRONG - Doesn't account for mobile safe areas */
-.page-center { min-height: 100vh; }
+.page-center {
+  min-height: 100vh;
+}
 ```
 
 **Correct:** Use `100dvh` for mobile safe-area awareness (PART-021).
@@ -152,7 +205,9 @@ console.log('State:', gameState);
 
 ```css
 /* WRONG - Grid expands to full viewport width on desktop */
-.game-grid { max-width: 100%; }
+.game-grid {
+  max-width: 100%;
+}
 ```
 
 **Correct:** Always set a pixel cap: `max-width: 360px; margin: 0 auto;` (PART-027).
@@ -161,7 +216,7 @@ console.log('State:', gameState);
 
 ```javascript
 // WRONG - 'dynamic' is not a registered sound ID, causes permission popup with no audio
-await FeedbackManager.sound.play('dynamic', { text: 'Great job!' });
+await FeedbackManager.sound.play("dynamic", { text: "Great job!" });
 ```
 
 **Correct:** `await FeedbackManager.playDynamicFeedback({ audio_content: '...', subtitle: '...' })` (PART-017).
@@ -179,22 +234,55 @@ progressBar.update(gameState.currentRound, lives); // currentRound starts at 1
 
 ```css
 /* WRONG - Pseudo-elements (diagonal lines, badges) escape cell boundaries */
-.grid-cell { /* no overflow rule */ }
+.grid-cell {
+  /* no overflow rule */
+}
 ```
 
 **Correct:** Always add `overflow: hidden` to grid cells that use `::before`/`::after` pseudo-elements.
 
-## Anti-Pattern 18: Inline Stub/Polyfill for CDN Packages
+## Anti-Pattern 18: Using `sound.register()` Instead of `sound.preload()`
+
+```javascript
+// WRONG - register() does not exist on FeedbackManager.sound
+await FeedbackManager.sound.register('correct_tap', 'https://cdn.mathai.ai/.../audio.mp3');
+await FeedbackManager.sound.register('wrong_tap', 'https://cdn.mathai.ai/.../audio.mp3');
+```
+
+**Correct:** Use `preload()` with an array of `{id, url}` objects — a single batch call:
+```javascript
+await FeedbackManager.sound.preload([
+  { id: 'correct_tap', url: 'https://cdn.mathai.ai/.../audio.mp3' },
+  { id: 'wrong_tap', url: 'https://cdn.mathai.ai/.../audio.mp3' }
+]);
+```
+
+## Anti-Pattern 19: Using `sound.stopAll()` in VisibilityTracker
+
+```javascript
+// WRONG - stopAll() destroys audio state, resume() has nothing to work with
+onInactive: () => {
+  FeedbackManager.sound.stopAll();
+}
+```
+
+**Correct:** Use `sound.pause()` / `sound.resume()` to preserve audio state across tab switches (PART-005).
+
+## Anti-Pattern 20: Inline Stub/Polyfill for CDN Packages
 
 ```html
 <!-- WRONG - Defining a stub class prevents the real CDN package from loading -->
 <script>
-  window.SignalCollector = window.SignalCollector || class SignalCollector {
-    constructor(opts) { this.opts = opts; }
-    startProblem() {}
-    endProblem() {}
-    // ... stub methods
-  };
+  window.SignalCollector =
+    window.SignalCollector ||
+    class SignalCollector {
+      constructor(opts) {
+        this.opts = opts;
+      }
+      startProblem() {}
+      endProblem() {}
+      // ... stub methods
+    };
 </script>
 ```
 
@@ -204,6 +292,7 @@ The real CDN script checks `if (window.SignalCollector)` and skips initializatio
 
 ## Verification
 
+- [ ] All 4 script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` — no relative paths, no `cdn.homeworkapp.ai`, no invented domains
 - [ ] No `new Audio()` anywhere
 - [ ] No `setInterval` for timer purposes
 - [ ] No `SubtitleComponent.show()` calls
@@ -212,6 +301,9 @@ The real CDN script checks `if (window.SignalCollector)` and skips initializatio
 - [ ] `waitForPackages()` has timeout
 - [ ] All onclick handlers reference global functions
 - [ ] VisibilityTracker present when timer or audio used
+- [ ] VisibilityTracker `onInactive` uses `sound.pause()` NOT `sound.stopAll()`
+- [ ] VisibilityTracker timer calls pass `{ fromVisibilityTracker: true }` flag
+- [ ] Audio preloading uses `sound.preload([{id, url}])` NOT `sound.register(id, url)`
 - [ ] Single style/script block only
 - [ ] Uses `100dvh` not `100vh`
 - [ ] All game HTML inside `#gameContent` (not sibling of `#app`) when using ScreenLayout
@@ -221,8 +313,15 @@ The real CDN script checks `if (window.SignalCollector)` and skips initializatio
 - [ ] Grid cells with pseudo-elements have `overflow: hidden`
 - [ ] Count-up timers (`timerType: 'increase'`) without a time limit use a large `endTime` (e.g. `100000`), never `0` or omitted
 - [ ] `gameState` declared as `window.gameState = {...}`, NOT `const gameState = {...}`
-- [ ] `testPause`/`testResume` call `timer.pause()`/`timer.resume()` directly — NOT `visibilityTracker.simulatePause()`
+- [ ] `testPause`/`testResume` use `visibilityTracker.triggerInactive()`/`triggerResume()` — NOT `simulatePause()` (doesn't exist)
 - [ ] Progress bar slot uses `position: absolute; top: 0` to sit at y=0 (no gap above it)
 - [ ] `restartGame()` recreates `timer` and `visibilityTracker` (they were nulled by `endGame()`)
 - [ ] Transition screens use either `duration` OR `buttons` — never both together
 - [ ] No inline stub/polyfill/fallback classes for CDN packages (SignalCollector, FeedbackManager, TimerComponent, etc.)
+- [ ] **Every end condition has a code path to `endGame()`** — no dead-end game states where the player is stuck
+- [ ] **`setupGame()` sets `gameState.startTime = Date.now()` and `gameState.isActive = true`** — without these, attempts produce NaN and endGame exits immediately
+- [ ] **`setupGame()` calls `timer.start()`** when timer exists — without this, timer stays at 00:00
+- [ ] **`setupGame()` calls `trackEvent('game_start', 'game')`**
+- [ ] VisibilityTracker `onInactive`/`onResume` fire `trackEvent('game_paused'/'game_resumed')`
+- [ ] CSS variables use `--mathai-*` prefix consistently — not `--game-*` or `--stack-*`
+- [ ] If using ScreenLayout (PART-025), do NOT also write manual HTML from PART-021 (double-nested layout)

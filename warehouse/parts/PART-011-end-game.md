@@ -76,7 +76,7 @@ Global scope function (RULE-001).
 | `attempts` | array | Full attempt history (from PART-009) |
 | `duration_data` | object | Full timing breakdown |
 
-## Star Calculation (Default)
+## Star Calculation (Default — Accuracy-Based)
 
 | Accuracy | Stars |
 |----------|-------|
@@ -85,7 +85,37 @@ Global scope function (RULE-001).
 | >= 1% | 1 |
 | 0% | 0 |
 
-Default thresholds are codified in `contracts/metrics.schema.json` → `star_thresholds`. Can be overridden with game-specific logic in the template.
+Default thresholds are codified in `contracts/metrics.schema.json` → `star_thresholds`.
+
+### Override: Lives-Based Stars
+
+For games with lives (e.g., queens, puzzle games), stars can be calculated from remaining lives instead. **If overriding, the template MUST document the formula in Section 8 (Functions):**
+
+```javascript
+// Lives-based example (document in template):
+const stars = lives >= 3 ? 3 : lives >= 2 ? 2 : lives >= 1 ? 1 : 0;
+```
+
+**Do not mix formulas** — use either accuracy-based OR lives-based, not both.
+
+## CRITICAL: Every Code Path Must Reach endGame()
+
+The `endGame()` function exists in every game, but it only works if something **calls** it. Every game must have at least one — often multiple — triggers:
+
+| End Condition | Where to Call endGame() |
+|--------------|------------------------|
+| All rounds completed | Inside `nextRound()` — when `currentRound >= totalRounds` |
+| Timer expires | Inside `timer.onEnd` callback |
+| All lives lost | Inside the life-decrement logic — when `lives <= 0` |
+| User quits | Inside quit/give-up button handler |
+
+**Anti-pattern:** Having `endGame()` defined but never called. This happens when:
+- `nextRound()` increments the round but never checks `>= totalRounds`
+- Timer `onEnd` callback is missing or empty
+- Lives reach 0 but the game just freezes instead of ending
+- Transition screen after the final round shows "Continue" but has no `endGame()` path
+
+**Every game template must explicitly document in Section 7 (Game Flow) exactly which code paths call `endGame()`, and the verification checklist must confirm each path works.**
 
 ## Rules
 

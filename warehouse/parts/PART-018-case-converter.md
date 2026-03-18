@@ -22,7 +22,7 @@ const camelData = MathAIHelpers.CaseConverter.toCamelCase(snakeData);
 
 ## Rules
 
-- Access via `MathAIHelpers.CaseConverter` (from Helpers package)
+- **Note:** CaseConverter is NOT currently included in the Helpers package. If your game needs it, implement inline conversion functions or verify CaseConverter has been added to the helpers bundle before using `MathAIHelpers.CaseConverter`.
 - Handles nested objects, arrays, primitives, Date objects
 - Recursive — converts all levels deep
 

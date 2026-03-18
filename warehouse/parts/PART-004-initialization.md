@@ -7,36 +7,70 @@
 ## Code
 
 ```javascript
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener("DOMContentLoaded", async () => {
   try {
     await waitForPackages();
     await FeedbackManager.init();
 
     // {{PART-010: SignalCollector — ALWAYS}}
     signalCollector = new SignalCollector({
-      sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+      sessionId: window.gameVariableState?.sessionId || "session_" + Date.now(),
       studentId: window.gameVariableState?.studentId || null,
-      templateId: gameState.gameId || null
+      templateId: gameState.gameId || null,
     });
     window.signalCollector = signalCollector;
+    // {{IF PART-025 selected: ScreenLayout.inject() + clone template into #gameContent HERE}}
 
     // {{IF PART-006 selected: TimerComponent creation here}}
 
     // {{PART-005: VisibilityTracker — ALWAYS}}
 
-    window.addEventListener('message', handlePostMessage);
+    window.addEventListener("message", handlePostMessage);
 
     setupGame();
   } catch (error) {
-    console.error('Initialization failed:', error);
+    console.error("Initialization failed:", error);
   }
 });
 ```
 
+## setupGame() — CRITICAL Requirements
+
+`setupGame()` is called from two places: DOMContentLoaded (with fallback content) and `handlePostMessage` (with real content). It MUST:
+
+```javascript
+function setupGame() {
+  if (!gameState.content) {
+    gameState.content = fallbackContent; // PART-008 fallback
+  }
+
+  // MANDATORY: Set these fields — other parts depend on them
+  gameState.startTime = Date.now();
+  gameState.isActive = true;
+  gameState.currentRound = 0;
+  gameState.score = 0;
+  gameState.attempts = [];
+  gameState.events = [];
+  gameState.duration_data.startTime = new Date().toISOString();
+
+  // Start timer (if exists) — without this, timer stays at 00:00
+  if (timer) timer.start();
+
+  trackEvent("game_start", "game");
+
+  // Render first round
+  renderRound();
+}
+```
+
+**If `setupGame()` does not set `gameState.startTime = Date.now()`, then `recordAttempt()` produces NaN times.**
+**If `setupGame()` does not call `timer.start()`, the timer stays at 00:00 forever.**
+**If `setupGame()` does not set `gameState.isActive = true`, `endGame()` exits immediately.**
+
 ## Rules
 
 - Must be `async`
-- Call order: `waitForPackages()` FIRST -> `FeedbackManager.init()` SECOND -> SignalCollector -> Timer (if any) -> VisibilityTracker -> postMessage listener -> `setupGame()`
+- Call order: `waitForPackages()` FIRST → `FeedbackManager.init()` SECOND → SignalCollector → ScreenLayout.inject (if any) → Timer (if any) → VisibilityTracker → postMessage listener → `setupGame()`
 - SignalCollector created BEFORE Timer (so VisibilityTracker can pause/resume it)
 - Timer created BEFORE VisibilityTracker (so VisibilityTracker can reference it)
 - Entire block wrapped in try/catch
@@ -64,7 +98,13 @@ window.addEventListener('DOMContentLoaded', async () => {
 - [ ] `waitForPackages()` called first
 - [ ] `FeedbackManager.init()` called second
 - [ ] SignalCollector created and assigned to `window.signalCollector`
-- [ ] VisibilityTracker created
+- [ ] ScreenLayout.inject() called before ProgressBar/TransitionScreen (if using PART-025)
+- [ ] TimerComponent created (if PART-006) with correct `endTime`
+- [ ] VisibilityTracker created with `onInactive`/`onResume` callbacks
 - [ ] `handlePostMessage` listener registered
 - [ ] `setupGame()` called last
 - [ ] Wrapped in try/catch
+- [ ] **`setupGame()` sets `gameState.startTime = Date.now()`**
+- [ ] **`setupGame()` sets `gameState.isActive = true`**
+- [ ] **`setupGame()` calls `timer.start()` (if timer exists)**
+- [ ] **`setupGame()` calls `trackEvent('game_start', 'game')`**

@@ -17,11 +17,11 @@ API Helper is available via the Helpers package (`MathAIHelpers.APIHelper`). Loa
 ```javascript
 const api = new MathAIHelpers.APIHelper();
 
-// Optional: Configure endpoint
+// Optional: Configure endpoint (default baseUrl is 'https://c.c.mathai.ai')
 api.configure({
-  baseUrl: 'https://api.mathai.example.com',
+  baseUrl: 'https://c.c.mathai.ai',
   timeout: 10000,
-  headers: { 'Content-Type': 'application/json' }
+  headers: { 'Authorization': 'Bearer token' }  // Merges with existing headers
 });
 
 // Optional: Error handler
@@ -94,6 +94,21 @@ async function submitToBackend() {
 }
 ```
 
+## Full Method Reference
+
+| Method | Parameters | Returns | Description |
+|--------|-----------|---------|-------------|
+| `constructor(config?)` | `{ baseUrl?, timeout?, headers? }` | instance | Creates API helper. Defaults: baseUrl=`'https://c.c.mathai.ai'`, timeout=10000 |
+| `configure(newConfig)` | `{ baseUrl?, timeout?, headers? }` | void | Updates config. `headers` are merged (not replaced) |
+| `onError(callback)` | `(error) => void` | void | Register error callback |
+| `submitResults(payload)` | see Payload Shape | Promise | POST to `/api/analytics/game-sessions` |
+| `getStudentData(userId?)` | string or null | Promise | GET `/api/students/{userId}` or `/api/students/me` |
+| `makeRequest(endpoint, opts?)` | endpoint, `{ method?, body?, headers? }` | Promise | Core HTTP method with timeout (AbortController) |
+| `buildUrl(endpoint)` | string | string | Joins baseUrl + endpoint |
+| `getConfig()` | none | object | Returns deep copy of current config |
+
+**Note:** `submitResults()` currently hardcodes `payload.user_id = '123'` internally. This is a known issue in the package — the `user_id` you pass in the payload will be overwritten.
+
 ## Integration with endGame
 
 ```javascript
@@ -122,3 +137,4 @@ function endGame() {
 - [ ] Error handler registered via `onError`
 - [ ] Backend submission happens alongside postMessage (not instead of)
 - [ ] Try/catch wraps all API calls
+- [ ] Aware that `user_id` is hardcoded to `'123'` in `submitResults` (package-level issue)

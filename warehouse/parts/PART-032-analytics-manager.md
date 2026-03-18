@@ -11,11 +11,14 @@ Unified analytics tracking that sends events to Mixpanel, Amplitude, and CleverT
 ## Package Loading
 
 ```html
-<!-- After other packages -->
+<!-- Analytics Config MUST load before Analytics Manager -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/analytics/config.js"></script>
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/analytics/index.js"></script>
 ```
 
-Config loads automatically — no separate config.js script needed.
+**CRITICAL: `config.js` MUST load before `index.js`.** AnalyticsManager reads `window.AnalyticsConfig` on construction. Without the config script, credentials and platform settings will be missing.
+
+**Note:** AnalyticsManager is a separate package — it is NOT part of the Helpers bundle (`helpers/index.js`). It requires its own script tags.
 
 ## waitForPackages (with Analytics)
 
@@ -156,6 +159,52 @@ analytics.track('game_completed', {
 });
 ```
 
+## Additional Methods
+
+### `reset()`
+
+Logs out the user and clears identity across all platforms. Call on user logout.
+
+```javascript
+analytics.reset();
+```
+
+### `appendToUserTraits(key, value)`
+
+Appends a value to an array-type user trait across all platforms:
+
+```javascript
+analytics.appendToUserTraits('completed_games', 'game_001');
+```
+
+## Auto-Enrichment
+
+All `track()` calls automatically include:
+- `harness: true`
+- `mathai_platform` — `'web'`, `'ios'`, or `'android'` (from user agent)
+- `region` — from AnalyticsConfig (default: `'in'`)
+- `current_href` — `window.location.href`
+
+All `identify()` calls automatically include:
+- `profile_id` — same as `traits.id`
+- `profile_id_with_region` — `{id}_{region}`
+- `region` and `mathai_platform`
+
+## Distinct ID Generation
+
+Three-level fallback priority:
+1. `traits.distinct_id` (if provided explicitly)
+2. `{mobile}_{name_lowercase}_{id}` (if all three present; name lowercased, spaces → underscores)
+3. `{id}_{region}` (default fallback)
+
+## Fallback Mode
+
+If all SDKs fail to load during `init()`, AnalyticsManager enables **fallback mode** and sends events to a server-side endpoint via `navigator.sendBeacon()` (or `fetch` with `keepalive`). This ensures analytics are not lost even when CDN scripts fail.
+
+## SDK Init Retry Logic
+
+Each SDK (Mixpanel, Amplitude, CleverTap) is loaded with up to 3 retry attempts and exponential backoff (1s, 2s). Failures are captured to Sentry.
+
 ## Best Practices
 
 - Always check `if (analytics)` before tracking (graceful degradation)
@@ -166,11 +215,11 @@ analytics.track('game_completed', {
 
 ## Verification
 
-- [ ] Analytics package script tag included
+- [ ] **Both** `config.js` AND `index.js` script tags included (config FIRST)
 - [ ] `waitForPackages()` checks `AnalyticsManager`
 - [ ] `analytics.init()` called after `FeedbackManager.init()`
 - [ ] `window.analyticsManager` set for StoriesComponent integration
-- [ ] `analytics.identify()` called after `game_init` with student data
+- [ ] `analytics.identify()` called after `game_init` with student data (requires `id`)
 - [ ] All 7 mandatory events tracked at correct trigger points
 - [ ] Game lifecycle events (started, paused, resumed, completed) tracked
 - [ ] Graceful degradation if analytics not available

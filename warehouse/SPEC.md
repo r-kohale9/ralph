@@ -73,7 +73,7 @@ From the user prompt, determine:
 
 Use `parts/manifest.json` → `capability_matrix` to determine which parts this game needs:
 
-1. Start with `any_game` → gives all MANDATORY parts (17 code-generating parts)
+1. Start with `any_game` → gives all MANDATORY parts (18 code-generating parts)
 2. Always load `verification` → PART-026 (anti-patterns checklist)
 3. Always load `post_gen` → PART-034, PART-035 (run after HTML generation)
 4. Check each conditional capability:
@@ -86,10 +86,10 @@ Use `parts/manifest.json` → `capability_matrix` to determine which parts this 
    - `has_progress_bar` → adds PART-023, PART-025
    - `has_transition_screen` → adds PART-024, PART-025
    - `is_story_only` → adds PART-029
-   - `has_error_tracking` → adds PART-030
    - `has_api_submission` → adds PART-031
    - `has_analytics` → adds PART-032
    - `has_drag_drop` / `has_grid_interaction` / `has_tag_input` → adds PART-033
+   - `has_interaction_manager` → adds PART-038
 
 ### Step 4 — Load only the selected parts
 

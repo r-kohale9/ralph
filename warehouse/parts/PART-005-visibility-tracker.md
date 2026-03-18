@@ -15,9 +15,10 @@ visibilityTracker = new VisibilityTracker({
       signalCollector.pause();
       signalCollector.recordCustomEvent('visibility_hidden', {});
     }
-    if (timer) timer.pause();
+    if (timer) timer.pause({ fromVisibilityTracker: true });
     FeedbackManager.sound.pause();
     FeedbackManager.stream.pauseAll();
+    trackEvent('game_paused', 'system');
   },
   onResume: () => {
     const lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
@@ -29,9 +30,10 @@ visibilityTracker = new VisibilityTracker({
       signalCollector.resume();
       signalCollector.recordCustomEvent('visibility_visible', {});
     }
-    if (timer?.isPaused) timer.resume();
+    if (timer?.isPaused) timer.resume({ fromVisibilityTracker: true });
     FeedbackManager.sound.resume();
     FeedbackManager.stream.resumeAll();
+    trackEvent('game_resumed', 'system');
   },
   popupProps: {
     title: 'Game Paused',
@@ -49,7 +51,7 @@ Inside DOMContentLoaded (PART-004), AFTER TimerComponent (if any).
 
 1. Record inactive start time in `duration_data.inActiveTime`
 2. Pause SignalCollector + record visibility event: `signalCollector.pause()` + `recordCustomEvent('visibility_hidden', {})`
-3. Pause timer (if exists): `if (timer) timer.pause()`
+3. Pause timer (if exists): `if (timer) timer.pause({ fromVisibilityTracker: true })`
 4. Pause sound: `FeedbackManager.sound.pause()`
 5. Pause streams: `FeedbackManager.stream.pauseAll()`
 
@@ -57,7 +59,7 @@ Inside DOMContentLoaded (PART-004), AFTER TimerComponent (if any).
 
 1. Record inactive end time, calculate duration, add to `totalInactiveTime`
 2. Resume SignalCollector + record visibility event: `signalCollector.resume()` + `recordCustomEvent('visibility_visible', {})`
-3. Resume timer ONLY if paused: `if (timer?.isPaused) timer.resume()`
+3. Resume timer ONLY if paused: `if (timer?.isPaused) timer.resume({ fromVisibilityTracker: true })`
 4. Resume sound: `FeedbackManager.sound.resume()`
 5. Resume streams: `FeedbackManager.stream.resumeAll()`
 
@@ -97,17 +99,45 @@ onResume: () => {
   timer.resume();
 }
 
-// CORRECT: Guard with optional chaining
+// WRONG: Missing fromVisibilityTracker flag — audio resume can unpause a visibility-paused timer
+if (timer) timer.pause();
 if (timer?.isPaused) timer.resume();
+
+// CORRECT: Guard with optional chaining + cross-system flag
+if (timer) timer.pause({ fromVisibilityTracker: true });
+if (timer?.isPaused) timer.resume({ fromVisibilityTracker: true });
+
+// WRONG: Using stopAll() instead of pause() — destroys audio state, resume does nothing
+onInactive: () => {
+  FeedbackManager.sound.stopAll();  // Audio state destroyed!
+}
+onResume: () => {
+  FeedbackManager.sound.resume();   // Nothing to resume — state was destroyed
+}
+
+// CORRECT: pause()/resume() preserves audio state across tab switches
+onInactive: () => {
+  FeedbackManager.sound.pause();
+  FeedbackManager.stream.pauseAll();
+}
+onResume: () => {
+  FeedbackManager.sound.resume();
+  FeedbackManager.stream.resumeAll();
+}
 ```
+
+**Why `fromVisibilityTracker: true`?** FeedbackManager calls `timer.pause/resume({ fromAudio: true })` internally. The timer uses cross-system blocking: if paused by visibility tracker, an audio resume won't unpause it (and vice versa). Without the flag, this protection doesn't work.
+
+**Why `pause()` not `stopAll()`?** `stopAll()` destroys all audio buffers and playback state. When the user returns to the tab, `resume()` has nothing to work with. `pause()` preserves the state so playback can continue from where it left off.
 
 ## Verification
 
 - [ ] VisibilityTracker instantiated
-- [ ] `onInactive` pauses: signalCollector, timer (if exists), sound, streams
+- [ ] `onInactive` pauses: signalCollector, timer (if exists, with `{ fromVisibilityTracker: true }`), sound, streams
+- [ ] `onInactive` uses `sound.pause()` NOT `sound.stopAll()`
 - [ ] `onInactive` records `visibility_hidden` custom event on signalCollector
 - [ ] `onInactive` records inactive start in `duration_data.inActiveTime`
-- [ ] `onResume` resumes: signalCollector, timer (only if paused), sound, streams
+- [ ] `onResume` resumes: signalCollector, timer (only if paused, with `{ fromVisibilityTracker: true }`), sound, streams
 - [ ] `onResume` records `visibility_visible` custom event on signalCollector
 - [ ] `onResume` records inactive end and updates `totalInactiveTime`
 - [ ] `popupProps` configured with title, description, primaryText

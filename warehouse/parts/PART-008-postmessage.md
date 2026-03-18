@@ -11,10 +11,17 @@ function handlePostMessage(event) {
   if (event.data?.type === 'game_init') {
     const { gameId, content, context, goals } = event.data.data;
     gameState.content = content;
+    if (gameState.gameId) gameState.gameId = gameId;
     setupGame();
   }
 }
 ```
+
+**Note:** `setupGame()` is called BOTH here and in DOMContentLoaded (PART-004). This is intentional:
+- First call (DOMContentLoaded): uses fallback content for standalone testing
+- Second call (postMessage): uses real content from platform
+
+`setupGame()` must handle being called multiple times — it resets all state fields (see PART-004's setupGame template). The second call overwrites the first completely.
 
 ## Code — Sender (called in endGame)
 

@@ -4,7 +4,16 @@
 
 ---
 
-## Code
+## Canonical Script URLs (copy exactly — never invent URLs)
+
+| Package | Exact URL |
+|---------|-----------|
+| SentryConfig | `https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js` |
+| FeedbackManager | `https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js` |
+| Components | `https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js` |
+| Helpers | `https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js` |
+
+Game packages load in this order (AFTER Sentry — see PART-030 for full block):
 
 ```html
 <!-- 1. FeedbackManager MUST load FIRST -->
@@ -21,7 +30,7 @@
 
 - Order is non-negotiable: FeedbackManager -> Components -> Helpers
 - No other scripts between these three
-- These go in `<head>`, before `<style>`
+- These go in `<body>`, AFTER Sentry SDK scripts (see PART-030 for full loading order)
 
 **Why this order:** FeedbackManager loads SubtitleComponent. If Components loads first, SubtitleComponent gets registered twice -> duplicate registration errors.
 
@@ -35,6 +44,17 @@
 <!-- WRONG: Missing packages -->
 <script src=".../feedback-manager/index.js"></script>
 <!-- Missing Components and Helpers -->
+
+<!-- WRONG: Hallucinated URLs — these domains do NOT exist -->
+<script src="https://cdn.homeworkapp.ai/packages/FeedbackManager.js"></script>
+<script src="https://cdn.homeworkapp.ai/packages/Components.js"></script>
+<script src="https://cdn.homeworkapp.ai/packages/Helpers.js"></script>
+<script src="https://cdn.homeworkapp.ai/sentry/helpers/sentry/index.js"></script>
+
+<!-- CORRECT: Only these exact URLs are valid -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
 ```
 
 ## Verification

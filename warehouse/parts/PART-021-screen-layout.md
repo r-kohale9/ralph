@@ -4,6 +4,13 @@
 
 ---
 
+## When To Use This Part vs PART-025
+
+- **If using ScreenLayout component (PART-025):** Do NOT write the HTML from this part. `ScreenLayout.inject()` auto-generates `.page-center > .game-wrapper > .game-stack`. Only include the **CSS** from this part (the HTML is auto-injected).
+- **If NOT using ScreenLayout:** Use both the HTML and CSS from this part.
+
+**Never include both the manual HTML AND call `ScreenLayout.inject()` — this creates double-nested layout.**
+
 ## Design Principles
 
 - **Mobile-first:** max-width 480px, width 100vw
@@ -35,8 +42,9 @@
 
 ```css
 :root {
-  --game-max-width: 480px;
-  --stack-gap: 10px;
+  /* Use same variable names as PART-020 — no separate --game-* prefix */
+  --mathai-game-max-width: 480px;
+  --mathai-stack-gap: 10px;
 }
 
 html, body {
@@ -56,7 +64,7 @@ html, body {
 
 .game-wrapper {
   width: 100vw;
-  max-width: var(--game-max-width);
+  max-width: var(--mathai-game-max-width);
   box-sizing: border-box;
   background: #ffffff;
   display: flex;
@@ -70,7 +78,7 @@ html, body {
 .game-stack {
   display: flex;
   flex-direction: column;
-  gap: var(--stack-gap);
+  gap: var(--mathai-stack-gap);
   padding: 0 10px 20px 10px;
   box-sizing: border-box;
   width: 100%;
@@ -78,8 +86,8 @@ html, body {
 }
 
 .game-block {
-  padding: var(--stack-gap);
-  margin-bottom: var(--stack-gap);
+  padding: var(--mathai-stack-gap);
+  margin-bottom: var(--mathai-stack-gap);
   background: transparent;
   border-radius: 8px;
   box-sizing: border-box;
