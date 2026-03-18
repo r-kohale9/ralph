@@ -399,9 +399,14 @@ Transition slot selectors (all valid — use these):
   - Button container: page.locator('#transitionButtons')
   - WRONG class: '.game-btn', '.btn-primary' — these do NOT exist on buttons; button class is 'mathai-transition-btn'
 
-Progress slot selectors — ONLY use these:
-  - Rounds: page.locator('#mathai-progress-slot .mathai-rounds-display') OR '#pb-1773842549832-text'
-  - Lives: page.locator('#mathai-progress-slot .mathai-lives-display') OR '#pb-1773842549832-lives'
+Progress slot selectors — ONLY use these (never use #pb-{timestamp} IDs — they change every session):
+  - Rounds: page.locator('#mathai-progress-slot .mathai-rounds-display')
+  - Lives: page.locator('#mathai-progress-slot .mathai-lives-display')
+
+Screen visibility rules:
+  - On start/transition screen: #mathai-transition-slot is visible; game elements (#timer-container, #adjuster-container, #answer-area, #game-screen) are HIDDEN
+  - On game screen (after startGame()): game elements are visible; #mathai-transition-slot is hidden
+  - Do NOT assert #timer-container.toBeVisible() on the start screen — it is hidden until the game starts
 
 Available globals (DO NOT redefine): dismissPopupIfPresent, startGame, clickNextLevel, submitAnswer, fallbackContent, test.beforeEach
 
@@ -436,6 +441,9 @@ ${htmlContent}`;
     // Fix wrong button classes that LLMs hallucinate
     catTests = catTests.replace(/\.game-btn\.btn-primary/g, '');
     catTests = catTests.replace(/\.btn-primary/g, '');
+    // Fix dynamically-generated progress bar IDs → stable class selectors
+    catTests = catTests.replace(/#pb-\d+-text/g, '#mathai-progress-slot .mathai-rounds-display');
+    catTests = catTests.replace(/#pb-\d+-lives/g, '#mathai-progress-slot .mathai-lives-display');
 
     // Count test() calls
     const testCount = (catTests.match(/\btest\s*\(/g) || []).length;
