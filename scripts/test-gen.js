@@ -293,9 +293,51 @@ async function runExtractContext() {
       log(`  full heart: "${ctx.livesFormat.fullHeart}"  empty heart: "${ctx.livesFormat.emptyHeart}"`);
     }
 
-    // Capture rounds format after wrong answer (still 0 rounds)
+    // Capture rounds format (wait a bit longer for ProgressBar to render)
+    await page.waitForTimeout(500);
     ctx.roundsFormat.zero = await page.locator('#mathai-progress-slot .mathai-rounds-display').textContent().catch(() => null);
     log(`  rounds (0): "${ctx.roundsFormat.zero}"`);
+
+    // Navigate to Level 2 transition by submitting 2 more wrong + 3 correct answers
+    // (1 wrong already done; submit 2 correct for round 1 and 2, then round 3 correct triggers L2)
+    // eslint-disable-next-line no-undef
+    const fallbackAnswers = [80, 42, 81, 120, 112, 122, 134, 152, 142]; // correctAnswer values
+    // First, submit 2 more correct answers (rounds 1-2, we already used round 0 for wrong answer)
+    // Actually: we submitted wrong for round 0 — it's still round 0 (wrong doesn't advance round)
+    // Submit correct for rounds 0, 1, 2 to trigger Level 2 transition
+    for (let i = 0; i < 3; i++) {
+      await page.locator('#answer-input').fill(String(fallbackAnswers[i]));
+      await page.locator('#btn-check').click();
+      // eslint-disable-next-line no-undef
+      await page.waitForFunction(() => !window.gameState.isProcessing, null, { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(300);
+    }
+    // Check if Level 2 transition appeared
+    try {
+      await page.waitForFunction(
+        // eslint-disable-next-line no-undef
+        (slotId) => document.getElementById(slotId)?.querySelector('button') !== null && document.getElementById('transitionTitle')?.textContent?.includes('Level 2'),
+        transitionSlotId, { timeout: 5000 }
+      );
+      await captureTransition('level2');
+      // Click to game screen for level 2
+      await page.locator(`#${transitionSlotId} button`).first().click();
+      await page.waitForTimeout(500);
+      // Capture rounds after completing 3 rounds
+      ctx.roundsFormat.three = await page.locator('#mathai-progress-slot .mathai-rounds-display').textContent().catch(() => null);
+      log(`  rounds (3): "${ctx.roundsFormat.three}"`);
+    } catch {
+      log('  Could not navigate to Level 2 transition');
+    }
+
+    // Capture results screen texts for victory (need to complete all rounds — skip for now, note the IDs)
+    // eslint-disable-next-line no-undef
+    ctx.gameFlow.resultsIds = await page.evaluate(() => {
+      const ids = ['results-screen', 'results-title', 'result-time', 'result-rounds', 'result-wrong', 'result-accuracy', 'stars-display', 'btn-restart'];
+      // eslint-disable-next-line no-undef
+      return ids.filter((id) => document.getElementById(id) !== null);
+    });
+    log(`  results screen IDs in DOM: ${ctx.gameFlow.resultsIds.join(', ')}`);
 
     await browser.close();
   } finally {
