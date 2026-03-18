@@ -30,11 +30,19 @@ const gameDir = process.argv[2] || 'warehouse/templates/adjustment-strategy/game
 const stepArg = (process.argv.find((a) => a.startsWith('--step=')) || '--step=all').replace('--step=', '');
 
 const absGameDir = path.resolve(gameDir);
+const gameId = path.basename(absGameDir);
 const testsDir = path.join(absGameDir, 'tests');
 const htmlFile = path.join(absGameDir, 'index.html');
-const specFile = path.join(absGameDir, '..', 'spec.md');
 const testCasesFile = path.join(testsDir, 'test-cases.json');
 const transitionSlotId = 'mathai-transition-slot';
+
+// Spec can be alongside gameDir (warehouse/templates/<id>/spec.md)
+// or derived from RALPH_REPO_DIR warehouse path (data/games/<id> → warehouse/templates/<id>/spec.md)
+const REPO_DIR = process.env.RALPH_REPO_DIR || '.';
+const specFile =
+  fs.existsSync(path.join(absGameDir, '..', 'spec.md'))
+    ? path.join(absGameDir, '..', 'spec.md')
+    : path.join(path.resolve(REPO_DIR), 'warehouse', 'templates', gameId, 'spec.md');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
