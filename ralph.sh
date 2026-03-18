@@ -15,11 +15,24 @@
 #   RALPH_REVIEW_MODEL  - Model for review (default: gemini-2.5-pro)
 #   RALPH_FALLBACK_MODEL- Overflow model (default: gpt-4.1)
 #   RALPH_MAX_ITERATIONS- Max fix iterations (default: 5)
+#   RALPH_MAX_VERIFY    - Max checklist verification iterations (default: 2)
+#   RALPH_VERIFY_MODEL  - Model for verification (default: same as FIX_MODEL)
+#   RALPH_WAREHOUSE_DIR - Path to warehouse directory (default: ./warehouse)
 #   RALPH_LLM_TIMEOUT   - Timeout for LLM calls in seconds (default: 300)
 #   RALPH_TEST_TIMEOUT   - Timeout for Playwright runs in seconds (default: 120)
 #   RALPH_REPORT_DIR    - Directory for ralph-report.json (default: game-dir)
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
+
+# ─── macOS compatibility ─────────────────────────────────────────────────────
+if ! command -v timeout &>/dev/null; then
+  if command -v gtimeout &>/dev/null; then
+    timeout() { gtimeout "$@"; }
+  else
+    echo "Error: 'timeout' not found. Install coreutils: brew install coreutils" >&2
+    exit 1
+  fi
+fi
 
 # ─── Arguments ───────────────────────────────────────────────────────────────
 GAME_DIR="${1:?Usage: ralph.sh <game-dir> <spec-path>}"
@@ -32,7 +45,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ─── Configuration ───────────────────────────────────────────────────────────
 PROXY_URL="${PROXY_URL:-http://localhost:8317}"
-PROXY_KEY="${PROXY_KEY:-ralph-pipeline-key-change-this}"
+PROXY_KEY="${PROXY_KEY:-ralph-local-dev-key}"
 
 # Model assignments (T5: correct defaults — Opus for gen, Sonnet for fixes)
 GEN_MODEL="${RALPH_GEN_MODEL:-claude-opus-4-6}"
@@ -42,6 +55,8 @@ REVIEW_MODEL="${RALPH_REVIEW_MODEL:-gemini-2.5-pro}"
 FALLBACK_MODEL="${RALPH_FALLBACK_MODEL:-gpt-4.1}"
 
 MAX_ITERATIONS="${RALPH_MAX_ITERATIONS:-5}"
+MAX_VERIFY="${RALPH_MAX_VERIFY:-2}"
+VERIFY_MODEL="${RALPH_VERIFY_MODEL:-$FIX_MODEL}"
 LLM_TIMEOUT="${RALPH_LLM_TIMEOUT:-300}"
 TEST_TIMEOUT="${RALPH_TEST_TIMEOUT:-120}"
 REPORT_DIR="${RALPH_REPORT_DIR:-$GAME_DIR}"
@@ -529,6 +544,118 @@ Fix ALL the listed structural issues while keeping the game aligned with the spe
   printf '%s\n' "$FIXED_HTML" > "$HTML_FILE"
 done
 
+# ─── Step 1c: Checklist verification (general + game-specific) ──────────────
+log ""
+log "Step 1c: Checklist verification (max $MAX_VERIFY iterations)"
+
+WAREHOUSE_DIR="${RALPH_WAREHOUSE_DIR:-$SCRIPT_DIR/warehouse}"
+CHECKLIST_FILE="$WAREHOUSE_DIR/verification-checklist.md"
+GAME_CHECKLIST="$GAME_DIR/game-checklist.md"
+
+if [ -f "$CHECKLIST_FILE" ]; then
+  CHECKLIST_CONTENT=$(cat "$CHECKLIST_FILE")
+  HTML_CONTENT_FOR_VERIFY=$(cat "$HTML_FILE")
+  VERIFY_ITER=0
+  VERIFIED=false
+
+  while [ "$VERIFY_ITER" -lt "$MAX_VERIFY" ]; do
+    VERIFY_ITER=$(( VERIFY_ITER + 1 ))
+    log "  ── Verification $VERIFY_ITER / $MAX_VERIFY ──"
+
+    VERIFY_PROMPT="You are verifying a generated MathAI game HTML. Check BOTH a general platform checklist AND game-specific logic in a single pass.
+
+## FILES
+
+### Generated HTML:
+$HTML_CONTENT_FOR_VERIFY
+
+### Game Specification:
+$SPEC_CONTENT
+
+### General Verification Checklist:
+$CHECKLIST_CONTENT
+
+## PART A: General Platform Checklist
+
+Go through EVERY item in the general checklist. For each item:
+- If the feature is not used in this game, mark it SKIP
+- If the code is correct, mark it PASS
+- If the code is wrong or missing, mark it FAIL with the exact issue
+
+The most common issues are:
+- sound.register() instead of sound.preload([{id,url}])
+- Missing await on sound.play() before screen transitions
+- sound.stopAll() instead of sound.pause() in VisibilityTracker
+- Timer pause/resume without { fromVisibilityTracker: true } flag
+- Timer container ID mismatch
+- onComplete callback on sound.play() (doesn't exist)
+- Audio URLs from spec not included in preload array
+- Missing sticker objects in sound.play() calls
+- Missing Sentry integration (SentryConfig package + SDK)
+- Missing playDynamicFeedback for end-game TTS
+
+## PART B: Game-Specific Logic
+
+Analyze the spec to understand THIS game's specific mechanics, then verify the HTML implements them correctly:
+- Game Mechanics — Are the core interactions wired up as the spec describes?
+- Round / Question Logic — Does round data load correctly? Is answer validation correct?
+- UI / Layout — Do game-specific UI elements exist and match the spec?
+- Scoring & Progression — Is scoring logic correct?
+- Edge Cases — What happens on timeout? Empty input? All-wrong? All-correct? Last round?
+
+Generate 15-30 game-specific checklist items and verify each one.
+
+## OUTPUT
+
+First, output the game-specific checklist items you verified.
+
+Then output your combined result in this EXACT format:
+
+CHECKLIST_RESULT: PASS
+(if ALL general items are PASS/SKIP AND all game-specific items are PASS)
+
+OR
+
+CHECKLIST_RESULT: FAIL
+ISSUES:
+- <what is wrong> → <what it should be>
+
+Then output the COMPLETE FIXED HTML wrapped in a \`\`\`html code block (only if there are issues to fix)."
+
+    call_llm "verify-$VERIFY_ITER" "$VERIFY_PROMPT" "$VERIFY_MODEL" || {
+      warn "  Verification attempt $VERIFY_ITER failed, continuing..."
+      continue
+    }
+
+    if echo "$LLM_OUTPUT" | grep -q "CHECKLIST_RESULT: PASS"; then
+      log "  ✓ Verification passed on iteration $VERIFY_ITER"
+      # Save game-specific checklist for test generation context
+      echo "$LLM_OUTPUT" | sed -n '1,/CHECKLIST_RESULT/p' > "$GAME_CHECKLIST" 2>/dev/null || true
+      VERIFIED=true
+      break
+    else
+      log "  ✗ Verification found issues, applying fixes..."
+      # Extract fixed HTML if present
+      FIXED_HTML=$(extract_html "$LLM_OUTPUT") || true
+      if [ -n "$FIXED_HTML" ]; then
+        printf '%s\n' "$FIXED_HTML" > "$HTML_FILE"
+        HTML_CONTENT_FOR_VERIFY=$(cat "$HTML_FILE")
+        log "  ✓ HTML updated ($(wc -c < "$HTML_FILE") bytes)"
+      else
+        warn "  No fixed HTML in output, re-verifying with same HTML"
+      fi
+      # Save game-specific checklist
+      echo "$LLM_OUTPUT" | sed -n '1,/CHECKLIST_RESULT/p' > "$GAME_CHECKLIST" 2>/dev/null || true
+    fi
+  done
+
+  if [ "$VERIFIED" = false ]; then
+    warn "Verification loop exhausted after $MAX_VERIFY iterations — proceeding to tests"
+  fi
+else
+  warn "Checklist file not found at $CHECKLIST_FILE — skipping verification"
+fi
+
 # ─── Step 2: Generate tests ─────────────────────────────────────────────────
 log ""
 log "Step 2: Generate Playwright tests"
@@ -750,11 +877,29 @@ if [ "$FAILED" -gt 0 ] || [ "$PASSED" -eq 0 ]; then
   exit 1
 fi
 
-REVIEW_PROMPT="You are a game quality reviewer. Review the following HTML game against its specification.
+REVIEW_CHECKLIST=""
+if [ -f "$CHECKLIST_FILE" ]; then
+  REVIEW_CHECKLIST="
 
-The SPECIFICATION contains a 'Verification Checklist' section (Section 15) with detailed checks across Structural, Functional, Design & Layout, Rules Compliance, Game-Specific, and Contract Compliance categories. Use that checklist as your PRIMARY review guide.
+PLATFORM VERIFICATION CHECKLIST (check every item):
+$(cat "$CHECKLIST_FILE")"
+fi
 
-Walk through EVERY item in Section 15. For each item, verify it passes in the HTML.
+REVIEW_GAME_CHECKLIST=""
+if [ -f "$GAME_CHECKLIST" ]; then
+  REVIEW_GAME_CHECKLIST="
+
+GAME-SPECIFIC CHECKLIST (generated during verification):
+$(cat "$GAME_CHECKLIST")"
+fi
+
+REVIEW_PROMPT="You are a game quality reviewer. Review the following HTML game against its specification AND the platform verification checklist.
+
+Review in this order:
+1. Walk through the PLATFORM VERIFICATION CHECKLIST — verify every item passes in the HTML
+2. Walk through the spec's Section 15 (Verification Checklist) — verify every item
+3. Walk through the GAME-SPECIFIC CHECKLIST (if provided) — verify every item
+4. Check for anti-patterns: sound.register(), sound.stopAll() in visibility, new Audio(), missing stickers, missing Sentry
 
 Respond with EXACTLY one of:
 - APPROVED — if all checklist items pass
@@ -762,6 +907,8 @@ Respond with EXACTLY one of:
 
 SPECIFICATION:
 $SPEC_CONTENT
+$REVIEW_CHECKLIST
+$REVIEW_GAME_CHECKLIST
 
 HTML:
 $(cat "$HTML_FILE")"
