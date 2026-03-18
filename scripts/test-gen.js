@@ -375,9 +375,35 @@ ${catTestCasesText}
 
 Your test.describe() block MUST contain exactly ${catTestCases.length} test() calls.
 
+CRITICAL — Helper function behavior (read carefully before writing any test):
+
+startGame(page):
+  - Clicks the transition slot button TWICE: start screen → Level 1 transition → GAME SCREEN
+  - After startGame() resolves, you are on the GAME SCREEN (#original-a is visible)
+  - DO NOT call clickNextLevel() immediately after startGame() — you are already past Level 1 transition
+  - Use startGame() at the beginning of every test
+
+clickNextLevel(page):
+  - Waits for #mathai-transition-slot button to be visible, then clicks it
+  - Use this ONLY after completing 3 rounds (Level 1→2) or 6 rounds (Level 2→3)
+  - Never use it right after startGame() — there is no transition button visible on game screen
+
+submitAnswer(page, answer):
+  - Fills #answer-input, clicks #btn-check, waits for !gameState.isProcessing
+  - Always use this — never interact with #answer-input or #btn-check directly
+
+Transition slot selectors — ONLY use these:
+  - Button: page.locator('#mathai-transition-slot button').first()
+  - Title text: page.locator('#mathai-transition-slot .mathai-transition-title')
+  - DO NOT use #transitionTitle, #transitionSubtitle, #transitionButtons, .game-btn — these do NOT exist
+
+Progress slot selectors — ONLY use these:
+  - Rounds: page.locator('#mathai-progress-slot .mathai-rounds-display')
+  - Lives: page.locator('#mathai-progress-slot .mathai-lives-display')
+
 Available globals (DO NOT redefine): dismissPopupIfPresent, startGame, clickNextLevel, submitAnswer, fallbackContent, test.beforeEach
 
-OUTPUT: Only test.describe('${category}', () => { ... }); — no imports, no helpers, no beforeEach.
+OUTPUT: Only test.describe('${category}', () => { ... }); — no imports, no helpers, no beforeEach, no TypeScript types.
 Start with: test.describe('${category}', () => {
 
 Rules:
@@ -385,8 +411,7 @@ Rules:
 - submitAnswer() for all answer submission — never #btn-check directly
 - fallbackContent.rounds[i].numberA/.numberB/.correctAnswer for round data
 - expect(await page.evaluate(() => x)).toBe(v) — NOT await expect(page.evaluate(...))
-- #mathai-transition-slot: button + .mathai-transition-title only
-- #mathai-progress-slot: .mathai-rounds-display, .mathai-lives-display only (no buttons)
+- Pure JavaScript only — no TypeScript type annotations (no : any[], no : string, etc.)
 - Wrap in \`\`\`javascript code block
 ${domSnapshotText ? `\n${domSnapshotText}\n` : ''}
 HTML:
