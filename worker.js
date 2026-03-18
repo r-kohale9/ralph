@@ -193,22 +193,24 @@ async function handleFixJob(job) {
 
   if (buildId) db.completeBuild(buildId, report);
 
-  // GCP upload on approval
-  if (report.status === 'APPROVED' && gcp.isEnabled()) {
+  // GCP upload — always upload for preview link regardless of status
+  if (gcp.isEnabled()) {
     const htmlFile = path.join(gameDir, 'index.html');
-    const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
-    if (gcpUrl) {
-      db.updateBuildGcpUrl(buildId, gcpUrl);
-      db.updateGameGcpUrl(gameId, gcpUrl);
+    if (fs.existsSync(htmlFile)) {
+      const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
+      if (gcpUrl) {
+        db.updateBuildGcpUrl(buildId, gcpUrl);
+        db.updateGameGcpUrl(gameId, gcpUrl);
+      }
     }
   }
 
   // Post result to Slack thread
+  const fixGcpUrl = db.getGame(gameId)?.gcp_url;
   if (game && game.slack_thread_ts) {
-    const gcpUrl = db.getGame(gameId)?.gcp_url;
-    await slack.postThreadResult(game.slack_thread_ts, game.slack_channel_id, gameId, report, { gcpUrl });
+    await slack.postThreadResult(game.slack_thread_ts, game.slack_channel_id, gameId, report, { gcpUrl: fixGcpUrl });
   } else {
-    await slack.notifyBuildResult(gameId, report);
+    await slack.notifyBuildResult(gameId, report, null, fixGcpUrl);
   }
 
   // Update game status
@@ -347,14 +349,16 @@ const worker = new Worker(
     // Extract learnings from diagnosis mode and rejections
     extractLearnings(gameId, buildId, report);
 
-    // GCP upload on approval
-    if (report.status === 'APPROVED' && gcp.isEnabled()) {
+    // GCP upload — always upload so a preview link is available regardless of status
+    if (gcp.isEnabled()) {
       const gameDir = path.join(REPO_DIR, 'data', 'games', gameId);
       const htmlFile = path.join(gameDir, 'index.html');
-      const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
-      if (gcpUrl) {
-        if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
-        db.updateGameGcpUrl(gameId, gcpUrl);
+      if (fs.existsSync(htmlFile)) {
+        const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
+        if (gcpUrl) {
+          if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
+          db.updateGameGcpUrl(gameId, gcpUrl);
+        }
       }
     }
 
@@ -365,11 +369,11 @@ const worker = new Worker(
     transaction.finish && transaction.finish();
 
     // Post result to Slack thread or webhook
+    const gcpUrl = db.getGame(gameId)?.gcp_url;
     if (threadInfo) {
-      const gcpUrl = db.getGame(gameId)?.gcp_url;
       await slack.postThreadResult(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
     } else {
-      await slack.notifyBuildResult(gameId, report, commitSha);
+      await slack.notifyBuildResult(gameId, report, commitSha, gcpUrl);
     }
 
     // Update game status
