@@ -78,6 +78,60 @@ function extractLearnings(gameId, buildId, report) {
   }
 }
 
+// ─── Pipeline docs generator ─────────────────────────────────────────────────
+function buildPipelineDocsMarkdown({ gameId, buildId, genModel, testModel, fixModel, maxIterations }) {
+  return [
+    `# Ralph Pipeline — Build #${buildId} (${gameId})`,
+    '',
+    '## Overview',
+    'Ralph takes a game specification (Markdown) and generates a validated HTML5 educational game through an automated multi-stage pipeline.',
+    '',
+    '## Pipeline Steps',
+    '',
+    `### 1. HTML Generation — \`${genModel}\``,
+    'Generates a complete single-file HTML5 game from the spec.',
+    'Includes: MatHai CDN integration, game state management, scoring logic, Playwright-compatible selectors.',
+    '',
+    '### 2. Static Validation',
+    'Checks the generated HTML for required structural elements: `initGame()` function, star thresholds (80%/50%), no inline handlers, required DOM selectors.',
+    'Auto-fixes failures using the fix model before proceeding.',
+    '',
+    '### 3. Contract Validation',
+    'Validates runtime contracts: gameState object, postMessage events, scoring.',
+    '',
+    `### 4. Test Generation — \`${testModel}\``,
+    'Generates categorized Playwright tests from the spec + DOM snapshot.',
+    '**Categories:** game-flow · mechanics · level-progression · edge-cases · contract',
+    '',
+    `### 5. Test → Fix Loop — \`${fixModel}\` (max ${maxIterations} iterations/category)`,
+    'Runs tests per category. On failure:',
+    '1. **Triage** — LLM determines root cause (fix_html / skip_tests / add_assertions)',
+    '2. **Fix** — LLM patches the HTML for the specific failures',
+    '3. **Re-run** — Tests run again; best-passing HTML snapshot is tracked per batch',
+    '4. **Rollback** — If a fix regresses, best snapshot is restored automatically',
+    '',
+    `### 6. Review — \`${testModel}\``,
+    'Final LLM review of the game against the spec. Outputs: **APPROVED** / **REJECTED**.',
+    '',
+    '## CDN Components (MatHai)',
+    '| Component | DOM Slot | Purpose |',
+    '|-----------|----------|---------|',
+    '| FeedbackManager | — | Audio feedback for correct/incorrect answers |',
+    '| ScreenLayout | — | Responsive layout injection |',
+    '| ProgressBar | `#mathai-progress-slot` | Lives display |',
+    '| Timer | `#mathai-timer-slot` | Countdown |',
+    '| VisibilityTracker | — | Pause on tab blur |',
+    '',
+    '**Init order (immutable):** `await FeedbackManager.init()` → `ScreenLayout.inject()` → `initGame()`',
+    '',
+    '## Key Constraints',
+    '- `FeedbackManager.playDynamicFeedback()` must be fire-and-forget (`.catch(() => {})`)',
+    '- Never call `progressBar.destroy()` / `timer.destroy()` in `endGame()` — tests check slots after game over',
+    '- `isProcessing=true` silently blocks clicks (early return), does NOT hide/show elements',
+    '- Star display must update in BOTH victory AND game-over paths',
+  ].join('\n');
+}
+
 // ─── Fetch spec from URL ────────────────────────────────────────────────────
 async function fetchSpec(url, destPath) {
   console.log(`[worker] Downloading spec from ${url}`);
@@ -251,34 +305,44 @@ const worker = new Worker(
 
     // Create Slack thread for this build
     let threadInfo = null;
+    let specLink = '';
+    let pipelineDocsLink = '';
     const game = db.getGame(gameId);
     if (game && game.slack_thread_ts) {
       // Use existing thread
       threadInfo = { ts: game.slack_thread_ts, channel: game.slack_channel_id };
-      await slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🔄 Build #${buildId} started...`);
+      await slack.postThreadUpdate(
+        threadInfo.ts, threadInfo.channel,
+        `🔄 *Build #${buildId} started* — ${gameId}\nGen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}`,
+      );
     } else {
-      // Create new thread with structured opener
+      // Upload spec (await so link is ready for opener)
       const specFilePath = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
-      let specLink = '';
       if (gcp.isEnabled() && fs.existsSync(specFilePath)) {
-        gcp.uploadContent(
+        const specUrl = await gcp.uploadContent(
           fs.readFileSync(specFilePath, 'utf-8'),
           `games/${gameId}/builds/${buildId}/spec.md`,
           { contentType: 'text/markdown' },
-        ).then((url) => { if (url) specLink = slack.formatLink(url, 'spec.md'); }).catch(() => {});
+        ).catch(() => null);
+        if (specUrl) specLink = slack.formatLink(specUrl, '📄 Spec');
       }
 
+      // Upload pipeline docs
+      if (gcp.isEnabled()) {
+        const docsUrl = await gcp.uploadContent(
+          buildPipelineDocsMarkdown({ gameId, buildId, genModel: pipelineGenModel, testModel: pipelineTestModel, fixModel: pipelineFixModel, maxIterations: pipelineMaxIterations }),
+          `games/${gameId}/builds/${buildId}/pipeline-docs.md`,
+          { contentType: 'text/markdown' },
+        ).catch(() => null);
+        if (docsUrl) pipelineDocsLink = slack.formatLink(docsUrl, '📖 Pipeline Docs');
+      }
+
+      const linksLine = [specLink, pipelineDocsLink].filter(Boolean).join('  ·  ');
       const openerText = [
-        `🎮 Building: *${gameId}* (Build #${buildId || 'pending'})`,
-        '',
-        '*Pipeline:*',
-        '1️⃣ Generate HTML → static/contract validate',
-        '2️⃣ Generate test cases → per-category Playwright tests',
-        `3️⃣ Test → fix loop (up to ${pipelineMaxIterations} iterations/category)`,
-        '4️⃣ LLM review → approve/reject',
-        '',
-        `*Models:* Gen=${pipelineGenModel} | Tests=${pipelineTestModel} | Fix=${pipelineFixModel}`,
-        specLink ? `*Spec:* ${specLink}` : '',
+        `🎮 *${game?.title || gameId}* — Build #${buildId || 'pending'}`,
+        `*Status:* 🔄 Building...`,
+        `*Models:* Gen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}`,
+        linksLine || null,
       ].filter(Boolean).join('\n');
 
       threadInfo = await slack.createGameThread(gameId, {
@@ -288,39 +352,53 @@ const worker = new Worker(
       });
       if (threadInfo && threadInfo.ts) {
         db.updateGameThread(gameId, threadInfo.ts, threadInfo.channel);
+        // First reply: build plan
+        const planText = [
+          `📋 *Build Plan — Build #${buildId}*`,
+          `1️⃣ Generate HTML — ${pipelineGenModel}`,
+          `2️⃣ Static + contract validation`,
+          `3️⃣ Generate Playwright tests — ${pipelineTestModel}`,
+          `4️⃣ Test → fix loop — 5 categories × max ${pipelineMaxIterations} iterations — ${pipelineFixModel}`,
+          `   Categories: game-flow · mechanics · level-progression · edge-cases · contract`,
+          `5️⃣ LLM review — ${pipelineTestModel}`,
+        ].join('\n');
+        await slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, planText);
       }
     }
 
     // Progress callback for Slack thread updates
+    const phaseStarts = {};
     const onProgress = (step, detail) => {
       console.log(`[worker] progress: ${step}`, detail);
       if (!threadInfo) return;
+      const now = Date.now();
+      if (!phaseStarts[step]) phaseStarts[step] = now;
 
       // ── html-ready ──────────────────────────────────────────────────────────
       if (step === 'html-ready' && detail?.htmlFile) {
-        const sizeStr = detail.size ? `${detail.size} bytes` : 'unknown size';
+        const sizeKb = detail.size ? `${Math.round(detail.size / 1024)}KB` : '?KB';
         const timeStr = detail.time != null ? `${detail.time}s` : '?s';
+        const model = detail.model || pipelineGenModel;
         if (gcp.isEnabled()) {
           gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile, { suffix: 'generated' }).then((gcpUrl) => {
             if (gcpUrl) {
               if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
               db.updateGameGcpUrl(gameId, gcpUrl);
-              const linkPart = slack.formatLink(gcpUrl, 'View generated HTML');
               slack.postThreadUpdate(
                 threadInfo.ts, threadInfo.channel,
-                `✅ HTML generated\nSize: ${sizeStr} | Time: ${timeStr}\n${linkPart}\n↳ Next: Static + contract validation`,
+                `✅ *HTML generated* — ${sizeKb} | ${timeStr} | ${model}\n${slack.formatLink(gcpUrl, 'View HTML')}`,
               ).catch(() => {});
             } else {
               slack.postThreadUpdate(
                 threadInfo.ts, threadInfo.channel,
-                `✅ HTML generated\nSize: ${sizeStr} | Time: ${timeStr}\n↳ Next: Static + contract validation`,
+                `✅ *HTML generated* — ${sizeKb} | ${timeStr} | ${model}`,
               ).catch(() => {});
             }
           }).catch(() => {});
         } else {
           slack.postThreadUpdate(
             threadInfo.ts, threadInfo.channel,
-            `✅ HTML generated\nSize: ${sizeStr} | Time: ${timeStr}\n↳ Next: Static + contract validation`,
+            `✅ *HTML generated* — ${sizeKb} | ${timeStr} | ${model}`,
           ).catch(() => {});
         }
         return;
@@ -328,44 +406,48 @@ const worker = new Worker(
 
       // ── static-validation-failed ────────────────────────────────────────────
       if (step === 'static-validation-failed') {
+        phaseStarts['static-fix'] = now;
         const fixModel = detail?.fixModel || pipelineFixModel;
-        const errLines = detail?.errors ? detail.errors.split('\n').filter(Boolean) : [];
-        const issueList = errLines.slice(0, 3).map((e) => `• ${e}`).join('\n');
+        const errLines = detail?.errors ? detail.errors.split('\n').filter((l) => l.trim().startsWith('✗') || l.trim().startsWith('MISSING')) : [];
+        const issueList = errLines.slice(0, 3).map((e) => `• ${e.trim()}`).join('\n');
         const more = errLines.length > 3 ? `\n…(${errLines.length - 3} more)` : '';
         slack.postThreadUpdate(
           threadInfo.ts, threadInfo.channel,
-          `⚠️ Static validation failed — auto-fixing…\nIssues: ${issueList || 'see logs'}${more}\nModel: ${fixModel}`,
+          `⚠️ *Static validation failed* — auto-fixing | ${fixModel}\n${issueList || 'see logs'}${more}`,
         ).catch(() => {});
         return;
       }
 
       // ── static-validation-fixed ─────────────────────────────────────────────
       if (step === 'static-validation-fixed') {
+        const elapsed = phaseStarts['static-fix'] ? `${Math.round((now - phaseStarts['static-fix']) / 1000)}s` : '';
         slack.postThreadUpdate(
           threadInfo.ts, threadInfo.channel,
-          `✅ Static validation fixed\n↳ Next: Test generation`,
+          `✅ *Static validation fixed*${elapsed ? ` — ${elapsed}` : ''}`,
         ).catch(() => {});
         return;
       }
 
       // ── generate-tests ──────────────────────────────────────────────────────
       if (step === 'generate-tests') {
+        phaseStarts['generate-tests'] = now;
         const model = detail?.model || pipelineTestModel;
         slack.postThreadUpdate(
           threadInfo.ts, threadInfo.channel,
-          `🧪 Generating tests with ${model}…\nCategories: game-flow, mechanics, level-progression, edge-cases, contract`,
+          `🧪 *Generating tests* — ${model}`,
         ).catch(() => {});
         return;
       }
 
       // ── batch-start ─────────────────────────────────────────────────────────
       if (step === 'batch-start') {
+        phaseStarts[`batch-${detail?.batch}`] = now;
         const batchNum = (detail?.batchIdx ?? 0) + 1;
         const total = detail?.totalBatches || '?';
         const batchName = detail?.batch || 'unknown';
         slack.postThreadUpdate(
           threadInfo.ts, threadInfo.channel,
-          `▶️ [${batchName} ${batchNum}/${total}] Running tests…`,
+          `▶️ *${batchName}* [${batchNum}/${total}] — running tests`,
         ).catch(() => {});
         return;
       }
@@ -373,12 +455,22 @@ const worker = new Worker(
       // ── test-result ─────────────────────────────────────────────────────────
       if (step === 'test-result') {
         const { batch = 'unknown', iteration = '?', passed = 0, failed = 0, failures = [], maxIterations = pipelineMaxIterations } = detail || {};
-        const timeStr = detail?.time != null ? ` (${detail.time}s)` : '';
-        let msg = `📊 ${batch} · Iter ${iteration}/${maxIterations}: ${passed} passed, ${failed} failed${timeStr}`;
+        const batchElapsed = phaseStarts[`iter-${batch}-${iteration}`]
+          ? `${Math.round((now - phaseStarts[`iter-${batch}-${iteration}`]) / 1000)}s`
+          : detail?.time != null ? `${detail.time}s` : null;
+        phaseStarts[`iter-${batch}-${Number(iteration) + 1}`] = now;
+        const timeStr = batchElapsed ? ` | ${batchElapsed}` : '';
+        const allPass = failed === 0;
+        const statusEmoji = allPass ? '✅' : iteration === maxIterations ? '❌' : '🔄';
+        let msg = `${statusEmoji} *${batch}* iter ${iteration}/${maxIterations} — ${passed}/${passed + failed} passed${timeStr}`;
         if (failed > 0 && failures.length > 0) {
-          const failList = failures.slice(0, 3).map((f) => `• ${f}`).join('\n');
+          const failList = failures.slice(0, 3).map((f) => {
+            // Strip ANSI and truncate
+            const clean = f.replace(/\x1B\[[0-9;]*m/g, '').replace(/\s+/g, ' ').trim();
+            return `• ${clean.slice(0, 120)}`;
+          }).join('\n');
           const moreF = failures.length > 3 ? `\n…(${failures.length - 3} more)` : '';
-          msg += `\nFailures:\n${failList}${moreF}`;
+          msg += `\n${failList}${moreF}`;
         }
         slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
         return;
@@ -386,28 +478,31 @@ const worker = new Worker(
 
       // ── html-fixed ──────────────────────────────────────────────────────────
       if (step === 'html-fixed' && detail?.htmlFile) {
-        const { iteration: iter = '?', passed: p = 0, total: t = 0, batch: batchName = 'unknown' } = detail;
+        const { iteration: iter = '?', passed: p = 0, total: t = 0, batch: batchName = 'unknown', model: fixModel = pipelineFixModel } = detail;
+        const fixKey = `fix-${batchName}-${iter}`;
+        const elapsed = phaseStarts[fixKey] ? `${Math.round((now - phaseStarts[fixKey]) / 1000)}s` : null;
+        phaseStarts[`iter-${batchName}-${Number(iter) + 1}`] = now;
+        const timeStr = elapsed ? ` | ${elapsed}` : '';
         if (gcp.isEnabled()) {
           gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile, { suffix: `fix${iter}` }).then((gcpUrl) => {
             if (gcpUrl) {
               if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
               db.updateGameGcpUrl(gameId, gcpUrl);
-              const linkPart = slack.formatLink(gcpUrl, 'View fix');
               slack.postThreadUpdate(
                 threadInfo.ts, threadInfo.channel,
-                `🔧 ${batchName} fix ${iter} applied\nBefore: ${p}/${t} | After: running…\n${linkPart}`,
+                `🔧 *${batchName}* fix ${iter} — ${fixModel}${timeStr} | before: ${p}/${t}\n${slack.formatLink(gcpUrl, 'View fix')}`,
               ).catch(() => {});
             } else {
               slack.postThreadUpdate(
                 threadInfo.ts, threadInfo.channel,
-                `🔧 ${batchName} fix ${iter} applied\nBefore: ${p}/${t} | After: running…`,
+                `🔧 *${batchName}* fix ${iter} — ${fixModel}${timeStr} | before: ${p}/${t}`,
               ).catch(() => {});
             }
           }).catch(() => {});
         } else {
           slack.postThreadUpdate(
             threadInfo.ts, threadInfo.channel,
-            `🔧 ${batchName} fix ${iter} applied\nBefore: ${p}/${t} | After: running…`,
+            `🔧 *${batchName}* fix ${iter} — ${fixModel}${timeStr} | before: ${p}/${t}`,
           ).catch(() => {});
         }
         return;
@@ -461,18 +556,25 @@ const worker = new Worker(
       }
 
       // ── simple mapped messages ───────────────────────────────────────────────
-      const messages = {
-        'validate-spec': '📋 Validating spec...',
-        'generate-html': `🏗️ Generating HTML (model: ${detail?.model || 'unknown'})...`,
-        'static-validation': '🔍 Running static validation...',
-        'static-validation-fix-failed': '❌ Static validation fix failed — build may be unstable',
-        'generate-test-cases': `📋 Generating test cases (model: ${detail?.model || 'unknown'})...`,
-        'test-fix-loop': `🔄 Starting test/fix loop (max ${detail?.maxIterations || pipelineMaxIterations} iterations)...`,
-        review: '📝 Running review...',
-      };
-      const msg = messages[step];
-      if (msg) {
-        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
+      if (step === 'generate-html') {
+        phaseStarts['generate-html'] = now;
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🏗️ *Generating HTML* — ${detail?.model || pipelineGenModel}`).catch(() => {});
+        return;
+      }
+      if (step === 'review') {
+        phaseStarts['review'] = now;
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `📝 *Running review* — ${detail?.model || pipelineTestModel}`).catch(() => {});
+        return;
+      }
+      if (step === 'test-fix-loop') {
+        const batches = detail?.batches || 5;
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🔄 *Test → fix loop* — ${batches} categories × max ${detail?.maxIterations || pipelineMaxIterations} iterations`).catch(() => {});
+        return;
+      }
+      const silentSteps = new Set(['validate-spec', 'static-validation', 'generate-test-cases', 'html-ready', 'dom-snapshot', 'dom-snapshot-ready']);
+      if (silentSteps.has(step)) return; // suppress noisy low-value messages
+      if (step === 'static-validation-fix-failed') {
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, '❌ *Static validation fix failed* — build may be unstable').catch(() => {});
         return;
       }
 
@@ -622,7 +724,7 @@ const worker = new Worker(
     const gcpUrl = db.getGame(gameId)?.gcp_url;
     if (threadInfo) {
       // Update opener with final status + post summary reply
-      await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
+      await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl, specLink, pipelineDocsLink });
       await slack.postThreadResult(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
     } else {
       await slack.notifyBuildResult(gameId, report, commitSha, gcpUrl);
