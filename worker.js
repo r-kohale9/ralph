@@ -422,6 +422,7 @@ const worker = new Worker(
   {
     connection,
     concurrency: CONCURRENCY,
+    lockDuration: 600000, // 10 minutes (jobs can take up to 30 min — renewed every lockDuration/2)
     limiter: {
       max: RATE_LIMIT_MAX,
       duration: RATE_LIMIT_DURATION,
