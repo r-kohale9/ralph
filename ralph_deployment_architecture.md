@@ -396,6 +396,11 @@ ExecStart=/usr/bin/node worker.js
 Restart=always
 RestartSec=10
 EnvironmentFile=/srv/ralph/.env
+# Prevent systemd from killing the worker mid claude -p call (which can run 5-10 min)
+TimeoutStopSec=600
+# Kill the entire cgroup (node + all child claude/serve processes) on stop
+# This prevents orphaned claude processes consuming tokens when the worker is restarted
+KillMode=control-group
 
 [Install]
 WantedBy=multi-user.target
@@ -546,6 +551,7 @@ RALPH_TEST_MODEL=gemini-2.5-pro
 RALPH_FIX_MODEL=claude-sonnet-4-6
 RALPH_REVIEW_MODEL=gemini-2.5-pro
 RALPH_FALLBACK_MODEL=gpt-4.1
+RALPH_TEST_TIMEOUT=300
 GITHUB_WEBHOOK_SECRET=your-webhook-secret
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T.../B.../...
 NODE_ENV=production
@@ -572,6 +578,10 @@ sudo systemctl enable --now ralph-server ralph-worker
 | HTTP 429 on Claude calls | Both Claude accounts rate-limited | Builds pause until window resets; fix calls can fall back to Codex |
 | HTTP 4xx on Gemini calls | API key invalid or quota exceeded | Check Gemini API key in config.yaml, check GCP billing |
 | Playwright OOM | `free -m` | Reduce concurrency to 1 |
+| All tests fail with 0/0 (no error logged) | `RALPH_TEST_TIMEOUT` too low; pipeline kills Playwright mid-run | Set `RALPH_TEST_TIMEOUT=300` in `.env` |
+| All tests fail 0/0 or 13/13 with browser error | `npx playwright test 2>&1 \| head -20` | Browsers not installed: `npx playwright install chromium` |
+| Worker killed mid-job with `Result: timeout` | `systemctl status ralph-worker` | Add `TimeoutStopSec=600` + `KillMode=process` to service file, `systemctl daemon-reload` |
+| SQLite readonly / Playwright EACCES on test-results | `ls -la /opt/ralph/test-results/` | `sudo chown -R <user>:<user> /opt/ralph/` — must cover entire repo, not just `data/` |
 | Proxy container down | `docker ps` | `docker compose up -d` |
 | Generation quality drop | Wrong model routing | Check env vars: `RALPH_GEN_MODEL` should be `claude-opus-4-6` |
 

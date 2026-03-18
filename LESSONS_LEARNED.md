@@ -179,10 +179,19 @@ The default systemd stop timeout is 90 seconds. If `claude -p` is running a fix 
 TimeoutStopSec=600
 KillMode=process
 ```
-`KillMode=process` only kills the main node process on stop, not the child `claude` subprocess (which systemd would otherwise SIGKILL immediately).
+`KillMode=control-group` kills the entire cgroup (node + all child `claude` and `serve` processes) when systemd stops the service. This prevents orphaned `claude -p` processes consuming tokens after the worker is restarted. Do NOT use `KillMode=process` — that only kills the node parent, leaving children running.
 
-### Game output goes to `data/games/{gameId}/`
-Build artifacts (index.html, tests, reports) are written to `data/games/{gameId}/`, NOT inside the warehouse. The warehouse directory is the knowledge base — it should only contain specs, parts, rules, and contracts. This also prevents parallel builds from overwriting each other.
+### `RALPH_TEST_TIMEOUT` must cover worst-case test run time
+Default is 120s. With 13 tests that each timeout at 10s (Playwright's `actionTimeout`), a full failure run takes ~130s — exceeding the pipeline's test runner timeout. When the pipeline kills Playwright mid-run, `err.stdout` is empty, `JSON.parse('{}')` succeeds, and the result shows `0 passed, 0 failed`. This is indistinguishable from the browser-not-installed case.
+
+Set `RALPH_TEST_TIMEOUT=300` in `.env` to cover worst-case runs. Formula: `numTests × playwright.timeout / 1000 × 1.5` rounded up.
+
+### Playwright browsers must be installed after fresh server setup
+`npx playwright install` (or `npm install`) does NOT download browser binaries. They must be installed separately:
+```bash
+npx playwright install chromium
+```
+If missing, every test fails with `browserType.launch: Executable doesn't exist`. The worker's JSON parse catches 0 expected/unexpected stats and reports `0 passed, 0 failed` — the fix loop runs 5 iterations but has nothing to fix. This was the root cause of all early server builds failing with 0/0. Run this once after any fresh deploy or `npm install` on a new machine.
 
 ## Ports Reference
 
