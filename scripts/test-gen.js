@@ -259,22 +259,18 @@ async function runExtractContext() {
     // Click through to game screen
     await page.locator(`#${transitionSlotId} button`).first().click();
     await page.waitForTimeout(500);
+    // Generic check: wait for transition slot to be hidden (game screen is active)
     // eslint-disable-next-line no-undef
-    await page.waitForFunction(() => document.getElementById('original-a') !== null, null, { timeout: 10000 }).catch(() => {});
+    await page.waitForFunction((slotId) => { const s = document.getElementById(slotId); return s && getComputedStyle(s).display === 'none'; }, transitionSlotId, { timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(300);
 
-    // Get answer input ID and first round data
+    // Capture game content (generic — extracts whatever the game stores in gameState.content)
     // eslint-disable-next-line no-undef
-    ctx.gameFlow.answerInputId = await page.evaluate(() => document.getElementById('answer-input') ? 'answer-input' : null);
-    // eslint-disable-next-line no-undef
-    ctx.gameFlow.firstRound = await page.evaluate(() => ({
-      // eslint-disable-next-line no-undef
-      a: document.getElementById('original-a')?.textContent,
-      // eslint-disable-next-line no-undef
-      b: document.getElementById('original-b')?.textContent,
-      // eslint-disable-next-line no-undef
-      isProcessing: window.gameState?.isProcessing,
-    }));
-    log(`  first round: a=${ctx.gameFlow.firstRound.a} b=${ctx.gameFlow.firstRound.b}`);
+    const gameContent = await page.evaluate(() => window.gameState?.content || null).catch(() => null);
+    if (gameContent) {
+      fs.writeFileSync(path.join(testsDir, 'game-content.json'), JSON.stringify(gameContent, null, 2));
+      log(`  Saved game-content.json (${JSON.stringify(gameContent).length} bytes)`);
+    }
 
     // Submit wrong answer to see lives decrement
     await page.locator('#answer-input').fill('1');
@@ -507,8 +503,15 @@ async function startGame(page) {
   await page.waitForTimeout(500);
   await dismissPopupIfPresent(page);
   await page.locator('#mathai-transition-slot button').first().click();
-  await page.waitForTimeout(500);
-  await expect(page.locator('#original-a')).toBeVisible({ timeout: 5000 });
+  // Wait for game screen: transition slot hidden means game content is shown
+  await page.waitForFunction(
+    (slotId) => {
+      const slot = document.getElementById(slotId);
+      return slot && getComputedStyle(slot).display === 'none';
+    },
+    'mathai-transition-slot',
+    { timeout: 10000 }
+  );
 }
 
 async function clickNextLevel(page) {
@@ -594,7 +597,7 @@ CRITICAL — Helper function behavior (read carefully before writing any test):
 
 startGame(page):
   - Clicks the transition slot button TWICE: start screen → Level 1 transition → GAME SCREEN
-  - After startGame() resolves, you are on the GAME SCREEN (#original-a is visible)
+  - After startGame() resolves, you are on the GAME SCREEN (transition slot is hidden)
   - DO NOT call clickNextLevel() immediately after startGame() — you are already past Level 1 transition
   - Use startGame() at the beginning of every test
 
