@@ -152,11 +152,19 @@ describe('validate-static.js', () => {
     assert.ok(output.includes('External CSS'));
   });
 
-  it('fails when external JS is present', () => {
+  it('fails when local relative JS script is present', () => {
+    // Local relative scripts are forbidden; CDN scripts are allowed
     const html = VALID_HTML.replace('<script>', '<script src="app.js"></script><script>');
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 1);
-    assert.ok(output.includes('External JS'));
+    assert.ok(output.includes('Local relative script'));
+  });
+
+  it('allows CDN JS scripts', () => {
+    // CDN scripts (https:// URLs) are allowed for MathAI CDN games
+    const html = VALID_HTML.replace('<script>', '<script src="https://cdn.example.com/lib.js"></script><script>');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0);
   });
 
   it('fails when document.write is used', () => {
@@ -229,10 +237,10 @@ describe('validate-static.js', () => {
     assert.ok(output.includes('gameContent'));
   });
 
-  it('fails when missing gameArea', () => {
+  it('passes without gameArea (not required for CDN-layout games)', () => {
+    // #gameArea is optional — CDN-layout games use ScreenLayout.inject() instead
     const html = VALID_HTML.replace(/gameArea/g, 'playArea');
-    const { exitCode, output } = runValidator(html);
-    assert.equal(exitCode, 1);
-    assert.ok(output.includes('gameArea'));
+    const { exitCode } = runValidator(html);
+    assert.equal(exitCode, 0);
   });
 });
