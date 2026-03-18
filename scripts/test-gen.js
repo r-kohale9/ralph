@@ -419,6 +419,7 @@ Rules:
 - fallbackContent.rounds[i].numberA/.numberB/.correctAnswer for round data
 - expect(await page.evaluate(() => x)).toBe(v) — NOT await expect(page.evaluate(...))
 - Pure JavaScript only — no TypeScript type annotations (no : any[], no : string, etc.)
+- Use double quotes for test() names: test("test name", async...) — never single quotes in names
 - Wrap in \`\`\`javascript code block
 ${domSnapshotText ? `\n${domSnapshotText}\n` : ''}
 HTML:
