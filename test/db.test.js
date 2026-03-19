@@ -119,4 +119,15 @@ describe('db', () => {
     const build = db.getBuild(99999);
     assert.equal(build, undefined);
   });
+
+  it('getRunningBuilds returns builds with running status', () => {
+    const id = db.createBuild('orphan-test', null);
+    db.startBuild(id);
+    const running = db.getRunningBuilds();
+    assert.ok(Array.isArray(running));
+    const found = running.find((b) => b.id === id);
+    assert.ok(found, 'newly started build should appear in getRunningBuilds()');
+    assert.equal(found.status, 'running');
+    assert.equal(found.game_id, 'orphan-test');
+  });
 });

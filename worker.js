@@ -1019,6 +1019,19 @@ worker.on('error', (err) => {
 });
 
 // ─── Startup ────────────────────────────────────────────────────────────────
+
+// At startup: fail any builds still in 'running' state from a prior worker crash
+async function cleanupOrphanedBuilds() {
+  const orphans = db.getRunningBuilds();
+  if (orphans.length === 0) return;
+  logger.warn(`[worker] Found ${orphans.length} orphaned build(s) in 'running' state — marking failed`);
+  for (const build of orphans) {
+    db.failBuild(build.id, `orphaned: worker restarted while build was running (worker_id: ${build.worker_id || 'unknown'})`);
+    logger.warn(`[worker] Marked build ${build.id} (${build.game_id}) as failed (was running)`);
+  }
+}
+cleanupOrphanedBuilds().catch(err => logger.error('[worker] Orphan cleanup failed:', err));
+
 startSystemMetrics();
 logger.info(`[worker] Worker ID: ${WORKER_ID}`);
 console.log(`[ralph-worker] Started with concurrency=${CONCURRENCY}`);
