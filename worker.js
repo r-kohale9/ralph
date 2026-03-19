@@ -598,6 +598,10 @@ const worker = new Worker(
             if (gcpUrl) {
               if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
               db.updateGameGcpUrl(gameId, gcpUrl);
+              if (buildId) {
+                const key = `${batchName}-fix${iter}`;
+                db.updateBuildIterationUrl(buildId, key, gcpUrl);
+              }
             }
             const blocks = [
               divider(),
@@ -875,6 +879,16 @@ const worker = new Worker(
       transaction.setStatus && transaction.setStatus('error');
       transaction.finish && transaction.finish();
       throw err;
+    }
+
+    // Merge iteration HTML URLs from DB into report (populated async by html-fixed handler)
+    if (buildId) {
+      const buildRecord = db.getBuild(buildId);
+      if (buildRecord?.iteration_html_urls) {
+        try {
+          report.iteration_html_urls = JSON.parse(buildRecord.iteration_html_urls);
+        } catch (_) {}
+      }
     }
 
     // Update DB: build completed
