@@ -50,7 +50,7 @@ PROXY_KEY="${PROXY_KEY:-ralph-local-dev-key}"
 # Model assignments (T5: correct defaults — Opus for gen, Sonnet for fixes)
 GEN_MODEL="${RALPH_GEN_MODEL:-claude-opus-4-6}"
 TEST_MODEL="${RALPH_TEST_MODEL:-gemini-2.5-pro}"
-FIX_MODEL="${RALPH_FIX_MODEL:-claude-sonnet-4-6}"
+FIX_MODEL="${RALPH_FIX_MODEL:-claude-opus-4-6}"
 REVIEW_MODEL="${RALPH_REVIEW_MODEL:-gemini-2.5-pro}"
 FALLBACK_MODEL="${RALPH_FALLBACK_MODEL:-gpt-4.1}"
 
@@ -162,7 +162,7 @@ call_llm() {
       --arg prompt "$PROMPT" \
       '{
         model: $model,
-        max_tokens: 16000,
+        max_tokens: 128000,
         messages: [{ role: "user", content: $prompt }]
       }')") || {
     local EXIT_CODE=$?
@@ -376,24 +376,52 @@ stop_server() {
 # ─── Extract HTML from LLM output ───────────────────────────────────────────
 extract_html() {
   local OUTPUT="$1"
-  # Try to extract HTML from markdown code blocks first
   local EXTRACTED
-  EXTRACTED=$(echo "$OUTPUT" | sed -n '/```html/,/```/p' | sed '1d;$d')
-  if [ -n "$EXTRACTED" ]; then
+
+  # Strategy 1: Find the LARGEST ```html...``` code block
+  EXTRACTED=$(echo "$OUTPUT" | awk '
+    /^```html/ { capture=1; current=""; next }
+    /^```/ && capture {
+      if (length(current) > length(best)) best=current
+      capture=0; next
+    }
+    capture { current = current (current ? "\n" : "") $0 }
+    END {
+      # If last block was never closed (token limit), use it if its the largest
+      if (capture && length(current) > length(best)) best=current
+      print best
+    }
+  ')
+  if [ -n "$EXTRACTED" ] && echo "$EXTRACTED" | grep -q '<!DOCTYPE\|<html\|<head'; then
     echo "$EXTRACTED"
     return 0
   fi
-  # Try generic code block
-  EXTRACTED=$(echo "$OUTPUT" | sed -n '/```/,/```/p' | sed '1d;$d')
-  if [ -n "$EXTRACTED" ] && echo "$EXTRACTED" | grep -q '<!DOCTYPE\|<html\|<head\|<body'; then
+
+  # Strategy 2: Find the largest generic code block containing HTML
+  EXTRACTED=$(echo "$OUTPUT" | awk '
+    /^```/ && !capture { capture=1; current=""; next }
+    /^```/ && capture {
+      if (length(current) > length(best) && current ~ /<!DOCTYPE|<html|<head/) best=current
+      capture=0; next
+    }
+    capture { current = current (current ? "\n" : "") $0 }
+    END {
+      if (capture && length(current) > length(best) && current ~ /<!DOCTYPE|<html|<head/) best=current
+      print best
+    }
+  ')
+  if [ -n "$EXTRACTED" ] && echo "$EXTRACTED" | grep -q '<!DOCTYPE\|<html\|<head'; then
     echo "$EXTRACTED"
     return 0
   fi
-  # If the output itself looks like HTML, use it directly
-  if echo "$OUTPUT" | grep -q '<!DOCTYPE\|<html'; then
-    echo "$OUTPUT"
+
+  # Strategy 3: Strip everything before <!DOCTYPE (LLM may have prose before raw HTML)
+  EXTRACTED=$(echo "$OUTPUT" | awk '/<!DOCTYPE/{found=1} found{print}')
+  if [ -n "$EXTRACTED" ] && [ "$(echo "$EXTRACTED" | wc -c)" -gt 1000 ]; then
+    echo "$EXTRACTED"
     return 0
   fi
+
   return 1
 }
 
