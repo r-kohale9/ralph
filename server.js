@@ -65,8 +65,16 @@ function createApp(deps = {}) {
 
   const app = express();
 
-  // Raw body for webhook signature verification, then JSON parse
+  // Raw body for webhook/slack signature verification, then JSON parse
   app.use('/webhook', express.raw({ type: 'application/json' }));
+  app.use(
+    '/slack',
+    express.json({
+      verify: (req, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
   app.use(express.json());
 
   // ─── GitHub webhook signature verification ────────────────────────────────
