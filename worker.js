@@ -677,6 +677,12 @@ const worker = new Worker(
         fs.mkdirSync(gameDir, { recursive: true });
         // Write a pointer to this build so targeted fix can find the latest HTML
         fs.writeFileSync(path.join(REPO_DIR, 'data', 'games', gameId, '.latest'), String(buildId));
+        // Copy pre-built HTML from warehouse if available (skips LLM generation in pipeline)
+        const prebuiltHtml = path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'game', 'index.html');
+        if (fs.existsSync(prebuiltHtml) && !fs.existsSync(path.join(gameDir, 'index.html'))) {
+          fs.copyFileSync(prebuiltHtml, path.join(gameDir, 'index.html'));
+          console.log(`[worker] Using pre-built HTML from warehouse for ${gameId} (skipping generation)`);
+        }
         console.log(`[worker] Running Node.js pipeline (E3) for ${gameId}, build dir: ${gameDir}`);
         report = await runPipeline(gameDir, specFile, { metrics, logger, onProgress });
       } else {
