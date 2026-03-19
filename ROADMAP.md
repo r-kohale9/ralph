@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 19, 2026 (post E2E validation #57)
+**Last updated:** March 19, 2026 (generic pipeline + multi-game scale validation)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -101,10 +101,11 @@
 | Per-category pass rate tracking | done | lib/pipeline.js, ralph-report.json | category_results in report; identifies which category consistently fails |
 | Human-run Playwright traces as gold standard | planned | — | Record --trace from a correct human test run; use trace viewer output as ground truth for test generation |
 | `data-testid` attributes in gen prompt | done | lib/pipeline.js | Rule 15: LLM adds data-testid to all interactive/observable elements; test gen uses them as primary selectors |
-| Force-regenerate missing test categories | planned | lib/pipeline.js, server.js | Pipeline skips test gen when ≥1 spec file exists; add per-category regeneration check so missing categories are always generated, not silently skipped |
-| Review rejection → targeted fix loop | planned | lib/pipeline.js | REJECTED verdict currently ends the build; parse rejection reason and feed into a targeted HTML fix iteration before final failure, enabling autonomous recovery |
-| Autonomous spec → APPROVED pipeline | planned | lib/pipeline.js, worker.js | Full end-to-end loop: FAIL/REJECT → extract specific failing checks → targeted fix → retest → re-review, with no manual intervention required |
-| Multi-game scale validation | in-progress | warehouse/templates/ | 48 games from claude-skills/c_code queued (builds #60-108); concurrency=3; results pending |
+| Force-regenerate missing test categories | done | lib/pipeline.js | Per-category check: only missing/empty categories regenerate; existing valid specs kept |
+| Review rejection → targeted fix loop | done | lib/pipeline.js | REJECTED triggers up to 2 targeted HTML fix iterations using rejection reason, then re-reviews |
+| Autonomous spec → APPROVED pipeline | done | lib/pipeline.js, worker.js | FAIL/REJECT → triage → targeted fix → retest → re-review loop, fully autonomous |
+| Generic pipeline (all game types) | done | lib/pipeline.js, validate-static.js, validate-contract.js | Test gen uses DOM snapshot for selectors; boilerplate is game-agnostic; CDN contract patterns accepted |
+| Multi-game scale validation | in-progress | warehouse/templates/ | 46 pre-built games queued (builds #143-187); associations as pioneer; fix: polling beforeEach |
 
 ---
 
