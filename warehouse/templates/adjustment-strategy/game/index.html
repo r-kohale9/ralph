@@ -618,12 +618,16 @@
         badge.className = 'delta-badge hidden';
         badge.textContent = '';
       } else if (delta < 0) {
+        // Top area (− area / above): shows adjusted value with "−" prefix; minus button kept for further adjustment
         topArea.innerHTML = `<button class="adj-btn adj-minus" id="btn-${which}-minus" data-which="${which}" data-dir="-1">−</button><div class="adjusted-value-display"><span class="adj-icon minus">−</span> <strong>${original + delta}</strong></div>`;
+        // Bottom area (+ area / below): keeps its plus button
         bottomArea.innerHTML = `<button class="adj-btn adj-plus" id="btn-${which}-plus" data-which="${which}" data-dir="1">+</button>`;
         badge.className = 'delta-badge negative';
         badge.textContent = `${delta}`;
       } else {
+        // Top area (− area / above): keeps its minus button
         topArea.innerHTML = `<button class="adj-btn adj-minus" id="btn-${which}-minus" data-which="${which}" data-dir="-1">−</button>`;
+        // Bottom area (+ area / below): shows adjusted value with "+" prefix; plus button kept for further adjustment
         bottomArea.innerHTML = `<div class="adjusted-value-display"><span class="adj-icon plus">+</span> <strong>${original + delta}</strong></div><button class="adj-btn adj-plus" id="btn-${which}-plus" data-which="${which}" data-dir="1">+</button>`;
         badge.className = 'delta-badge positive';
         badge.textContent = `+${delta}`;
