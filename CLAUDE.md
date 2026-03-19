@@ -141,8 +141,23 @@ CDN games must expose `window.endGame = endGame` (local functions defined in DOM
 
 ## Pipeline Lessons
 
-See `docs/lessons-learned.md` for 26 accumulated build lessons and proof log. Read before diagnosing failures or modifying pipeline code.
+See `docs/lessons-learned.md` for accumulated build lessons and proof log. Read before diagnosing failures or modifying pipeline code.
+
+## Build Management
+
+See `docs/build-manager-agent.md` for kill criteria, lifecycle commands, and monitoring rules. Kill builds the moment they've served their purpose — never wait for a build running on old pipeline code or stuck at 0% pass rate.
 
 ## Roadmap
 
-See `ROADMAP.md` for full tracking across 6 pillars (52 items, 51 done, 1 planned).
+See `ROADMAP.md` for full tracking across all pillars.
+
+## Agent Self-Improvement (REQUIRED)
+
+After every build run, pipeline fix, new failure pattern, or architectural decision:
+
+1. **Update `docs/lessons-learned.md`** — add any new failure pattern with the fix and proof
+2. **Update `docs/build-manager-agent.md`** — refine kill criteria and lifecycle rules based on what was observed
+3. **Update `CLAUDE.md`** — keep it accurate as the single source of truth for any new agent starting a session
+4. **Update `ROADMAP.md`** — mark completed items done, add newly discovered improvements as planned
+
+Goal: any future agent reading these docs should operate without rediscovering known patterns. Reliability, availability, consistency, and efficiency improve only if lessons are captured immediately — not after the fact.
