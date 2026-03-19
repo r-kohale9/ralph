@@ -351,6 +351,8 @@ const worker = new Worker(
         openerText,
       });
       if (threadInfo && threadInfo.ts) {
+        // Ensure game row exists before updating thread (game may not be pre-created via /api/games)
+        if (!game) db.createGame(gameId, {});
         db.updateGameThread(gameId, threadInfo.ts, threadInfo.channel);
         // First reply: build plan
         const planText = [
