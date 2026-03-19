@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (E14, E15, contract auto-fix, review consolidation, Slack restructure done)
+**Last updated:** March 20, 2026 (spec pre-validation, build auto-retry, iteration HTML URL audit trail done)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -119,6 +119,9 @@
 | Review prompt consolidation | done | lib/pipeline.js | REVIEW_SHARED_GUIDANCE const shared by early-review, re-review, and final review; eliminates drift |
 | Spec-derived fallbackContent | done | lib/pipeline.js | extractSpecRounds() parses spec markdown tables/lists when DOM snapshot rounds are empty |
 | Slack log restructure (Block Kit) | done | worker.js, lib/slack.js | Block Kit templates with dividers, → Next: narration, pipeline-architecture.md |
+| Step 0 spec pre-validation | done | lib/pipeline.js | validateSpec() checks: short spec, missing heading, missing mechanics/scoring/CDN sections; hard fail on errors, warnings to Slack |
+| Build auto-retry (RALPH_AUTO_RETRY) | done | worker.js, lib/db.js | Requeues builds scoring 0/total once; retry_count in DB prevents chains; gated by env var |
+| Iteration HTML URL audit trail | done | lib/db.js, worker.js | iteration_html_urls column tracks all fix snapshots per build; count shown in Slack summary |
 | Multi-game scale validation | in-progress | warehouse/templates/ | 47 games queued (builds #217-262); all improvements active |
 
 ---
@@ -133,8 +136,8 @@
 | P3 DevOps & Operations | 11 | 0 | 11 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 20 | 1 | 22 |
-| **Total** | **76** | **2** | **79** |
+| P6 Test Generation Quality | 23 | 1 | 25 |
+| **Total** | **79** | **2** | **82** |
 
 ## What's Next
 
