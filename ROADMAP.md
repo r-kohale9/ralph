@@ -83,6 +83,7 @@
 | E2 smart retry escalation | done | ralph.sh, diagnosis mode on iteration 3+ |
 | E3 migrate CLI to API | done | lib/pipeline.js, worker.js: dual-mode (bash/Node.js); opt-in via RALPH_USE_NODE_PIPELINE=1 |
 | E4 warehouse-aware context | planned | Deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt |
+| E11 parallel build generation | planned | Run multiple game builds concurrently (independent LLM pipelines per game); current sequential processing is the bottleneck for scale validation runs |
 | E6 caching / incremental runs | done | ralph.sh: check_cache/update_cache with sha256sum; gated by RALPH_ENABLE_CACHE=1 |
 | E7 failure pattern database | done | lib/db.js, worker.js, server.js: failure_patterns table, categorization, /api/failure-patterns endpoint |
 | E8 diff-based fix prompts | done | ralph.sh: sends only `<script>` section for HTML >20KB on iteration 2+ |
@@ -118,9 +119,9 @@
 | P2 Spec Compliance | 6 | 0 | 6 |
 | P3 DevOps & Operations | 11 | 0 | 11 |
 | P4 Code Quality | 6 | 0 | 6 |
-| P5 Scalability | 8 | 1 | 9 |
+| P5 Scalability | 8 | 2 | 10 |
 | P6 Test Generation Quality | 7 | 5 | 12 |
-| **Total** | **58** | **6** | **64** |
+| **Total** | **58** | **7** | **65** |
 
 ## What's Next
 
