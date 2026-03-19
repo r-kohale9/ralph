@@ -14,6 +14,8 @@ const sentry = require('./lib/sentry');
 const metrics = require('./lib/metrics');
 const { getSystemStats, startSystemMetrics } = metrics;
 
+const WORKER_ID = process.env.RALPH_WORKER_ID || require('crypto').randomUUID().slice(0, 8);
+
 // ─── Initialize observability + integrations ─────────────────────────────────
 sentry.init('ralph-worker');
 logger.initCloudLogging();
@@ -215,7 +217,7 @@ async function handleFixJob(job) {
   const { gameId, buildId, feedbackPrompt } = job.data;
   logger.info(`Processing targeted fix for ${gameId}`, { gameId, buildId, event: 'fix_start' });
 
-  if (buildId) db.startBuild(buildId);
+  if (buildId) db.startBuild(buildId, { workerId: WORKER_ID });
 
   // Resolve latest build dir — targeted fix patches the most recent generated HTML
   const gameBase = path.join(REPO_DIR, 'data', 'games', gameId);
@@ -315,7 +317,7 @@ const worker = new Worker(
 
     // Update DB: build started
     if (buildId) {
-      db.startBuild(buildId);
+      db.startBuild(buildId, { workerId: WORKER_ID });
     }
 
     // Pipeline model constants (mirror pipeline.js defaults)
@@ -814,6 +816,8 @@ worker.on('error', (err) => {
 });
 
 // ─── Startup ────────────────────────────────────────────────────────────────
+startSystemMetrics();
+logger.info(`[worker] Worker ID: ${WORKER_ID}`);
 console.log(`[ralph-worker] Started with concurrency=${CONCURRENCY}`);
 console.log(`[ralph-worker] Rate limit: ${RATE_LIMIT_MAX} builds per ${RATE_LIMIT_DURATION / 1000}s`);
 console.log(`[ralph-worker] Repo: ${REPO_DIR}`);
