@@ -252,6 +252,25 @@ function createApp(deps = {}) {
     res.json(build);
   });
 
+  // ─── Cancel a running build ────────────────────────────────────────────────
+  app.post('/api/builds/:id/cancel', async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const build = db.getBuild(id);
+    if (!build) {
+      return res.status(404).json({ error: 'Build not found' });
+    }
+    if (build.status !== 'running') {
+      return res.status(400).json({ error: 'Build is not running' });
+    }
+    db.failBuild(id, 'Cancelled by user');
+    logger.info(`Build ${id} cancelled`, { buildId: id, event: 'build_cancelled' });
+    // Fire-and-forget Slack notification (optional)
+    if (process.env.SLACK_WEBHOOK_URL) {
+      slack.notify(`Build #${id} cancelled by user`).catch(() => {});
+    }
+    res.json({ success: true, buildId: id, status: 'FAILED' });
+  });
+
   app.get('/api/games/:gameId/builds', (req, res) => {
     const limit = Math.min(parseInt(req.query.limit || '10', 10), 100);
     const builds = db.getBuildsByGame(req.params.gameId, limit);

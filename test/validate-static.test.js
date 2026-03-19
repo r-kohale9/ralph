@@ -104,11 +104,32 @@ describe('validate-static.js', () => {
     assert.ok(output.includes('DOCTYPE'));
   });
 
-  it('fails when missing initGame', () => {
+  it('fails when missing initGame (non-CDN game)', () => {
     const html = VALID_HTML.replace('function initGame()', 'function startGame()');
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 1);
     assert.ok(output.includes('initGame'));
+  });
+
+  it('passes without initGame when using CDN ScreenLayout + DOMContentLoaded pattern', () => {
+    // CDN games initialize via DOMContentLoaded + ScreenLayout.inject() — no initGame() needed
+    const html = VALID_HTML
+      .replace('function initGame()', 'function setupGame()')
+      .replace('initGame();', '')
+      .replace(
+        '<div id="gameContent">',
+        '<div id="app"></div>\n<div id="gameContent">',
+      )
+      .replace(
+        'const pct',
+        'ScreenLayout.inject("app", { slots: { transitionScreen: true } });\n    const pct',
+      )
+      .replace(
+        '</script>',
+        'window.addEventListener("DOMContentLoaded", async () => { setupGame(); });\n</script>',
+      );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
   });
 
   it('fails when missing endGame', () => {
@@ -174,11 +195,30 @@ describe('validate-static.js', () => {
     assert.ok(output.includes('document.write'));
   });
 
-  it('fails when no answer handler function found (promoted to error)', () => {
+  it('fails when no interaction handler found', () => {
     const html = VALID_HTML.replace('function checkAnswer(answer)', 'function processInput(answer)');
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 1);
-    assert.ok(output.includes('checkAnswer'));
+    assert.ok(output.includes('interaction handler'));
+  });
+
+  it('passes with CDN-style handleXxx interaction handler', () => {
+    // CDN games use handleSimonTap, handleCellClick, handleCorrectTap etc.
+    const html = VALID_HTML.replace('function checkAnswer(answer)', 'function handleCellClick(cell)');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+  });
+
+  it('passes with addEventListener click as interaction handler', () => {
+    const html = VALID_HTML
+      .replace('function checkAnswer(answer)', 'function processInput(answer)')
+      .replace('processInput(answer)', 'processInput(answer)')
+      .replace(
+        '</script>',
+        'document.addEventListener("click", (e) => { processInput(e.target); });\n</script>',
+      );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
   });
 
   it('fails when gameState initialization is missing', () => {
@@ -188,11 +228,31 @@ describe('validate-static.js', () => {
     assert.ok(output.includes('gameState'));
   });
 
-  it('fails when star thresholds are missing', () => {
-    const html = VALID_HTML.replace('0.8', '0.9').replace('0.5', '0.6');
+  it('fails when no star scoring pattern found', () => {
+    // Remove all star scoring patterns: thresholds, variable name, ternary
+    const html = VALID_HTML
+      .replace(/0\.8/g, '0.9')
+      .replace(/0\.5/g, '0.6')
+      .replace(/const stars\b/g, 'const rating')
+      .replace(/\bstars\b/g, 'rating');
     const { exitCode, output } = runValidator(html);
-    assert.equal(exitCode, 1);
-    assert.ok(output.includes('Star thresholds'));
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
+    assert.ok(output.includes('Star scoring'));
+  });
+
+  it('passes with CDN-style calcStars star pattern', () => {
+    const html = VALID_HTML
+      .replace('pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1', 'calcStars(pct)');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+  });
+
+  it('passes with direct stars = N assignment pattern', () => {
+    const html = VALID_HTML
+      .replace('pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1', '3')
+      .replace('const stars = 3', 'let stars = 3;\nif (score < 8) stars = 2;\nif (score < 5) stars = 1');
+    const { exitCode } = runValidator(html);
+    assert.equal(exitCode, 0);
   });
 
   it('fails when 480px constraint is missing', () => {
