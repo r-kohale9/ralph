@@ -212,7 +212,13 @@ async function handleFixJob(job) {
 
   if (buildId) db.startBuild(buildId);
 
-  const gameDir = path.join(REPO_DIR, 'data', 'games', gameId);
+  // Resolve latest build dir — targeted fix patches the most recent generated HTML
+  const gameBase = path.join(REPO_DIR, 'data', 'games', gameId);
+  const latestFile = path.join(gameBase, '.latest');
+  const latestBuildId = fs.existsSync(latestFile) ? fs.readFileSync(latestFile, 'utf-8').trim() : null;
+  const gameDir = latestBuildId
+    ? path.join(gameBase, 'builds', latestBuildId)
+    : gameBase; // fallback for legacy flat structure
   const specFile = path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
 
   if (!fs.existsSync(specFile)) {
@@ -666,10 +672,12 @@ const worker = new Worker(
     try {
       if (USE_NODE_PIPELINE) {
         const { runPipeline } = require('./lib/pipeline');
-        const gameDir = path.join(REPO_DIR, 'data', 'games', gameId);
+        const gameDir = path.join(REPO_DIR, 'data', 'games', gameId, 'builds', String(buildId));
         const specFile = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
         fs.mkdirSync(gameDir, { recursive: true });
-        console.log(`[worker] Running Node.js pipeline (E3) for ${gameId}`);
+        // Write a pointer to this build so targeted fix can find the latest HTML
+        fs.writeFileSync(path.join(REPO_DIR, 'data', 'games', gameId, '.latest'), String(buildId));
+        console.log(`[worker] Running Node.js pipeline (E3) for ${gameId}, build dir: ${gameDir}`);
         report = await runPipeline(gameDir, specFile, { metrics, logger, onProgress });
       } else {
         report = await runRalph(gameId, specPath, buildId);
@@ -705,8 +713,8 @@ const worker = new Worker(
 
     // GCP upload — always upload so a preview link is available regardless of status
     if (gcp.isEnabled()) {
-      const gameDir = path.join(REPO_DIR, 'data', 'games', gameId);
-      const htmlFile = path.join(gameDir, 'index.html');
+      const gameBuildDir = path.join(REPO_DIR, 'data', 'games', gameId, 'builds', String(buildId));
+      const htmlFile = path.join(gameBuildDir, 'index.html');
       if (fs.existsSync(htmlFile)) {
         const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
         if (gcpUrl) {
@@ -749,7 +757,8 @@ const worker = new Worker(
   {
     connection,
     concurrency: CONCURRENCY,
-    lockDuration: 600000, // 10 minutes (jobs can take up to 30 min — renewed every lockDuration/2)
+    lockDuration: 30 * 60 * 1000,   // 30 minutes — pipeline jobs take up to 25min
+    lockRenewTime: 10 * 60 * 1000,  // renew every 10 minutes (lockDuration / 3)
     limiter: {
       max: RATE_LIMIT_MAX,
       duration: RATE_LIMIT_DURATION,
