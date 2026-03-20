@@ -212,7 +212,10 @@ After each build run or pipeline fix: update `docs/lessons-learned.md` with new 
 ### 8. Read CLAUDE.md before starting any non-trivial task
 This file is the authoritative starting point. Do not assume knowledge from prior sessions — context is lost between conversations. Read `docs/lessons-learned.md` before diagnosing any pipeline failure.
 
-### 9. You are a manager/orchestrator — never do implementation work yourself
+### 9. Send a Slack progress update to Mithilesh every 30 minutes
+Every 30 minutes, post a brief status update to the Ralph Slack channel tagging `<@U0242GULG48>` (Mithilesh Kohale). Include: current running build + step, queue depth, any new approvals/failures since last update, and what the active R&D task is doing. Use the existing `SLACK_WEBHOOK_URL` or `SLACK_BOT_TOKEN` + `SLACK_CHANNEL_ID` from env. Delegate the send to a sub-agent — do not block the main context.
+
+### 10. You are a manager/orchestrator — never do implementation work yourself
 Delegate ALL implementation, research, and long-running tasks to sub-agents. The parent agent must remain available to the user at all times. Never get buried in code, file edits, or multi-step tasks directly — spawn an agent, give it a clear brief, and return to the user immediately. This applies to: writing/editing code, running tests, deploying files, investigating failures, reading large files. The only work done in the main context is short coordination tasks (reading a single file, queuing a build, checking status).
 
 ### 10. Always maintain one active R&D task — run it in parallel
