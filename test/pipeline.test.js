@@ -8,7 +8,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords } = require('../lib/pipeline');
+const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords, getCategoryBoost } = require('../lib/pipeline');
 
 describe('pipeline.js extractHtml', () => {
   it('extracts HTML from ```html code block', () => {
@@ -439,6 +439,109 @@ describe('pipeline.js extractSpecKeywords', () => {
       const bullets = result.split('\n').filter(Boolean);
       // FeedbackManager bullet should appear first (higher spec relevance)
       assert.ok(bullets[0].includes('feedbackmanager') || bullets[0].includes('FeedbackManager'), `expected feedbackmanager entry first, got: ${bullets[0]}`);
+    } finally {
+      if (originalDb) {
+        require.cache[dbPath] = originalDb;
+      } else {
+        delete require.cache[dbPath];
+      }
+      if (originalPipeline) {
+        require.cache[pipelinePath] = originalPipeline;
+      } else {
+        delete require.cache[pipelinePath];
+      }
+      delete require.cache[pipelinePath];
+      require('../lib/pipeline');
+    }
+  });
+});
+
+describe('pipeline.js getCategoryBoost', () => {
+  it('is exported as a function', () => {
+    assert.equal(typeof getCategoryBoost, 'function');
+  });
+
+  it('contract category always returns +0.2 regardless of spec keywords', () => {
+    // No spec keywords at all
+    assert.equal(getCategoryBoost('contract', new Set()), 0.2);
+    // With unrelated keywords
+    assert.equal(getCategoryBoost('contract', new Set(['fraction', 'tile'])), 0.2);
+    // Null keywords
+    assert.equal(getCategoryBoost('contract', null), 0.2);
+  });
+
+  it('audio category returns +0.2 when spec keywords include feedbackmanager', () => {
+    const withFM = new Set(['feedbackmanager', 'part-012']);
+    assert.equal(getCategoryBoost('audio', withFM), 0.2);
+  });
+
+  it('audio category returns 0 when spec keywords do NOT include feedbackmanager', () => {
+    const withoutFM = new Set(['screenlayout', 'fraction', 'tile']);
+    assert.equal(getCategoryBoost('audio', withoutFM), 0);
+  });
+
+  it('layout category returns +0.2 when spec keywords include screenlayout', () => {
+    const withSL = new Set(['screenlayout', 'part-003']);
+    assert.equal(getCategoryBoost('layout', withSL), 0.2);
+  });
+
+  it('layout category returns 0 when screenlayout not in spec keywords', () => {
+    const withoutSL = new Set(['feedbackmanager', 'fraction']);
+    assert.equal(getCategoryBoost('layout', withoutSL), 0);
+  });
+
+  it('cdncompat returns +0.2 when any PART-xxx keyword is present', () => {
+    const withPart = new Set(['part-012', 'feedbackmanager']);
+    assert.equal(getCategoryBoost('cdncompat', withPart), 0.2);
+    // Any PART-xxx works
+    assert.equal(getCategoryBoost('cdncompat', new Set(['part-001'])), 0.2);
+  });
+
+  it('cdncompat returns 0 when no PART-xxx keyword is present', () => {
+    const noPart = new Set(['feedbackmanager', 'screenlayout', 'fraction']);
+    assert.equal(getCategoryBoost('cdncompat', noPart), 0);
+  });
+
+  it('unrecognised categories always return 0', () => {
+    const kws = new Set(['part-012', 'feedbackmanager', 'screenlayout']);
+    assert.equal(getCategoryBoost('test-gen', kws), 0);
+    assert.equal(getCategoryBoost('fix-loop', kws), 0);
+    assert.equal(getCategoryBoost('general', kws), 0);
+    assert.equal(getCategoryBoost(null, kws), 0);
+    assert.equal(getCategoryBoost(undefined, kws), 0);
+  });
+
+  it('category boost affects sort order: contract entry ranks above same-similarity general entry', () => {
+    // When spec has no matching keywords, Jaccard similarity is ~0 for both.
+    // The contract entry should still come first due to +0.2 boost.
+    const rows = [
+      { content: 'irrelevant alpha bravo charlie delta echo foxtrot', category: 'general' },
+      { content: 'irrelevant golf hotel india juliet kilo lima', category: 'contract' },
+    ];
+    const spec = '## Game Mechanics\nplayer answers questions about fractions\n';
+
+    const dbPath = require.resolve('../lib/db');
+    const pipelinePath = require.resolve('../lib/pipeline');
+    const originalDb = require.cache[dbPath];
+    const originalPipeline = require.cache[pipelinePath];
+    try {
+      require.cache[dbPath] = {
+        id: dbPath,
+        filename: dbPath,
+        loaded: true,
+        exports: {
+          getDb: () => ({
+            prepare: () => ({ all: () => rows }),
+          }),
+        },
+      };
+      delete require.cache[pipelinePath];
+      const { getRelevantLearnings: freshFn } = require('../lib/pipeline');
+      const result = freshFn('other-game', spec, 10);
+      assert.ok(result !== null, 'should return a string');
+      const bullets = result.split('\n').filter(Boolean);
+      assert.ok(bullets.length >= 2, 'should have at least 2 bullets');
+      assert.ok(bullets[0].includes('[contract]'), `contract entry should be first, got: ${bullets[0]}`);
     } finally {
       if (originalDb) {
         require.cache[dbPath] = originalDb;
