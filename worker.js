@@ -41,8 +41,11 @@ const USE_NODE_PIPELINE = process.env.RALPH_USE_NODE_PIPELINE === '1';
 // Auto-retry: requeue builds that score 0/total tests (gated, max 1 retry per build)
 const AUTO_RETRY = process.env.RALPH_AUTO_RETRY === '1';
 
-// Rate limiter: max 10 builds per hour
-const RATE_LIMIT_MAX = parseInt(process.env.RALPH_RATE_MAX || '10', 10);
+// Rate limiter: max 20 builds per hour
+// Raised from 10 → 20 (2026-03-21): builds 361-370 were manually failed (duplicate/already-approved)
+// but still consumed rate-limiter slots, starving legitimate builds for ~1h.
+// 20/hr gives headroom for manual cancellations without blocking the real queue.
+const RATE_LIMIT_MAX = parseInt(process.env.RALPH_RATE_MAX || '20', 10);
 const RATE_LIMIT_DURATION = parseInt(process.env.RALPH_RATE_DURATION || '3600000', 10);
 
 // Resource gate thresholds
