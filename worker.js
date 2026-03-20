@@ -880,14 +880,31 @@ const worker = new Worker(
       }
     };
 
-    // Pull latest code
+    // Pull latest code; if HEAD changed, clear require() cache for pipeline modules
+    // so the next job runs the updated code rather than the stale in-memory copy.
     if (fs.existsSync(REPO_DIR) && fs.existsSync(path.join(REPO_DIR, '.git'))) {
       try {
+        const { stdout: headBefore } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+          cwd: REPO_DIR,
+        }).catch(() => ({ stdout: '' }));
         await execFileAsync('git', ['pull', 'origin', 'main'], {
           cwd: REPO_DIR,
           timeout: 60000,
         });
-        console.log(`[worker] Git pull completed`);
+        const { stdout: headAfter } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+          cwd: REPO_DIR,
+        }).catch(() => ({ stdout: '' }));
+        if (headBefore.trim() !== headAfter.trim() && headAfter.trim()) {
+          // Code changed — bust require() cache for all local lib/ modules so this
+          // job (and all subsequent jobs in this process) use the updated source.
+          const libDir = path.join(REPO_DIR, 'lib');
+          Object.keys(require.cache).forEach((key) => {
+            if (key.startsWith(libDir)) delete require.cache[key];
+          });
+          console.log(`[worker] Git pull: code updated ${headBefore.trim().slice(0, 7)} → ${headAfter.trim().slice(0, 7)}, lib/ cache cleared`);
+        } else {
+          console.log(`[worker] Git pull completed (no change)`);
+        }
       } catch (err) {
         console.warn(`[worker] Git pull failed (continuing): ${err.message}`);
       }
