@@ -813,3 +813,86 @@ describe('pipeline-fix-loop.js global fix loop — 0/0 false-pass guard', () => 
     assert.equal(globalFailingBatches.length, 0, 'with all genuinely passing batches, loop should exit');
   });
 });
+
+// ─── runPageSmokeDiagnostic / classifySmokeErrors tests ──────────────────────
+// classifySmokeErrors is the pure pattern-matching core of the smoke check.
+// We test it directly to avoid spawning Playwright or a real server.
+
+const { classifySmokeErrors } = require('../lib/pipeline-utils');
+
+describe('runPageSmokeDiagnostic classifySmokeErrors — fatal pattern detection', () => {
+  it('returns empty array when there are no console errors (ok: true scenario)', () => {
+    const result = classifySmokeErrors([]);
+    assert.deepEqual(result, []);
+  });
+
+  it('detects "Packages failed to load" as fatal', () => {
+    const errors = ['Packages failed to load within 10s'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+    assert.ok(result[0].includes('Packages failed to load'));
+  });
+
+  it('detects "Initialization error" as fatal (case-insensitive)', () => {
+    const errors = ['INITIALIZATION ERROR: cannot read property of undefined'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+    assert.ok(result[0].includes('INITIALIZATION ERROR'));
+  });
+
+  it('does NOT classify a non-fatal console error as fatal', () => {
+    const errors = ['minor warning: color contrast ratio is low'];
+    const result = classifySmokeErrors(errors);
+    assert.deepEqual(result, []);
+  });
+
+  it('returns only the fatal error when mixed with a non-fatal error', () => {
+    const errors = [
+      'minor warning: element has no accessible name',
+      'Package failed to load: cdn.homeworkapp.ai/mathai-game-engine.js',
+    ];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+    assert.ok(result[0].includes('Package failed to load'));
+  });
+
+  it('detects "failed to load resource" (CDN 404) as fatal', () => {
+    const errors = ['Failed to load resource: the server responded with a status of 404'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+  });
+
+  it('detects "is not a constructor" as fatal', () => {
+    const errors = ['TypeError: MathaiGame is not a constructor'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+  });
+
+  it('detects "waitForPackages" as fatal', () => {
+    const errors = ['waitForPackages timed out after 10000ms'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+  });
+
+  it('"X is not defined" without CDN context is NOT fatal', () => {
+    // A plain undefined error with no CDN/package context should not block the build
+    const errors = ['ReferenceError: myLocalVar is not defined'];
+    const result = classifySmokeErrors(errors);
+    assert.deepEqual(result, []);
+  });
+
+  it('"X is not defined" WITH CDN context IS fatal', () => {
+    const errors = ['MathaiEngine is not defined — ensure cdn.homeworkapp.ai script is loaded'];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 1);
+  });
+
+  it('returns all matching errors when multiple fatal errors appear', () => {
+    const errors = [
+      'Packages failed to load within 10s',
+      'Initialization error: null reference',
+    ];
+    const result = classifySmokeErrors(errors);
+    assert.equal(result.length, 2);
+  });
+});

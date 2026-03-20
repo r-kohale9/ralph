@@ -149,3 +149,23 @@ sudo docker exec ralph-redis-1 ls -la /data/appendonlydir/
 ```
 
 **How to apply:** Always start Redis with `--appendonly yes`. For docker-compose deployments, include it in the `command:` field. For standalone Redis, set `appendonly yes` in `redis.conf` and run `redis-cli CONFIG REWRITE` to persist the change. Never rely on RDB-only persistence for BullMQ-backed pipelines where job loss is unacceptable.
+
+## Lesson 46 — Step 1d: Page load smoke check prevents wasted test-gen tokens on broken pages
+
+**Pattern:** Generated HTML can fail to load entirely due to CDN package timeouts, missing globals, or JS init errors. The page is a white screen from generation, but the pipeline doesn't detect this until iteration 1 of the test loop returns 0/10 — after test-gen LLM tokens have already been spent. Real example: `"Packages failed to load within 10s"` — the console error appears at page load, but the pipeline wasn't listening.
+
+**Root cause:** The pipeline had no pre-test-gen check for page-level init failures. Static validation (Step 1b) checks HTML structure and CDN contract compliance but cannot detect runtime errors. The test loop's 0/10 iteration-1 result was the first signal.
+
+**Fix (Step 1d):** Added `runPageSmokeDiagnostic(htmlFile, gameDir, logger)` in `lib/pipeline-utils.js`. Runs after Step 1c (early review), before test generation:
+1. Spawns a local static server (same pattern as `captureGameDomSnapshot`)
+2. Opens the page in headless Playwright with a 5s navigation timeout
+3. Collects `console.error` events for 8 seconds
+4. Classifies errors against fatal patterns: `packages? failed to load`, `initialization error`, `failed to load resource`, `waitforpackages`, `is not a constructor`, and CDN-context `X is not defined`
+5. If fatal errors found: one HTML regeneration attempt with the error appended to the gen prompt, then re-smoke-checks
+6. If still failing after regen: throws immediately (no test-gen, no fix loop wasted)
+
+**Pattern matching helper:** `classifySmokeErrors(consoleErrors)` is exported separately for unit testing without Playwright. The `X is not defined` pattern is only fatal when the error message also contains a CDN/package context string — avoids false positives from routine JS reference errors.
+
+**Cost saved:** Prevents ~2 full LLM fix iterations + test generation tokens ($0.20–$0.50 per incident) on CDN-broken pages that would otherwise waste 5 full iterations before the pipeline fails.
+
+**How to apply:** When a build fails iteration 1 with 0/N on all categories AND the error is `page.waitForSelector Timeout` or similar, check the Slack thread for a `smoke-check-failed` progress event. If present, the root cause is a page load failure — the smoke check caught it on the next build attempt.

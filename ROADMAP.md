@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (P7 split done (819 lines) + config.js/lazy-require/magic-number/db-migration done; P8 isInitFailure + queue-dedup + error-message done; R&D: queue-sync auto-requeue active)
+**Last updated:** March 20, 2026 (P7 split done (819 lines) + config.js/lazy-require/magic-number/db-migration done; P8 isInitFailure + queue-dedup + error-message + Step 1d smoke-check done; R&D: queue-sync auto-requeue active)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -85,6 +85,7 @@
 | **BullMQ stall prevention** | **done (2026-03-20)** | worker.js | Wired `onProgress` → `job.updateProgress()` every ~2 min (KillMode=control-group + heartbeat). BullMQ renews job lock on each call, preventing the 15 stall failures. Shipped in commit cc36e6c. |
 | **Stale warehouse auto-delete: relax isInitFailure guard** | **done (2026-03-20)** | lib/pipeline.js | `isInitFailure()` refactored to exported function; ANY-match + passed===0; 14 regex patterns; 10 new unit tests; 399 tests pass; deployed 2026-03-20 (commit 5e7eaa0). |
 | **Redis AOF persistence (Task #44)** | **done (2026-03-20)** | docker-compose.yml | `--appendonly yes` in Redis service command prevents BullMQ queue loss on restart. Verified on live server: `ralph-redis-1` container running with AOF active; `appendonlydir/` with `*.incr.aof` confirmed. See Lesson 45 in docs/lessons-learned.md. |
+| **Step 1d: Page load smoke check** | **done (2026-03-20)** | lib/pipeline-utils.js, lib/pipeline.js | `runPageSmokeDiagnostic()` + `classifySmokeErrors()` added. Catches CDN 404s, `waitForPackages` timeout, init errors before test-gen runs. One regen attempt on fatal errors; throws immediately if still broken. 11 new tests; 428 total pass. See Lesson 46 in docs/lessons-learned.md. |
 
 ---
 
