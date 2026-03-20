@@ -34,6 +34,8 @@
 | PART-015 | Validation LLM                | NO              | —                                                                                                                                                     |
 | PART-016 | StoriesComponent              | NO              | —                                                                                                                                                     |
 | PART-017 | Feedback Integration          | NO              | Extension — specific audio URLs used directly                                                                                                         |
+
+> **CRITICAL: Do NOT call FeedbackManager.init(). Use FeedbackManager.sound.play() and FeedbackManager.playDynamicFeedback() directly. Calling FeedbackManager.init() shows a blocking audio permission popup that prevents game initialization and causes ALL tests to fail non-deterministically.**
 | PART-018 | Case Converter                | NO              | —                                                                                                                                                     |
 | PART-019 | Results Screen UI             | YES             | Custom metrics: time, rounds completed, avg time/level, wrong attempts, accuracy                                                                      |
 | PART-020 | CSS Variables & Colors        | YES             | —                                                                                                                                                     |
