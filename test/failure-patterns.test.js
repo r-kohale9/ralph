@@ -116,6 +116,59 @@ describe('E7: failure patterns', () => {
   });
 });
 
+describe('E9: findMatchingPattern', () => {
+  let db;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-fmp-'));
+  const dbPath = path.join(tmpDir, 'fmp.db');
+
+  before(() => {
+    process.env.RALPH_DB_PATH = dbPath;
+    delete require.cache[require.resolve('../lib/db')];
+    db = require('../lib/db');
+  });
+
+  after(() => {
+    db.close();
+    try {
+      fs.unlinkSync(dbPath);
+    } catch {}
+    try {
+      fs.rmdirSync(tmpDir);
+    } catch {}
+    delete process.env.RALPH_DB_PATH;
+  });
+
+  it('returns null when no patterns match the failures string', () => {
+    db.recordFailurePattern('test-game', 'Score display is broken on mobile', 'rendering');
+    const result = db.findMatchingPattern('Timer not stopping at game end', 'test-game');
+    assert.equal(result, null);
+  });
+
+  it('returns the highest-occurrence pattern when failuresStr contains it', () => {
+    db.recordFailurePattern('test-game', 'Score display is broken on mobile', 'rendering');
+    db.recordFailurePattern('test-game', 'Score display is broken on mobile', 'rendering');
+    db.recordFailurePattern('test-game', 'Score display is broken on mobile', 'rendering');
+
+    const result = db.findMatchingPattern(
+      'game-flow — Score display is broken on mobile — expected 3 got 0',
+      'test-game',
+    );
+    assert.ok(result);
+    assert.equal(result.pattern, 'Score display is broken on mobile');
+    assert.equal(result.category, 'rendering');
+    assert.ok(result.occurrences >= 3);
+  });
+
+  it('skips patterns with category "unknown" (pattern value is "unknown")', () => {
+    // Insert a pattern with pattern text 'unknown' — should be skipped by the WHERE pattern != 'unknown' filter
+    db.recordFailurePattern('test-game', 'unknown', 'unknown');
+    const result = db.findMatchingPattern('unknown failure message containing unknown text', 'test-game');
+    // 'unknown' is exactly 7 chars (< 10 min length guard), so it won't match even if
+    // the WHERE clause didn't exclude it — but the WHERE clause is the explicit guard
+    assert.equal(result, null);
+  });
+});
+
 describe('E7: failure categorization (worker helper)', () => {
   // Replicate the categorizeFailure function from worker.js
   function categorizeFailure(failureDesc) {
