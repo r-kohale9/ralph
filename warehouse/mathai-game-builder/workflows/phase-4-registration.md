@@ -111,8 +111,6 @@ During registration:
 
 > If you add additional checklist rows (e.g., custom registration requirements), include them in the saved content and keep this file updated with `Edit` tool as items toggle to `[✅]` or `[❌]`.
 
-# <<<<<<< Updated upstream
-
 **Checklist Communication Pattern:**
 
 **TO USER (Simple status only):**
@@ -155,8 +153,7 @@ During registration:
 
 **NEVER show checklist marks to user. Only show simple status.**
 
-> > > > > > > Stashed changes
-> > > > > > > **🚨 IMPORTANT**: This workflow is for NEW games only. Always create a NEW registration with `register_game`. Never check for or reuse existing game registrations.
+**🚨 IMPORTANT**: This workflow is for NEW games only. Always create a NEW registration with `register_game`. Never check for or reuse existing game registrations.
 
 ---
 

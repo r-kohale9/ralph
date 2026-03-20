@@ -1,5 +1,7 @@
 'use strict';
 
+try { require('dotenv').config(); } catch { /* dotenv optional */ }
+
 const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -268,6 +270,235 @@ function createApp(deps = {}) {
 
     logger.info(`Build queued for ${gameId}`, { gameId, buildId, event: 'manual_build' });
     return res.json({ queued: true, buildId, gameId });
+  });
+
+  // ─── Publish game to claude-core ───────────────────────────────────────────
+  app.post('/api/publish', async (req, res) => {
+    const { gameId, version, buildId, force } = req.body;
+
+    if (!gameId) {
+      return res.status(400).json({ error: 'gameId is required' });
+    }
+
+    const gameVersion = version || '1.0.0';
+    const repoDir = process.env.RALPH_REPO_DIR || path.join(__dirname, 'repo');
+    // Try repoDir first, then fall back to repo/ subdirectory
+    let gameDir = path.join(repoDir, 'data', 'games', gameId);
+    if (!fs.existsSync(gameDir)) {
+      gameDir = path.join(__dirname, 'repo', 'data', 'games', gameId);
+    }
+    const htmlFile = path.join(gameDir, 'index.html');
+    const reportFile = path.join(gameDir, 'ralph-report.json');
+    const specFile = req.body.specPath
+      || path.join(repoDir, 'warehouse', 'templates', gameId, 'spec.md');
+
+    // Validate HTML exists
+    if (!fs.existsSync(htmlFile)) {
+      return res.status(404).json({ error: `No HTML found for ${gameId}. Run a build first.` });
+    }
+
+    // Check build status (unless force=true)
+    if (!force && fs.existsSync(reportFile)) {
+      try {
+        const report = JSON.parse(fs.readFileSync(reportFile, 'utf-8'));
+        if (report.status !== 'APPROVED') {
+          return res.status(400).json({
+            error: `Build status is "${report.status}", not APPROVED. Use force=true to publish anyway.`,
+          });
+        }
+      } catch { /* ignore parse errors */ }
+    }
+
+    // Read HTML content
+    const artifactContent = fs.readFileSync(htmlFile, 'utf-8');
+
+    // Read spec for metadata (best-effort)
+    let metadata = {
+      title: gameId,
+      description: `${gameId} game`,
+      concepts: [],
+      difficulty: 'medium',
+      estimatedTime: 300,
+      minGrade: 1,
+      maxGrade: 12,
+      type: 'practice',
+    };
+
+    if (fs.existsSync(specFile)) {
+      try {
+        const specContent = fs.readFileSync(specFile, 'utf-8');
+        // Extract title from spec (first # heading)
+        const titleMatch = specContent.match(/^#\s+(.+)/m);
+        if (titleMatch) metadata.title = titleMatch[1].trim();
+        // Extract description from spec
+        const descMatch = specContent.match(/(?:description|overview)[:\s]*([^\n]+)/i);
+        if (descMatch) metadata.description = descMatch[1].trim();
+      } catch { /* use defaults */ }
+    }
+
+    // Build registration payload for claude-core
+    const CORE_API_URL = process.env.CORE_API_URL || 'http://localhost:4000';
+    const CORE_API_TOKEN = process.env.CORE_API_TOKEN;
+
+    if (!CORE_API_TOKEN) {
+      return res.status(500).json({
+        error: 'CORE_API_TOKEN not configured. Set the Bearer token for claude-core API.',
+      });
+    }
+
+    // Extract fallback content from the HTML early — used for both inputSchema and content set
+    let defaultContent = null;
+    const fallbackMatch = artifactContent.match(
+      /(?:const|var|let)\s+fallbackContent\s*=\s*(\{[\s\S]*?\});/
+    );
+    if (fallbackMatch) {
+      try {
+        defaultContent = new Function(`return ${fallbackMatch[1]}`)();
+      } catch { /* ignore parse errors */ }
+    }
+
+    // Generate inputSchema from fallback content structure (so validation passes)
+    function inferSchema(obj) {
+      if (Array.isArray(obj)) {
+        return { type: 'array', items: obj.length > 0 ? inferSchema(obj[0]) : {} };
+      }
+      if (obj !== null && typeof obj === 'object') {
+        const properties = {};
+        for (const [k, v] of Object.entries(obj)) {
+          properties[k] = inferSchema(v);
+        }
+        return { type: 'object', properties, required: Object.keys(properties) };
+      }
+      return { type: typeof obj };
+    }
+
+    let inputSchema = { type: 'object', properties: {}, required: [] };
+    // Priority: inputSchema.json file > inferred from fallback content > generic default
+    const schemaFile = path.join(gameDir, 'inputSchema.json');
+    if (fs.existsSync(schemaFile)) {
+      try {
+        inputSchema = JSON.parse(fs.readFileSync(schemaFile, 'utf-8'));
+      } catch { /* use inferred */ }
+    } else if (defaultContent) {
+      inputSchema = inferSchema(defaultContent);
+    }
+
+    const gameName = gameId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+    const registerPayload = {
+      name: gameName,
+      version: gameVersion,
+      metadata,
+      capabilities: {
+        tracks: ['accuracy', 'time', 'stars'],
+        provides: ['score', 'stars'],
+      },
+      inputSchema,
+      artifactContent,
+      publishedBy: 'ralph-pipeline',
+    };
+
+    try {
+      const coreRes = await fetch(`${CORE_API_URL}/api/games/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${CORE_API_TOKEN}`,
+        },
+        body: JSON.stringify(registerPayload),
+      });
+
+      const coreBody = await coreRes.json();
+
+      if (!coreRes.ok) {
+        return res.status(coreRes.status).json({
+          error: 'Failed to register game with claude-core',
+          detail: coreBody,
+        });
+      }
+
+      const registeredGameId = coreBody.data?.id;
+      const artifactUrl = coreBody.data?.artifactUrl;
+
+      // Create a default content set so the game is playable on learn.mathai.ai
+      let contentSetId = null;
+      try {
+        if (defaultContent) {
+          const contentSetRes = await fetch(`${CORE_API_URL}/api/content-sets/create`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${CORE_API_TOKEN}`,
+            },
+            body: JSON.stringify({
+              gameId: registeredGameId,
+              name: `${metadata.title} — Default`,
+              description: 'Default content set extracted from game fallback content',
+              grade: metadata.minGrade || 3,
+              difficulty: metadata.difficulty || 'medium',
+              concepts: metadata.concepts.length > 0 ? metadata.concepts : ['general'],
+              content: defaultContent,
+              createdBy: 'ralph-pipeline',
+            }),
+          });
+
+          if (contentSetRes.ok) {
+            const csBody = await contentSetRes.json();
+            contentSetId = csBody.data?.id;
+            logger.info(`Created default content set ${contentSetId} for ${registeredGameId}`, {
+              gameId: registeredGameId,
+              contentSetId,
+              event: 'content_set_created',
+            });
+          } else {
+            const csError = await contentSetRes.text();
+            logger.warn(`Failed to create content set for ${registeredGameId}: ${csError}`, {
+              gameId: registeredGameId,
+              event: 'content_set_error',
+            });
+          }
+        } else {
+          logger.info(`No fallbackContent found in HTML for ${gameId}, skipping content set creation`, {
+            gameId,
+            event: 'no_fallback_content',
+          });
+        }
+      } catch (csErr) {
+        logger.warn(`Content set creation failed for ${registeredGameId}: ${csErr.message}`, {
+          gameId: registeredGameId,
+          event: 'content_set_error',
+        });
+      }
+
+      // Build the learn.mathai.ai game link (include contentSetId if available)
+      const gameLink = contentSetId
+        ? `https://learn.mathai.ai/game/${registeredGameId}/${contentSetId}`
+        : `https://learn.mathai.ai/game/${registeredGameId}`;
+
+      logger.info(`Published ${gameId} to claude-core`, {
+        gameId,
+        registeredGameId,
+        version: gameVersion,
+        artifactUrl,
+        contentSetId,
+        event: 'game_published',
+      });
+
+      return res.json({
+        published: true,
+        gameId: registeredGameId,
+        version: gameVersion,
+        artifactUrl,
+        contentSetId,
+        gameLink,
+      });
+    } catch (err) {
+      logger.error(`Failed to publish ${gameId}: ${err.message}`, { gameId, event: 'publish_error' });
+      return res.status(502).json({
+        error: `Failed to connect to claude-core API at ${CORE_API_URL}`,
+        detail: err.message,
+      });
+    }
   });
 
   // ─── Build status and history ─────────────────────────────────────────────

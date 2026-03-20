@@ -132,3 +132,5 @@ Ralph runs this as a loop (max 5 iterations) after HTML generation, before Playw
 - [ ] postMessage listener checks `event.data.type === 'game_init'`
 - [ ] `setupGame()` is called from the postMessage handler, not directly at script load
 - [ ] Fallback: if no `game_init` after timeout, `setupGame()` with defaults for standalone testing
+- [ ] All `<script src="...">` URLs are correct, well-formed, and match the URLs given in the spec — no hallucinated or typo'd CDN domains
+- [ ] All resource URLs (audio, images, stickers) match the URLs provided in the spec — no invented or broken paths

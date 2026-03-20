@@ -21,6 +21,10 @@
 #   RALPH_LLM_TIMEOUT   - Timeout for LLM calls in seconds (default: 300)
 #   RALPH_TEST_TIMEOUT   - Timeout for Playwright runs in seconds (default: 120)
 #   RALPH_REPORT_DIR    - Directory for ralph-report.json (default: game-dir)
+#   CORE_API_URL        - claude-core API URL (enables auto-publish when set with token)
+#   CORE_API_TOKEN      - Bearer token for claude-core API
+#   RALPH_PUBLISH_ENABLED - Force enable/disable publish (default: auto if URL+token set)
+#   RALPH_GAME_VERSION  - Version string for published game (default: 1.0.0)
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -100,6 +104,12 @@ write_report() {
   local ARTIFACTS
   ARTIFACTS=$([ -f "$HTML_FILE" ] && echo '["index.html"]' || echo '[]')
 
+  # Load publish info if available
+  local PUBLISH_INFO='{}'
+  if [ -f "$GAME_DIR/publish-info.json" ]; then
+    PUBLISH_INFO=$(cat "$GAME_DIR/publish-info.json")
+  fi
+
   # Use jq to construct valid JSON (prevents injection from LLM output)
   jq -n \
     --arg game_id "$GAME_ID" \
@@ -116,6 +126,7 @@ write_report() {
     --arg review_model "$REVIEW_MODEL" \
     --argjson artifacts "$ARTIFACTS" \
     --argjson errors "$REPORT_ERRORS" \
+    --argjson publish "$PUBLISH_INFO" \
     --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
     '{
       game_id: $game_id,
@@ -134,6 +145,7 @@ write_report() {
         review: $review_model
       },
       artifacts: $artifacts,
+      publish: $publish,
       timestamp: $timestamp
     }' > "$REPORT_FILE"
   log "Report written to $REPORT_FILE"
@@ -538,6 +550,49 @@ else
   log "  ✓ Using cached HTML ($(wc -c < "$HTML_FILE") bytes)"
 fi
 
+# ─── Step 1a: Generate inputSchema.json ─────────────────────────────────────
+log ""
+log "Step 1a: Generate inputSchema.json"
+INPUT_SCHEMA_FILE="$GAME_DIR/inputSchema.json"
+
+SCHEMA_PROMPT="Analyze the following HTML game and its specification. Generate an inputSchema (JSON Schema draft-07) that describes the EXACT content structure the game expects via postMessage game_init.
+
+IMPORTANT: Look at BOTH:
+1. The handlePostMessage / game_init handler — what fields does it read from event.data.data.content?
+2. The fallbackContent object — this IS the canonical content shape the game expects.
+
+The schema must match the structure of fallbackContent exactly. Every top-level field in fallbackContent must appear as a required property. For arrays, describe the item schema based on the actual objects in the fallback data.
+
+Output ONLY valid JSON (no markdown, no code blocks, no explanation).
+
+HTML:
+$(cat "$HTML_FILE")
+
+SPECIFICATION:
+$SPEC_CONTENT"
+
+if call_llm "generate-schema" "$SCHEMA_PROMPT" "$REVIEW_MODEL" 120 2>/dev/null; then
+  # Try to extract valid JSON from the output
+  SCHEMA_JSON=$(echo "$LLM_OUTPUT" | sed -n '/^{/,/^}/p' | head -200)
+  if [ -z "$SCHEMA_JSON" ]; then
+    SCHEMA_JSON=$(echo "$LLM_OUTPUT" | sed -n '/\`\`\`json/,/\`\`\`/p' | sed '1d;$d')
+  fi
+  if [ -z "$SCHEMA_JSON" ]; then
+    SCHEMA_JSON="$LLM_OUTPUT"
+  fi
+
+  if echo "$SCHEMA_JSON" | jq '.' > /dev/null 2>&1; then
+    echo "$SCHEMA_JSON" | jq '.' > "$INPUT_SCHEMA_FILE"
+    log "  ✓ inputSchema.json generated"
+  else
+    warn "  LLM produced invalid JSON for inputSchema — will infer from fallback content"
+    INPUT_SCHEMA_FILE=""
+  fi
+else
+  warn "  inputSchema generation failed — will infer from fallback content"
+  INPUT_SCHEMA_FILE=""
+fi
+
 # ─── Step 1b: Static validation (T1) ────────────────────────────────────────
 log ""
 log "Step 1b: Static validation"
@@ -590,6 +645,14 @@ if [ -f "$CHECKLIST_FILE" ]; then
     VERIFY_ITER=$(( VERIFY_ITER + 1 ))
     log "  ── Verification $VERIFY_ITER / $MAX_VERIFY ──"
 
+    # Include inputSchema in verification if it was generated
+    INPUT_SCHEMA_FOR_VERIFY=""
+    if [ -n "$INPUT_SCHEMA_FILE" ] && [ -f "$INPUT_SCHEMA_FILE" ]; then
+      INPUT_SCHEMA_FOR_VERIFY="
+### inputSchema.json (must match fallbackContent structure):
+$(cat "$INPUT_SCHEMA_FILE")"
+    fi
+
     VERIFY_PROMPT="You are verifying a generated MathAI game HTML. Check BOTH a general platform checklist AND game-specific logic in a single pass.
 
 ## FILES
@@ -602,6 +665,7 @@ $SPEC_CONTENT
 
 ### General Verification Checklist:
 $CHECKLIST_CONTENT
+$INPUT_SCHEMA_FOR_VERIFY
 
 ## PART A: General Platform Checklist
 
@@ -622,7 +686,16 @@ The most common issues are:
 - Missing Sentry integration (SentryConfig package + SDK)
 - Missing playDynamicFeedback for end-game TTS
 
-## PART B: Game-Specific Logic
+## PART B: inputSchema Verification
+
+If an inputSchema.json is provided above, verify:
+- Every top-level required property in the schema exists in the game's fallbackContent
+- The types match (string, number, array, object)
+- Array item schemas match the actual objects in fallbackContent arrays
+- The schema does NOT require fields that fallbackContent doesn't have
+If the schema is wrong, include the corrected schema in your output as a \`\`\`json code block labelled INPUT_SCHEMA_FIX.
+
+## PART C: Game-Specific Logic
 
 Analyze the spec to understand THIS game's specific mechanics, then verify the HTML implements them correctly:
 - Game Mechanics — Are the core interactions wired up as the spec describes?
@@ -654,6 +727,14 @@ Then output the COMPLETE FIXED HTML wrapped in a \`\`\`html code block (only if 
       warn "  Verification attempt $VERIFY_ITER failed, continuing..."
       continue
     }
+
+    # Extract fixed inputSchema if present (Part B fix)
+    SCHEMA_FIX=$(echo "$LLM_OUTPUT" | awk '/INPUT_SCHEMA_FIX/,0' | sed -n '/```json/,/```/p' | sed '1d;$d')
+    if [ -n "$SCHEMA_FIX" ] && echo "$SCHEMA_FIX" | jq '.' > /dev/null 2>&1; then
+      echo "$SCHEMA_FIX" | jq '.' > "$GAME_DIR/inputSchema.json"
+      INPUT_SCHEMA_FILE="$GAME_DIR/inputSchema.json"
+      log "  ✓ inputSchema.json updated from verification"
+    fi
 
     if echo "$LLM_OUTPUT" | grep -q "CHECKLIST_RESULT: PASS"; then
       log "  ✓ Verification passed on iteration $VERIFY_ITER"
@@ -788,7 +869,6 @@ while [ "$ITERATION" -lt "$MAX_ITERATIONS" ]; do
   log "  Results: $PASSED passed, $FAILED failed"
 
   # Build test result entry (use jq for safe JSON construction)
-  local TEST_ENTRY
   TEST_ENTRY=$(jq -n \
     --argjson iteration "$ITERATION" \
     --argjson passed "$PASSED" \
@@ -960,110 +1040,242 @@ if echo "$REVIEW_RESULT" | grep -qi "^APPROVED"; then
   log ""
   log "Step 5: Post-approval tasks"
 
-  # T6: Generate inputSchema.json
-  log "  Generating inputSchema.json (T6)..."
-  INPUT_SCHEMA_FILE="$GAME_DIR/inputSchema.json"
-
-  SCHEMA_PROMPT="Analyze the following HTML game and generate an inputSchema.json that describes its configuration options.
-
-The schema should follow JSON Schema draft-07 format and include:
-- Game title and description
-- Any configurable parameters (number of questions, difficulty, time limit, etc.)
-- Input types (e.g., multiple choice, text input, drag-and-drop)
-- Required vs optional fields
-
-Output ONLY valid JSON (no markdown, no code blocks, no explanation).
-
-HTML:
-$(cat "$HTML_FILE")
-
-SPECIFICATION:
-$SPEC_CONTENT"
-
-  if call_llm "generate-schema" "$SCHEMA_PROMPT" "$REVIEW_MODEL" 2>/dev/null; then
-    # Try to extract valid JSON from the output
-    SCHEMA_JSON=$(echo "$LLM_OUTPUT" | sed -n '/^{/,/^}/p' | head -100)
-    if [ -z "$SCHEMA_JSON" ]; then
-      # Try from code block
-      SCHEMA_JSON=$(echo "$LLM_OUTPUT" | sed -n '/```json/,/```/p' | sed '1d;$d')
-    fi
-    if [ -z "$SCHEMA_JSON" ]; then
-      SCHEMA_JSON="$LLM_OUTPUT"
-    fi
-
-    # Validate it's valid JSON using jq
-    if echo "$SCHEMA_JSON" | jq '.' > /dev/null 2>&1; then
-      echo "$SCHEMA_JSON" | jq '.' > "$INPUT_SCHEMA_FILE"
-      log "  ✓ inputSchema.json generated"
-    else
-      warn "  LLM produced invalid JSON for inputSchema — using fallback"
-      jq -n \
-        --arg game_id "$GAME_ID" \
-        --arg title "$GAME_ID" \
-        '{
-          "$schema": "http://json-schema.org/draft-07/schema#",
-          "title": $title,
-          "type": "object",
-          "properties": {
-            "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"], "default": "medium" },
-            "questionCount": { "type": "integer", "minimum": 1, "maximum": 50, "default": 10 }
-          }
-        }' > "$INPUT_SCHEMA_FILE"
-      log "  ✓ inputSchema.json generated (fallback)"
-    fi
-  else
-    warn "  inputSchema.json generation failed — using fallback"
-    jq -n \
-      --arg game_id "$GAME_ID" \
-      '{
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": $game_id,
-        "type": "object",
-        "properties": {}
-      }' > "$INPUT_SCHEMA_FILE"
-  fi
-
-  # E10: Deployment step — register artifact, version tag
-  DEPLOY_ENABLED="${RALPH_DEPLOY_ENABLED:-0}"
-  DEPLOY_DIR="${RALPH_DEPLOY_DIR:-}"
-
-  if [ "$DEPLOY_ENABLED" = "1" ] && [ -n "$DEPLOY_DIR" ]; then
-    log "  Running deployment step (E10)..."
-
-    # Create versioned artifact directory
-    VERSION_TAG="$(date -u '+%Y%m%d-%H%M%S')"
-    ARTIFACT_DIR="$DEPLOY_DIR/$GAME_ID/$VERSION_TAG"
-    mkdir -p "$ARTIFACT_DIR"
-
-    # Copy approved artifacts
-    cp "$HTML_FILE" "$ARTIFACT_DIR/index.html"
-    [ -f "$INPUT_SCHEMA_FILE" ] && cp "$INPUT_SCHEMA_FILE" "$ARTIFACT_DIR/inputSchema.json"
-    cp "$REPORT_FILE" "$ARTIFACT_DIR/ralph-report.json" 2>/dev/null || true
-
-    # Create/update latest symlink
-    ln -sfn "$ARTIFACT_DIR" "$DEPLOY_DIR/$GAME_ID/latest"
-
-    # Write version manifest
-    jq -n \
-      --arg game_id "$GAME_ID" \
-      --arg version "$VERSION_TAG" \
-      --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-      --arg html_hash "$(sha256sum "$HTML_FILE" | cut -d' ' -f1)" \
-      '{
-        game_id: $game_id,
-        version: $version,
-        timestamp: $timestamp,
-        html_sha256: $html_hash,
-        status: "APPROVED"
-      }' > "$ARTIFACT_DIR/manifest.json"
-
-    log "  ✓ Deployed to $ARTIFACT_DIR"
-  else
-    log "  Deployment skipped (RALPH_DEPLOY_ENABLED=${DEPLOY_ENABLED})"
-  fi
-
   # E6: Update cache after successful build
   update_cache
+
+  # ─── Step 6: Publish to claude-core ─────────────────────────────────────
+  CORE_API_URL="${CORE_API_URL:-}"
+  CORE_API_TOKEN="${CORE_API_TOKEN:-}"
+  PUBLISH_ENABLED="${RALPH_PUBLISH_ENABLED:-0}"
+
+  # Auto-enable publish if CORE_API_URL and CORE_API_TOKEN are set
+  if [ -n "$CORE_API_URL" ] && [ -n "$CORE_API_TOKEN" ]; then
+    PUBLISH_ENABLED="1"
+  fi
+
+  PUBLISH_GAME_ID=""
+  PUBLISH_GAME_LINK=""
+  PUBLISH_CONTENT_SETS="[]"
+
+  if [ "$PUBLISH_ENABLED" = "1" ] && [ -n "$CORE_API_URL" ] && [ -n "$CORE_API_TOKEN" ]; then
+    log ""
+    log "Step 6: Publish to claude-core"
+
+    # Read metadata from spec
+    GAME_TITLE=$(grep -m1 '^# ' "$SPEC_PATH" | sed 's/^# //' || echo "$GAME_ID")
+    GAME_DESC=$(grep -i 'description\|overview' "$SPEC_PATH" | head -1 | sed 's/.*[:\s]*//' || echo "$GAME_ID game")
+    GAME_NAME=$(echo "$GAME_ID" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+    GAME_VERSION="${RALPH_GAME_VERSION:-1.0.0}"
+
+    # Read inputSchema
+    INPUT_SCHEMA='{}'
+    if [ -n "$INPUT_SCHEMA_FILE" ] && [ -f "$INPUT_SCHEMA_FILE" ]; then
+      INPUT_SCHEMA=$(cat "$INPUT_SCHEMA_FILE")
+    fi
+
+    # Build register payload
+    REGISTER_PAYLOAD=$(jq -n \
+      --arg name "$GAME_NAME" \
+      --arg version "$GAME_VERSION" \
+      --arg title "$GAME_TITLE" \
+      --arg desc "$GAME_DESC" \
+      --argjson inputSchema "$INPUT_SCHEMA" \
+      --arg artifactContent "$(cat "$HTML_FILE")" \
+      '{
+        name: $name,
+        version: $version,
+        metadata: {
+          title: $title,
+          description: $desc,
+          concepts: [],
+          difficulty: "medium",
+          estimatedTime: 300,
+          minGrade: 1,
+          maxGrade: 12,
+          type: "practice"
+        },
+        capabilities: {
+          tracks: ["accuracy", "time", "stars"],
+          provides: ["score", "stars"]
+        },
+        inputSchema: $inputSchema,
+        artifactContent: $artifactContent,
+        publishedBy: "ralph-pipeline"
+      }')
+
+    log "  Registering game with claude-core..."
+    REGISTER_RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 60 \
+      -X POST "$CORE_API_URL/api/games/register" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $CORE_API_TOKEN" \
+      -d "$REGISTER_PAYLOAD") || {
+      warn "  Failed to connect to claude-core API"
+    }
+
+    REG_HTTP_CODE=$(echo "$REGISTER_RESPONSE" | tail -1)
+    REG_BODY=$(echo "$REGISTER_RESPONSE" | sed '$d')
+
+    if [ "$REG_HTTP_CODE" = "201" ] || [ "$REG_HTTP_CODE" = "200" ]; then
+      PUBLISH_GAME_ID=$(echo "$REG_BODY" | jq -r '.data.id // empty')
+      ARTIFACT_URL=$(echo "$REG_BODY" | jq -r '.data.artifactUrl // empty')
+      log "  ✓ Game registered: $PUBLISH_GAME_ID"
+      log "  ✓ Artifact URL: $ARTIFACT_URL"
+
+      # ── Generate 3 content sets (easy, medium, hard) via LLM ──────────
+      log "  Generating content sets (easy, medium, hard)..."
+
+      CONTENT_GEN_PROMPT="You are generating game content for a MathAI educational game. The game expects content in a specific JSON format defined by the inputSchema below.
+
+GAME SPECIFICATION:
+$SPEC_CONTENT
+
+INPUT SCHEMA (the content must conform to this structure):
+$INPUT_SCHEMA
+
+CURRENT FALLBACK CONTENT (from the HTML — use this as a reference for the exact structure):
+$(grep -A 100 'fallbackContent' "$HTML_FILE" | head -120)
+
+Generate THREE content sets at different difficulty levels. Each must conform exactly to the inputSchema structure.
+
+RULES:
+- easy: Simpler values, smaller numbers, fewer items — suitable for younger or beginner students
+- medium: Moderate difficulty — similar to the fallback content
+- hard: Challenging values, larger numbers, more items — suitable for advanced students
+- Each content set must be a valid JSON object matching the inputSchema
+- Use age-appropriate, educationally sound content
+- Vary the content between difficulties (don't just change one number)
+
+Output EXACTLY this format (no other text):
+
+CONTENT_EASY:
+\`\`\`json
+{...}
+\`\`\`
+
+CONTENT_MEDIUM:
+\`\`\`json
+{...}
+\`\`\`
+
+CONTENT_HARD:
+\`\`\`json
+{...}
+\`\`\`"
+
+      CONTENT_SET_IDS="[]"
+
+      if call_llm "generate-content-sets" "$CONTENT_GEN_PROMPT" "$GEN_MODEL" 180 2>/dev/null; then
+        # Extract each content set from the LLM output
+        for DIFFICULTY in easy medium hard; do
+          DIFFICULTY_UPPER=$(echo "$DIFFICULTY" | tr '[:lower:]' '[:upper:]')
+          # Extract JSON block after CONTENT_{DIFFICULTY}: marker
+          CS_JSON=$(echo "$LLM_OUTPUT" | awk "
+            /CONTENT_${DIFFICULTY_UPPER}:/{found=1; next}
+            found && /\`\`\`json/{capture=1; next}
+            found && capture && /\`\`\`/{exit}
+            capture{print}
+          ")
+
+          if [ -z "$CS_JSON" ] || ! echo "$CS_JSON" | jq '.' > /dev/null 2>&1; then
+            warn "  Invalid JSON for $DIFFICULTY content set, skipping"
+            continue
+          fi
+
+          # Save content set to file
+          echo "$CS_JSON" | jq '.' > "$GAME_DIR/content-${DIFFICULTY}.json"
+
+          # Create content set via API
+          CS_PAYLOAD=$(jq -n \
+            --arg gameId "$PUBLISH_GAME_ID" \
+            --arg name "$GAME_TITLE — ${DIFFICULTY^}" \
+            --arg desc "Auto-generated $DIFFICULTY content set" \
+            --arg difficulty "$DIFFICULTY" \
+            --argjson content "$CS_JSON" \
+            '{
+              gameId: $gameId,
+              name: $name,
+              description: $desc,
+              grade: (if $difficulty == "easy" then 2 elif $difficulty == "hard" then 6 else 4 end),
+              difficulty: $difficulty,
+              concepts: ["general"],
+              content: $content,
+              createdBy: "ralph-pipeline"
+            }')
+
+          CS_RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 30 \
+            -X POST "$CORE_API_URL/api/content-sets/create" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $CORE_API_TOKEN" \
+            -d "$CS_PAYLOAD") || {
+            warn "  Failed to create $DIFFICULTY content set"
+            continue
+          }
+
+          CS_HTTP=$(echo "$CS_RESPONSE" | tail -1)
+          CS_BODY=$(echo "$CS_RESPONSE" | sed '$d')
+
+          if [ "$CS_HTTP" = "201" ] || [ "$CS_HTTP" = "200" ]; then
+            CS_ID=$(echo "$CS_BODY" | jq -r '.data.id // empty')
+            CS_VALID=$(echo "$CS_BODY" | jq -r '.data.isValid // false')
+            if [ "$CS_VALID" = "true" ]; then
+              log "  ✓ Content set ($DIFFICULTY): $CS_ID"
+              CONTENT_SET_IDS=$(echo "$CONTENT_SET_IDS" | jq --arg id "$CS_ID" --arg diff "$DIFFICULTY" \
+                '. + [{"id": $id, "difficulty": $diff}]')
+            else
+              CS_ERRORS=$(echo "$CS_BODY" | jq -r '.data.validationErrors // [] | join(", ")')
+              warn "  Content set ($DIFFICULTY) created but invalid: $CS_ERRORS"
+            fi
+          else
+            CS_ERR=$(echo "$CS_BODY" | jq -r '.error.message // .error // "unknown error"' 2>/dev/null)
+            warn "  Failed to create $DIFFICULTY content set: HTTP $CS_HTTP — $CS_ERR"
+          fi
+        done
+      else
+        warn "  Content set generation LLM call failed"
+      fi
+
+      PUBLISH_CONTENT_SETS="$CONTENT_SET_IDS"
+
+      # Build game links
+      MEDIUM_CS_ID=$(echo "$CONTENT_SET_IDS" | jq -r '.[] | select(.difficulty == "medium") | .id // empty')
+      if [ -n "$MEDIUM_CS_ID" ]; then
+        PUBLISH_GAME_LINK="https://learn.mathai.ai/game/${PUBLISH_GAME_ID}/${MEDIUM_CS_ID}"
+      elif [ "$(echo "$CONTENT_SET_IDS" | jq length)" -gt 0 ]; then
+        FIRST_CS_ID=$(echo "$CONTENT_SET_IDS" | jq -r '.[0].id')
+        PUBLISH_GAME_LINK="https://learn.mathai.ai/game/${PUBLISH_GAME_ID}/${FIRST_CS_ID}"
+      else
+        PUBLISH_GAME_LINK="https://learn.mathai.ai/game/${PUBLISH_GAME_ID}"
+      fi
+
+      log "  ✓ Game link: $PUBLISH_GAME_LINK"
+
+      # Log all content set URLs
+      for ROW in $(echo "$CONTENT_SET_IDS" | jq -r '.[] | @base64'); do
+        CS_DIFF=$(echo "$ROW" | base64 -d | jq -r '.difficulty')
+        CS_ID=$(echo "$ROW" | base64 -d | jq -r '.id')
+        log "  ✓ $CS_DIFF: https://learn.mathai.ai/game/${PUBLISH_GAME_ID}/${CS_ID}"
+      done
+
+      # Save publish info for the report
+      jq -n \
+        --arg gameId "$PUBLISH_GAME_ID" \
+        --arg artifactUrl "$ARTIFACT_URL" \
+        --arg gameLink "$PUBLISH_GAME_LINK" \
+        --argjson contentSets "$CONTENT_SET_IDS" \
+        '{
+          gameId: $gameId,
+          artifactUrl: $artifactUrl,
+          gameLink: $gameLink,
+          contentSets: $contentSets
+        }' > "$GAME_DIR/publish-info.json"
+
+    else
+      REG_ERR=$(echo "$REG_BODY" | jq -r '.error.message // .error // "unknown error"' 2>/dev/null)
+      warn "  Game registration failed: HTTP $REG_HTTP_CODE — $REG_ERR"
+    fi
+  else
+    log "  Publish skipped (set CORE_API_URL + CORE_API_TOKEN to enable)"
+  fi
 
   write_report
   exit 0

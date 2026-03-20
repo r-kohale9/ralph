@@ -15,13 +15,14 @@
     "format:check": "prettier --check '*.js' 'lib/*.js' 'test/*.js'"
   },
   "dependencies": {
-    "bullmq": "^5.0.0",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@playwright/test": "^1.48.0",
     "better-sqlite3": "^11.0.0",
+    "bullmq": "^5.0.0",
+    "dotenv": "^17.3.1",
     "express": "^5.0.0",
     "ioredis": "^5.4.0",
-    "@modelcontextprotocol/sdk": "^1.12.1",
-    "zod": "^3.24.0",
-    "@playwright/test": "^1.48.0"
+    "zod": "^3.24.0"
   },
   "optionalDependencies": {
     "@google-cloud/logging": "^11.0.0",
