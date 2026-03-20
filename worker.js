@@ -931,6 +931,11 @@ const worker = new Worker(
 
     // Run Ralph — E3: choose between bash (ralph.sh) and Node.js (pipeline.js)
     let report;
+    // Heartbeat: renew BullMQ lock every 2 min during long builds (LLM/Playwright calls
+    // can block the event loop long enough for the 30-min lock to expire without renewal).
+    const heartbeatInterval = setInterval(async () => {
+      await job.updateProgress({ heartbeat: true, gameId }).catch(() => {});
+    }, 2 * 60 * 1000);
     try {
       if (USE_NODE_PIPELINE) {
         const { runPipeline } = require('./lib/pipeline');
@@ -957,6 +962,8 @@ const worker = new Worker(
       transaction.setStatus && transaction.setStatus('error');
       transaction.finish && transaction.finish();
       throw err;
+    } finally {
+      clearInterval(heartbeatInterval);
     }
 
     // Merge iteration HTML URLs from DB into report (populated async by html-fixed handler)
@@ -1065,6 +1072,19 @@ const worker = new Worker(
 
     // Update game status
     db.updateGameStatus(gameId, report.status === 'APPROVED' ? 'approved' : report.status.toLowerCase());
+
+    // Post-approval: sync approved HTML back to warehouse so future builds start from known-good base
+    if (report.status === 'APPROVED') {
+      const approvedHtmlSrc = path.join(REPO_DIR, 'data', 'games', gameId, 'builds', String(buildId), 'index.html');
+      const warehouseTemplatesDir = process.env.RALPH_WAREHOUSE_DIR || path.join(__dirname, 'warehouse', 'templates');
+      const warehouseGameDir = path.join(warehouseTemplatesDir, gameId, 'game');
+      const warehouseHtmlDst = path.join(warehouseGameDir, 'index.html');
+      if (fs.existsSync(approvedHtmlSrc)) {
+        fs.mkdirSync(warehouseGameDir, { recursive: true });
+        fs.copyFileSync(approvedHtmlSrc, warehouseHtmlDst);
+        logger.info(`[worker] Synced approved HTML to warehouse for ${gameId}`);
+      }
+    }
 
     logger.info(`${gameId}: ${report.status}`, {
       gameId,
