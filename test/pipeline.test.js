@@ -1095,10 +1095,11 @@ describe('pipeline-fix-loop.js detectCrossBatchRegression', () => {
     assert.deepEqual(result, [], 'missing spec files should be silently skipped');
   });
 
-  it('handles Playwright returning 0/0 (page crash) as a regression when prevPassed > 0', async () => {
+  it('treats 0/0 results as inconclusive (timeout/infra failure) — not a regression', async () => {
     const { specFile, dir } = makeTmpSpecFile('scoring');
     try {
-      // Mock: Playwright returns 0 passed, 0 failed (page crash)
+      // Mock: Playwright returns 0 passed, 0 failed (timeout kill or page crash before any test ran)
+      // We can't distinguish timeout from crash here, so treat as inconclusive and skip rollback.
       const fakeExecFile = (_cmd, _args, _opts, cb) => {
         const stdout = JSON.stringify({ stats: { expected: 0, unexpected: 0 } });
         cb(null, { stdout });
@@ -1106,9 +1107,7 @@ describe('pipeline-fix-loop.js detectCrossBatchRegression', () => {
       await withMockExecFile(fakeExecFile, async (fn) => {
         const prior = [{ category: 'scoring', specFile, passed: 3, total: 3 }];
         const result = await fn(prior, dir, 5000);
-        assert.equal(result.length, 1, '0/0 (page crash) is a regression when prevPassed > 0');
-        assert.equal(result[0].nowPassed, 0);
-        assert.equal(result[0].prevPassed, 3);
+        assert.equal(result.length, 0, '0/0 result is inconclusive — should not trigger rollback');
       });
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
