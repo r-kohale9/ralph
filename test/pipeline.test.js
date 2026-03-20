@@ -8,7 +8,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords, getCategoryBoost, deriveRelevantCategories } = require('../lib/pipeline');
+const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords, getCategoryBoost, deriveRelevantCategories, fixCdnDomainsInFile } = require('../lib/pipeline');
 
 describe('pipeline.js extractHtml', () => {
   it('extracts HTML from ```html code block', () => {
@@ -1272,5 +1272,95 @@ describe('pipeline-fix-loop.js isInitFailure — additional patterns', () => {
 
   it('matches transition-slot legacy pattern', () => {
     assert.equal(isInitFailure(['transition-slot never appeared in DOM'], 0), true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for fixCdnDomainsInFile
+// Verifies the CDN domain fix is applied correctly to HTML files.
+// This function is called after every LLM HTML write to prevent 403 CDN errors
+// from cdn.homeworkapp.ai which is reintroduced by subsequent LLM edits.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline.js fixCdnDomainsInFile', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+
+  function writeTmp(content) {
+    const f = path.join(os.tmpdir(), `test-cdn-fix-${Date.now()}-${Math.random().toString(36).slice(2)}.html`);
+    fs.writeFileSync(f, content);
+    return f;
+  }
+
+  it('replaces cdn.mathai.ai with cdn.homeworkapp.ai then replaces with canonical storage.googleapis.com scripts', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://cdn.mathai.ai/game-packages/feedback-manager/v1/feedback-manager.umd.js"></script>
+</head><body><div id="gameContent"></div></body></html>`;
+    const f = writeTmp(html);
+    fixCdnDomainsInFile(f, null);
+    const result = fs.readFileSync(f, 'utf-8');
+    assert.ok(!result.includes('cdn.mathai.ai'), 'cdn.mathai.ai should be removed');
+    assert.ok(!result.includes('cdn.homeworkapp.ai/game-packages'), 'cdn.homeworkapp.ai game-packages should be removed');
+    assert.ok(result.includes('storage.googleapis.com/test-dynamic-assets/packages/feedback-manager'), 'canonical feedback-manager URL should be present');
+    fs.unlinkSync(f);
+  });
+
+  it('replaces cdn.homeworkapp.ai game-package scripts with canonical three-package block', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://cdn.homeworkapp.ai/game-packages/feedback-manager/v1/feedback-manager.umd.js"></script>
+<script src="https://cdn.homeworkapp.ai/game-packages/timer-component/v1/timer-component.umd.js"></script>
+</head><body><div id="gameContent"></div></body></html>`;
+    const f = writeTmp(html);
+    fixCdnDomainsInFile(f, null);
+    const result = fs.readFileSync(f, 'utf-8');
+    assert.ok(!result.includes('cdn.homeworkapp.ai/game-packages'), 'cdn.homeworkapp.ai game-packages should be removed');
+    assert.ok(result.includes('storage.googleapis.com/test-dynamic-assets/packages/feedback-manager'), 'feedback-manager canonical URL present');
+    assert.ok(result.includes('storage.googleapis.com/test-dynamic-assets/packages/components'), 'components canonical URL present');
+    assert.ok(result.includes('storage.googleapis.com/test-dynamic-assets/packages/helpers'), 'helpers canonical URL present');
+    fs.unlinkSync(f);
+  });
+
+  it('does not duplicate canonical scripts if already present', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+</head><body><div id="gameContent"></div></body></html>`;
+    const f = writeTmp(html);
+    fixCdnDomainsInFile(f, null);
+    const result = fs.readFileSync(f, 'utf-8');
+    const count = (result.match(/packages\/feedback-manager/g) || []).length;
+    assert.equal(count, 1, 'feedback-manager script should appear exactly once');
+    fs.unlinkSync(f);
+  });
+
+  it('is a no-op for HTML with no wrong CDN domains', () => {
+    const html = `<!DOCTYPE html><html><head><title>Test</title></head><body><div id="gameContent">hi</div></body></html>`;
+    const f = writeTmp(html);
+    const before = fs.statSync(f).mtimeMs;
+    fixCdnDomainsInFile(f, null);
+    const after = fs.statSync(f).mtimeMs;
+    // File should not be rewritten if no fix needed
+    assert.equal(before, after, 'file should not be modified if no CDN fix needed');
+    fs.unlinkSync(f);
+  });
+
+  it('returns true when a fix was applied', () => {
+    const html = `<!DOCTYPE html><html><body>
+<script src="https://cdn.homeworkapp.ai/game-packages/feedback-manager/v1/feedback-manager.umd.js"></script>
+</body></html>`;
+    const f = writeTmp(html);
+    const result = fixCdnDomainsInFile(f, null);
+    assert.equal(result, true);
+    fs.unlinkSync(f);
+  });
+
+  it('returns false when no fix was needed', () => {
+    const html = `<!DOCTYPE html><html><body><div id="gameContent"></div></body></html>`;
+    const f = writeTmp(html);
+    const result = fixCdnDomainsInFile(f, null);
+    assert.equal(result, false);
+    fs.unlinkSync(f);
   });
 });
