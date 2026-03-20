@@ -268,3 +268,13 @@ One item must always be present in `ROADMAP.md` under `## R&D` with status `acti
 - R&D never blocks critical work. If a build needs a kill, a pipeline bug needs a fix, or a deploy is needed — stop R&D immediately, handle it, then resume.
 - R&D runs in a sub-agent so the main context stays free for the user and for monitoring.
 - R&D must produce a measurable result (test count, iteration count, pass rate) — "made it cleaner" is not R&D, it's housekeeping.
+
+### 12. At session start and after every context compaction — restore background task continuity
+
+When starting a new session or resuming after context compaction:
+1. **Check CronList** — verify the 15-minute Slack update cron is running. If missing, recreate it immediately using the prompt from Rule 10.
+2. **Check running sub-agents** — review the conversation summary or task notifications to identify any agents that were mid-flight. If their results are pending, relaunch them with the same brief.
+3. **Check build pipeline** — SSH to server and confirm worker is running and no build has been stuck >45 min.
+4. **Check ROADMAP.md R&D slot** — confirm one R&D task is marked `active`. If the slot is empty or passive, pick the next highest-leverage item and launch a sub-agent immediately.
+
+This rule exists because session compaction silently kills all crons, loses agent context, and can leave background work orphaned. Any future agent starting a session must run this checklist before doing anything else.
