@@ -257,3 +257,35 @@ Full analysis at `docs/rnd-first-pass-failure-analysis.md`.
 Check the spec's `PART-017` value. If `NO`, the call must be removed.
 
 **How to apply:** Search generated HTML for `FeedbackManager.init(`. If present, check the spec: if `PART-017=NO` and `popupProps` is not specified, remove the call entirely. The fix loop will not reliably catch this on its own because the non-determinism means some iterations "pass" — masking the root cause.
+
+## Lesson 52 — Cross-batch fix loop regressions (63% of multi-batch builds)
+
+**Pattern:** When the per-batch fix loop fixes batch N, it can break batch N+1 because the fix overwrites the shared htmlFile with no rollback mechanism for downstream batches.
+
+**Fix:** Added `detectCrossBatchRegression()` in pipeline-fix-loop.js — smoke-checks all prior-passing batch spec files after each batch completes. On regression, rolls back to preBatchHtml and marks batch as rolled_back.
+
+**Proof:** Empirical trace of 19 multi-batch builds showed 63% had cross-batch regressions. 6 new unit tests. Commit 76996c1.
+
+## Lesson 53 — HTML generation token truncation on large specs
+
+**Pattern:** `trackedLlmCall` for HTML generation defaulted to maxTokens=16000. Large specs (bubbles-pairs 64KB, interactive-chat 59KB) generated HTML that exceeded 16K output tokens, truncating mid-script. Reviewer correctly rejected.
+
+**Fix:** All 4 HTML generation call sites in pipeline.js updated to `{ maxTokens: 32000 }`.
+
+**Proof:** bubbles-pairs truncated at `window.testS` (mid-function), interactive-chat at `case 'challenge_intro':` (mid-switch). Both games had 3-5 previously unexplained rejections. Commit a8392bc.
+
+## Lesson 54 — RALPH_LLM_TIMEOUT config drift (production = 1200s vs 300s documented)
+
+**Pattern:** Production server had RALPH_LLM_TIMEOUT=1200 in .env — 4x the documented default. Static-fix LLM calls could hang for up to 20 minutes before timing out, stalling the worker and blocking 40+ queued builds.
+
+**Fix:** Updated /opt/ralph/.env to RALPH_LLM_TIMEOUT=300. The AbortController mechanism in llm.js is correctly wired — this was a config-only issue.
+
+**Proof:** Worker stalled 23 minutes on futoshiki build #296 static-fix call. Force-kill required to unblock queue.
+
+## Lesson 55 — debug-function window exposure rule conflict (29% of review rejections)
+
+**Pattern:** CDN_CONSTRAINTS_BLOCK told gen LLM "debug functions MUST NOT be on window" but spec Verification Checklist requires them ON window. LLM followed the gen rule, reviewer rejected per spec checklist — an unfixable loop causing 29% of early-review rejections.
+
+**Fix:** Changed rule to "MUST be exposed on window — define as named functions inside DOMContentLoaded then assign: window.debugGame = debugGame".
+
+**Proof:** queens build 285 rejected 3 consecutive times for this exact conflict. Commit dd7f170.
