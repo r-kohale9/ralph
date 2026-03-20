@@ -42,6 +42,9 @@ const RATE_LIMIT_DURATION = parseInt(process.env.RALPH_RATE_DURATION || '3600000
 const CPU_GATE_PCT = parseFloat(process.env.RALPH_CPU_GATE || '85');
 const RAM_GATE_MB = parseFloat(process.env.RALPH_RAM_GATE_MB || '512');
 
+// GitHub repo URL for spec links (e.g. https://github.com/org/repo)
+const RALPH_GITHUB_REPO = process.env.RALPH_GITHUB_REPO || '';
+
 // ─── E7: Failure categorization ───────────────────────────────────────────────
 function categorizeFailure(failureDesc) {
   const desc = failureDesc.toLowerCase();
@@ -336,27 +339,40 @@ const worker = new Worker(
     let threadInfo = null;
     let specLink = '';
     let pipelineDocsLink = '';
+    // Build a GitHub spec URL if RALPH_GITHUB_REPO is configured
+    const specGithubUrl = RALPH_GITHUB_REPO
+      ? `${RALPH_GITHUB_REPO}/blob/main/warehouse/templates/${gameId}/spec.md`
+      : '';
+    // Link to pipeline architecture doc on GitHub
+    const pipelineDocsGithubUrl = RALPH_GITHUB_REPO
+      ? `${RALPH_GITHUB_REPO}/blob/main/docs/pipeline-architecture.md`
+      : '';
+
+    // Live build progress tracking (for parent message updates)
+    let llmCallCount = 0;
+    let currentBuildStep = 'Starting';
+
     const game = db.getGame(gameId);
     if (game && game.slack_thread_ts) {
-      // Use existing thread
+      // Use existing thread — post a new-build notice as a reply
       threadInfo = { ts: game.slack_thread_ts, channel: game.slack_channel_id };
       await slack.postThreadUpdate(
         threadInfo.ts, threadInfo.channel,
         `🔄 *Build #${buildId} started* — ${gameId}\nGen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}${requestedBy ? `\ncc: <@${requestedBy}>` : ''}`,
       );
     } else {
-      // Upload spec (await so link is ready for opener)
+      // Upload spec to GCP for a hosted link (preferred over GitHub raw link)
       const specFilePath = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
       if (gcp.isEnabled() && fs.existsSync(specFilePath)) {
-        const specUrl = await gcp.uploadContent(
+        const gcpSpecUrl = await gcp.uploadContent(
           fs.readFileSync(specFilePath, 'utf-8'),
           `games/${gameId}/builds/${buildId}/spec.md`,
           { contentType: 'text/markdown' },
         ).catch(() => null);
-        if (specUrl) specLink = slack.formatLink(specUrl, '📄 Spec');
+        if (gcpSpecUrl) specLink = slack.formatLink(gcpSpecUrl, '📄 Spec');
       }
 
-      // Upload pipeline docs
+      // Upload pipeline docs to GCP
       if (gcp.isEnabled()) {
         const docsUrl = await gcp.uploadContent(
           buildPipelineDocsMarkdown({ gameId, buildId, genModel: pipelineGenModel, testModel: pipelineTestModel, fixModel: pipelineFixModel, maxIterations: pipelineMaxIterations }),
@@ -366,19 +382,17 @@ const worker = new Worker(
         if (docsUrl) pipelineDocsLink = slack.formatLink(docsUrl, '📖 Pipeline Docs');
       }
 
-      const linksLine = [specLink, pipelineDocsLink].filter(Boolean).join('  ·  ');
-      const openerText = [
-        `🎮 *${game?.title || gameId}* — Build #${buildId || 'pending'}`,
-        `*Status:* 🔄 Building...`,
-        `*Models:* Gen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}`,
-        linksLine || null,
-        requestedBy ? `cc: <@${requestedBy}>` : null,
-      ].filter(Boolean).join('\n');
-
       threadInfo = await slack.createGameThread(gameId, {
         title: game?.title || gameId,
         buildId,
-        openerText,
+        requestedBy: requestedBy || null,
+        startedAt: buildStartTime,
+        currentStep: 'Step 1 · Generating HTML',
+        llmCalls: 0,
+        specLink: specLink || null,
+        specGithubUrl: !specLink ? specGithubUrl : null,
+        pipelineDocsLink: pipelineDocsLink || null,
+        pipelineDocsUrl: !pipelineDocsLink ? pipelineDocsGithubUrl : null,
       });
       if (threadInfo && threadInfo.ts) {
         // Ensure game row exists before updating thread (game may not be pre-created via /api/games)
@@ -407,6 +421,36 @@ const worker = new Worker(
     const phaseStarts = {};
     const onProgress = (step, detail) => {
       console.log(`[worker] progress: ${step}`, detail);
+
+      // ── Track LLM call count and current step (used in parent message updates) ──
+      if (detail?.llmCalls != null) llmCallCount = detail.llmCalls;
+      else if (step === 'html-ready' || step === 'tests-generated' || step === 'html-fixed' || step === 'review-complete') {
+        llmCallCount += 1;
+      }
+
+      // Map progress steps to human-readable current step labels
+      const stepLabels = {
+        'generate-html': 'Step 1 · Generating HTML',
+        'html-ready': 'Step 1 · HTML Generated',
+        'static-validation-failed': 'Step 1a · Static Fix',
+        'static-validation-fixed': 'Step 1a · Static Fixed',
+        'early-review': 'Step 1c · Early Review',
+        'generate-tests': 'Step 2 · Generating Tests',
+        'tests-generated': 'Step 2 · Tests Ready',
+        'test-fix-loop': 'Step 3 · Test → Fix Loop',
+        'review': 'Step 4 · Review',
+        'review-complete': 'Step 4 · Review Complete',
+      };
+      if (stepLabels[step]) {
+        currentBuildStep = stepLabels[step];
+      } else if (step === 'batch-start' && detail?.batch) {
+        currentBuildStep = `Step 3 · ${detail.batch} · iter 1/${detail.maxIterations || pipelineMaxIterations}`;
+      } else if (step === 'test-result' && detail?.batch) {
+        currentBuildStep = `Step 3 · ${detail.batch} · iter ${detail.iteration}/${detail.maxIterations || pipelineMaxIterations}`;
+      } else if (step === 'html-fixed' && detail?.batch) {
+        currentBuildStep = `Step 3 · ${detail.batch} · fix ${detail.iteration}`;
+      }
+
       if (!threadInfo) return;
       const now = Date.now();
       if (!phaseStarts[step]) phaseStarts[step] = now;
@@ -935,7 +979,18 @@ const worker = new Worker(
     const gcpUrl = db.getGame(gameId)?.gcp_url;
     if (threadInfo) {
       // Update opener with final status + post summary reply
-      await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl, specLink, pipelineDocsLink });
+      await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId, report, {
+        gcpUrl,
+        specLink: specLink || null,
+        specGithubUrl: !specLink ? specGithubUrl : null,
+        pipelineDocsLink: pipelineDocsLink || null,
+        pipelineDocsUrl: !pipelineDocsLink ? pipelineDocsGithubUrl : null,
+        requestedBy: requestedBy || null,
+        startedAt: buildStartTime,
+        llmCalls: llmCallCount || report.llm_calls || null,
+        currentStep: currentBuildStep,
+        gameTitle: game?.title || null,
+      });
       await slack.postThreadResult(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
     } else {
       await slack.notifyBuildResult(gameId, report, commitSha, gcpUrl);
