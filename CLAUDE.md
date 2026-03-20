@@ -174,3 +174,40 @@ After every build run, pipeline fix, new failure pattern, or architectural decis
 4. **Update `ROADMAP.md`** — mark completed items done, add newly discovered improvements as planned
 
 Goal: any future agent reading these docs should operate without rediscovering known patterns. Reliability, availability, consistency, and efficiency improve only if lessons are captured immediately — not after the fact.
+
+---
+
+## Mandatory Rules
+
+These rules are non-negotiable. Violating them causes data loss, broken builds, or wasted compute. Every agent must follow them unconditionally.
+
+### 1. Never kill an active build without checking DB status first
+`sudo systemctl restart ralph-worker` kills any running pipeline mid-LLM-call. Before restarting the worker, always run:
+```bash
+ssh ... "cd /opt/ralph && node -e \"const db=require('./lib/db'); console.log(db.getRecentBuilds(3).map(b=>b.game_id+' '+b.status).join('\n'))\""
+```
+Only restart if no build has `status='running'`. If one is running, wait for it or kill it explicitly with `db.failBuild()` first.
+
+### 2. Never auto-restart based on wall-clock time alone
+A build with `iterations=0` in the DB does NOT mean it's stuck — it means the pipeline is actively running LLM calls (DB is only updated at phase boundaries). The only reliable stuck signal is `status='running'` for >45 minutes with no Slack progress messages. Always check Slack thread activity before restarting.
+
+### 3. Never idle waiting for a build — work in parallel
+While a build runs (~25-35 min), diagnose failures, implement fixes, run tests, and deploy code. The pipeline runs autonomously. An agent's job is to maximize throughput, not watch builds.
+
+### 4. Deploy to server before re-queuing
+Always deploy the latest `lib/pipeline.js` (and other changed files) to the server before queuing a new build. A build started on old code wastes a full pipeline run. Sequence: fix code → `npm test` → commit → `scp` → `systemctl restart` → queue build.
+
+### 5. Kill a build immediately if these conditions hold
+- Running on pipeline code that had a known bug (deploy first, then re-queue)
+- Iteration 1 returns 0% game-flow AND the HTML has an obvious init failure (don't wait 5 iterations)
+- Same test fails iterations 1 and 2 with identical error (triage isn't working — kill and fix)
+- Infrastructure issue causing test failures (page crash, port conflict, etc.)
+
+### 6. Always update docs after every build cycle
+After each build run or pipeline fix: update `docs/lessons-learned.md` with new patterns, update `ROADMAP.md` with completed/planned items, update this file if architecture changed. Future agents must not rediscover known patterns.
+
+### 7. Never commit secrets or credentials
+`.env`, `config.yaml`, `auths/` are gitignored. Never stage or commit files containing API keys, tokens, or OAuth credentials. Run `git status` before every commit.
+
+### 8. Read CLAUDE.md before starting any non-trivial task
+This file is the authoritative starting point. Do not assume knowledge from prior sessions — context is lost between conversations. Read `docs/lessons-learned.md` before diagnosing any pipeline failure.
