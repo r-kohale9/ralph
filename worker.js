@@ -6,8 +6,6 @@ try {
 } catch {
   /* dotenv optional */
 }
-
-const { Worker } = require('bullmq');
 const IORedis = require('ioredis');
 const { execFile } = require('child_process');
 const { promisify } = require('util');

@@ -972,6 +972,7 @@ REPORT_TEST_RESULTS="$ALL_TEST_RESULTS"
 # Stop web server
 stop_server
 
+
 # ─── Step 4: Review ─────────────────────────────────────────────────────────
 log ""
 log "Step 4: Review"
