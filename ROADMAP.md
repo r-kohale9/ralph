@@ -231,7 +231,7 @@
 | Add JSDoc to all exported public API functions | **done (2026-03-20)** | lib/pipeline.js, lib/db.js, lib/slack.js, lib/llm.js, lib/pipeline-fix-loop.js, lib/pipeline-utils.js, lib/pipeline-targeted-fix.js | 41 functions documented across 7 files. 487 tests pass. Commit 5d66c74. |
 | Define and enforce consistent error handling tiers | **done (2026-03-20)** | lib/pipeline.js, worker.js | 5 real bugs fixed (bare catch {} silently swallowing static-fix, server-start, review LLM, learning-extraction errors); all 34 catch blocks tier-documented (critical/degraded/cosmetic). 487 tests pass. Commit 5929982. |
 | Expand pipeline.js test coverage for fix-loop and snapshot paths | **done (2026-03-20)** | test/pipeline.test.js | +15 tests: extractSpecRounds (6), deterministicTriage (4), isInitFailure (3), detectCrossBatchRegression improvement case (1), buildBeforeEach (1). 502 total. Commit f505017. |
-| injectTestHarness truncation on $ chars (Sentry) | planned | lib/pipeline-utils.js | kakuro build 299: index.html truncated at Sentry.captureException mid-file. Hypothesis: String.replace() with $-containing replacement strings (e.g. $e in Sentry calls) triggers special replacement patterns, corrupting output. Fix: use replacement function () => harness instead of string literal. Investigation in progress. |
+| injectTestHarness truncation on $ chars (Sentry) | **done (2026-03-20)** | lib/pipeline-utils.js | Latent bug: `String.replace('</body>', harnessScript)` — if harnessScript ever gained $&/$`/$' patterns, output would silently corrupt. Fixed to `replace('</body>', () => harnessScript)`. 16 new tests (518 total). Commit 351924b. |
 
 ---
 
