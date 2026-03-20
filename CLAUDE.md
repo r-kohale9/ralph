@@ -188,6 +188,16 @@ ssh ... "cd /opt/ralph && node -e \"const db=require('./lib/db'); console.log(db
 ```
 Only restart if no build has `status='running'`. If one is running, wait for it or kill it explicitly with `db.failBuild()` first.
 
+**Deploy agents MUST use this exact sequence every time:**
+```bash
+# 1. Check before touching worker
+node -p "const Database = require('better-sqlite3'); const db = new Database('data/builds.db'); db.prepare('SELECT id,game_id,status FROM builds WHERE status=?').get('running') || 'IDLE'"
+# 2. Only if IDLE: copy files + restart
+sudo cp /tmp/file.js /opt/ralph/path/file.js
+sudo systemctl restart ralph-worker
+# 3. If running: copy files only — NO restart. New code loads on next job.
+```
+
 ### 2. Never auto-restart based on wall-clock time alone
 A build with `iterations=0` in the DB does NOT mean it's stuck — it means the pipeline is actively running LLM calls (DB is only updated at phase boundaries). The only reliable stuck signal is `status='running'` for >45 minutes with no Slack progress messages. Always check Slack thread activity before restarting.
 
