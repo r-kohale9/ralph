@@ -55,6 +55,16 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 
 41. **Step 3b 0/0 re-test = page crash, not zero score** — build 227 (hidden-sums): Step 3b final re-test returned 0/0 on game-flow (previously 2/4). This is Lesson 3: "0/0 = page broken by last fix". The zero result caused totals to drop from ~73% to 67% (below 70% threshold), triggering premature FAILED. Fix: in Step 3b, if a batch returns 0 total tests AND previously had results, preserve the previous score instead of zeroing. 0/0 means "page crash — result unknown", not "0 passed". Applied in pipeline.js Step 3b re-test loop.
 
+## Lesson 43 — Auto-restart agents kill active builds when DB shows 0 iterations
+
+**Pattern:** A monitoring agent polling `db.getBuild(id).iterations` saw 0 iterations for visual-memory (build 229) after 20 minutes and restarted the worker. But the pipeline was actively running (mechanics E8 fix in progress) — the DB only records iterations when a full batch pass+fail cycle completes. A build in the middle of a fix LLM call shows 0 iterations until the re-test finishes. The restart killed the build mid-fix.
+
+**Root cause:** Monitoring agents using wall-clock timeouts can't distinguish "stuck" from "in-progress LLM call". Long LLM calls (48KB HTML, 3-5 min response time) + DOM snapshot (65s timeout) + Playwright test runs all make a build appear stuck externally.
+
+**Fix:** Never auto-restart the worker while any build shows `status='running'` in the DB. Always check `running` status before restarting. Better signal than wall-clock timeout: watch journalctl for activity (`journalctl -u ralph-worker -n 1` timestamp advancing = alive). Only restart if the log hasn't advanced in >10 minutes AND the claude subprocess is no longer running.
+
+**How to apply:** Don't set timeout-based worker restarts. Restart only after explicit build completion (APPROVED/FAILED status in DB). If a build appears stuck: check if `claude` or `node` subprocess is running (`ps aux | grep -E 'claude|playwright'`); if yes, it's working. Wait it out.
+
 ---
 
 **INSTRUCTIONS FOR MAINTAINING LESSONS:** Always update this file after every notable build outcome or pipeline bug fix. Add lesson immediately when: a new pipeline bug is found and fixed, a build proves or disproves a hypothesis, a new failure pattern is discovered, or any hard-won insight that would help avoid repeating a mistake. Never let insights live only in conversation memory.
