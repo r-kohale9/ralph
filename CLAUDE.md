@@ -237,7 +237,7 @@ Every 15 minutes, post a brief status update to channel `C09J341LC2K` tagging `<
 Delegate the send to a sub-agent — do not block the main context.
 
 ### 10. Always explain the value of a running build when reporting status
-When reporting on any running build, always include: (1) what we expect to learn or gain if it completes successfully, (2) why it has not been killed yet — what kill criteria it has NOT yet met. A build costs time and money; the manager must know whether to let it run or cut losses. Format: "Value if completes: <X>. Not killed because: <Y>."
+When reporting on any running build — in chat OR in Slack notifications — always include: (1) what we expect to learn or gain if it completes successfully, (2) why it has not been killed yet — what kill criteria it has NOT yet met. Always use the CURRENTLY running build (status=running in DB) — never reference a failed/orphaned build as "running". A build costs time and money; the manager must know whether to let it run or cut losses. Format: "Value if completes: <X>. Not killed because: <Y>."
 
 ### 11. You are a manager/orchestrator — never do implementation work yourself
 Delegate ALL implementation, research, and long-running tasks to sub-agents. The parent agent must remain available to the user at all times. Never get buried in code, file edits, or multi-step tasks directly — spawn an agent, give it a clear brief, and return to the user immediately. This applies to: writing/editing code, running tests, deploying files, investigating failures, reading large files. The only work done in the main context is short coordination tasks (reading a single file, queuing a build, checking status).
