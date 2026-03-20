@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (4 fixes shipped: cross-batch-guard false rollback, gen LLM timeout 300→600s, M1-M5 mechanics, GF1/GF2 game-flow phase hints; 545 tests pass; R&D: measuring impact)
+**Last updated:** March 20, 2026 (9 fixes shipped since last update: KillMode=control-group orphan prevention, fix-loop error message inclusion, test.describe() enforcement, git pull branch fix, Slack pipeline error display, CLI gen timeout path fix, learning extraction string-failure guard, + prior 4 session fixes; 545 tests pass; R&D: impact measurement active)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -63,6 +63,8 @@
 | Deployment runbook | done | docs/deployment.md | First deploy, updates, troubleshooting (6 scenarios) |
 | Log rotation | done | systemd/ralph-logrotate.conf | Daily rotation, 14 days retention, compress |
 | Nginx reverse proxy config | done | nginx.conf | TLS, rate limiting, security headers, metrics restricted to internal IPs |
+| KillMode=control-group: prevent orphaned Claude processes | done | systemd/ralph-worker.service | `KillMode=control-group` ensures all child processes (Claude subprocesses) are killed on worker stop/restart — prevents zombie LLM calls consuming API quota. Commit bd871ab. |
+| Fix git pull branch: c_code → main | done | worker.js or deploy scripts | Auto-pull was targeting wrong branch `c_code`; fixed to `main`. Commit a8dc2d7. |
 
 ## P4 — Code Quality & Architecture
 
@@ -207,8 +209,14 @@
 | **Generation LLM timeout fix** | **done (2026-03-20, commit 4eb1d29)** | `RALPH_LLM_TIMEOUT=300` was killing large-spec HTML generation (interactive-chat 59KB, bubbles-pairs 64KB) at exactly 5 min with 0 iterations. Fix: added `RALPH_GEN_LLM_TIMEOUT` to config (default 600s); all 4 gen call sites use it. Triage/fix calls keep 300s. 537 tests pass. | Unblocks all large-spec games that were timing out before iteration 1 |
 | **Cross-batch-guard false rollback fix** | **done (2026-03-20, commit 7d27432)** | `detectCrossBatchRegression()` was treating 0/0 test results (timeout/infra failure) as regression because `0 < prevPassed`. Queens build rolled back every batch due to 30s smoke timeout being too short for game-flow tests. Fix: skip regression when `nowTotal===0` (inconclusive); increase timeout from 30s → 90s. 537 tests pass. | Eliminates false rollbacks that were wasting all post-mechanics-fix batches in queens |
 | **Game-flow iter-2 root cause + spec phase hints** | **done (2026-03-20, commit 83011a6)** | game-flow has 34% iter-2 rate. Root cause: waitForPhase() uses wrong phase strings ('playing' when game uses 'game', etc.). Fix: `extractPhaseNamesFromGame()` in prompts.js parses actual phase names from HTML (assignments, comparisons, data-phase attributes, gameState shape) and injects GF1 rule into game-flow test-gen: "use ONLY these exact phase names — never guess". GF2 rule handles init-only snapshot case. 8 unit tests; 545 total pass. Deployed 2026-03-20. Expected: significant reduction in game-flow iter-2 wrong-phase timeout failures. |
-| **Measure cross-batch-guard + gen-timeout + phase-hints impact** | **active** | 4 fixes shipped this session: (1) cross-batch-guard false rollback fix, (2) gen LLM timeout 300→600s, (3) M1-M5 mechanics rules, (4) GF1/GF2 game-flow phase hints. Awaiting 5-10 builds on the new code to measure: (a) iteration-1 pass rates per category, (b) no more iterations=0 failures for large specs, (c) no more cross-batch false rollbacks. Track builds 374+ (first clean run with all 4 fixes). |
-| **Non-standard lifecycle test gen** | **measuring** | Live data: associations (build 328) killed for "lives on unlimited-lives game" — `totalLives: 0` game, test-gen produced lives-decrement assertions that can never pass. H1 partial fix shipped (b27e010): LIVES SYSTEM CHECK rule in test-gen prompt for `totalLives: 0`. H2 shipped (commit 86f5031): full GAME FEATURE FLAGS block (`unlimitedLives`, `timerScoring`, `singleRound`, `accuracyScoring`) injected into both `buildTestCasesPrompt` and `buildTestGenCategoryPrompt` in lib/pipeline-test-gen.js + lib/prompts.js; prevents structurally-wrong tests across all lifecycle variants. Trace doc at docs/rnd-nonstandard-lifecycle-test-gen.md. | H1 measured on builds 345/346 (pending results). H2 deployed 2026-03-20. Measure: 0-iteration-kill rate on non-standard lifecycle games across next 10 builds. Goal: eliminate pure-waste builds caused by wrong structural assertions. |
+| **Measure cross-batch-guard + gen-timeout + phase-hints impact** | **active** | 4 fixes shipped this session: (1) cross-batch-guard false rollback fix, (2) gen LLM timeout 300→600s, (3) M1-M5 mechanics rules, (4) GF1/GF2 game-flow phase hints. Awaiting 5-10 builds on the new code to measure: (a) iteration-1 pass rates per category, (b) no more iterations=0 failures for large specs, (c) no more cross-batch false rollbacks. Track builds 374+ (first clean run with all 4 fixes). Next: if all 4 improvements confirmed, pivot to non-standard lifecycle test-gen measurement. |
+| **Non-standard lifecycle test gen** | **next** | Live data: associations (build 328) killed for "lives on unlimited-lives game" — `totalLives: 0` game, test-gen produced lives-decrement assertions that can never pass. H1 partial fix shipped (b27e010): LIVES SYSTEM CHECK rule in test-gen prompt for `totalLives: 0`. H2 shipped (commit 86f5031): full GAME FEATURE FLAGS block (`unlimitedLives`, `timerScoring`, `singleRound`, `accuracyScoring`) injected into both `buildTestCasesPrompt` and `buildTestGenCategoryPrompt` in lib/pipeline-test-gen.js + lib/prompts.js; prevents structurally-wrong tests across all lifecycle variants. Trace doc at docs/rnd-nonstandard-lifecycle-test-gen.md. Measure: 0-iteration-kill rate on non-standard lifecycle games across next 10 builds. Goal: eliminate pure-waste builds caused by wrong structural assertions. |
+| **Include full error messages in fix loop failure descriptions** | **done (2026-03-20, commit d436b2c)** | lib/pipeline-fix-loop.js | Fix loop failure descriptions now include full error messages instead of truncated summaries — LLM fix prompt has full context for root-cause diagnosis. Previously, error messages were being summarized, causing the fix LLM to diagnose based on partial information. |
+| **Enforce test.describe() API in Playwright test gen** | **done (2026-03-20, commit 4a6314c)** | lib/pipeline-test-gen.js, lib/prompts.js | Test generation prompt now explicitly enforces `test.describe()` wrapper API — prevents LLM from generating flat `test()` calls at the top level, which Playwright rejects with "test() not expected here" when run outside a describe block. |
+| **Show pipeline errors in Slack failure messages** | **done (2026-03-20, commit 948e455)** | worker.js, lib/slack.js | Worker now includes pipeline error details in Slack failure notifications — operators see the actual error reason (e.g., "Step 1d: Page load failed") in Slack instead of just "FAILED". Eliminates needing to SSH and check logs to know why a build failed. |
+| **Fix CLI gen timeout: apply RALPH_GEN_LLM_TIMEOUT to Claude CLI path** | **done (2026-03-20, commit efd2bdc)** | lib/pipeline.js or ralph.sh | The separate `RALPH_GEN_LLM_TIMEOUT` (600s) was only applied to API path; CLI (`claude -p`) generation calls still used the shorter `RALPH_LLM_TIMEOUT`. Fixed to use the longer timeout for both paths — large-spec games no longer time out on the CLI gen path. |
+| **Fix learning extraction: handle string failures from fix-loop** | **done (2026-03-20, commit c3511d5)** | worker.js or lib/pipeline.js | Learning extraction crashed when `failures` array contained string entries (from fix-loop error strings) instead of structured objects. Added guard: strings are skipped or normalized before extraction. Prevents learning-extraction from throwing on every build with string-format failures. |
+| **Step 1d regen: #gameContent missing after regen (bubbles-pairs pattern)** | **planned** | lib/pipeline.js, lib/pipeline-utils.js | `runPageSmokeDiagnostic()` regenerates HTML once on fatal errors, then aborts if still broken. bubbles-pairs failed Step 1d with "Blank page: missing #gameContent element" after regen — the regen attempt did not fix the structural issue. Investigate: (1) does regen prompt include the specific missing-element error? (2) should Step 1d do 2 regen attempts for #gameContent-specific failures? (3) is the smoke-check detecting a CDN partial-load state that clears on retry? |
 
 ### Cross-game learning injection — design notes
 
@@ -255,13 +263,13 @@
 | P0 Deployment Blockers | 12 | 0 | 12 |
 | P1 Testing & Validation | 8 | 0 | 8 |
 | P2 Spec Compliance | 6 | 0 | 6 |
-| P3 DevOps & Operations | 11 | 0 | 11 |
+| P3 DevOps & Operations | 13 | 0 | 13 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 43 | 4 | 47 |
+| P6 Test Generation Quality | 48 | 5 | 53 |
 | P7 Code Architecture | 9 | 6 | 15 |
 | P8 Build Reliability | 5 | 2 | 7 |
-| **Total** | **113** | **10** | **126** |
+| **Total** | **120** | **11** | **134** |
 
 ## What's Next
 
@@ -288,6 +296,8 @@
 14. **[R&D — DONE] Gen prompt T1 compliance** — initSentry + debug rules moved to rule 5 (early in prompt); blank-page smoke check backstop; 447 tests pass; commits 14ab33c + cad2ca3
 15. **[R&D — DONE] E9 cross-build pattern injection** — findMatchingPattern() + iteration-1 injection; 444 tests pass; commit 26b21b0
 16. **[R&D — DONE] First-pass failure root cause analysis** — 65 triage events classified: 58% HTML fatal init, 22% phase-transition syncDOMState(), 9% data-shape. Shipped abort-on-snapshot-failure + Rule 22 (syncDOMState after every phase assignment). See Lessons 49 and 50 in docs/lessons-learned.md.
-17. **[R&D — ACTIVE] Measure abort-on-snapshot-failure impact** — add Prometheus counter for FatalSnapshotError regen triggers; track trigger rate over next 10 builds; if >20% investigate gen prompt improvements to reduce initial blank-page rate.
+17. **[R&D — ACTIVE] Measure cross-batch-guard + gen-timeout + phase-hints impact** — 4 fixes shipped: cross-batch-guard false rollback fix, gen LLM timeout 300→600s, M1-M5 mechanics rules, GF1/GF2 phase hints. Track builds 374+ for: iter-1 pass rate per category, no iterations=0 for large specs, no false rollbacks.
+18. **[R&D — NEXT] Non-standard lifecycle test gen measurement** — H2 shipped (GAME FEATURE FLAGS block); measure 0-iteration-kill rate across next 10 builds for non-standard lifecycle games.
+19. **[R&D — PLANNED] Measure abort-on-snapshot-failure impact** — add Prometheus counter for FatalSnapshotError regen triggers; track trigger rate over next 10 builds; if >20% investigate gen prompt improvements to reduce initial blank-page rate.
 11. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
 12. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
