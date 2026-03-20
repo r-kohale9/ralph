@@ -106,7 +106,7 @@ describe('llm', () => {
     assert.equal(capturedMaxTokens, 4000);
   });
 
-  it('default maxTokens is 16000', async () => {
+  it('default maxTokens is 128000', async () => {
     let capturedMaxTokens;
     global.fetch = async (url, opts) => {
       capturedMaxTokens = JSON.parse(opts.body).max_tokens;
@@ -118,6 +118,6 @@ describe('llm', () => {
 
     llm = require('../lib/llm');
     await llm.callLlm('test', 'prompt');
-    assert.equal(capturedMaxTokens, 16000);
+    assert.equal(capturedMaxTokens, 128000);
   });
 });

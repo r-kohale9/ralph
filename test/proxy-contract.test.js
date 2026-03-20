@@ -85,10 +85,10 @@ describe('CLIProxyAPI contract', () => {
       assert.equal(capturedRequest.body.messages[0].content, 'hello world');
     });
 
-    it('sends default max_tokens of 16000', async () => {
+    it('sends default max_tokens of 128000', async () => {
       mockProxy({ content: [{ text: 'ok' }] });
       await llm.callLlm('test', 'hello');
-      assert.equal(capturedRequest.body.max_tokens, 16000);
+      assert.equal(capturedRequest.body.max_tokens, 128000);
     });
   });
 

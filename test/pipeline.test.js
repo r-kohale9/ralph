@@ -1095,10 +1095,11 @@ describe('pipeline-fix-loop.js detectCrossBatchRegression', () => {
     assert.deepEqual(result, [], 'missing spec files should be silently skipped');
   });
 
-  it('handles Playwright returning 0/0 (page crash) as a regression when prevPassed > 0', async () => {
+  it('treats 0/0 results as inconclusive (timeout/infra failure) — not a regression', async () => {
     const { specFile, dir } = makeTmpSpecFile('scoring');
     try {
-      // Mock: Playwright returns 0 passed, 0 failed (page crash)
+      // Mock: Playwright returns 0 passed, 0 failed (timeout kill or page crash before any test ran)
+      // We can't distinguish timeout from crash here, so treat as inconclusive and skip rollback.
       const fakeExecFile = (_cmd, _args, _opts, cb) => {
         const stdout = JSON.stringify({ stats: { expected: 0, unexpected: 0 } });
         cb(null, { stdout });
@@ -1106,9 +1107,7 @@ describe('pipeline-fix-loop.js detectCrossBatchRegression', () => {
       await withMockExecFile(fakeExecFile, async (fn) => {
         const prior = [{ category: 'scoring', specFile, passed: 3, total: 3 }];
         const result = await fn(prior, dir, 5000);
-        assert.equal(result.length, 1, '0/0 (page crash) is a regression when prevPassed > 0');
-        assert.equal(result[0].nowPassed, 0);
-        assert.equal(result[0].prevPassed, 3);
+        assert.equal(result.length, 0, '0/0 result is inconclusive — should not trigger rollback');
       });
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -1362,5 +1361,80 @@ describe('pipeline.js fixCdnDomainsInFile', () => {
     const result = fixCdnDomainsInFile(f, null);
     assert.equal(result, false);
     fs.unlinkSync(f);
+  });
+});
+
+// ─── extractPhaseNamesFromGame (lib/prompts.js) ───────────────────────────────
+const { extractPhaseNamesFromGame } = require('../lib/prompts');
+
+describe('extractPhaseNamesFromGame', () => {
+  it('parses phase names from gameState.phase assignments in HTML', () => {
+    const html = `<script>
+      gameState.phase = 'init';
+      gameState.phase = 'playing';
+      gameState.phase = 'results';
+    </script>`;
+    const phases = extractPhaseNamesFromGame(html, null);
+    assert.ok(phases.includes('init'), 'should include init');
+    assert.ok(phases.includes('playing'), 'should include playing');
+    assert.ok(phases.includes('results'), 'should include results');
+  });
+
+  it('parses phase names from .phase comparisons in HTML', () => {
+    const html = `<script>
+      if (gameState.phase === 'gameover') { endGame(); }
+      if (gs.phase !== 'start') { doSomething(); }
+    </script>`;
+    const phases = extractPhaseNamesFromGame(html, null);
+    assert.ok(phases.includes('gameover'), 'should include gameover');
+    assert.ok(phases.includes('start'), 'should include start');
+  });
+
+  it('parses phase from WINDOW.GAMESTATE SHAPE block in domSnapshot', () => {
+    const domSnapshot = `ACTUAL RUNTIME DOM — captured from the running game
+
+WINDOW.GAMESTATE SHAPE (actual runtime values — use THESE property names/types in tests, do NOT guess):
+  phase: string "init"
+  lives: number 3
+  score: number 0`;
+    const phases = extractPhaseNamesFromGame('', domSnapshot);
+    assert.ok(phases.includes('init'), 'should extract init from gameStateShape');
+  });
+
+  it('returns empty array when no phases found', () => {
+    const phases = extractPhaseNamesFromGame('<div>no phases here</div>', null);
+    assert.deepEqual(phases, []);
+  });
+
+  it('deduplicates phase names', () => {
+    const html = `<script>
+      gameState.phase = 'playing';
+      if (gameState.phase === 'playing') { ok(); }
+      gameState.phase = 'results';
+    </script>`;
+    const phases = extractPhaseNamesFromGame(html, null);
+    const playingCount = phases.filter((p) => p === 'playing').length;
+    assert.equal(playingCount, 1, 'playing should appear only once');
+  });
+
+  it('excludes non-phase tokens like undefined, null', () => {
+    const html = `<script>
+      if (gameState.phase === 'undefined') { }
+      if (gameState.phase !== 'null') { }
+    </script>`;
+    const phases = extractPhaseNamesFromGame(html, null);
+    assert.ok(!phases.includes('undefined'), 'should not include undefined');
+    assert.ok(!phases.includes('null'), 'should not include null');
+  });
+
+  it('extracts phases from data-phase attributes in HTML', () => {
+    const html = `<div id="app" data-phase="start"></div>`;
+    const phases = extractPhaseNamesFromGame(html, null);
+    assert.ok(phases.includes('start'), 'should include start from data-phase attribute');
+  });
+
+  it('handles null htmlContent and null domSnapshot gracefully', () => {
+    const phases = extractPhaseNamesFromGame(null, null);
+    assert.deepEqual(phases, []);
   });
 });

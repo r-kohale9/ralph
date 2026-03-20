@@ -8,6 +8,7 @@ const {
   validatePostMessageContract,
   validateScoringContract,
   validateInitGameContract,
+  validateCalcStarsContract,
 } = require('../lib/validate-contract');
 
 const VALID_HTML = `<!DOCTYPE html>
@@ -132,6 +133,87 @@ describe('validate-contract', () => {
       const html = VALID_HTML.replace('function initGame()', 'function startGame()');
       const errors = validateInitGameContract(html);
       assert.ok(errors.some((e) => e.includes('initGame function body')));
+    });
+  });
+
+  describe('validateCalcStarsContract', () => {
+    it('passes when calcStars is not defined (no requirement)', () => {
+      const errors = validateCalcStarsContract(VALID_HTML);
+      assert.equal(errors.length, 0);
+    });
+
+    it('passes when calcStars is defined and exposed on window', () => {
+      const html = VALID_HTML.replace(
+        'function endGame()',
+        'function calcStars(pct) { return pct >= 0.8 ? 3 : 1; }\nwindow.calcStars = calcStars;\nfunction endGame()',
+      );
+      const errors = validateCalcStarsContract(html);
+      assert.equal(errors.length, 0);
+    });
+
+    it('fails when calcStars is defined but not exposed on window', () => {
+      const html = VALID_HTML.replace(
+        'function endGame()',
+        'function calcStars(pct) { return pct >= 0.8 ? 3 : 1; }\nfunction endGame()',
+      );
+      const errors = validateCalcStarsContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('calcStars') && e.includes('window')),
+        `Expected calcStars window error, got: ${errors.join(', ')}`,
+      );
+    });
+  });
+
+  describe('validatePostMessageContract — CDN game_complete format', () => {
+    const CDN_HTML_NESTED = `<!DOCTYPE html>
+<html><head><title>Test</title></head>
+<body><div id="app"></div>
+<script>
+let gameState = { score: 0, phase: 'playing' };
+window.gameState = gameState;
+function calcStars() { return 3; }
+window.calcStars = calcStars;
+async function endGame() {
+  if (gameState.gameEnded) return;
+  gameState.gameEnded = true;
+  const metrics = { score: gameState.score, accuracy: 100, time: 30, stars: calcStars(), livesRemaining: 3, attempts: [], duration_data: {} };
+  const signalPayload = { events: [], signals: {}, metadata: {} };
+  window.parent.postMessage({ type: 'game_complete', data: { metrics, attempts: gameState.attempts, ...signalPayload, completedAt: Date.now() } }, '*');
+}
+window.endGame = endGame;
+function initGame() { gameState = { score: 0, phase: 'playing' }; }
+</script></body></html>`;
+
+    const CDN_HTML_FLAT = `<!DOCTYPE html>
+<html><head><title>Test</title></head>
+<body><div id="app"></div>
+<script>
+let gameState = { score: 0, phase: 'playing' };
+window.gameState = gameState;
+async function endGame() {
+  if (gameState.gameEnded) return;
+  gameState.gameEnded = true;
+  window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: 3, total: 10 }, '*');
+}
+window.endGame = endGame;
+function initGame() { gameState = { score: 0, phase: 'playing' }; }
+</script></body></html>`;
+
+    it('passes CDN game with nested data.metrics structure', () => {
+      const errors = validatePostMessageContract(CDN_HTML_NESTED);
+      assert.equal(
+        errors.length,
+        0,
+        `Unexpected errors for nested CDN payload: ${errors.join(', ')}`,
+      );
+    });
+
+    it('fails CDN game with flat payload structure', () => {
+      const errors = validatePostMessageContract(CDN_HTML_FLAT);
+      assert.ok(
+        errors.some((e) => e.includes('flat payload')),
+        `Expected flat payload error, got: ${errors.join(', ')}`,
+      );
     });
   });
 });

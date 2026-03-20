@@ -627,7 +627,7 @@ body {
 ## 7. Game Flow
 
 1. **Page loads** → DOMContentLoaded fires
-   - waitForPackages(), FeedbackManager.init()
+   - waitForPackages() — **DO NOT call FeedbackManager.init()** (PART-015 package auto-inits; calling it shows a blocking audio permission popup that breaks all tests)
    - Register sounds (correct_tap, wrong_tap)
    - ScreenLayout.inject, clone template
    - TimerComponent (increase, no autoStart)
@@ -739,32 +739,20 @@ body {
 - updateAdjusterUI('b')
 
 **updateAdjusterUI(which)**
+
+> **CRITICAL — DO NOT hide or replace the +/− buttons.** The +/− buttons must ALWAYS remain visible and clickable regardless of the current delta value. Only update the delta badge to show the current adjustment. Replacing button elements with `adjusted-value-display` divs removes the onclick handlers and makes adjustments permanently unusable. Keep the buttons in the DOM at all times.
+
 - const delta = which === 'a' ? gameState.deltaA : gameState.deltaB
-- const original = which === 'a' ? gameState.numberA : gameState.numberB
-- const topArea = document.getElementById(`adj-${which}-top`)
-- const bottomArea = document.getElementById(`adj-${which}-bottom`)
 - const badge = document.getElementById(`delta-badge-${which}`)
 -
+- // The +/− buttons (adj-a-top, adj-a-bottom, adj-b-top, adj-b-bottom) are NEVER modified — they stay in the DOM always.
 - If delta === 0:
-  - // Show default buttons, hide badge
-  - topArea.innerHTML = `<button class="adj-btn adj-minus" onclick="adjustNumber('${which}', -1)">−</button>`
-  - bottomArea.innerHTML = `<button class="adj-btn adj-plus" onclick="adjustNumber('${which}', 1)">+</button>`
   - badge.className = 'delta-badge hidden'
   - badge.textContent = ''
 - Else if delta < 0:
-  - // Minus area shows adjusted value with "−" prefix
-  - topArea.innerHTML = `<div class="adjusted-value-display"><span class="adj-icon minus">−</span> <strong>${original + delta}</strong></div>`
-  - // Plus area keeps its button
-  - bottomArea.innerHTML = `<button class="adj-btn adj-plus" onclick="adjustNumber('${which}', 1)">+</button>`
-  - // Badge shows red negative delta
   - badge.className = 'delta-badge negative'
   - badge.textContent = `${delta}`
 - Else if delta > 0:
-  - // Minus area keeps its button
-  - topArea.innerHTML = `<button class="adj-btn adj-minus" onclick="adjustNumber('${which}', -1)">−</button>`
-  - // Plus area shows adjusted value with "+" prefix
-  - bottomArea.innerHTML = `<div class="adjusted-value-display"><span class="adj-icon plus">+</span> <strong>${original + delta}</strong></div>`
-  - // Badge shows green positive delta
   - badge.className = 'delta-badge positive'
   - badge.textContent = `+${delta}`
 
@@ -865,11 +853,12 @@ body {
 - const correctAttempts = gameState.attempts.filter(a => a.correct).length
 - const totalAttempts = gameState.attempts.length
 - const accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0
+- // CRITICAL: calcStars must return 0 for game_over. The guard below is mandatory.
+- // Do NOT apply the time-based star formula when reason !== 'victory' — it will award unearned stars.
 - let stars = 0
 - if (reason === 'victory'):
   - stars = avgTimePerLevel < 15 ? 3 : avgTimePerLevel < 25 ? 2 : 1
-- else:
-  - stars = 0
+- // else: stars stays 0 — game_over always gets 0 stars regardless of time
 - const metrics = { accuracy, time: totalTime, avgTimePerLevel: Math.round(avgTimePerLevel * 10) / 10, stars, attempts: gameState.attempts, duration_data: { ...gameState.duration_data, currentTime: new Date().toISOString() }, roundsCompleted: gameState.currentRound, wrongAttempts: gameState.wrongAttempts, livesRemaining: gameState.lives, levelTimes: gameState.levelTimes.map(t => Math.round(t / 100) / 10), reason }
 - console.log('Final Metrics:', JSON.stringify(metrics, null, 2))
 - trackEvent('game_end', 'game', { reason, roundsCompleted: gameState.currentRound, accuracy, stars, time: totalTime, avgTimePerLevel })
@@ -878,6 +867,9 @@ body {
 - Else:
   - try { await FeedbackManager.playDynamicFeedback({ audio_content: 'Oh no, you ran out of lives! Better luck next time!', subtitle: 'Out of lives!' }); } catch(e) {}
 - showResults(metrics, reason)
+- // CRITICAL postMessage structure — must use the FULL nested form below.
+- // DO NOT flatten metrics into the top-level data object. The contract requires:
+- //   { type: 'game_complete', data: { metrics: {...}, events: gameState.events, completedAt: Date.now() } }
 - window.parent.postMessage({ type: 'game_complete', data: { metrics, events: gameState.events, completedAt: Date.now() } }, '*')
 - if (timer) { timer.destroy(); timer = null; }
 - if (progressBar) { progressBar.destroy(); progressBar = null; }
@@ -932,11 +924,15 @@ body {
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     await waitForPackages();
-    await FeedbackManager.init();
+    // ⚠️ DO NOT call FeedbackManager.init() here — PART-015 package auto-initialises on load.
+    // Calling FeedbackManager.init() shows a blocking audio permission popup that prevents
+    // game initialisation and causes ALL Playwright tests to fail non-deterministically.
 
     try {
-      await FeedbackManager.sound.register('correct_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740724945201.mp3');
-      await FeedbackManager.sound.register('wrong_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740725080819.mp3');
+      await FeedbackManager.sound.preload([
+        { id: 'correct_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501597903.mp3' },
+        { id: 'wrong_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501956470.mp3' }
+      ]);
     } catch(e) { console.error('Sound registration error:', JSON.stringify({ error: e.message }, null, 2)); }
 
     const layout = ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } });
@@ -1027,8 +1023,10 @@ window.testResume = () => { if (timer && gameState.isActive) timer.resume(); };
 ### Sound Registration
 
 ```javascript
-await FeedbackManager.sound.register('correct_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740724945201.mp3');
-await FeedbackManager.sound.register('wrong_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740725080819.mp3');
+await FeedbackManager.sound.preload([
+  { id: 'correct_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501597903.mp3' },
+  { id: 'wrong_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501956470.mp3' }
+]);
 ```
 
 ---
