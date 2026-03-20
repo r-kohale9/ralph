@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 20, 2026 (screenshot-on-timeout fix loop dc0c72f; audio popup auto-dismiss 16cc686; passingContext regex fix 275d14f; popup-backdrop Rule 24 7428526; BullMQ lockDuration 30→90min; 550 tests pass; R&D: adjustment-strategy chronic failure deep-dive active)
+**Last updated:** March 20, 2026 (screenshot-on-timeout fix loop dc0c72f; audio popup auto-dismiss 16cc686; passingContext regex fix 275d14f; popup-backdrop Rule 24 7428526; BullMQ lockDuration 30→90min 95ed7c7; debug-function window exposure rule dd7f170; KillMode=control-group bd871ab; 550 tests pass; R&D: adjustment-strategy chronic failure deep-dive active)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -207,7 +207,9 @@
 | **Fix loop improvement: reduce per-category iter-2 rates** | **measuring** | Three T1 checks shipped (W2/W3/W4) targeting mechanics 75% + game-flow 22% patterns. Contract fix shipped (9abfaa3). Awaiting 10 builds post-fix to measure iter-2 rate change per category. |
 | **adjustment-strategy spec contradiction fix** | **done (2026-03-20)** | Root cause: spec said "DO NOT call FeedbackManager.init()" but code examples at lines 630+935 still called it — LLM followed executable code, causing blocking audio popup on every build (59 attempts total, 5 approvals but oscillating). Also fixed: postMessage CRITICAL comment, calcStars game_over=0 guard, adjuster button visibility (was replacing DOM instead of toggling class). Build #350 queued for first clean run. Analysis: docs/rnd-chronic-failures-diagnosis.md | |
 | **Spec quality: proactive contradiction scan** | **done (2026-03-20)** | CRITICAL FINDING: 48/50 specs had `await FeedbackManager.init()` as executable code in DOMContentLoaded examples — the exact bug that caused adjustment-strategy's 59-build loop. Every CDN game in queue was generating a blocking audio popup on every build. Fix: replaced all instances with `// DO NOT call FeedbackManager.init() — PART-015 auto-inits on load` comment across 46 specs. Also fixed: simon-says + adjustment-strategy wrong CDN audio URLs (cdn.homeworkapp.ai → cdn.mathai.ai). Local + server specs updated. | Expected: dramatic throughput improvement — all 43 queued CDN games now generate without blocking audio popup; removes primary cause of test harness injection failures |
-| **BullMQ lock renewal for long Opus calls** | **done (2026-03-20)** | worker.js: `lockDuration: 30 * 60 * 1000` (30min), `lockRenewTime: 10 * 60 * 1000` (10min). Deployed. Eliminates lock-loss on long Opus calls. Task #59 complete. |
+| **BullMQ lock renewal for long Opus calls** | **done (2026-03-20, commit 95ed7c7)** | worker.js: `lockDuration: 90 * 60 * 1000` (90min), `lockRenewTime: 10 * 60 * 1000` (10min). Initial value was 30min; raised to 90min in commit 95ed7c7 to cover Opus generation calls on large specs. Deployed. Eliminates lock-loss on long Opus calls. Task #59 complete. |
+| **Auto-dismiss FeedbackManager audio popup in test harness** | **done (2026-03-20, commit 16cc686)** | lib/pipeline-utils.js (test harness injection) | `beforeEach` in injected harness now explicitly clicks the "Okay!" button from FeedbackManager audio permission popup with a 2s timeout and silent catch. Prevents non-deterministic test failures caused by the popup appearing after `startGame()` in headless Playwright when `FeedbackManager.init()` was called (Lesson 51 race condition). Complements gen-prompt fix (no `FeedbackManager.init()` if PART-017=NO) as a defence-in-depth backstop. |
+| **Debug-function window exposure rule conflict fix (Lesson 55)** | **done (2026-03-20, commit dd7f170)** | lib/prompts.js (CDN_CONSTRAINTS_BLOCK) | `CDN_CONSTRAINTS_BLOCK` previously told the gen LLM "debug functions MUST NOT be on window", but the spec Verification Checklist requires them ON window. The contradictory rule caused 29% of early-review rejections — an unfixable loop. Fixed by changing the rule to: "Debug functions MUST be exposed on window — define as named functions inside DOMContentLoaded then assign: `window.debugGame = debugGame`". Queens build 285 was rejected 3 consecutive times for this before the fix. |
 | **Mechanics test-gen failure root cause analysis** | **done (2026-03-20, commit e60dbb1)** | Traced 15 mechanics failures: #1 hardcoded wrong values (5+), #2 click timeout on isProcessing=true (4), #3 waitForPhase timeout (4), #4 toHaveText mismatch on nested cells (2), #5 invented gameState properties (2). Fix: 5 mechanics-specific rules M1-M5 in buildTestGenCategoryPrompt; W3 escalated to error when >80% missing. 537 tests pass. Deployed to server. Expected: reduce mechanics iter-2 from 75% toward 40%. |
 | **Generation LLM timeout fix** | **done (2026-03-20, commit 4eb1d29)** | `RALPH_LLM_TIMEOUT=300` was killing large-spec HTML generation (interactive-chat 59KB, bubbles-pairs 64KB) at exactly 5 min with 0 iterations. Fix: added `RALPH_GEN_LLM_TIMEOUT` to config (default 600s); all 4 gen call sites use it. Triage/fix calls keep 300s. 537 tests pass. | Unblocks all large-spec games that were timing out before iteration 1 |
 | **Cross-batch-guard false rollback fix** | **done (2026-03-20, commit 7d27432)** | `detectCrossBatchRegression()` was treating 0/0 test results (timeout/infra failure) as regression because `0 < prevPassed`. Queens build rolled back every batch due to 30s smoke timeout being too short for game-flow tests. Fix: skip regression when `nowTotal===0` (inconclusive); increase timeout from 30s → 90s. 537 tests pass. | Eliminates false rollbacks that were wasting all post-mechanics-fix batches in queens |
@@ -274,10 +276,10 @@
 | P3 DevOps & Operations | 13 | 0 | 13 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 51 | 5 | 56 |
+| P6 Test Generation Quality | 53 | 5 | 58 |
 | P7 Code Architecture | 9 | 6 | 15 |
 | P8 Build Reliability | 5 | 2 | 7 |
-| **Total** | **123** | **11** | **137** |
+| **Total** | **125** | **11** | **139** |
 
 ## What's Next
 
@@ -307,8 +309,8 @@
 17. **[R&D — DONE] Measure cross-batch-guard + gen-timeout + phase-hints impact** — 4 fixes shipped: cross-batch-guard false rollback fix, gen LLM timeout 300→600s, M1-M5 mechanics rules, GF1/GF2 phase hints. Measurement window: builds 374+.
 18. **[R&D — DONE] Queue-sync: detect orphaned DB-queued builds** — `requeueOrphanedQueuedBuilds()` in worker.js; compares DB queued count vs BullMQ queue depth; re-enqueues orphans with idempotency key; 5 new tests; 550 pass; deployed 2026-03-20 (commit 924c9a5). Recovers up to 37 builds per crash-loop incident.
 19. **[R&D — DONE] Increase RALPH_GEN_LLM_TIMEOUT 600s → 1200s** — zip (56KB) timed out at exactly 600s; raised default in lib/config.js; deployed 2026-03-20 (commit 60bd7ae). Unblocks large-spec games.
-20. **[R&D — ACTIVE] Non-standard lifecycle test gen measurement** — H2 shipped (GAME FEATURE FLAGS block); measure 0-iteration-kill rate across next 10 builds for non-standard lifecycle games.
-21. **[R&D — NEXT] adjustment-strategy chronic failure deep-dive** — 15/15 real pipeline failures are adjustment-strategy; root cause unknown post-spec-contradiction-fix; trace per-iteration failure breakdown to identify structural issue.
+20. **[R&D — measuring] Non-standard lifecycle test gen measurement** — H2 shipped (GAME FEATURE FLAGS block); measuring 0-iteration-kill rate across next 10 builds for non-standard lifecycle games.
+21. **[R&D — ACTIVE] adjustment-strategy chronic failure deep-dive** — 15/15 real pipeline failures are adjustment-strategy; root cause unknown post-spec-contradiction-fix; trace per-iteration failure breakdown to identify structural issue. See P6 table for full hypothesis set.
 22. **[R&D — PLANNED] Measure abort-on-snapshot-failure impact** — add Prometheus counter for FatalSnapshotError regen triggers; track trigger rate over next 10 builds; if >20% investigate gen prompt improvements to reduce initial blank-page rate.
 23. **[SHIPPED] popup-backdrop teardown Rule 24 + Lesson 58** — VisibilityTracker backdrop overlay intercepts clicks at iter 2; Rule 24 + CDN_CONSTRAINTS_BLOCK POPUP-BACKDROP TEARDOWN constraint deployed 2026-03-20 (commit 7428526); Lesson 58 in docs/lessons-learned.md.
 24. **[SHIPPED] Passing-test-protection regex fix** — `passingContext` name extraction was always empty (regex `^\}` never matched indented `  });`); switched to name-only list format; "MUST keep passing" constraint now functional; prevents iter-3 regressions; deployed 2026-03-20 (commit 275d14f).
