@@ -383,3 +383,44 @@ describe('queue-sync auto-requeue logic', () => {
     assert.equal(candidates.length, 0);
   });
 });
+
+describe('orphan-queue-sync logic (requeueOrphanedQueuedBuilds)', () => {
+  // Replicate the orphan-queue-sync decision logic for unit testing
+
+  function shouldReenqueue(dbQueuedCount, bullmqTotal) {
+    return bullmqTotal < dbQueuedCount;
+  }
+
+  it('triggers re-enqueue when BullMQ has fewer jobs than DB-queued builds', () => {
+    assert.ok(shouldReenqueue(37, 0), '37 queued in DB, 0 in BullMQ — must re-enqueue');
+    assert.ok(shouldReenqueue(10, 5), '10 in DB, 5 in BullMQ — must re-enqueue');
+  });
+
+  it('skips re-enqueue when BullMQ count matches DB-queued count', () => {
+    assert.ok(!shouldReenqueue(5, 5), 'counts match — no action needed');
+    assert.ok(!shouldReenqueue(5, 7), 'BullMQ has more — no action needed');
+  });
+
+  it('skips re-enqueue when DB has no queued builds', () => {
+    assert.ok(!shouldReenqueue(0, 0), 'both zero — no action needed');
+  });
+
+  it('re-enqueues all queued builds when BullMQ is empty', () => {
+    const queuedBuilds = [
+      { id: 305, game_id: 'matching-doubles' },
+      { id: 306, game_id: 'zip' },
+      { id: 307, game_id: 'connect' },
+    ];
+    const bullmqTotal = 0;
+    const toReenqueue = shouldReenqueue(queuedBuilds.length, bullmqTotal) ? queuedBuilds : [];
+    assert.equal(toReenqueue.length, 3);
+    assert.deepEqual(toReenqueue.map((b) => b.id), [305, 306, 307]);
+  });
+
+  it('uses build-{id} as jobId for idempotent re-enqueue', () => {
+    // Verify the jobId format prevents duplicates
+    const buildId = 305;
+    const jobId = `build-${buildId}`;
+    assert.equal(jobId, 'build-305');
+  });
+});

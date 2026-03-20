@@ -1317,6 +1317,45 @@ async function requeueQueueSyncBuilds() {
 }
 requeueQueueSyncBuilds().catch((err) => logger.error('[worker] queue-sync requeue failed:', err));
 
+// At startup: re-enqueue any DB-queued builds whose BullMQ jobs were lost (e.g. worker crash-loop)
+async function requeueOrphanedQueuedBuilds() {
+  const queuedBuilds = db
+    .getDb()
+    .prepare("SELECT id, game_id FROM builds WHERE status = 'queued' ORDER BY id ASC")
+    .all();
+
+  if (queuedBuilds.length === 0) return;
+
+  const buildQueue = new Queue('ralph-builds', { connection });
+  const [waiting, active] = await Promise.all([
+    buildQueue.getWaitingCount(),
+    buildQueue.getActiveCount(),
+  ]);
+  const bullmqTotal = waiting + active;
+
+  if (bullmqTotal >= queuedBuilds.length) {
+    logger.info(`[worker] orphan-queue-sync: ${queuedBuilds.length} queued builds, BullMQ has ${bullmqTotal} — OK`);
+    await buildQueue.close();
+    return;
+  }
+
+  logger.warn(
+    `[worker] orphan-queue-sync: DB has ${queuedBuilds.length} queued builds but BullMQ has ${bullmqTotal} — re-enqueuing orphans`,
+  );
+
+  for (const build of queuedBuilds) {
+    await buildQueue.add(
+      'build',
+      { gameId: build.game_id, buildId: build.id },
+      { jobId: `build-${build.id}`, attempts: 1, removeOnComplete: 100, removeOnFail: 100 },
+    );
+  }
+
+  logger.info(`[worker] orphan-queue-sync: re-enqueued ${queuedBuilds.length} builds`);
+  await buildQueue.close();
+}
+requeueOrphanedQueuedBuilds().catch((err) => logger.error('[worker] orphan-queue-sync failed:', err));
+
 startSystemMetrics();
 logger.info(`[worker] Worker ID: ${WORKER_ID}`);
 console.log(`[ralph-worker] Started with concurrency=${CONCURRENCY}`);
