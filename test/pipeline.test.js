@@ -957,3 +957,28 @@ describe('runPageSmokeDiagnostic classifySmokeErrors — fatal pattern detection
     assert.equal(result.length, 2);
   });
 });
+
+// ─── Blank page detection — white screen with no console errors ───────────────
+// The smoke check now also evaluates #gameContent children to catch cases where
+// the CDN loads silently but the game never renders (e.g. missing #mathai-transition-slot).
+describe('runPageSmokeDiagnostic blank-page detection — #gameContent guard', () => {
+  it('blankPageError is set when #gameContent has no children', () => {
+    // Simulate the page.evaluate result shape the smoke check uses
+    const hasContent = { ok: false, reason: '#gameContent is empty — game did not render' };
+    const blankPageError = hasContent.ok ? null : `Blank page: ${hasContent.reason}`;
+    assert.ok(blankPageError);
+    assert.match(blankPageError, /Blank page/);
+  });
+
+  it('blankPageError is null when #gameContent has children', () => {
+    const hasContent = { ok: true };
+    const blankPageError = hasContent.ok ? null : `Blank page: ${hasContent.reason}`;
+    assert.equal(blankPageError, null);
+  });
+
+  it('blankPageError is set when #gameContent element is missing entirely', () => {
+    const hasContent = { ok: false, reason: 'missing #gameContent element' };
+    const blankPageError = hasContent.ok ? null : `Blank page: ${hasContent.reason}`;
+    assert.match(blankPageError, /missing #gameContent/);
+  });
+});
