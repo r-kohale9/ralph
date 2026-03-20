@@ -127,3 +127,25 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 **Proof:** Build 232 killed after cascading failures. Fix deployed, build 279 requeued and completed successfully.
 
 **How to apply:** If tests crash with `TypeError: Cannot read properties of undefined` accessing a game-specific nested property (e.g., `.faceFeatures`, `.gridData`, `.pattern`) on `rounds[0]`, check `fallbackContent.rounds` first — the question/answer values may be spec metadata rather than actual game rounds. Log or inspect the extracted rounds before injecting them into the test context.
+
+## Lesson 45 — BullMQ queue loss on Redis restart: enable AOF persistence
+
+**Pattern:** In a past incident, 39 queued builds vanished after a Redis restart. Redis's default configuration uses RDB snapshots only (periodic dumps to `dump.rdb`). If Redis exits between snapshots, all in-memory queue state — pending BullMQ jobs, job locks, job data — is lost. On restart, the queue appears empty and all queued builds are gone with no record.
+
+**Root cause:** Redis defaults to RDB-only persistence. RDB snapshots happen at intervals (e.g., every 60s if 1000 keys changed, every 300s if 10 keys changed). Any Redis restart between snapshot intervals loses all changes made since the last snapshot. BullMQ jobs are entirely Redis-backed; there is no secondary durable store.
+
+**Fix:** Enable Redis AOF (Append Only File) persistence via `--appendonly yes` in the Redis startup command. With AOF, every write command is appended to a file on disk. Redis 7 uses the multi-part AOF format: an `appendonlydir/` directory containing a base RDB snapshot (`*.base.rdb`) and an incremental log (`*.incr.aof`). On restart, Redis replays the AOF log — all queued jobs survive.
+
+**How it was applied:**
+1. `docker-compose.yml` Redis service already has `command: redis-server --appendonly yes` — this is the correct configuration for local/Docker deployments.
+2. The live server runs Redis in the `ralph-redis-1` Docker container. Verified with `sudo docker inspect ralph-redis-1 --format='{{.Config.Cmd}}'` → `[redis-server --appendonly yes]`. AOF is active: `sudo docker exec ralph-redis-1 redis-cli CONFIG GET appendonly` returns `yes`. The `appendonlydir/` directory exists in `/data/` with `appendonly.aof.2.incr.aof` actively written.
+
+**Verification command:**
+```bash
+sudo docker exec ralph-redis-1 redis-cli CONFIG GET appendonly
+# Expected: appendonly / yes
+sudo docker exec ralph-redis-1 ls -la /data/appendonlydir/
+# Expected: *.base.rdb + *.incr.aof files present and recently modified
+```
+
+**How to apply:** Always start Redis with `--appendonly yes`. For docker-compose deployments, include it in the `command:` field. For standalone Redis, set `appendonly yes` in `redis.conf` and run `redis-cli CONFIG REWRITE` to persist the change. Never rely on RDB-only persistence for BullMQ-backed pipelines where job loss is unacceptable.

@@ -84,6 +84,7 @@
 | **Warehouse hygiene gate** | **done (2026-03-20)** | worker.js, lib/pipeline.js | Pre-build: deletes stale warehouse HTML for non-approved games before calling `runPipeline()`. Prevents generation bypass — root cause of 54% of production failures. Shipped in commit 8202a79. |
 | **BullMQ stall prevention** | **done (2026-03-20)** | worker.js | Wired `onProgress` → `job.updateProgress()` every ~2 min (KillMode=control-group + heartbeat). BullMQ renews job lock on each call, preventing the 15 stall failures. Shipped in commit cc36e6c. |
 | **Stale warehouse auto-delete: relax isInitFailure guard** | **planned** | lib/pipeline.js:2550-2565 | Current guard requires ALL failure descriptions to match `beforeEach|TimeoutError|waiting for|transition-slot|data-phase|SKIPPED`. If even one failure has a different error pattern, stale HTML is kept. Relax to: trigger if ANY failure matches init-failure patterns AND `passed === 0` on iteration 1. This catches partial-init failures that currently slip through. |
+| **Redis AOF persistence (Task #44)** | **done (2026-03-20)** | docker-compose.yml | `--appendonly yes` in Redis service command prevents BullMQ queue loss on restart. Verified on live server: `ralph-redis-1` container running with AOF active; `appendonlydir/` with `*.incr.aof` confirmed. See Lesson 45 in docs/lessons-learned.md. |
 
 ---
 
@@ -223,8 +224,8 @@
 | P5 Scalability | 13 | 1 | 14 |
 | P6 Test Generation Quality | 41 | 2 | 44 |
 | P7 Code Architecture | 2 | 13 | 15 |
-| P8 Build Reliability | 2 | 1 | 3 |
-| **Total** | **101** | **15** | **119** |
+| P8 Build Reliability | 3 | 1 | 4 |
+| **Total** | **102** | **15** | **120** |
 
 ## What's Next
 
