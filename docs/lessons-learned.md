@@ -89,3 +89,15 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 **Fix:** Added rule 18 to both the API generation prompt and the CLI (`claude -p`) generation prompt: "ALWAYS use cdn.homeworkapp.ai. NEVER use cdn.mathai.ai." Also added post-generation cleanup in pipeline.js that replaces `cdn.mathai.ai` → `cdn.homeworkapp.ai` in the generated HTML file before harness injection (defense in depth).
 
 **How to apply:** If a freshly generated CDN game has 0% on game-flow iteration 1 AND init failures (start screen never renders), check the generated HTML for `cdn.mathai.ai` — that's the first thing to verify.
+
+## Lesson 42 — Test data shape mismatch: `validSolution is not iterable`
+
+**Pattern:** Build 227 (hidden-sums): After the window.gameState fix resolved game-flow iteration 1 (data-phase now set), iterations 2+ failed with `TypeError: round1.validSolution is not iterable` and `TypeError: solutionIndices is not iterable`. The generated tests assumed the game's round data structure had specific iterable array properties, but the actual game stored data differently. This is a test-side assumption mismatch, not a game bug.
+
+**Root cause:** Test generation prompt uses the spec markdown + DOM snapshot for context. When the DOM snapshot doesn't show actual JS data structures (only HTML elements), the LLM infers round data shapes from spec language like "valid solutions" → assumes `validSolution: []` array. The game may use `validSolution: number` (single value) or `validAnswers: []` (different key).
+
+**Fix (needed):** The DOM snapshot should include a sample `window.__ralph.getState()` result so the test generator sees the actual data shape. Currently the DOM snapshot captures element IDs/classes only. Add `window.__ralph.getState()` output to the snapshot injection context so generated tests use the real property names and types.
+
+**Workaround (current):** The test fix loop will eventually catch and fix shape mismatches, but wastes iterations. If a game consistently fails with `is not iterable` or `undefined reading '0'`, check whether the test is accessing a property that doesn't exist on the actual game state object.
+
+**How to apply:** When game-flow fails on iter 1 for window.gameState reasons but iter 2+ fails with `not iterable` / `Cannot read properties of undefined`, the issue shifted from game init → test data assumptions. Don't re-queue; the fix loop should resolve it. If it fails all 3 iterations on the same property error, this is a known gap in the DOM snapshot context (no runtime state shape).
