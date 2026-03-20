@@ -75,6 +75,18 @@
 | Express 5 migration | done | server.js, package.json | Express 5 handles async rejections natively; removed try/catch wrappers |
 | ESLint + Prettier | done | .eslintrc.js, .prettierrc.json | Rules aligned with code style; devDependencies added |
 
+## P8 — Build Reliability (from failure-analysis.md, 2026-03-20)
+
+> Source: `docs/failure-analysis.md` — 223 builds analyzed. Warehouse gate + BullMQ stall fix address 63% of production failures.
+
+| Item | Status | Files | Notes |
+|------|--------|-------|-------|
+| **Warehouse hygiene gate** | **planned** | worker.js, lib/pipeline.js | Pre-build check: if `warehouse/templates/<gameId>/game/index.html` exists AND game is NOT status='approved' in DB, delete it (or pass `forceRegenerate` flag) before calling `runPipeline()`. Prevents stale HTML from skipping generation entirely — root cause of 54% of production failures (93/172 post-dev builds). Effort: 8-12 lines in worker.js. Risk: low. Proof: zero `test_results=[]` builds in next 47-game scale run. See `docs/failure-analysis.md §3` for full POC spec. |
+| **BullMQ stall prevention** | **planned** | worker.js | Wire `onProgress` callback to `job.updateProgress()` every ~2 min during pipeline execution. BullMQ auto-renews job lock on `updateProgress()` calls, preventing the 15 stall failures caused by Node event loop saturation during long LLM calls. Effort: ~5 lines in worker.js + 2-3 lines in pipeline.js. Risk: low. |
+| **Stale warehouse auto-delete: relax isInitFailure guard** | **planned** | lib/pipeline.js:2550-2565 | Current guard requires ALL failure descriptions to match `beforeEach|TimeoutError|waiting for|transition-slot|data-phase|SKIPPED`. If even one failure has a different error pattern, stale HTML is kept. Relax to: trigger if ANY failure matches init-failure patterns AND `passed === 0` on iteration 1. This catches partial-init failures that currently slip through. |
+
+---
+
 ## P5 — Scalability & Intelligence (from spec E1-E10)
 
 | Item | Status | Notes |
@@ -205,9 +217,13 @@
 | P5 Scalability | 13 | 1 | 14 |
 | P6 Test Generation Quality | 41 | 1 | 43 |
 | P7 Code Architecture | 0 | 15 | 15 |
-| **Total** | **97** | **17** | **115** |
+| P8 Build Reliability | 0 | 3 | 3 |
+| **Total** | **97** | **20** | **118** |
 
 ## What's Next
+
+0. **[P8 — PRIORITY] Warehouse hygiene gate** — 8-12 lines in worker.js; prevents 54% of production build failures; proof: next 47-game scale run shows zero `test_results=[]` failures
+0. **[P8 — PRIORITY] BullMQ stall prevention** — 5 lines wiring `onProgress` → `job.updateProgress()`; prevents 9% of production failures
 
 1. **[R&D — done] Cross-game learning injection** — `getRelevantLearnings()` added to `lib/pipeline.js`; queries APPROVED build learnings from DB and merges into all gen/fix prompts; 347 tests pass; deployed 2026-03-20
 2. **[R&D — done] Semantic learning deduplication** — `jaccardSimilarity()` + dedup pass in `getRelevantLearnings()`; Jaccard threshold 0.6, cap 20 bullets; 357 tests pass; deployed 2026-03-20
