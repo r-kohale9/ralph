@@ -361,6 +361,137 @@ describe('validate-static.js', () => {
     assert.ok(!output.includes('isActive/isProcessing guard'), `Unexpected isActive warning: ${output}`);
   });
 
+  it('does not warn W3 when all buttons have data-testid', () => {
+    // All interactive elements have data-testid — no W3 warning expected
+    const html = VALID_HTML.replace(
+      '</script>',
+      `// buttons with data-testid
+  document.getElementById('answers').innerHTML =
+    '<button data-testid="option-0">A</button>' +
+    '<button data-testid="option-1">B</button>' +
+    '<button data-testid="btn-restart">Restart</button>';
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(!output.includes('W3'), `Unexpected W3 warning: ${output}`);
+  });
+
+  it('warns W3 when 3 buttons have no data-testid', () => {
+    // 3 buttons, none have data-testid — W3 warning expected
+    const html = VALID_HTML.replace(
+      'document.getElementById(\'questionText\').textContent = a + \' x \' + b + \' = ?\';',
+      `document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+    document.getElementById('answers').innerHTML =
+      '<button>A</button><button>B</button><button>C</button>';`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('W3'), `Expected W3 warning but got: ${output}`);
+    assert.ok(output.includes('data-testid'), `Expected data-testid mention but got: ${output}`);
+  });
+
+  it('does not warn W3 when exactly half buttons lack data-testid (50% threshold)', () => {
+    // 4 buttons, 2 have data-testid (50% missing = exactly at threshold, not >50%) — no warning
+    const html = VALID_HTML.replace(
+      'document.getElementById(\'questionText\').textContent = a + \' x \' + b + \' = ?\';',
+      `document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+    document.getElementById('answers').innerHTML =
+      '<button data-testid="option-0">A</button>' +
+      '<button data-testid="option-1">B</button>' +
+      '<button>C</button>' +
+      '<button>D</button>';`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(!output.includes('W3'), `Unexpected W3 warning: ${output}`);
+  });
+
+  it('warns W3 when 4 of 5 buttons lack data-testid (80% missing)', () => {
+    // 5 buttons, 4 lack data-testid (80% > 50%) — W3 warning expected
+    const html = VALID_HTML.replace(
+      'document.getElementById(\'questionText\').textContent = a + \' x \' + b + \' = ?\';',
+      `document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+    document.getElementById('answers').innerHTML =
+      '<button data-testid="option-0">A</button>' +
+      '<button>B</button>' +
+      '<button>C</button>' +
+      '<button>D</button>' +
+      '<button>E</button>';`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('W3'), `Expected W3 warning but got: ${output}`);
+    assert.ok(output.includes('4/5'), `Expected 4/5 count in warning but got: ${output}`);
+  });
+
+  it('does not warn W4 when phase assignment has syncDOMState() nearby', () => {
+    // gameState.phase = 'playing' followed by syncDOMState() within 200 chars — no W4
+    const html = VALID_HTML.replace(
+      '</script>',
+      `function syncDOMState() {}
+  function startPlaying() {
+    gameState.phase = 'playing';
+    syncDOMState();
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(!output.includes('W4'), `Unexpected W4 warning: ${output}`);
+  });
+
+  it('warns W4 when phase assignment has no syncDOMState() anywhere', () => {
+    // gameState.phase = 'gameover' with no syncDOMState() call in the file
+    const html = VALID_HTML.replace(
+      '</script>',
+      `function finishRound() {
+    gameState.phase = 'gameover';
+    document.getElementById('gameArea').innerHTML = '<h2>Done!</h2>';
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('W4'), `Expected W4 warning but got: ${output}`);
+    assert.ok(output.includes('syncDOMState'), `Expected syncDOMState mention in W4 but got: ${output}`);
+  });
+
+  it('warns W4 for the 1 of 2 phase assignments that lacks nearby syncDOMState()', () => {
+    // Two phase assignments: one has syncDOMState() nearby, one does not
+    const html = VALID_HTML.replace(
+      '</script>',
+      `function syncDOMState() {}
+  function startPlaying() {
+    gameState.phase = 'playing';
+    syncDOMState();
+  }
+  function endRound() {
+    // lots of code here padding out more than 200 chars so syncDOMState is not "nearby"
+    // padding padding padding padding padding padding padding padding padding padding padding
+    // padding padding padding padding padding padding padding padding padding padding padding
+    // padding padding padding padding padding padding padding padding padding padding padding
+    gameState.phase = 'results';
+    // no syncDOMState call here
+    document.getElementById('gameArea').innerHTML = '<h2>Results!</h2>';
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('W4'), `Expected W4 warning but got: ${output}`);
+    assert.ok(output.includes('1/2'), `Expected 1/2 count in W4 warning but got: ${output}`);
+  });
+
+  it('does not warn W4 when there are no gameState.phase assignments', () => {
+    // No gameState.phase assignments at all — no W4 warning expected
+    const html = VALID_HTML;
+    // VALID_HTML has no gameState.phase = ... assignments
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(!output.includes('W4'), `Unexpected W4 warning: ${output}`);
+  });
+
   it('exits with code 2 when no file argument given', () => {
     try {
       execFileSync('node', [VALIDATOR], { encoding: 'utf-8', timeout: 5000 });
