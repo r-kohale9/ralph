@@ -677,3 +677,55 @@ describe('pipeline.js deriveRelevantCategories', () => {
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for isInitFailure (P8 — relaxed ANY-match guard)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js isInitFailure', () => {
+  const { isInitFailure } = require('../lib/pipeline-fix-loop');
+
+  it('returns true when passed=0 and ONE matching error (new ANY-match behaviour)', () => {
+    const failures = ['waitForPhase timed out after 10s waiting for "playing"', 'test unrelated to init'];
+    assert.equal(isInitFailure(failures, 0), true);
+  });
+
+  it('returns false when passed=1, even with a matching error', () => {
+    const failures = ['waitForPhase timed out'];
+    assert.equal(isInitFailure(failures, 1), false);
+  });
+
+  it('returns false when passed=0 but no matching error patterns', () => {
+    const failures = ['Expected element to be visible', 'Score did not increment'];
+    assert.equal(isInitFailure(failures, 0), false);
+  });
+
+  it('returns true when passed=0 and ALL errors match (still works)', () => {
+    const failures = ['TimeoutError: waiting for selector', 'data-phase never changed', 'SKIPPED'];
+    assert.equal(isInitFailure(failures, 0), true);
+  });
+
+  it('returns false for empty failure list', () => {
+    assert.equal(isInitFailure([], 0), false);
+  });
+
+  it('returns false for null failure list', () => {
+    assert.equal(isInitFailure(null, 0), false);
+  });
+
+  it('matches gameState is not defined error', () => {
+    assert.equal(isInitFailure(['ReferenceError: gameState is not defined'], 0), true);
+  });
+
+  it('matches __ralph not defined error', () => {
+    assert.equal(isInitFailure(['ReferenceError: __ralph is not defined'], 0), true);
+  });
+
+  it('matches net::ERR_ network error', () => {
+    assert.equal(isInitFailure(['net::ERR_CONNECTION_REFUSED at http://localhost:3333'], 0), true);
+  });
+
+  it('matches Timeout exceeded waiting error', () => {
+    assert.equal(isInitFailure(['Timeout 30000ms exceeded waiting for element'], 0), true);
+  });
+});
