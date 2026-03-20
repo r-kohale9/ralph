@@ -352,3 +352,27 @@ Some generated HTML variants built `metrics` without explicitly including `durat
 **Proof:** Identified 2026-03-20 via R&D deep-dive. Pre-fix approval rate: 8% over 60 builds. Fix deployed to both `specs/Adjustment Strategy.md` and server `/opt/ralph/specs/Adjustment Strategy.md`. Warehouse HTML and test cache cleared.
 
 **How to apply:** For any game with persistent mechanics test failures where button clicks timeout after the first interaction: check whether `innerHTML` rebuild in UI update functions preserves button IDs. This is a systematic pattern — any game that uses innerHTML to show/hide adjusted values without re-injecting IDs will hit this bug.
+
+## Lesson 60 — Rate-limiter starvation from manual build cancellations
+
+**Pattern:** Admin operations calling `db.failBuild()` directly (e.g., to cancel duplicate/already-approved builds) still trigger the BullMQ `worker.on('failed')` handler, which increments the rate-limiter counter. With a 10/hr limit, 8+ admin cancellations in one hour blocked all legitimate builds for ~50 minutes. The rate limiter key is a fixed-window Redis counter; deleting it manually (`node -e "q.client.then(c=>c.del('bull:ralph-builds:limiter'))"`) instantly unblocks the queue.
+
+**Root cause:** The BullMQ rate limiter uses a fixed-window Redis counter keyed by `bull:ralph-builds:limiter`. Every job that reaches the `failed` event handler — including admin-cancelled builds — increments this counter. There is no distinction between "pipeline failure" and "intentionally cancelled by admin".
+
+**Fix:** Raised rate limit from 10/hr to 20/hr (commit ac6588a). This gives 3× headroom for admin operations without blocking legitimate builds.
+
+**Detection:** If the queue appears blocked and all recent DB builds show `status='failed'` with short duration, check the rate limiter: `redis-cli GET bull:ralph-builds:limiter`. If near or at the limit, delete the key to immediately unblock: `node -e "q.client.then(c=>c.del('bull:ralph-builds:limiter'))"`.
+
+**How to apply:** After any batch of admin cancellations (5+ builds failed manually in one session), check the rate-limiter counter before queuing new builds. If >15, delete the key. Consider incrementing the limit further if admin ops remain heavy.
+
+## Lesson 61 — Claude CLI auth can silently expire during long sessions
+
+**Pattern:** `claude auth status` returns `loggedIn: true` (reads cached credentials) even when the API session is invalid. Actual `claude -p` calls fail with "Your organization does not have access to Claude." after intensive Opus calls (build #305 ran 64 minutes). All subsequent builds fail in ~8 seconds with `iterations=0, error_message=null`. On 2026-03-20 ~19:07, 20+ builds in queue failed immediately due to this condition.
+
+**Root cause:** `claude auth status` checks cached credential presence — it does NOT make a live API call. A session can be marked `loggedIn: true` while the underlying token is expired or the org's usage limit has been hit. The difference between session expiry and usage limit cannot be determined without attempting an actual generation call.
+
+**Detection signal:** Monitor for builds failing with `duration_s < 30` AND `iterations=0` — indicates pre-generation failure, not a pipeline failure. Check `error_message` — if `null` despite failed status, the process exited before pipeline.js could write an error.
+
+**Fix:** Re-authenticate via `claude auth logout && claude auth login`. Consider adding an auth health-check step at pipeline start: attempt a minimal `claude -p "ping"` call; if it fails, mark the build as `auth-failed` and skip the queue until re-auth is complete.
+
+**How to apply:** If builds are completing in <30 seconds with 0 iterations and no Slack error detail, run `claude -p "test" 2>&1` directly on the server to confirm auth state. Do not trust `claude auth status` alone.
