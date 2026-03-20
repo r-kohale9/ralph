@@ -2,6 +2,8 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const db = require('./lib/db');
 const slack = require('./lib/slack');
 const logger = require('./lib/logger');
@@ -190,8 +192,6 @@ function createApp(deps = {}) {
     const requestedBy = bodyRequestedBy || process.env.RALPH_SLACK_USER_ID || null;
 
     if (all) {
-      const fs = require('fs');
-      const path = require('path');
       const repoDir = process.env.RALPH_REPO_DIR || path.join(__dirname, 'repo');
       const templatesDir = path.join(repoDir, 'warehouse', 'templates');
 

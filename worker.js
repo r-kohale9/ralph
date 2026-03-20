@@ -1,11 +1,13 @@
 'use strict';
 
-const { Worker } = require('bullmq');
+const { Worker, Queue } = require('bullmq');
 const IORedis = require('ioredis');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { runPipeline, runTargetedFix } = require('./lib/pipeline');
 const db = require('./lib/db');
 const slack = require('./lib/slack');
 const gcp = require('./lib/gcp');
@@ -14,7 +16,7 @@ const sentry = require('./lib/sentry');
 const metrics = require('./lib/metrics');
 const { getSystemStats, startSystemMetrics } = metrics;
 
-const WORKER_ID = process.env.RALPH_WORKER_ID || require('crypto').randomUUID().slice(0, 8);
+const WORKER_ID = process.env.RALPH_WORKER_ID || crypto.randomUUID().slice(0, 8);
 
 // ─── Initialize observability + integrations ─────────────────────────────────
 sentry.init('ralph-worker');
@@ -243,8 +245,6 @@ async function handleFixJob(job) {
       throw new Error(`No spec found for ${gameId}`);
     }
   }
-
-  const { runTargetedFix } = require('./lib/pipeline');
 
   // Create Slack thread update
   const game = db.getGame(gameId);
@@ -936,7 +936,6 @@ const worker = new Worker(
     }, 2 * 60 * 1000);
     try {
       if (USE_NODE_PIPELINE) {
-        const { runPipeline } = require('./lib/pipeline');
         const gameDir = path.join(REPO_DIR, 'data', 'games', gameId, 'builds', String(buildId));
         const specFile = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
         fs.mkdirSync(gameDir, { recursive: true });
@@ -1058,7 +1057,7 @@ const worker = new Worker(
         const currentBuild = db.getBuild(buildId);
         if ((currentBuild?.retry_count || 0) === 0) {
           const buildQueue = worker.opts.connection
-            ? new (require('bullmq').Queue)('ralph-builds', { connection: worker.opts.connection })
+            ? new Queue('ralph-builds', { connection: worker.opts.connection })
             : null;
           if (buildQueue) {
             const newJob = await buildQueue.add('build', { gameId, retryOf: buildId });
