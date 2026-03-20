@@ -502,3 +502,119 @@ describe('Server integration: webhook without secret', () => {
     assert.equal(res.body.queued, 1);
   });
 });
+
+describe('Server integration: build deduplication', () => {
+  let server, mockQueue;
+
+  before((_, done) => {
+    mockQueue = createMockQueue();
+    const app = createApp({ queue: mockQueue, connection: createMockConnection() });
+    server = app.listen(0, done);
+  });
+
+  after((_, done) => {
+    server.close(done);
+  });
+
+  it('POST /api/build returns existing build when game already has a queued build', async () => {
+    // First build — should succeed
+    const res1 = await request(server, 'POST', '/api/build', { gameId: 'dedup-queued-game' });
+    assert.equal(res1.status, 200);
+    assert.equal(res1.body.queued, true);
+    const firstBuildId = res1.body.buildId;
+    assert.ok(firstBuildId > 0);
+
+    const beforeLen = mockQueue.jobs.length;
+
+    // Second build for same game — should be deduplicated
+    const res2 = await request(server, 'POST', '/api/build', { gameId: 'dedup-queued-game' });
+    assert.equal(res2.status, 200);
+    assert.equal(res2.body.deduplicated, true);
+    assert.equal(res2.body.queued, false);
+    assert.equal(res2.body.buildId, firstBuildId);
+    assert.equal(res2.body.status, 'queued');
+
+    // No new job should have been added to the queue
+    assert.equal(mockQueue.jobs.length, beforeLen);
+  });
+
+  it('POST /api/build with force:true bypasses deduplication when game is queued', async () => {
+    // First build — queued
+    const res1 = await request(server, 'POST', '/api/build', { gameId: 'dedup-force-game' });
+    assert.equal(res1.status, 200);
+    assert.equal(res1.body.queued, true);
+    const firstBuildId = res1.body.buildId;
+
+    const beforeLen = mockQueue.jobs.length;
+
+    // Force a second build — should create new build despite existing queued one
+    const res2 = await request(server, 'POST', '/api/build', { gameId: 'dedup-force-game', force: true });
+    assert.equal(res2.status, 200);
+    assert.equal(res2.body.queued, true);
+    assert.ok(res2.body.buildId > firstBuildId, 'force build should create a new build ID');
+    assert.equal(res2.body.deduplicated, undefined);
+
+    // A new job should have been added
+    assert.equal(mockQueue.jobs.length, beforeLen + 1);
+  });
+
+  it('POST /api/build skips approved game without force flag', async () => {
+    // Create a game and mark it approved
+    db.createGame('dedup-approved-game', { title: 'Approved Game' });
+    db.updateGameStatus('dedup-approved-game', 'approved');
+
+    const beforeLen = mockQueue.jobs.length;
+
+    const res = await request(server, 'POST', '/api/build', { gameId: 'dedup-approved-game' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.skipped, true);
+    assert.equal(res.body.buildId, null);
+    assert.ok(res.body.reason.includes('approved'));
+
+    // No new job should have been added
+    assert.equal(mockQueue.jobs.length, beforeLen);
+  });
+
+  it('POST /api/build with force:true rebuilds an approved game', async () => {
+    // Create a game and mark it approved
+    db.createGame('dedup-approved-force-game', { title: 'Approved Force Game' });
+    db.updateGameStatus('dedup-approved-force-game', 'approved');
+
+    const beforeLen = mockQueue.jobs.length;
+
+    const res = await request(server, 'POST', '/api/build', {
+      gameId: 'dedup-approved-force-game',
+      force: true,
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.queued, true);
+    assert.ok(res.body.buildId > 0);
+
+    // A new job should have been added
+    assert.equal(mockQueue.jobs.length, beforeLen + 1);
+  });
+
+  it('webhook deduplicates game already in queued state', async () => {
+    // Pre-create a queued build for the game
+    db.createBuild('dedup-webhook-game', null);
+
+    const beforeLen = mockQueue.jobs.length;
+
+    // Webhook push for the same game
+    const payload = JSON.stringify({
+      ref: 'refs/heads/main',
+      after: 'webhooksha',
+      commits: [{ added: ['warehouse/templates/dedup-webhook-game/spec.md'], modified: [], removed: [] }],
+    });
+    const res = await request(server, 'POST', '/webhook/github', payload, {
+      'x-github-event': 'push',
+      'content-type': 'application/json',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.queued, 0);
+    assert.equal(res.body.deduplicated, 1);
+
+    // No new job added
+    assert.equal(mockQueue.jobs.length, beforeLen);
+  });
+});
