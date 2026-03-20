@@ -34,14 +34,12 @@ npm run format:check   # Prettier check
 
 ## Testing
 
-Tests use Node.js built-in test runner (`node --test`). No external test framework.
+Tests use Node.js built-in test runner (`node --test`). No external test framework. Tests mock all external dependencies — no infrastructure needed.
 
 ```bash
-node --test test/*.test.js           # All 219 tests
-node --test test/db.test.js          # Single file
+node --test test/*.test.js    # All tests
+node --test test/db.test.js   # Single file
 ```
-
-Tests mock external dependencies (Redis, fetch, filesystem) — no infrastructure needed.
 
 **Test files:** db, games-learnings, gcp, llm, logger, mcp, metrics, sentry, server, slack, validate-static, validate-contract, worker, ralph-sh, e2e, proxy-contract, load, pipeline, failure-patterns.
 
@@ -53,45 +51,21 @@ Tests mock external dependencies (Redis, fetch, filesystem) — no infrastructur
 | worker.js | BullMQ worker: job processing, Slack threading, GCP upload, learnings |
 | ralph.sh | Bash pipeline: LLM generation + validation + deploy |
 | lib/db.js | SQLite: builds, games, learnings, failure_patterns tables + CRUD |
-| lib/metrics.js | Prometheus counters/gauges/histograms |
 | lib/validate-static.js | T1 static HTML checks (CLI tool, 10 error checks + 2 warnings) |
 | lib/validate-contract.js | T2 contract validation (gameState, postMessage, scoring contracts) |
 | lib/slack.js | Dual-mode Slack (Web API threading + webhook fallback), Events API handler |
-| lib/gcp.js | GCP Cloud Storage upload (optional dep, Application Default Credentials) |
-| lib/mcp.js | MCP server with 5 tools (register_spec, get_build_status, list_games, add_learning, get_learnings) |
-| lib/logger.js | Structured JSON logging (optional GCP) |
-| lib/sentry.js | Error monitoring (optional Sentry, v8 API normalized) |
 | lib/pipeline.js | Node.js pipeline (E3) + targeted fix: full pipeline + feedback-driven fix |
 | lib/llm.js | Node.js LLM client (used by pipeline.js and tests) |
 | nginx.conf | Nginx reverse proxy: TLS, rate limiting, security headers |
 | Dockerfile | Multi-stage build: node:20-slim, non-root user, healthcheck |
-| monitoring/alerts.yml | 6 Prometheus alert rules |
-| monitoring/grafana-dashboard.json | 5-row Grafana dashboard |
-| .eslintrc.js | ESLint config (strict mode, best practices, style rules) |
-| .prettierrc.json | Prettier config (single quotes, trailing commas, 120 width) |
 
 ## Environment
 
-Requires Node.js >=20, Redis for BullMQ. See `.env.example` for all config vars.
+Requires Node.js >=20, Redis for BullMQ. See `.env.example` for all config vars. **Critical:** `GITHUB_WEBHOOK_SECRET` required when `NODE_ENV=production`.
 
-Optional: `@sentry/node` (SENTRY_DSN), `@google-cloud/logging` (GOOGLE_CLOUD_PROJECT), `@slack/web-api` (SLACK_BOT_TOKEN), `@google-cloud/storage` (RALPH_GCP_BUCKET). These are `optionalDependencies` — install failures won't block the app.
+Key env vars: `RALPH_ENABLE_CACHE=1`, `RALPH_USE_NODE_PIPELINE=1`, `RALPH_DEPLOY_ENABLED=1`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_CHANNEL_ID`, `RALPH_GCP_BUCKET`, `RALPH_WAREHOUSE_DIR`, `RALPH_DEPLOY_DIR`.
 
-Required: `@modelcontextprotocol/sdk` and `zod` (in dependencies for MCP server).
-
-**Critical:** `GITHUB_WEBHOOK_SECRET` is required when `NODE_ENV=production`.
-
-**New env vars:**
-- `RALPH_ENABLE_CACHE=1` — Enable E6 spec caching (sha256-based)
-- `RALPH_CACHE_DIR` — Cache directory (default: `~/.ralph-cache`)
-- `RALPH_WAREHOUSE_DIR` — Warehouse directory for E9 spec validation
-- `RALPH_DEPLOY_ENABLED=1` — Enable E10 post-approval deployment
-- `RALPH_DEPLOY_DIR` — Deployment artifact directory
-- `RALPH_USE_NODE_PIPELINE=1` — Use Node.js pipeline (E3) instead of ralph.sh
-- `SLACK_BOT_TOKEN` — Slack Bot User OAuth Token for Web API (threading, Block Kit)
-- `SLACK_SIGNING_SECRET` — Slack signing secret for Events API signature verification
-- `SLACK_CHANNEL_ID` — Default Slack channel for game build threads
-- `RALPH_GCP_BUCKET` — GCP Cloud Storage bucket for game artifact uploads
-- `RALPH_GCP_PROJECT` — GCP project ID (optional, uses Application Default Credentials)
+Optional deps (install failures won't block): `@sentry/node`, `@google-cloud/logging`, `@slack/web-api`, `@google-cloud/storage`.
 
 ## Database Tables
 
@@ -109,37 +83,30 @@ Required: `@modelcontextprotocol/sdk` and `zod` (in dependencies for MCP server)
 | POST | /webhook/github | GitHub push webhook |
 | POST | /api/build | Manual build trigger |
 | GET | /api/builds | Build list + stats |
-| GET | /api/builds/:id | Build details |
-| GET | /api/games/:gameId/builds | Builds for a game |
 | GET/POST | /api/games | List/create games |
-| GET | /api/games/:gameId | Game details |
 | GET/POST | /api/learnings | List/create learnings |
 | POST | /api/fix | Trigger targeted fix |
 | POST/GET/DELETE | /mcp | MCP Streamable HTTP transport |
 | POST | /slack/events | Slack Events API handler |
-| GET | /api/failure-patterns | Failure patterns |
 | GET | /metrics | Prometheus metrics |
 | GET | /health | Health check |
 
 ## Code Style
 
-- `'use strict'` in all modules
-- CommonJS (`require`/`module.exports`)
-- No TypeScript
+- `'use strict'` in all modules, CommonJS (`require`/`module.exports`), no TypeScript
 - ESLint + Prettier configured (see `.eslintrc.js`, `.prettierrc.json`)
-- Express 5.x — async errors caught automatically, no try/catch needed
-- SQLite via better-sqlite3 (synchronous API)
+- Express 5.x — async errors caught automatically; SQLite via better-sqlite3 (synchronous)
 - `lastInsertRowid` must be wrapped in `Number()` (BigInt issue)
 
 ## Known Constraints
 
-- `llm.js` is used by `pipeline.js` (E3) and tests. ralph.sh still calls CLIProxyAPI via curl.
-- validate-static.js checks `id="gameContent"` via regex (improved from bare string match).
-- Worker supports dual-mode: bash (ralph.sh, default) or Node.js (pipeline.js, opt-in via `RALPH_USE_NODE_PIPELINE=1`).
+- `llm.js` used by `pipeline.js` (E3) and tests; `ralph.sh` still calls CLIProxyAPI via curl.
+- Worker supports dual-mode: bash (`ralph.sh`, default) or Node.js (`pipeline.js`, opt-in via `RALPH_USE_NODE_PIPELINE=1`).
+- `validate-static.js` checks `id="gameContent"` via regex.
 
 ## Server Operations (GCP: 34.93.153.206)
 
-SSH key: `~/.ssh/google_compute_engine`, user: `the-hw-app`. Cannot SCP directly to `/opt/ralph` (permission denied) — use `/tmp` staging:
+SSH key: `~/.ssh/google_compute_engine`, user: `the-hw-app`. Use `/tmp` staging (no direct SCP to `/opt/ralph`):
 
 ```bash
 # Deploy a file
@@ -152,70 +119,95 @@ ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "journalctl -u ralp
 # Queue a build
 ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "curl -s -X POST http://localhost:3000/api/build -H 'Content-Type: application/json' -d '{\"gameId\":\"doubles\"}'"
 
-# Kill a stuck/useless build
-ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "
-  sudo systemctl kill --signal=SIGKILL ralph-worker
-  redis-cli DEL 'bull:ralph-builds:{jobId}:lock'
-  sleep 2 && sudo systemctl start ralph-worker
-"
-# Then mark the build failed in DB via:
+# Kill a stuck build + mark failed
+ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "sudo systemctl kill --signal=SIGKILL ralph-worker && redis-cli DEL 'bull:ralph-builds:{jobId}:lock' && sleep 2 && sudo systemctl start ralph-worker"
 ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && node -e \"require('./lib/db').failBuild(199, 'reason')\""
 ```
 
-**When to kill a build:** Kill immediately if:
-- Tests fail due to infrastructure issues (e.g. `data-phase` attribute missing because new harness not deployed)
-- The underlying pipeline code was wrong when the build started (redeploy first, then requeue)
-- The build is on iteration 2+ with 0 pass rate and the HTML is clearly wrong
-- The same test fails in iteration 1 and 2 with the same error — root cause is clear, don't wait for iteration 3
-- Never let a broken build run 3 full iterations wasting tokens — kill early and fix the root cause first.
+**Kill a build immediately if:** infrastructure issues cause test failures, pipeline code was wrong at build start, iteration 2+ with 0 pass rate and clearly wrong HTML, or same test fails iterations 1 and 2 with same error.
 
-**Parallel work rule (CRITICAL):** Never sit idle waiting for a build. While a build runs:
-- Analyze iteration-1 failures and diagnose root cause
-- Fix code, commit, push, deploy the fix (worker will pick it up for the next build)
-- Kill the running build if the root cause is now known and it can't recover
-- Update docs, memory, or other tasks in parallel
-- Queue the next fixed build before the broken one finishes
+**Parallel work rule (CRITICAL):** Never idle waiting for a build — diagnose failures, fix code, deploy, and queue the next build in parallel.
 
-## Test Harness Architecture (Phase 1 — implemented)
+## Test Harness Architecture
 
-Every generated HTML gets `<script id="ralph-test-harness">` injected by pipeline (not LLM):
-- `window.__ralph` — interaction-type-specific shortcuts: `.answer()`, `.endGame()`, `.jumpToRound()`, `.setLives()`, `.getState()`, `.getLastPostMessage()`
-- `syncDOMState()` — keeps `data-phase`/`data-lives`/`data-round`/`data-score` on `#app` current; runs every 500ms. Uses `gameState.phase` if present (CDN games track their own phase); falls back to computed value. NEVER overwrite if game uses `setPhase()`.
-- postMessage capture — `window.__lastPostMessage` for contract tests
+Every generated HTML gets `<script id="ralph-test-harness">` injected by pipeline (not LLM). Key APIs:
+- `window.__ralph` — `.answer()`, `.endGame()`, `.jumpToRound()`, `.setLives()`, `.getState()`, `.getLastPostMessage()`
+- `syncDOMState()` — syncs `data-phase`/`data-lives`/`data-round`/`data-score` on `#app` every 500ms
+- Shared test helpers: `waitForPhase(page, phase)`, `getLives/getScore/getRound(page)`, `skipToEnd(page, reason)`, `answer(page, correct)`
+- Phase normalization: `game_over` → `gameover`, `game_complete` → `results`, `start_screen` → `start`
+- `extractSpecMetadata(specContent)` and `injectTestHarness(html, specMeta)` exported from `lib/pipeline.js`
 
-Shared boilerplate helpers (in every spec file, not LLM-generated):
-- `waitForPhase(page, phase)` — reads `data-phase` on `#app`; use instead of `toBeVisible` for phase transitions
-- `getLives(page)`, `getScore(page)`, `getRound(page)` — integers from `data-*`, not text/emoji
-- `skipToEnd(page, reason)` — calls `window.__ralph.endGame(reason)` directly
-- `answer(page, correct)` — calls `window.__ralph.answer()` and waits for `isProcessing` to clear
+CDN games must expose:
+- `window.endGame = endGame`, `window.restartGame = restartGame`, `window.nextRound = nextRound` — local functions defined in DOMContentLoaded are not on window
+- `window.gameState = gameState` — syncDOMState() reads `window.gameState`; if not on window, `data-phase` is NEVER set and ALL `waitForPhase()` calls timeout
 
-`extractSpecMetadata(specContent)` reads interaction type, rounds, lives, star logic from spec.
-`injectTestHarness(html, specMeta)` appends the harness; idempotent (won't double-inject).
-Both exported from `lib/pipeline.js`.
+These are now checked by T1 static validator (sections 5b3, 5d) and enforced as rules 20/21 in the gen prompts.
 
-**Harness known issues:**
-- `window.__ralph.endGame('victory')` calls `window.endGame(reason)`. CDN games define `endGame` as a local function inside DOMContentLoaded — NOT on window. Fix prompt now requires `window.endGame = endGame` in the HTML (added to CRITICAL CDN CONSTRAINTS in fix prompt).
-- Phase normalization: harness maps `game_over` → `gameover`, `game_complete` → `results`, `start_screen` → `start`. Tests use normalized names.
-- 0/0 test result (no tests ran) means HTML is broken by last fix — pipeline restores best snapshot.
+## DOM Snapshot & Test Generation Context
 
-## Pipeline Fix Lessons (hard-won)
+`captureGameDomSnapshot()` (lib/pipeline.js Step 2.5) runs headless Playwright against the generated game and captures:
+- Element IDs/classes/visibility from start screen and game screen — injected into test-gen prompts as "ACTUAL RUNTIME DOM"
+- `window.gameState` shape — property names and value types (e.g. `pattern: Array(4) of number`, `lives: number 3`) injected as "WINDOW.GAMESTATE SHAPE" section, preventing test generators from guessing wrong data structures (Lesson 42)
+- `window.gameState?.content` saved to `tests/game-content.json` for fallbackContent when DOM snapshot rounds are empty
 
-1. **extractHtml** returns entire LLM output when `<!DOCTYPE` appears anywhere. Fixed to slice from first DOCTYPE position (LLMs sometimes add analysis text before the HTML).
-2. **Re-clicking `.correct` cells** times out in Playwright — CSS `pointer-events: none`. Use `{ force: true }` for re-click tests. Fix prompt includes rule; post-gen fixup patches it automatically.
-3. **0/0 test results** = page broken by last fix. Restored best HTML immediately, skip triage.
-4. **`game_over` phase** — game sets `gameState.phase = 'game_over'` (underscore) but tests expect `'gameover'`. Harness normalizes automatically.
-5. **Local `endGame` function** — CDN games define `endGame` inside DOMContentLoaded, not on `window`. Fix prompt now requires `window.endGame = endGame` exposure.
-6. **Triage `window.__ralph undefined`** — `TypeError: Cannot read properties of undefined (reading 'setLives')` means `window.__ralph` itself is undefined → page has JS error → `fix_html`, NOT `skip_test`. Added KNOWN HTML BUGS section to triage prompt.
-7. **Stale BullMQ job replay** — after SIGKILL, active jobs replay on worker restart. Always fail stale DB builds and obliterate queue before requeuing.
-8. **gameState.phase** — must be set at every state transition: `'playing'`, `'transition'`, `'gameover'`, `'results'`. Added as gen prompt rule 15 and fix prompt CDN constraint.
-9. **Early review** — now checks full spec verification checklist (not just 5 items). Catches endGame guard, signalPayload, 100dvh, etc. before test generation.
-10. **MAX_REVIEW_FIX_ATTEMPTS = 3** — increased from 2. Review fix prompt: "Fix ALL issues in ONE pass. Do NOT change anything not mentioned."
-11. **PROOF: doubles game APPROVED** — build 204 (2026-03-19). game-flow: 2/3, mechanics: 2/2, level-progression: 1/1, contract: 1/1. Review APPROVED first pass.
-12. **Playwright cwd fix** — Playwright must be run with `cwd: gameDir` and relative spec paths (not absolute). Absolute paths fail silently: 0/0 results + "test.beforeEach() not expected here" error because Playwright can't match absolute paths to testDir-scanned files.
-13. **Warehouse HTML must have 100dvh + correct gameover phase** — when pipeline overwrites warehouse with approved build, any manual fixes (100dvh CSS, `setPhase('gameover')` in handleGameOver) are lost. Re-apply after each warehouse update.
-14. **gemini-3.1-pro-preview** — correct proxy model name for review step (not `gemini-2.5-pro-preview`). Check `curl -H "Authorization: Bearer $PROXY_KEY" http://localhost:8317/v1/models` for valid names.
-15. **PROOF: doubles APPROVED with 0 fix iterations** — build 208 (2026-03-19). game-flow: 3/3, mechanics: 2/2, level-progression: 1/1, edge-cases: 2/4 (2 skipped), contract: 2/2. All passing on iteration 1.
+If snapshot fails (timeout on CDN transition slot), falls back to static HTML element extraction (no runtime state shape).
+
+## Pipeline Lessons
+
+See `docs/lessons-learned.md` for accumulated build lessons and proof log. Read before diagnosing failures or modifying pipeline code.
+
+## Build Management
+
+See `docs/build-manager-agent.md` for kill criteria, lifecycle commands, and monitoring rules. Kill builds the moment they've served their purpose — never wait for a build running on old pipeline code or stuck at 0% pass rate.
 
 ## Roadmap
 
-See `ROADMAP.md` for full tracking across 6 pillars (52 items, 51 done, 1 planned).
+See `ROADMAP.md` for full tracking across all pillars.
+
+## Agent Self-Improvement (REQUIRED)
+
+After every build run, pipeline fix, new failure pattern, or architectural decision:
+
+1. **Update `docs/lessons-learned.md`** — add any new failure pattern with the fix and proof
+2. **Update `docs/build-manager-agent.md`** — refine kill criteria and lifecycle rules based on what was observed
+3. **Update `CLAUDE.md`** — keep it accurate as the single source of truth for any new agent starting a session
+4. **Update `ROADMAP.md`** — mark completed items done, add newly discovered improvements as planned
+
+Goal: any future agent reading these docs should operate without rediscovering known patterns. Reliability, availability, consistency, and efficiency improve only if lessons are captured immediately — not after the fact.
+
+---
+
+## Mandatory Rules
+
+These rules are non-negotiable. Violating them causes data loss, broken builds, or wasted compute. Every agent must follow them unconditionally.
+
+### 1. Never kill an active build without checking DB status first
+`sudo systemctl restart ralph-worker` kills any running pipeline mid-LLM-call. Before restarting the worker, always run:
+```bash
+ssh ... "cd /opt/ralph && node -e \"const db=require('./lib/db'); console.log(db.getRecentBuilds(3).map(b=>b.game_id+' '+b.status).join('\n'))\""
+```
+Only restart if no build has `status='running'`. If one is running, wait for it or kill it explicitly with `db.failBuild()` first.
+
+### 2. Never auto-restart based on wall-clock time alone
+A build with `iterations=0` in the DB does NOT mean it's stuck — it means the pipeline is actively running LLM calls (DB is only updated at phase boundaries). The only reliable stuck signal is `status='running'` for >45 minutes with no Slack progress messages. Always check Slack thread activity before restarting.
+
+### 3. Never idle waiting for a build — work in parallel
+While a build runs (~25-35 min), diagnose failures, implement fixes, run tests, and deploy code. The pipeline runs autonomously. An agent's job is to maximize throughput, not watch builds.
+
+### 4. Deploy to server before re-queuing
+Always deploy the latest `lib/pipeline.js` (and other changed files) to the server before queuing a new build. A build started on old code wastes a full pipeline run. Sequence: fix code → `npm test` → commit → `scp` → `systemctl restart` → queue build.
+
+### 5. Kill a build immediately if these conditions hold
+- Running on pipeline code that had a known bug (deploy first, then re-queue)
+- Iteration 1 returns 0% game-flow AND the HTML has an obvious init failure (don't wait 5 iterations)
+- Same test fails iterations 1 and 2 with identical error (triage isn't working — kill and fix)
+- Infrastructure issue causing test failures (page crash, port conflict, etc.)
+
+### 6. Always update docs after every build cycle
+After each build run or pipeline fix: update `docs/lessons-learned.md` with new patterns, update `ROADMAP.md` with completed/planned items, update this file if architecture changed. Future agents must not rediscover known patterns.
+
+### 7. Never commit secrets or credentials
+`.env`, `config.yaml`, `auths/` are gitignored. Never stage or commit files containing API keys, tokens, or OAuth credentials. Run `git status` before every commit.
+
+### 8. Read CLAUDE.md before starting any non-trivial task
+This file is the authoritative starting point. Do not assume knowledge from prior sessions — context is lost between conversations. Read `docs/lessons-learned.md` before diagnosing any pipeline failure.

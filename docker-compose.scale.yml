@@ -1,0 +1,65 @@
+# Ralph Pipeline — Scaled deployment
+# Usage: docker compose -f docker-compose.scale.yml up --scale worker=3
+#
+# All workers share the same Redis queue. Each worker processes builds independently.
+# Warehouse templates are read-only (bind mount). Build outputs are per-container local.
+# GCP upload (RALPH_GCP_BUCKET) handles persistence across workers.
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  server:
+    build: .
+    command: node server.js
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    volumes:
+      - warehouse:/app/warehouse:ro
+      - ./data:/app/data
+
+  worker:
+    build: .
+    command: node worker.js
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+      - RALPH_CONCURRENCY=1
+      # RALPH_WORKER_ID auto-generated per container
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    volumes:
+      - warehouse:/app/warehouse:ro
+      - /tmp/ralph-builds:/app/data  # per-worker temp storage; results uploaded to GCS
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: '2'
+
+volumes:
+  redis-data:
+  warehouse:
+    # Populate with: docker volume create ralph_warehouse && docker run --rm -v ralph_warehouse:/data -v ./warehouse:/src alpine cp -r /src/. /data/

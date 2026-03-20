@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 19, 2026 (generic pipeline + multi-game scale validation)
+**Last updated:** March 20, 2026 (spec pre-validation, build auto-retry, iteration HTML URL audit trail done)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -35,7 +35,7 @@
 | T2 contract validation layer | done | lib/validate-contract.js | Validates gameState shape, postMessage contracts, scoring/init contracts |
 | Load/stress tests | done | test/load.test.js | 47-template bulk creates, rapid cycles, 100+ record performance, metrics throughput |
 
-**Test count: 219 tests, 52 suites, 0 failures**
+**Test count: 338 tests, 52 suites, 0 failures**
 
 ## P2 — Spec Compliance & Feature Completeness
 
@@ -83,6 +83,11 @@
 | E2 smart retry escalation | done | ralph.sh, diagnosis mode on iteration 3+ |
 | E3 migrate CLI to API | done | lib/pipeline.js, worker.js: dual-mode (bash/Node.js); opt-in via RALPH_USE_NODE_PIPELINE=1 |
 | E4 warehouse-aware context | planned | Deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt |
+| E11 parallel build generation | done | lib/llm.js per-model semaphore (RALPH_MODEL_CONCURRENCY); RALPH_CONCURRENCY already wired in worker.js |
+| E12 parallel test generation | done | lib/pipeline.js | Promise.all() across 5 categories in Step 2b; saves 60-100s per build |
+| E13 model routing (triage/global/learnings) | done | lib/pipeline.js | TRIAGE_MODEL (gpt-4.1-mini), GLOBAL_FIX_MODEL (claude-opus-4-6), LEARNINGS_MODEL (gpt-4.1-mini) |
+| E14 hardware resource gate | done | lib/metrics.js, worker.js | lib/metrics.js system gauges (CPU/RAM/disk); worker.js gate before job start (RALPH_CPU_GATE, RALPH_RAM_GATE_MB); docs/scale-config.md |
+| E15 distributed worker support | done | worker.js, docker-compose.scale.yml | RALPH_WORKER_ID, worker_id in builds table, docker-compose.scale.yml, docs/distributed.md |
 | E6 caching / incremental runs | done | ralph.sh: check_cache/update_cache with sha256sum; gated by RALPH_ENABLE_CACHE=1 |
 | E7 failure pattern database | done | lib/db.js, worker.js, server.js: failure_patterns table, categorization, /api/failure-patterns endpoint |
 | E8 diff-based fix prompts | done | ralph.sh: sends only `<script>` section for HTML >20KB on iteration 2+ |
@@ -105,7 +110,34 @@
 | Review rejection → targeted fix loop | done | lib/pipeline.js | REJECTED triggers up to 2 targeted HTML fix iterations using rejection reason, then re-reviews |
 | Autonomous spec → APPROVED pipeline | done | lib/pipeline.js, worker.js | FAIL/REJECT → triage → targeted fix → retest → re-review loop, fully autonomous |
 | Generic pipeline (all game types) | done | lib/pipeline.js, validate-static.js, validate-contract.js | Test gen uses DOM snapshot for selectors; boilerplate is game-agnostic; CDN contract patterns accepted |
-| Multi-game scale validation | in-progress | warehouse/templates/ | 46 pre-built games queued (builds #143-187); associations as pioneer; fix: polling beforeEach |
+| Full error output in fix prompts | done | lib/pipeline.js collectFailures() | Full error message (600 char limit) vs first line only; fix LLM sees actual vs. expected values |
+| Deterministic pre-triage | done | lib/pipeline.js | Skip triage LLM for __ralph undefined, visibilityState, pointer-events patterns — saves 30-40% of triage calls |
+| E8 script-only fix (iteration 2+) | done | lib/pipeline.js | Sends only <script> sections for large HTML on iteration 2+; merges fix back into full HTML |
+| Architecture C: global cross-batch fix loop | done | lib/pipeline.js Step 3c | Global fix after per-batch loops; collects all failing batches for cross-category root cause |
+| Contract auto-fix at Step 1b | done | lib/pipeline.js | lib/pipeline.js: contract errors trigger FIX_MODEL call before test loop |
+| Category results in review prompt | done | lib/pipeline.js | lib/pipeline.js: game-flow 0% + overall <70% fails before review; category scorecard in review prompt |
+| Review prompt consolidation | done | lib/pipeline.js | REVIEW_SHARED_GUIDANCE const shared by early-review, re-review, and final review; eliminates drift |
+| Spec-derived fallbackContent | done | lib/pipeline.js | extractSpecRounds() parses spec markdown tables/lists when DOM snapshot rounds are empty |
+| Slack log restructure (Block Kit) | done | worker.js, lib/slack.js | Block Kit templates with dividers, → Next: narration, pipeline-architecture.md |
+| Step 0 spec pre-validation | done | lib/pipeline.js | validateSpec() checks: short spec, missing heading, missing mechanics/scoring/CDN sections; hard fail on errors, warnings to Slack |
+| Build auto-retry (RALPH_AUTO_RETRY) | done | worker.js, lib/db.js | Requeues builds scoring 0/total once; retry_count in DB prevents chains; gated by env var |
+| Iteration HTML URL audit trail | done | lib/db.js, worker.js | iteration_html_urls column tracks all fix snapshots per build; count shown in Slack summary |
+| LLM call cost tracking (per-build USD estimate) | done | lib/llm.js, lib/pipeline.js, lib/slack.js, lib/db.js | Token accumulation per model; MODEL_COSTS map; total_cost_usd in DB + Slack |
+| Truncated HTML detection + generation retry | done | lib/pipeline.js, lib/validate-static.js | isHtmlTruncated() checks </html>/script tags; retries up to 3x; T1 now errors on missing </html> |
+| Auto-delete stale warehouse HTML on 0% game-flow iter 1 | done | lib/pipeline.js | Detects init-failure pattern + warehouse HTML source → deletes + regenerates; prevents 3-batch waste |
+| CDN URL constraint + auto-fix in generation | done | lib/pipeline.js | Rule 18 in gen prompt; post-gen cleanup replaces cdn.mathai.ai → cdn.homeworkapp.ai |
+| Conditional beforeEach post-processing | done | lib/pipeline.js | Post-processing respects hasTransitionSlot; ${transitionSlotId} hallucination cleanup |
+| Orphaned build auto-cleanup at worker startup | done | worker.js, lib/db.js | cleanupOrphanedBuilds() marks running builds failed at startup; getRunningBuilds() in db.js |
+| waitForPackages T1 static check + gen/fix constraints | done | lib/validate-static.js, lib/pipeline.js | T1 validates 10000ms timeout + throw; rules 19/20/21 in gen prompt; all fix prompts updated |
+| sound.register() T1 static check | done | lib/validate-static.js | T1 errors on FeedbackManager + sound.register() usage; gen/fix/global prompts forbid it |
+| CDN window exposure T1 static check + gen rules | done | lib/validate-static.js, lib/pipeline.js | T1 checks window.endGame assignment when DOMContentLoaded present; rule 21 in gen prompt |
+| endGame double-call guard in gen prompts | done | lib/pipeline.js | Rule 20: if(gameState.gameEnded)return pattern; added to all fix prompts |
+| Static re-validation after Step 1b fix | done | lib/pipeline.js | Re-runs runStaticValidation() after LLM fix; logs remaining errors; emits partial event if not fully fixed |
+| window.gameState shape in DOM snapshot | done | lib/pipeline.js | captureGameDomSnapshot() captures actual property names/types from window.gameState; injected into test-gen so LLM uses real data shapes not guesses |
+| Spec-derived test generation hints | done | lib/pipeline.js | extractTestGenerationHints() detects multi-cell/timed-flash/learn-recall/sequential-step patterns from spec; injects targeted warnings into test-gen prompt |
+| Size-drop continue-to-iter-2 on truncation | done | lib/pipeline.js | When iter 1 full-HTML fix returns near-empty (>90% shrink), continue to iter 2 (E8 script-only) instead of breaking fix loop |
+| Behavioral transcript (Step 2.5b) | done | lib/pipeline.js | captureBehavioralTranscript() fires game_init, observes correct/wrong interactions, captures postMessage — injected into test-gen prompt as ground truth |
+| Multi-game scale validation | in-progress | warehouse/templates/ | 47 games queued; 1 APPROVED (match-the-cards), visual-memory + 4 more in queue with latest fixes |
 
 ---
 
@@ -118,9 +150,9 @@
 | P2 Spec Compliance | 6 | 0 | 6 |
 | P3 DevOps & Operations | 11 | 0 | 11 |
 | P4 Code Quality | 6 | 0 | 6 |
-| P5 Scalability | 8 | 1 | 9 |
-| P6 Test Generation Quality | 7 | 5 | 12 |
-| **Total** | **58** | **6** | **64** |
+| P5 Scalability | 13 | 1 | 14 |
+| P6 Test Generation Quality | 38 | 1 | 40 |
+| **Total** | **94** | **2** | **97** |
 
 ## What's Next
 

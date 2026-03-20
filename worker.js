@@ -12,6 +12,9 @@ const gcp = require('./lib/gcp');
 const logger = require('./lib/logger');
 const sentry = require('./lib/sentry');
 const metrics = require('./lib/metrics');
+const { getSystemStats, startSystemMetrics } = metrics;
+
+const WORKER_ID = process.env.RALPH_WORKER_ID || require('crypto').randomUUID().slice(0, 8);
 
 // ─── Initialize observability + integrations ─────────────────────────────────
 sentry.init('ralph-worker');
@@ -28,9 +31,16 @@ const REPO_DIR = process.env.RALPH_REPO_DIR || path.join(__dirname, 'repo');
 const RALPH_SCRIPT = path.join(__dirname, 'ralph.sh');
 const USE_NODE_PIPELINE = process.env.RALPH_USE_NODE_PIPELINE === '1';
 
+// Auto-retry: requeue builds that score 0/total tests (gated, max 1 retry per build)
+const AUTO_RETRY = process.env.RALPH_AUTO_RETRY === '1';
+
 // Rate limiter: max 10 builds per hour
 const RATE_LIMIT_MAX = parseInt(process.env.RALPH_RATE_MAX || '10', 10);
 const RATE_LIMIT_DURATION = parseInt(process.env.RALPH_RATE_DURATION || '3600000', 10);
+
+// Resource gate thresholds
+const CPU_GATE_PCT = parseFloat(process.env.RALPH_CPU_GATE || '85');
+const RAM_GATE_MB = parseFloat(process.env.RALPH_RAM_GATE_MB || '512');
 
 // ─── E7: Failure categorization ───────────────────────────────────────────────
 function categorizeFailure(failureDesc) {
@@ -210,7 +220,7 @@ async function handleFixJob(job) {
   const { gameId, buildId, feedbackPrompt } = job.data;
   logger.info(`Processing targeted fix for ${gameId}`, { gameId, buildId, event: 'fix_start' });
 
-  if (buildId) db.startBuild(buildId);
+  if (buildId) db.startBuild(buildId, { workerId: WORKER_ID });
 
   // Resolve latest build dir — targeted fix patches the most recent generated HTML
   const gameBase = path.join(REPO_DIR, 'data', 'games', gameId);
@@ -288,10 +298,23 @@ const worker = new Worker(
       return handleFixJob(job);
     }
 
-    const { gameId, commitSha, buildId, specUrl, specContent } = job.data;
+    const { gameId, commitSha, buildId, specUrl, specContent, requestedBy } = job.data;
     let { specPath } = job.data;
 
+    // ─── Resource gate ────────────────────────────────────────────────────────
+    const stats = await getSystemStats();
+    if (stats.cpuPct > CPU_GATE_PCT || stats.freeMemMb < RAM_GATE_MB) {
+      logger.warn(
+        `[worker] Resource gate: CPU=${stats.cpuPct.toFixed(1)}% RAM_FREE=${stats.freeMemMb.toFixed(0)}MB — delaying 30s`,
+      );
+      await new Promise((r) => setTimeout(r, 30000));
+      // re-check once after delay (don't loop — just delay once and proceed)
+    }
+
     logger.info(`Processing job ${job.id}: ${gameId}`, { gameId, buildId, event: 'build_start' });
+    if (job.data.retryOf) {
+      logger.info(`[worker] This is an auto-retry of build #${job.data.retryOf}`);
+    }
     metrics.recordBuildStarted(gameId);
     const buildStartTime = Date.now();
 
@@ -300,7 +323,7 @@ const worker = new Worker(
 
     // Update DB: build started
     if (buildId) {
-      db.startBuild(buildId);
+      db.startBuild(buildId, { workerId: WORKER_ID });
     }
 
     // Pipeline model constants (mirror pipeline.js defaults)
@@ -319,7 +342,7 @@ const worker = new Worker(
       threadInfo = { ts: game.slack_thread_ts, channel: game.slack_channel_id };
       await slack.postThreadUpdate(
         threadInfo.ts, threadInfo.channel,
-        `🔄 *Build #${buildId} started* — ${gameId}\nGen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}`,
+        `🔄 *Build #${buildId} started* — ${gameId}\nGen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}${requestedBy ? `\ncc: <@${requestedBy}>` : ''}`,
       );
     } else {
       // Upload spec (await so link is ready for opener)
@@ -349,6 +372,7 @@ const worker = new Worker(
         `*Status:* 🔄 Building...`,
         `*Models:* Gen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}`,
         linksLine || null,
+        requestedBy ? `cc: <@${requestedBy}>` : null,
       ].filter(Boolean).join('\n');
 
       threadInfo = await slack.createGameThread(gameId, {
@@ -374,6 +398,11 @@ const worker = new Worker(
       }
     }
 
+    // ── Block Kit helpers ────────────────────────────────────────────────────
+    function divider() { return { type: 'divider' }; }
+    function mrkdwn(text) { return { type: 'section', text: { type: 'mrkdwn', text } }; }
+    function nextStep(text) { return { type: 'context', elements: [{ type: 'mrkdwn', text: `→ *Next:* ${text}` }] }; }
+
     // Progress callback for Slack thread updates
     const phaseStarts = {};
     const onProgress = (step, detail) => {
@@ -382,31 +411,46 @@ const worker = new Worker(
       const now = Date.now();
       if (!phaseStarts[step]) phaseStarts[step] = now;
 
+      // ── generate-html — suppress; post happens on html-ready ───────────────
+      if (step === 'generate-html') {
+        phaseStarts['generate-html'] = now;
+        return;
+      }
+
       // ── html-ready ──────────────────────────────────────────────────────────
       if (step === 'html-ready' && detail?.htmlFile) {
         const sizeKb = detail.size ? `${Math.round(detail.size / 1024)}KB` : '?KB';
-        const timeStr = detail.time != null ? `${detail.time}s` : '?s';
+        const timeStr = detail.time != null ? `+${detail.time}s` : '';
         const model = detail.model || pipelineGenModel;
+        const headerText = `✅ *Step 1 — HTML Generated*${timeStr ? ` · ${timeStr}` : ''}`;
+        const bodyText = `Model: \`${model}\` · Size: ${sizeKb}`;
         if (gcp.isEnabled()) {
           gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile, { suffix: 'generated' }).then((gcpUrl) => {
             if (gcpUrl) {
               if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
               db.updateGameGcpUrl(gameId, gcpUrl);
-              slack.postThreadUpdate(
-                threadInfo.ts, threadInfo.channel,
-                `✅ *HTML generated* — ${sizeKb} | ${timeStr} | ${model}\n${slack.formatLink(gcpUrl, 'View HTML')}`,
-              ).catch(() => {});
-            } else {
-              slack.postThreadUpdate(
-                threadInfo.ts, threadInfo.channel,
-                `✅ *HTML generated* — ${sizeKb} | ${timeStr} | ${model}`,
-              ).catch(() => {});
             }
+            const blocks = [
+              divider(),
+              mrkdwn(`${headerText}\n${bodyText}${gcpUrl ? `\n${slack.formatLink(gcpUrl, 'View generated HTML')}` : ''}`),
+              nextStep('Static + contract validation'),
+            ];
+            slack.postThreadUpdate(
+              threadInfo.ts, threadInfo.channel,
+              `${headerText}\n${bodyText}`,
+              { blocks },
+            ).catch(() => {});
           }).catch(() => {});
         } else {
+          const blocks = [
+            divider(),
+            mrkdwn(`${headerText}\n${bodyText}`),
+            nextStep('Static + contract validation'),
+          ];
           slack.postThreadUpdate(
             threadInfo.ts, threadInfo.channel,
-            `✅ *HTML generated* — ${sizeKb} | ${timeStr} | ${model}`,
+            `${headerText}\n${bodyText}`,
+            { blocks },
           ).catch(() => {});
         }
         return;
@@ -419,109 +463,172 @@ const worker = new Worker(
         const errLines = detail?.errors ? detail.errors.split('\n').filter((l) => l.trim().startsWith('✗') || l.trim().startsWith('MISSING')) : [];
         const issueList = errLines.slice(0, 3).map((e) => `• ${e.trim()}`).join('\n');
         const more = errLines.length > 3 ? `\n…(${errLines.length - 3} more)` : '';
-        slack.postThreadUpdate(
-          threadInfo.ts, threadInfo.channel,
-          `⚠️ *Static validation failed* — auto-fixing | ${fixModel}\n${issueList || 'see logs'}${more}`,
-        ).catch(() => {});
+        const bodyText = `⚠️ *Step 1a — Static Validation Failed* — auto-fixing with \`${fixModel}\`\n${issueList || 'see logs'}${more}`;
+        const blocks = [
+          divider(),
+          mrkdwn(bodyText),
+          nextStep('Apply static fix then continue'),
+        ];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
         return;
       }
 
       // ── static-validation-fixed ─────────────────────────────────────────────
       if (step === 'static-validation-fixed') {
-        const elapsed = phaseStarts['static-fix'] ? `${Math.round((now - phaseStarts['static-fix']) / 1000)}s` : '';
-        slack.postThreadUpdate(
-          threadInfo.ts, threadInfo.channel,
-          `✅ *Static validation fixed*${elapsed ? ` — ${elapsed}` : ''}`,
-        ).catch(() => {});
+        const elapsed = phaseStarts['static-fix'] ? `+${Math.round((now - phaseStarts['static-fix']) / 1000)}s` : '';
+        const bodyText = `✅ *Step 1a — Static Validation Fixed*${elapsed ? ` · ${elapsed}` : ''}`;
+        const blocks = [
+          divider(),
+          mrkdwn(bodyText),
+          nextStep('Contract validation'),
+        ];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
         return;
       }
 
-      // ── generate-tests ──────────────────────────────────────────────────────
+      // ── static-validation-passed ────────────────────────────────────────────
+      // Suppress — already covered by html-ready or static-validation-fixed context
+      if (step === 'static-validation-passed') return;
+
+      // ── early-review-approved (NEW) ─────────────────────────────────────────
+      if (step === 'early-review-approved') {
+        const elapsed = phaseStarts['generate-html'] ? Math.round((now - phaseStarts['generate-html']) / 1000) : null;
+        const elapsedStr = elapsed != null ? ` · total: ${elapsed}s` : '';
+        const bodyText = `✅ *Step 1c — Early Review: APPROVED*${elapsedStr}`;
+        const blocks = [
+          divider(),
+          mrkdwn(bodyText),
+          nextStep('Generating test cases from spec'),
+        ];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
+        return;
+      }
+
+      // ── early-review-rejected (NEW/updated) ─────────────────────────────────
+      if (step === 'early-review-rejected') {
+        const elapsed = phaseStarts['generate-html'] ? Math.round((now - phaseStarts['generate-html']) / 1000) : null;
+        const elapsedStr = elapsed != null ? ` · total: ${elapsed}s` : '';
+        const fixModel = detail?.fixModel || pipelineFixModel;
+        const bodyText = `🔸 *Step 1c — Early Review: REJECTED*${elapsedStr}\nApplying fix with \`${fixModel}\`...`;
+        const blocks = [
+          divider(),
+          mrkdwn(bodyText),
+          nextStep('Re-review after fix'),
+        ];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
+        return;
+      }
+
+      // ── generate-tests — suppress; post on tests-generated ─────────────────
       if (step === 'generate-tests') {
         phaseStarts['generate-tests'] = now;
+        return;
+      }
+
+      // ── tests-generated ─────────────────────────────────────────────────────
+      if (step === 'tests-generated') {
+        const elapsed = phaseStarts['generate-tests'] ? `+${Math.round((now - phaseStarts['generate-tests']) / 1000)}s` : '';
         const model = detail?.model || pipelineTestModel;
+        const total = detail?.totalTests ?? '?';
+        const cats = detail?.categories || {};
+        const catLine = Object.entries(cats).map(([k, v]) => `${k}: ${v}`).join(' · ');
+        const batches = pipelineMaxIterations;
+        const headerText = `🧪 *Step 2 — Tests Generated*${elapsed ? ` · ${elapsed}` : ''}`;
+        const bodyText = `Model: \`${model}\` · ${total} test cases${catLine ? `\n${catLine}` : ''}`;
+        const blocks = [
+          divider(),
+          mrkdwn(`${headerText}\n${bodyText}`),
+          nextStep(`Test → fix loop · ${Object.keys(cats).length || 5} categories · max ${pipelineMaxIterations} iterations`),
+        ];
         slack.postThreadUpdate(
           threadInfo.ts, threadInfo.channel,
-          `🧪 *Generating tests* — ${model}`,
+          `${headerText}\n${bodyText}`,
+          { blocks },
         ).catch(() => {});
+
+        // Also upload test cases to GCP if available via test-cases-ready (handled separately)
         return;
       }
 
       // ── batch-start ─────────────────────────────────────────────────────────
       if (step === 'batch-start') {
         phaseStarts[`batch-${detail?.batch}`] = now;
-        const batchNum = (detail?.batchIdx ?? 0) + 1;
-        const total = detail?.totalBatches || '?';
-        const batchName = detail?.batch || 'unknown';
-        slack.postThreadUpdate(
-          threadInfo.ts, threadInfo.channel,
-          `▶️ *${batchName}* [${batchNum}/${total}] — running tests`,
-        ).catch(() => {});
+        phaseStarts[`iter-${detail?.batch}-1`] = now;
+        // Suppress noisy batch-start messages — test-result tells the story
         return;
       }
 
       // ── test-result ─────────────────────────────────────────────────────────
       if (step === 'test-result') {
         const { batch = 'unknown', iteration = '?', passed = 0, failed = 0, failures = [], maxIterations = pipelineMaxIterations } = detail || {};
-        const batchElapsed = phaseStarts[`iter-${batch}-${iteration}`]
-          ? `${Math.round((now - phaseStarts[`iter-${batch}-${iteration}`]) / 1000)}s`
-          : detail?.time != null ? `${detail.time}s` : null;
+        const iterKey = `iter-${batch}-${iteration}`;
+        const batchElapsed = phaseStarts[iterKey]
+          ? `+${Math.round((now - phaseStarts[iterKey]) / 1000)}s`
+          : detail?.time != null ? `+${detail.time}s` : null;
         phaseStarts[`iter-${batch}-${Number(iteration) + 1}`] = now;
-        const timeStr = batchElapsed ? ` | ${batchElapsed}` : '';
-        const allPass = failed === 0;
+        const allPass = failed === 0 && passed > 0;
         const statusEmoji = allPass ? '✅' : iteration === maxIterations ? '❌' : '🔄';
-        let msg = `${statusEmoji} *${batch}* iter ${iteration}/${maxIterations} — ${passed}/${passed + failed} passed${timeStr}`;
+        const headerText = `${statusEmoji} *${batch}* iter ${iteration}/${maxIterations} · ${passed}/${passed + failed} passed${batchElapsed ? ` · ${batchElapsed}` : ''}`;
+
+        const blocks = [divider()];
         if (failed > 0 && failures.length > 0) {
-          const failList = failures.slice(0, 3).map((f) => {
-            // Strip ANSI and truncate
+          const failList = failures.map((f) => {
             const clean = f.replace(/\x1B\[[0-9;]*m/g, '').replace(/\s+/g, ' ').trim();
-            return `• ${clean.slice(0, 120)}`;
+            return `• ${clean.slice(0, 200)}`;
           }).join('\n');
-          const moreF = failures.length > 3 ? `\n…(${failures.length - 3} more)` : '';
-          msg += `\n${failList}${moreF}`;
+          blocks.push(mrkdwn(`${headerText}\n*Failures:*\n${failList}`));
+          blocks.push(nextStep(`Fix attempt ${Number(iteration) + 1} with \`${pipelineFixModel}\``));
+        } else {
+          blocks.push(mrkdwn(allPass ? `${headerText}\nAll ${passed} tests passed ✓` : headerText));
+          if (!allPass) blocks.push(nextStep(`Continue to next category`));
         }
-        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, headerText, { blocks }).catch(() => {});
         return;
       }
 
       // ── html-fixed ──────────────────────────────────────────────────────────
       if (step === 'html-fixed' && detail?.htmlFile) {
-        const { iteration: iter = '?', passed: p = 0, total: t = 0, batch: batchName = 'unknown', model: fixModel = pipelineFixModel } = detail;
+        const { iteration: iter = '?', passed: p = 0, total: t = 0, batch: batchName = 'unknown', model: fixedModel = pipelineFixModel, prevSizeKb = '?', newSizeKb: newKb = '?' } = detail;
         const fixKey = `fix-${batchName}-${iter}`;
-        const elapsed = phaseStarts[fixKey] ? `${Math.round((now - phaseStarts[fixKey]) / 1000)}s` : null;
+        const elapsed = phaseStarts[fixKey] ? `+${Math.round((now - phaseStarts[fixKey]) / 1000)}s` : null;
         phaseStarts[`iter-${batchName}-${Number(iter) + 1}`] = now;
-        const timeStr = elapsed ? ` | ${elapsed}` : '';
+        const headerText = `🔧 *${batchName} — Fix ${iter}*${elapsed ? ` · ${elapsed}` : ''}`;
+        const bodyMeta = `Model: \`${fixedModel}\` · Before: ${p}/${t} · Size: ${prevSizeKb}KB → ${newKb}KB`;
         if (gcp.isEnabled()) {
           gcp.uploadGameArtifact(gameId, buildId, detail.htmlFile, { suffix: `fix${iter}` }).then((gcpUrl) => {
             if (gcpUrl) {
               if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
               db.updateGameGcpUrl(gameId, gcpUrl);
-              slack.postThreadUpdate(
-                threadInfo.ts, threadInfo.channel,
-                `🔧 *${batchName}* fix ${iter} — ${fixModel}${timeStr} | before: ${p}/${t}\n${slack.formatLink(gcpUrl, 'View fix')}`,
-              ).catch(() => {});
-            } else {
-              slack.postThreadUpdate(
-                threadInfo.ts, threadInfo.channel,
-                `🔧 *${batchName}* fix ${iter} — ${fixModel}${timeStr} | before: ${p}/${t}`,
-              ).catch(() => {});
+              if (buildId) {
+                const key = `${batchName}-fix${iter}`;
+                db.updateBuildIterationUrl(buildId, key, gcpUrl);
+              }
             }
+            const blocks = [
+              divider(),
+              mrkdwn(`${headerText}\n${bodyMeta}${gcpUrl ? `\n${slack.formatLink(gcpUrl, 'View patched HTML')}` : ''}`),
+              nextStep(`Re-running ${batchName} tests`),
+            ];
+            slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `${headerText}\n${bodyMeta}`, { blocks }).catch(() => {});
           }).catch(() => {});
         } else {
-          slack.postThreadUpdate(
-            threadInfo.ts, threadInfo.channel,
-            `🔧 *${batchName}* fix ${iter} — ${fixModel}${timeStr} | before: ${p}/${t}`,
-          ).catch(() => {});
+          const blocks = [
+            divider(),
+            mrkdwn(`${headerText}\n${bodyMeta}`),
+            nextStep(`Re-running ${batchName} tests`),
+          ];
+          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `${headerText}\n${bodyMeta}`, { blocks }).catch(() => {});
         }
         return;
       }
 
       // ── review-complete ─────────────────────────────────────────────────────
       if (step === 'review-complete') {
-        const { status = '?', reviewResult = '', categoryResults = {} } = detail || {};
+        const { status = '?', reviewResult = '', categoryResults = {}, model: reviewModel = pipelineTestModel, time: reviewTime } = detail || {};
         const emoji = status === 'APPROVED' ? '✅' : status === 'REJECTED' ? '🔸' : '❌';
+        const elapsed = reviewTime != null ? ` · ${reviewTime}s` : '';
 
-        // Build per-category summary
+        // Build per-category scorecard
         const catLines = Object.entries(categoryResults).map(([cat, res]) => {
           const p = res.passed || 0;
           const f = res.failed || 0;
@@ -529,12 +636,13 @@ const worker = new Worker(
           return `${catEmoji} ${cat}: ${p}/${p + f}`;
         });
 
-        let msg = `${emoji} *Review: ${status}*`;
-        if (catLines.length > 0) msg += `\n${catLines.join('  ·  ')}`;
+        const headerText = `${emoji} *Step 4 — Review: ${status}*${elapsed}`;
+        const catSummary = catLines.length > 0 ? catLines.join('  ·  ') : '';
+        let bodyText = `Model: \`${reviewModel}\`${catSummary ? `\n${catSummary}` : ''}`;
 
         if (status === 'REJECTED' && reviewResult) {
           const snippet = reviewResult.slice(0, 400);
-          msg += `\n\`\`\`\n${snippet}${reviewResult.length > 400 ? '…' : ''}\n\`\`\``;
+          bodyText += `\n\`\`\`\n${snippet}${reviewResult.length > 400 ? '…' : ''}\n\`\`\``;
         }
 
         // Upload review report to GCP and add link
@@ -544,13 +652,69 @@ const worker = new Worker(
             `games/${gameId}/builds/${buildId}/review-report.md`,
             { contentType: 'text/markdown' },
           ).then((url) => {
-            if (url) msg += `\n${slack.formatLink(url, 'Full review report')}`;
-            slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
+            const linkLine = url ? `\n${slack.formatLink(url, 'Full review report')}` : '';
+            const blocks = [
+              divider(),
+              mrkdwn(`${headerText}\n${bodyText}${linkLine}`),
+            ];
+            if (status === 'APPROVED') blocks.push(nextStep('Build complete — game deployed'));
+            slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `${headerText}\n${bodyText}`, { blocks }).catch(() => {});
           }).catch(() => {
-            slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
+            const blocks = [divider(), mrkdwn(`${headerText}\n${bodyText}`)];
+            slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `${headerText}\n${bodyText}`, { blocks }).catch(() => {});
           });
         } else {
-          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, msg).catch(() => {});
+          const blocks = [divider(), mrkdwn(`${headerText}\n${bodyText}`)];
+          if (status === 'APPROVED') blocks.push(nextStep('Build complete — game deployed'));
+          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `${headerText}\n${bodyText}`, { blocks }).catch(() => {});
+        }
+        return;
+      }
+
+      // ── global-fix-start (NEW) ──────────────────────────────────────────────
+      if (step === 'global-fix-start') {
+        const elapsed = phaseStarts['test-fix-loop'] ? Math.round((now - phaseStarts['test-fix-loop']) / 1000) : null;
+        const elapsedStr = elapsed != null ? ` · total: ${elapsed}s` : '';
+        const failingCats = detail?.failingCategories || [];
+        const globalModel = detail?.model || pipelineGenModel;
+        const maxGlobal = detail?.maxGlobalIterations || 2;
+        const bodyText = `🌐 *Step 3c — Global Fix Loop*${elapsedStr}\n${failingCats.length} categories still failing: ${failingCats.join(', ')}\nCross-category root cause analysis with \`${globalModel}\``;
+        const blocks = [
+          divider(),
+          mrkdwn(bodyText),
+          nextStep(`Global fix iter 1/${maxGlobal}`),
+        ];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
+        return;
+      }
+
+      // ── global-fix-applied (NEW) ────────────────────────────────────────────
+      if (step === 'global-fix-applied') {
+        const { globalIter = '?', failingBatches = [], htmlFile: globalHtmlFile } = detail || {};
+        const maxGlobal = 2; // MAX_GLOBAL_FIX_ITERATIONS default
+        const failingStr = Array.isArray(failingBatches) ? failingBatches.join(', ') : String(failingBatches);
+        const headerText = `🔧 *Global Fix ${globalIter}/${maxGlobal} Applied*`;
+        const bodyMeta = `Targeting: ${failingStr}`;
+        if (gcp.isEnabled() && globalHtmlFile) {
+          gcp.uploadGameArtifact(gameId, buildId, globalHtmlFile, { suffix: `global-fix${globalIter}` }).then((gcpUrl) => {
+            if (gcpUrl) {
+              if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
+              db.updateGameGcpUrl(gameId, gcpUrl);
+            }
+            const blocks = [
+              divider(),
+              mrkdwn(`${headerText}\n${bodyMeta}${gcpUrl ? `\n${slack.formatLink(gcpUrl, 'View HTML')}` : ''}`),
+              nextStep('Re-testing all categories'),
+            ];
+            slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `${headerText}\n${bodyMeta}`, { blocks }).catch(() => {});
+          }).catch(() => {});
+        } else {
+          const blocks = [
+            divider(),
+            mrkdwn(`${headerText}\n${bodyMeta}`),
+            nextStep('Re-testing all categories'),
+          ];
+          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `${headerText}\n${bodyMeta}`, { blocks }).catch(() => {});
         }
         return;
       }
@@ -558,39 +722,60 @@ const worker = new Worker(
       // ── html-fix-rolled-back ────────────────────────────────────────────────
       if (step === 'html-fix-rolled-back') {
         const { batch: b = 'unknown', iteration: iter = '?', reason = '' } = detail || {};
-        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel,
-          `↩️ ${b} fix ${iter} rolled back (${reason}) — restoring previous HTML`).catch(() => {});
+        const bodyText = `↩️ *${b} fix ${iter} rolled back* (${reason}) — restoring previous HTML`;
+        const blocks = [divider(), mrkdwn(bodyText)];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
         return;
       }
 
-      // ── simple mapped messages ───────────────────────────────────────────────
-      if (step === 'generate-html') {
-        phaseStarts['generate-html'] = now;
-        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🏗️ *Generating HTML* — ${detail?.model || pipelineGenModel}`).catch(() => {});
-        return;
-      }
+      // ── review ──────────────────────────────────────────────────────────────
       if (step === 'review') {
         phaseStarts['review'] = now;
-        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `📝 *Running review* — ${detail?.model || pipelineTestModel}`).catch(() => {});
+        const model = detail?.model || pipelineTestModel;
+        const bodyText = `📝 *Step 4 — Running Review* · \`${model}\``;
+        const blocks = [divider(), mrkdwn(bodyText)];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
         return;
       }
+
+      // ── test-fix-loop ────────────────────────────────────────────────────────
       if (step === 'test-fix-loop') {
+        phaseStarts['test-fix-loop'] = now;
         const batches = detail?.batches || 5;
-        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, `🔄 *Test → fix loop* — ${batches} categories × max ${detail?.maxIterations || pipelineMaxIterations} iterations`).catch(() => {});
+        const bodyText = `🔄 *Step 3 — Test → Fix Loop* · ${batches} categories × max ${detail?.maxIterations || pipelineMaxIterations} iterations`;
+        const blocks = [divider(), mrkdwn(bodyText)];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
         return;
       }
-      const silentSteps = new Set(['validate-spec', 'static-validation', 'generate-test-cases', 'html-ready', 'dom-snapshot', 'dom-snapshot-ready']);
-      if (silentSteps.has(step)) return; // suppress noisy low-value messages
+
+      // ── spec-validated ───────────────────────────────────────────────────────
+      if (step === 'spec-validated') {
+        if (detail?.warnings > 0) {
+          const warningList = (detail.warningList || []).map(w => `• ${w}`).join('\n');
+          const bodyText = `⚠️ *Spec warnings (${detail.warnings})*\n${warningList}`;
+          const blocks = [divider(), mrkdwn(bodyText)];
+          slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
+        }
+        return;
+      }
+
+      // ── suppress noisy low-value steps ──────────────────────────────────────
+      const silentSteps = new Set(['validate-spec', 'static-validation', 'generate-test-cases', 'dom-snapshot', 'dom-snapshot-ready', 'early-review', 'contract-static-fix', 'global-fix-prompt', 'global-fix-rolled-back', 'review-fix', 'review-fix-applied']);
+      if (silentSteps.has(step)) return;
+
       if (step === 'static-validation-fix-failed') {
-        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, '❌ *Static validation fix failed* — build may be unstable').catch(() => {});
+        const bodyText = '❌ *Static validation fix failed* — build may be unstable';
+        const blocks = [divider(), mrkdwn(bodyText)];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
         return;
       }
 
       // ── contract-validation-issues ──────────────────────────────────────────
       if (step === 'contract-validation-issues' && detail?.errors?.length) {
         const snippet = detail.errors.slice(0, 5).join('\n') + (detail.errors.length > 5 ? `\n…(${detail.errors.length - 5} more)` : '');
-        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel,
-          `⚠️ *Contract validation: ${detail.count} issue(s)*\n\`\`\`\n${snippet}\n\`\`\``).catch(() => {});
+        const bodyText = `⚠️ *Contract validation: ${detail.count} issue(s)*\n\`\`\`\n${snippet}\n\`\`\``;
+        const blocks = [divider(), mrkdwn(bodyText), nextStep('Auto-fix contract issues')];
+        slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, bodyText, { blocks }).catch(() => {});
         return;
       }
 
@@ -697,6 +882,16 @@ const worker = new Worker(
       throw err;
     }
 
+    // Merge iteration HTML URLs from DB into report (populated async by html-fixed handler)
+    if (buildId) {
+      const buildRecord = db.getBuild(buildId);
+      if (buildRecord?.iteration_html_urls) {
+        try {
+          report.iteration_html_urls = JSON.parse(buildRecord.iteration_html_urls);
+        } catch (_) {}
+      }
+    }
+
     // Update DB: build completed
     if (buildId) {
       db.completeBuild(buildId, report);
@@ -744,6 +939,32 @@ const worker = new Worker(
       await slack.postThreadResult(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
     } else {
       await slack.notifyBuildResult(gameId, report, commitSha, gcpUrl);
+    }
+
+    // Auto-retry: requeue if build scored 0/total tests and hasn't been retried yet
+    if (AUTO_RETRY && report && report.summary) {
+      const { passed, total } = report.summary;
+      const isCompleteFailure = total > 0 && passed === 0;
+      if (isCompleteFailure) {
+        const currentBuild = db.getBuild(buildId);
+        if ((currentBuild?.retry_count || 0) === 0) {
+          const buildQueue = worker.opts.connection
+            ? new (require('bullmq').Queue)('ralph-builds', { connection: worker.opts.connection })
+            : null;
+          if (buildQueue) {
+            const newJob = await buildQueue.add('build', { gameId, retryOf: buildId });
+            logger.info(`[worker] Auto-retry queued for ${gameId} (build #${buildId} scored 0/${total}) → new job ${newJob.id}`);
+            db.getDb().prepare('UPDATE builds SET retry_count = 1 WHERE id = ?').run(buildId);
+            const retryThread = threadInfo || (db.getGame(gameId)?.slack_thread_ts ? { ts: db.getGame(gameId).slack_thread_ts, channel: db.getGame(gameId).slack_channel_id } : null);
+            if (retryThread) {
+              await slack.postThreadUpdate(retryThread.ts, retryThread.channel, `🔄 Auto-retry queued — build #${buildId} scored 0/${total} tests. Starting fresh build...`);
+            }
+            await buildQueue.close();
+          }
+        } else {
+          logger.warn(`[worker] Auto-retry skipped for ${gameId} — already retried once (build #${buildId})`);
+        }
+      }
     }
 
     // Update game status
@@ -799,6 +1020,21 @@ worker.on('error', (err) => {
 });
 
 // ─── Startup ────────────────────────────────────────────────────────────────
+
+// At startup: fail any builds still in 'running' state from a prior worker crash
+async function cleanupOrphanedBuilds() {
+  const orphans = db.getRunningBuilds();
+  if (orphans.length === 0) return;
+  logger.warn(`[worker] Found ${orphans.length} orphaned build(s) in 'running' state — marking failed`);
+  for (const build of orphans) {
+    db.failBuild(build.id, `orphaned: worker restarted while build was running (worker_id: ${build.worker_id || 'unknown'})`);
+    logger.warn(`[worker] Marked build ${build.id} (${build.game_id}) as failed (was running)`);
+  }
+}
+cleanupOrphanedBuilds().catch(err => logger.error('[worker] Orphan cleanup failed:', err));
+
+startSystemMetrics();
+logger.info(`[worker] Worker ID: ${WORKER_ID}`);
 console.log(`[ralph-worker] Started with concurrency=${CONCURRENCY}`);
 console.log(`[ralph-worker] Rate limit: ${RATE_LIMIT_MAX} builds per ${RATE_LIMIT_DURATION / 1000}s`);
 console.log(`[ralph-worker] Repo: ${REPO_DIR}`);

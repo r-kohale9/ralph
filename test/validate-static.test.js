@@ -126,10 +126,31 @@ describe('validate-static.js', () => {
       )
       .replace(
         '</script>',
-        'window.addEventListener("DOMContentLoaded", async () => { setupGame(); });\n</script>',
+        'window.endGame = endGame;\nwindow.gameState = gameState;\nwindow.addEventListener("DOMContentLoaded", async () => { setupGame(); });\n</script>',
       );
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+  });
+
+  it('fails when CDN game (DOMContentLoaded) has gameState not exposed on window', () => {
+    // const/let gameState without window.gameState = ... → syncDOMState can't find it
+    const html = VALID_HTML.replace(
+      '</script>',
+      'window.endGame = endGame;\n// no window.gameState\nwindow.addEventListener("DOMContentLoaded", async () => { endGame(); });\n</script>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1);
+    assert.ok(output.includes('window.gameState'));
+  });
+
+  it('fails when CDN game (DOMContentLoaded) missing window.endGame assignment', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      '// no window.endGame assignment\nwindow.gameState = gameState;\nwindow.addEventListener("DOMContentLoaded", async () => { endGame(); });\n</script>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1);
+    assert.ok(output.includes('window.endGame'));
   });
 
   it('fails when missing endGame', () => {
@@ -302,5 +323,64 @@ describe('validate-static.js', () => {
     const html = VALID_HTML.replace(/gameArea/g, 'playArea');
     const { exitCode } = runValidator(html);
     assert.equal(exitCode, 0);
+  });
+
+  it('passes when waitForPackages has correct 10000ms timeout and throw', () => {
+    const html = VALID_HTML.replace(
+      'function initGame()',
+      `async function waitForPackages() {
+    const timeout = 10000;
+    const interval = 50;
+    let elapsed = 0;
+    while (typeof FeedbackManager === 'undefined') {
+      if (elapsed >= timeout) { throw new Error('Packages failed to load within 10s'); }
+      await new Promise(resolve => setTimeout(resolve, interval));
+      elapsed += interval;
+    }
+  }
+  function initGame()`
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+  });
+
+  it('fails when waitForPackages has wrong timeout (>10s)', () => {
+    const html = VALID_HTML.replace(
+      'function initGame()',
+      `async function waitForPackages() {
+    const timeout = 15000;
+    const interval = 50;
+    let elapsed = 0;
+    while (typeof FeedbackManager === 'undefined') {
+      if (elapsed >= timeout) { throw new Error('Packages failed to load'); }
+      await new Promise(resolve => setTimeout(resolve, interval));
+      elapsed += interval;
+    }
+  }
+  function initGame()`
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1);
+    assert.ok(output.includes('timeout=10000'));
+  });
+
+  it('fails when waitForPackages does not throw on timeout', () => {
+    const html = VALID_HTML.replace(
+      'function initGame()',
+      `async function waitForPackages() {
+    const timeout = 10000;
+    const interval = 50;
+    let elapsed = 0;
+    while (typeof FeedbackManager === 'undefined') {
+      if (elapsed >= timeout) { console.error('Packages failed to load'); return; }
+      await new Promise(resolve => setTimeout(resolve, interval));
+      elapsed += interval;
+    }
+  }
+  function initGame()`
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1);
+    assert.ok(output.includes('throw new Error'));
   });
 });

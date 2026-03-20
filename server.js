@@ -164,7 +164,8 @@ function createApp(deps = {}) {
 
   // ─── Manual build trigger ─────────────────────────────────────────────────
   app.post('/api/build', async (req, res) => {
-    const { gameId, all, specPath, specUrl } = req.body;
+    const { gameId, all, specPath, specUrl, requestedBy: bodyRequestedBy } = req.body;
+    const requestedBy = bodyRequestedBy || process.env.RALPH_SLACK_USER_ID || null;
 
     if (all) {
       const fs = require('fs');
@@ -220,6 +221,7 @@ function createApp(deps = {}) {
       buildId,
       specPath: specPath || null,
       specUrl: specUrl || null,
+      requestedBy: requestedBy || null,
     });
 
     logger.info(`Build queued for ${gameId}`, { gameId, buildId, event: 'manual_build' });
