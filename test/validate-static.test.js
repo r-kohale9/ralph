@@ -377,8 +377,8 @@ describe('validate-static.js', () => {
     assert.ok(!output.includes('W3'), `Unexpected W3 warning: ${output}`);
   });
 
-  it('warns W3 when 3 buttons have no data-testid', () => {
-    // 3 buttons, none have data-testid — W3 warning expected
+  it('errors W3 when all 3 buttons have no data-testid (100% > 80% threshold)', () => {
+    // 3 buttons, none have data-testid — W3 error expected (100% > 80% threshold)
     const html = VALID_HTML.replace(
       'document.getElementById(\'questionText\').textContent = a + \' x \' + b + \' = ?\';',
       `document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
@@ -386,8 +386,7 @@ describe('validate-static.js', () => {
       '<button>A</button><button>B</button><button>C</button>';`,
     );
     const { exitCode, output } = runValidator(html);
-    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
-    assert.ok(output.includes('W3'), `Expected W3 warning but got: ${output}`);
+    assert.equal(exitCode, 1, `Expected error (exit 1) for 100% missing data-testid but got exit ${exitCode}: ${output}`);
     assert.ok(output.includes('data-testid'), `Expected data-testid mention but got: ${output}`);
   });
 
