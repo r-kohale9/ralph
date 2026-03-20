@@ -137,7 +137,11 @@ Every generated HTML gets `<script id="ralph-test-harness">` injected by pipelin
 - Phase normalization: `game_over` → `gameover`, `game_complete` → `results`, `start_screen` → `start`
 - `extractSpecMetadata(specContent)` and `injectTestHarness(html, specMeta)` exported from `lib/pipeline.js`
 
-CDN games must expose `window.endGame = endGame` (local functions defined in DOMContentLoaded are not on window).
+CDN games must expose:
+- `window.endGame = endGame`, `window.restartGame = restartGame`, `window.nextRound = nextRound` — local functions defined in DOMContentLoaded are not on window
+- `window.gameState = gameState` — syncDOMState() reads `window.gameState`; if not on window, `data-phase` is NEVER set and ALL `waitForPhase()` calls timeout
+
+These are now checked by T1 static validator (sections 5b3, 5d) and enforced as rules 20/21 in the gen prompts.
 
 ## Pipeline Lessons
 
