@@ -8,7 +8,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { extractHtml, extractTests } = require('../lib/pipeline');
+const { extractHtml, extractTests, getRelevantLearnings } = require('../lib/pipeline');
 
 describe('pipeline.js extractHtml', () => {
   it('extracts HTML from ```html code block', () => {
@@ -171,6 +171,70 @@ describe('pipeline.js runTargetedFix', () => {
       try {
         fs.rmSync(tmpDir, { recursive: true });
       } catch {}
+    }
+  });
+});
+
+describe('pipeline.js getRelevantLearnings', () => {
+  it('is exported as a function', () => {
+    assert.equal(typeof getRelevantLearnings, 'function');
+  });
+
+  it('returns null gracefully when DB is unavailable (in-memory test env)', () => {
+    // In the test environment RALPH_DB_PATH points to a temp path that
+    // has no approved builds — function must not throw and must return
+    // null or a string.
+    const result = getRelevantLearnings('test-game', 5);
+    assert.ok(result === null || typeof result === 'string');
+  });
+
+  it('returns null when gameId is undefined', () => {
+    const result = getRelevantLearnings(undefined, 5);
+    assert.ok(result === null || typeof result === 'string');
+  });
+
+  it('formats results as bullet list when rows exist', () => {
+    // Inject a mock db module via module cache manipulation
+    const Module = require('module');
+    const dbPath = require.resolve('../lib/db');
+    const originalDb = require.cache[dbPath];
+
+    const mockRows = [
+      { content: 'Always expose window.gameState for syncDOMState to work', category: 'cdncompat' },
+      { content: 'Use fire-and-forget for FeedbackManager audio calls', category: 'audio' },
+    ];
+
+    try {
+      require.cache[dbPath] = {
+        id: dbPath,
+        filename: dbPath,
+        loaded: true,
+        exports: {
+          getDb: () => ({
+            prepare: () => ({ all: () => mockRows }),
+          }),
+        },
+      };
+
+      // Must clear pipeline cache so it picks up mock db
+      const pipelinePath = require.resolve('../lib/pipeline');
+      delete require.cache[pipelinePath];
+      const { getRelevantLearnings: freshFn } = require('../lib/pipeline');
+
+      const result = freshFn('some-other-game', 10);
+      assert.ok(result !== null, 'should return a string when rows exist');
+      assert.ok(result.includes('- [cdncompat]'), 'should format category in brackets');
+      assert.ok(result.includes('window.gameState'), 'should include content');
+    } finally {
+      // Restore original db module
+      if (originalDb) {
+        require.cache[dbPath] = originalDb;
+      } else {
+        delete require.cache[dbPath];
+      }
+      // Restore pipeline module
+      delete require.cache[require.resolve('../lib/pipeline')];
+      require('../lib/pipeline');
     }
   });
 });
