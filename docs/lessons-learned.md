@@ -376,3 +376,22 @@ Some generated HTML variants built `metrics` without explicitly including `durat
 **Fix:** Re-authenticate via `claude auth logout && claude auth login`. Consider adding an auth health-check step at pipeline start: attempt a minimal `claude -p "ping"` call; if it fails, mark the build as `auth-failed` and skip the queue until re-auth is complete.
 
 **How to apply:** If builds are completing in <30 seconds with 0 iterations and no Slack error detail, run `claude -p "test" 2>&1` directly on the server to confirm auth state. Do not trust `claude auth status` alone.
+
+## Lesson 62 — CLIProxyAPI Claude OAuth blocked at org level; fallback to Gemini-only mode
+
+**Pattern:** After switching from `RALPH_USE_CLAUDE_CLI=1` to `RALPH_USE_CLAUDE_CLI=0` (proxy mode), the CLIProxyAPI itself returned `"OAuth authentication is currently not allowed for this organization."` for all Claude models (`claude-opus-4-6`, `claude-sonnet-4-6`). This is an org-level restriction on OAuth-based Claude access — the Docker-mounted OAuth tokens are invalidated. All builds fail at Step 1 (generate-html) with HTTP 500 from the proxy.
+
+**Root cause:** CLIProxyAPI authenticates Claude via OAuth tokens stored in `./auths/`. When Anthropic revokes OAuth access for the org (e.g., after quota exhaustion or plan changes), all proxy Claude calls return 500. This is distinct from Lesson 61 (CLI auth expiry) — the proxy layer is also affected.
+
+**Detection signal:** Proxy returns `HTTP 500: {"error":{"message":"auth_unavailable: no auth available"}}` or `{"error":{"message":"OAuth authentication is currently not allowed for this organization."}}`. Check with: `curl -X POST http://localhost:8317/v1/messages -H "x-api-key: $PROXY_KEY" -d '{"model":"claude-sonnet-4-6","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'`
+
+**Fix applied 2026-03-20:** Switched all models to `gemini-3.1-pro-preview` in `.env`:
+```
+RALPH_GEN_MODEL=gemini-3.1-pro-preview
+RALPH_FIX_MODEL=gemini-3.1-pro-preview
+RALPH_TEST_MODEL=gemini-3.1-pro-preview
+RALPH_REVIEW_MODEL=gemini-3.1-pro-preview
+```
+Gemini uses API key authentication (not OAuth) and is unaffected by Claude org restrictions. Pipeline runs fully on Gemini until Claude auth is restored.
+
+**How to apply:** If both `claude -p` and CLIProxyAPI Claude calls fail, check Gemini availability with a direct proxy test (`curl ... -d '{"model":"gemini-3.1-pro-preview"...}'`). If Gemini works, switch all `RALPH_*_MODEL` vars to gemini and restart worker. The pipeline quality difference is minimal — Gemini 3.1 Pro Preview is capable of full pipeline execution.
