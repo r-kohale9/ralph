@@ -71,7 +71,7 @@ describe('db', () => {
       models: { generation: 'claude-opus-4-6', review: 'claude-sonnet-4-6' },
     });
     const build = db.getBuild(id);
-    assert.equal(build.status, 'APPROVED');
+    assert.equal(build.status, 'approved');
     assert.equal(build.iterations, 2);
     assert.ok(build.completed_at);
     // Float timing values are stored correctly despite INTEGER type declaration
@@ -87,7 +87,7 @@ describe('db', () => {
     const id = db.createBuild('fail-test', null);
     db.failBuild(id, 'ralph.sh crashed');
     const build = db.getBuild(id);
-    assert.equal(build.status, 'FAILED');
+    assert.equal(build.status, 'failed');
     assert.equal(build.error_message, 'ralph.sh crashed');
   });
 
