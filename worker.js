@@ -351,6 +351,7 @@ const worker = new Worker(
     // Live build progress tracking (for parent message updates)
     let llmCallCount = 0;
     let currentBuildStep = 'Starting';
+    let stepStartedAt = buildStartTime; // resets whenever currentBuildStep changes
 
     const game = db.getGame(gameId);
     if (game && game.slack_thread_ts) {
@@ -428,6 +429,8 @@ const worker = new Worker(
         llmCallCount += 1;
       }
 
+      const now = Date.now();
+
       // Map progress steps to human-readable current step labels
       const stepLabels = {
         'generate-html': 'Step 1 · Generating HTML',
@@ -441,6 +444,7 @@ const worker = new Worker(
         'review': 'Step 4 · Review',
         'review-complete': 'Step 4 · Review Complete',
       };
+      const prevBuildStep = currentBuildStep;
       if (stepLabels[step]) {
         currentBuildStep = stepLabels[step];
       } else if (step === 'batch-start' && detail?.batch) {
@@ -450,9 +454,12 @@ const worker = new Worker(
       } else if (step === 'html-fixed' && detail?.batch) {
         currentBuildStep = `Step 3 · ${detail.batch} · fix ${detail.iteration}`;
       }
+      // Reset step timer whenever the step label changes
+      if (currentBuildStep !== prevBuildStep) {
+        stepStartedAt = now;
+      }
 
       if (!threadInfo) return;
-      const now = Date.now();
       if (!phaseStarts[step]) phaseStarts[step] = now;
 
       // ── generate-html — suppress; post happens on html-ready ───────────────
@@ -979,6 +986,12 @@ const worker = new Worker(
     const gcpUrl = db.getGame(gameId)?.gcp_url;
     if (threadInfo) {
       // Update opener with final status + post summary reply
+      const finalPipelineMs = Date.now() - buildStartTime;
+      const finalPipelineMin = Math.round(finalPipelineMs / 60000);
+      const finalPipelineElapsedMin = finalPipelineMin < 1 ? '<1m' : `${finalPipelineMin}m`;
+      const finalStepMs = Date.now() - stepStartedAt;
+      const finalStepMin = Math.round(finalStepMs / 60000);
+      const finalStepElapsedMin = finalStepMin < 1 ? '<1m' : `${finalStepMin}m`;
       await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId, report, {
         gcpUrl,
         specLink: specLink || null,
@@ -990,6 +1003,8 @@ const worker = new Worker(
         llmCalls: llmCallCount || report.llm_calls || null,
         currentStep: currentBuildStep,
         gameTitle: game?.title || null,
+        pipelineElapsedMin: finalPipelineElapsedMin,
+        stepElapsedMin: finalStepElapsedMin,
       });
       await slack.postThreadResult(threadInfo.ts, threadInfo.channel, gameId, report, { gcpUrl });
     } else {
