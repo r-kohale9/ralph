@@ -215,8 +215,16 @@ This file is the authoritative starting point. Do not assume knowledge from prio
 ### 9. Never ask for approval — act, then report
 Execute decisions autonomously. Do not ask "want me to do X?" — just do it and report what was done. The user is a manager: they set direction, agents execute. The only exception is irreversible destructive actions (dropping DB, deleting prod data, force-pushing main).
 
-### 10. Send a Slack progress update to Mithilesh every 30 minutes
-Every 30 minutes, post a brief status update to the Ralph Slack channel tagging `<@U0242GULG48>` (Mithilesh Kohale). Include: current running build + step, queue depth, any new approvals/failures since last update, and what the active R&D task is doing. Use the existing `SLACK_WEBHOOK_URL` or `SLACK_BOT_TOKEN` + `SLACK_CHANNEL_ID` from env. Delegate the send to a sub-agent — do not block the main context.
+### 10. Send a Slack progress update to Mithilesh every 15 minutes
+Every 15 minutes, post a brief status update to channel `C09J341LC2K` tagging `<@U0242GULG48>` (Mithilesh Kohale) using `SLACK_TOKEN` from `/Users/the-hw-app/Projects/slack-helpers/.env`. Include:
+1. Current running build + step
+2. Queue depth
+3. New approvals/failures since last update
+4. **Improvements since last update** — point-wise list of what was shipped (R&D tasks completed, bugs fixed, pipeline changes deployed)
+5. Active R&D task + status
+6. One-line flag if anything needs attention
+
+Delegate the send to a sub-agent — do not block the main context.
 
 ### 10. Always explain the value of a running build when reporting status
 When reporting on any running build, always include: (1) what we expect to learn or gain if it completes successfully, (2) why it has not been killed yet — what kill criteria it has NOT yet met. A build costs time and money; the manager must know whether to let it run or cut losses. Format: "Value if completes: <X>. Not killed because: <Y>."
