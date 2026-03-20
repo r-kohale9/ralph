@@ -8,7 +8,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity } = require('../lib/pipeline');
+const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords } = require('../lib/pipeline');
 
 describe('pipeline.js extractHtml', () => {
   it('extracts HTML from ```html code block', () => {
@@ -184,12 +184,12 @@ describe('pipeline.js getRelevantLearnings', () => {
     // In the test environment RALPH_DB_PATH points to a temp path that
     // has no approved builds — function must not throw and must return
     // null or a string.
-    const result = getRelevantLearnings('test-game', 5);
+    const result = getRelevantLearnings('test-game', null, 5);
     assert.ok(result === null || typeof result === 'string');
   });
 
   it('returns null when gameId is undefined', () => {
-    const result = getRelevantLearnings(undefined, 5);
+    const result = getRelevantLearnings(undefined, null, 5);
     assert.ok(result === null || typeof result === 'string');
   });
 
@@ -221,7 +221,7 @@ describe('pipeline.js getRelevantLearnings', () => {
       delete require.cache[pipelinePath];
       const { getRelevantLearnings: freshFn } = require('../lib/pipeline');
 
-      const result = freshFn('some-other-game', 10);
+      const result = freshFn('some-other-game', null, 10);
       assert.ok(result !== null, 'should return a string when rows exist');
       assert.ok(result.includes('- [cdncompat]'), 'should format category in brackets');
       assert.ok(result.includes('window.gameState'), 'should include content');
@@ -330,7 +330,7 @@ describe('pipeline.js getRelevantLearnings deduplication', () => {
       { content: 'use fire and forget for FeedbackManager audio to avoid blocking the game loop', category: 'audio' },
     ];
     withMockDb(rows, (fn) => {
-      const result = fn('other-game', 10);
+      const result = fn('other-game', null, 10);
       assert.ok(result !== null, 'should return a string');
       // Only 2 distinct clusters: gameState cluster + audio entry
       const bullets = result.split('\n').filter(Boolean);
@@ -345,10 +345,10 @@ describe('pipeline.js getRelevantLearnings deduplication', () => {
       category: 'general',
     }));
     withMockDb(rows, (fn) => {
-      const result = fn('other-game', 10);
+      const result = fn('other-game', null, 10);
       assert.ok(result !== null, 'should return a string');
       const bullets = result.split('\n').filter(Boolean);
-      assert.ok(bullets.length <= 20, `expected ≤ 20 bullets, got ${bullets.length}`);
+      assert.ok(bullets.length <= 20, `expected <= 20 bullets, got ${bullets.length}`);
     });
   });
 
@@ -360,11 +360,98 @@ describe('pipeline.js getRelevantLearnings deduplication', () => {
       { content: 'always expose window endGame function so test harness can call it', category: 'cdncompat' },
     ];
     withMockDb(rows, (fn) => {
-      const result = fn('other-game', 10);
+      const result = fn('other-game', null, 10);
       assert.ok(result !== null, 'should return a string');
       const bullets = result.split('\n').filter(Boolean);
       assert.equal(bullets.length, 1, 'should keep only 1 entry for this near-duplicate cluster');
       assert.ok(result.includes('invoke'), 'should keep the most recent (first) entry');
     });
+  });
+});
+
+describe('pipeline.js extractSpecKeywords', () => {
+  it('returns an empty Set for null/empty input', () => {
+    assert.equal(extractSpecKeywords(null).size, 0);
+    assert.equal(extractSpecKeywords('').size, 0);
+    assert.equal(extractSpecKeywords(undefined).size, 0);
+  });
+
+  it('extracts PART-XXX identifiers from spec text', () => {
+    const spec = `## CDN\n- PART-012 FeedbackManager\n- PART-003 ScreenLayout\n`;
+    const keywords = extractSpecKeywords(spec);
+    assert.ok(keywords.has('part-012'), 'should include part-012');
+    assert.ok(keywords.has('part-003'), 'should include part-003');
+  });
+
+  it('extracts PascalCase CDN part names from CDN section', () => {
+    const spec = `## CDN\nFeedbackManager, ScreenLayout, SlotMachine\n\n## Mechanics\nnothing here\n`;
+    const keywords = extractSpecKeywords(spec);
+    assert.ok(keywords.has('feedbackmanager'), 'should include feedbackmanager');
+    assert.ok(keywords.has('screenlayout'), 'should include screenlayout');
+    assert.ok(keywords.has('slotmachine'), 'should include slotmachine');
+  });
+
+  it('extracts mechanic keywords from Game Mechanics section (min 4 chars, no stop words)', () => {
+    const spec = `## Game Mechanics\nPlayer selects a fraction tile and matches it to an equivalent.\nLives are reduced on wrong answer.\n`;
+    const keywords = extractSpecKeywords(spec);
+    // meaningful words present
+    assert.ok(keywords.has('player'), 'should include player');
+    assert.ok(keywords.has('fraction'), 'should include fraction');
+    assert.ok(keywords.has('matches'), 'should include matches');
+    // stop words excluded
+    assert.ok(!keywords.has('this'), 'should exclude stop word "this"');
+    assert.ok(!keywords.has('game'), 'should exclude stop word "game"');
+    // short words excluded
+    assert.ok(!keywords.has('on'), 'should exclude "on" (< 4 chars)');
+    assert.ok(!keywords.has('it'), 'should exclude "it" (< 4 chars)');
+  });
+
+  it('getRelevantLearnings sorts spec-relevant learnings first when specContent provided', () => {
+    // Rows: one about FeedbackManager (relevant to spec), one about timer (irrelevant)
+    const rows = [
+      // This entry is about timer — not relevant to a FeedbackManager spec
+      { content: 'timercomponent starttime must be zero to avoid negative elapsed values', category: 'general' },
+      // This entry mentions feedbackmanager — highly relevant to our spec
+      { content: 'feedbackmanager playDynamicFeedback must be fire and forget never awaited', category: 'audio' },
+    ];
+    const spec = `## CDN\nFeedbackManager\n\n## Game Mechanics\nplayer answers question\n`;
+
+    // Use withMockDb helper from the outer describe scope by duplicating the setup inline
+    const dbPath = require.resolve('../lib/db');
+    const pipelinePath = require.resolve('../lib/pipeline');
+    const originalDb = require.cache[dbPath];
+    const originalPipeline = require.cache[pipelinePath];
+    try {
+      require.cache[dbPath] = {
+        id: dbPath,
+        filename: dbPath,
+        loaded: true,
+        exports: {
+          getDb: () => ({
+            prepare: () => ({ all: () => rows }),
+          }),
+        },
+      };
+      delete require.cache[pipelinePath];
+      const { getRelevantLearnings: freshFn } = require('../lib/pipeline');
+      const result = freshFn('other-game', spec, 10);
+      assert.ok(result !== null, 'should return a string');
+      const bullets = result.split('\n').filter(Boolean);
+      // FeedbackManager bullet should appear first (higher spec relevance)
+      assert.ok(bullets[0].includes('feedbackmanager') || bullets[0].includes('FeedbackManager'), `expected feedbackmanager entry first, got: ${bullets[0]}`);
+    } finally {
+      if (originalDb) {
+        require.cache[dbPath] = originalDb;
+      } else {
+        delete require.cache[dbPath];
+      }
+      if (originalPipeline) {
+        require.cache[pipelinePath] = originalPipeline;
+      } else {
+        delete require.cache[pipelinePath];
+      }
+      delete require.cache[pipelinePath];
+      require('../lib/pipeline');
+    }
   });
 });
