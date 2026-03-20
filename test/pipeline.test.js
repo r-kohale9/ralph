@@ -982,3 +982,136 @@ describe('runPageSmokeDiagnostic blank-page detection — #gameContent guard', (
     assert.match(blankPageError, /missing #gameContent/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for detectCrossBatchRegression
+// We test the pure logic in isolation by mocking execFileAsync via the child_process
+// module cache — no real Playwright is invoked.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js detectCrossBatchRegression', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
+  const { detectCrossBatchRegression } = require('../lib/pipeline-fix-loop');
+
+  // Helper: create a temporary spec file so fs.existsSync passes
+  function makeTmpSpecFile(name) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-xbatch-'));
+    const specFile = path.join(dir, `${name}.spec.js`);
+    fs.writeFileSync(specFile, `test('dummy', () => {});\n`);
+    return { dir, specFile };
+  }
+
+  // Helper: swap child_process execFile implementation for the duration of fn()
+  // fn receives a fresh detectCrossBatchRegression bound to the mocked execFile.
+  async function withMockExecFile(mockImpl, fn) {
+    const cpPath = require.resolve('child_process');
+    const fixLoopPath = require.resolve('../lib/pipeline-fix-loop');
+    const originalCp = require.cache[cpPath];
+    const originalFixLoop = require.cache[fixLoopPath];
+
+    try {
+      // Patch child_process in the module cache with a fake execFile
+      const fakeCp = Object.assign({}, require('child_process'), {
+        execFile: mockImpl,
+      });
+      require.cache[cpPath] = {
+        id: cpPath,
+        filename: cpPath,
+        loaded: true,
+        exports: fakeCp,
+      };
+      // Force pipeline-fix-loop to reload with patched child_process so
+      // promisify(execFile) captures the mock.
+      delete require.cache[fixLoopPath];
+      const freshModule = require('../lib/pipeline-fix-loop');
+      // Await the async fn so the finally block runs only after completion
+      return await fn(freshModule.detectCrossBatchRegression);
+    } finally {
+      if (originalCp) require.cache[cpPath] = originalCp;
+      else delete require.cache[cpPath];
+      if (originalFixLoop) require.cache[fixLoopPath] = originalFixLoop;
+      else delete require.cache[fixLoopPath];
+      // Restore original module
+      delete require.cache[fixLoopPath];
+      require('../lib/pipeline-fix-loop');
+    }
+  }
+
+  it('returns empty array when priorPassingBatches is empty', async () => {
+    const result = await detectCrossBatchRegression([], '/tmp', 5000);
+    assert.deepEqual(result, []);
+  });
+
+  it('returns empty array when priorPassingBatches is null', async () => {
+    const result = await detectCrossBatchRegression(null, '/tmp', 5000);
+    assert.deepEqual(result, []);
+  });
+
+  it('detects regression when nowPassed < prevPassed', async () => {
+    const { specFile, dir } = makeTmpSpecFile('game-flow');
+    try {
+      // Mock: Playwright now reports only 2 passing (was 5)
+      const fakeExecFile = (_cmd, _args, _opts, cb) => {
+        const stdout = JSON.stringify({ stats: { expected: 2, unexpected: 1 } });
+        cb(Object.assign(new Error('tests failed'), { stdout }));
+      };
+      await withMockExecFile(fakeExecFile, async (fn) => {
+        const prior = [{ category: 'game-flow', specFile, passed: 5, total: 5 }];
+        const result = await fn(prior, dir, 5000);
+        assert.equal(result.length, 1, 'should detect one regression');
+        assert.equal(result[0].category, 'game-flow');
+        assert.equal(result[0].prevPassed, 5);
+        assert.equal(result[0].nowPassed, 2);
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns no regression when nowPassed equals prevPassed', async () => {
+    const { specFile, dir } = makeTmpSpecFile('contract');
+    try {
+      // Mock: Playwright still reports 4 passing (same as before)
+      const fakeExecFile = (_cmd, _args, _opts, cb) => {
+        const stdout = JSON.stringify({ stats: { expected: 4, unexpected: 0 } });
+        cb(null, { stdout });
+      };
+      await withMockExecFile(fakeExecFile, async (fn) => {
+        const prior = [{ category: 'contract', specFile, passed: 4, total: 4 }];
+        const result = await fn(prior, dir, 5000);
+        assert.deepEqual(result, [], 'no regression expected when counts are equal');
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('skips spec files that no longer exist on disk', async () => {
+    const nonExistent = '/tmp/this-file-does-not-exist-ralph.spec.js';
+    const prior = [{ category: 'audio', specFile: nonExistent, passed: 3, total: 3 }];
+    const result = await detectCrossBatchRegression(prior, '/tmp', 5000);
+    assert.deepEqual(result, [], 'missing spec files should be silently skipped');
+  });
+
+  it('handles Playwright returning 0/0 (page crash) as a regression when prevPassed > 0', async () => {
+    const { specFile, dir } = makeTmpSpecFile('scoring');
+    try {
+      // Mock: Playwright returns 0 passed, 0 failed (page crash)
+      const fakeExecFile = (_cmd, _args, _opts, cb) => {
+        const stdout = JSON.stringify({ stats: { expected: 0, unexpected: 0 } });
+        cb(null, { stdout });
+      };
+      await withMockExecFile(fakeExecFile, async (fn) => {
+        const prior = [{ category: 'scoring', specFile, passed: 3, total: 3 }];
+        const result = await fn(prior, dir, 5000);
+        assert.equal(result.length, 1, '0/0 (page crash) is a regression when prevPassed > 0');
+        assert.equal(result[0].nowPassed, 0);
+        assert.equal(result[0].prevPassed, 3);
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
