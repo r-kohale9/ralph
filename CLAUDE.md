@@ -143,6 +143,15 @@ CDN games must expose:
 
 These are now checked by T1 static validator (sections 5b3, 5d) and enforced as rules 20/21 in the gen prompts.
 
+## DOM Snapshot & Test Generation Context
+
+`captureGameDomSnapshot()` (lib/pipeline.js Step 2.5) runs headless Playwright against the generated game and captures:
+- Element IDs/classes/visibility from start screen and game screen — injected into test-gen prompts as "ACTUAL RUNTIME DOM"
+- `window.gameState` shape — property names and value types (e.g. `pattern: Array(4) of number`, `lives: number 3`) injected as "WINDOW.GAMESTATE SHAPE" section, preventing test generators from guessing wrong data structures (Lesson 42)
+- `window.gameState?.content` saved to `tests/game-content.json` for fallbackContent when DOM snapshot rounds are empty
+
+If snapshot fails (timeout on CDN transition slot), falls back to static HTML element extraction (no runtime state shape).
+
 ## Pipeline Lessons
 
 See `docs/lessons-learned.md` for accumulated build lessons and proof log. Read before diagnosing failures or modifying pipeline code.
