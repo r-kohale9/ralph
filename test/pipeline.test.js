@@ -1363,3 +1363,78 @@ describe('pipeline.js fixCdnDomainsInFile', () => {
     fs.unlinkSync(f);
   });
 });
+
+// ─── extractPhaseNamesFromGame (lib/prompts.js) ───────────────────────────────
+const { extractPhaseNamesFromGame } = require('../lib/prompts');
+
+describe('extractPhaseNamesFromGame', () => {
+  it('parses phase names from gameState.phase assignments in HTML', () => {
+    const html = `<script>
+      gameState.phase = 'init';
+      gameState.phase = 'playing';
+      gameState.phase = 'results';
+    </script>`;
+    const phases = extractPhaseNamesFromGame(html, null);
+    assert.ok(phases.includes('init'), 'should include init');
+    assert.ok(phases.includes('playing'), 'should include playing');
+    assert.ok(phases.includes('results'), 'should include results');
+  });
+
+  it('parses phase names from .phase comparisons in HTML', () => {
+    const html = `<script>
+      if (gameState.phase === 'gameover') { endGame(); }
+      if (gs.phase !== 'start') { doSomething(); }
+    </script>`;
+    const phases = extractPhaseNamesFromGame(html, null);
+    assert.ok(phases.includes('gameover'), 'should include gameover');
+    assert.ok(phases.includes('start'), 'should include start');
+  });
+
+  it('parses phase from WINDOW.GAMESTATE SHAPE block in domSnapshot', () => {
+    const domSnapshot = `ACTUAL RUNTIME DOM — captured from the running game
+
+WINDOW.GAMESTATE SHAPE (actual runtime values — use THESE property names/types in tests, do NOT guess):
+  phase: string "init"
+  lives: number 3
+  score: number 0`;
+    const phases = extractPhaseNamesFromGame('', domSnapshot);
+    assert.ok(phases.includes('init'), 'should extract init from gameStateShape');
+  });
+
+  it('returns empty array when no phases found', () => {
+    const phases = extractPhaseNamesFromGame('<div>no phases here</div>', null);
+    assert.deepEqual(phases, []);
+  });
+
+  it('deduplicates phase names', () => {
+    const html = `<script>
+      gameState.phase = 'playing';
+      if (gameState.phase === 'playing') { ok(); }
+      gameState.phase = 'results';
+    </script>`;
+    const phases = extractPhaseNamesFromGame(html, null);
+    const playingCount = phases.filter((p) => p === 'playing').length;
+    assert.equal(playingCount, 1, 'playing should appear only once');
+  });
+
+  it('excludes non-phase tokens like undefined, null', () => {
+    const html = `<script>
+      if (gameState.phase === 'undefined') { }
+      if (gameState.phase !== 'null') { }
+    </script>`;
+    const phases = extractPhaseNamesFromGame(html, null);
+    assert.ok(!phases.includes('undefined'), 'should not include undefined');
+    assert.ok(!phases.includes('null'), 'should not include null');
+  });
+
+  it('extracts phases from data-phase attributes in HTML', () => {
+    const html = `<div id="app" data-phase="start"></div>`;
+    const phases = extractPhaseNamesFromGame(html, null);
+    assert.ok(phases.includes('start'), 'should include start from data-phase attribute');
+  });
+
+  it('handles null htmlContent and null domSnapshot gracefully', () => {
+    const phases = extractPhaseNamesFromGame(null, null);
+    assert.deepEqual(phases, []);
+  });
+});
