@@ -215,7 +215,7 @@ function createApp(deps = {}) {
       }
     }
 
-    const buildId = db.createBuild(gameId, null);
+    const buildId = db.createBuild(gameId, null, { requestedBy: requestedBy || null });
     await queue.add('build-game', {
       gameId,
       buildId,
@@ -375,7 +375,7 @@ function createApp(deps = {}) {
       }
 
       // Queue a targeted fix
-      const buildId = db.createBuild(game.game_id, null);
+      const buildId = db.createBuild(game.game_id, null, { requestedBy: feedback.userId || null });
       db.updateBuildFeedback(buildId, feedback.text);
 
       if (queue) {
