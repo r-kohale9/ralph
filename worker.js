@@ -354,63 +354,55 @@ const worker = new Worker(
     let stepStartedAt = buildStartTime; // resets whenever currentBuildStep changes
 
     const game = db.getGame(gameId);
-    if (game && game.slack_thread_ts) {
-      // Use existing thread — post a new-build notice as a reply
-      threadInfo = { ts: game.slack_thread_ts, channel: game.slack_channel_id };
-      await slack.postThreadUpdate(
-        threadInfo.ts, threadInfo.channel,
-        `🔄 *Build #${buildId} started* — ${gameId}\nGen=${pipelineGenModel} | Test=${pipelineTestModel} | Fix=${pipelineFixModel}${requestedBy ? `\ncc: <@${requestedBy}>` : ''}`,
-      );
-    } else {
-      // Upload spec to GCP for a hosted link (preferred over GitHub raw link)
-      const specFilePath = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
-      if (gcp.isEnabled() && fs.existsSync(specFilePath)) {
-        const gcpSpecUrl = await gcp.uploadContent(
-          fs.readFileSync(specFilePath, 'utf-8'),
-          `games/${gameId}/builds/${buildId}/spec.md`,
-          { contentType: 'text/markdown' },
-        ).catch(() => null);
-        if (gcpSpecUrl) specLink = slack.formatLink(gcpSpecUrl, '📄 Spec');
-      }
+    // Always create a fresh Slack thread for each new build — never reuse an existing thread.
+    // Upload spec to GCP for a hosted link (preferred over GitHub raw link)
+    const specFilePath = specPath || path.join(REPO_DIR, 'warehouse', 'templates', gameId, 'spec.md');
+    if (gcp.isEnabled() && fs.existsSync(specFilePath)) {
+      const gcpSpecUrl = await gcp.uploadContent(
+        fs.readFileSync(specFilePath, 'utf-8'),
+        `games/${gameId}/builds/${buildId}/spec.md`,
+        { contentType: 'text/markdown' },
+      ).catch(() => null);
+      if (gcpSpecUrl) specLink = slack.formatLink(gcpSpecUrl, '📄 Spec');
+    }
 
-      // Upload pipeline docs to GCP
-      if (gcp.isEnabled()) {
-        const docsUrl = await gcp.uploadContent(
-          buildPipelineDocsMarkdown({ gameId, buildId, genModel: pipelineGenModel, testModel: pipelineTestModel, fixModel: pipelineFixModel, maxIterations: pipelineMaxIterations }),
-          `games/${gameId}/builds/${buildId}/pipeline-docs.md`,
-          { contentType: 'text/markdown' },
-        ).catch(() => null);
-        if (docsUrl) pipelineDocsLink = slack.formatLink(docsUrl, '📖 Pipeline Docs');
-      }
+    // Upload pipeline docs to GCP
+    if (gcp.isEnabled()) {
+      const docsUrl = await gcp.uploadContent(
+        buildPipelineDocsMarkdown({ gameId, buildId, genModel: pipelineGenModel, testModel: pipelineTestModel, fixModel: pipelineFixModel, maxIterations: pipelineMaxIterations }),
+        `games/${gameId}/builds/${buildId}/pipeline-docs.md`,
+        { contentType: 'text/markdown' },
+      ).catch(() => null);
+      if (docsUrl) pipelineDocsLink = slack.formatLink(docsUrl, '📖 Pipeline Docs');
+    }
 
-      threadInfo = await slack.createGameThread(gameId, {
-        title: game?.title || gameId,
-        buildId,
-        requestedBy: requestedBy || null,
-        startedAt: buildStartTime,
-        currentStep: 'Step 1 · Generating HTML',
-        llmCalls: 0,
-        specLink: specLink || null,
-        specGithubUrl: !specLink ? specGithubUrl : null,
-        pipelineDocsLink: pipelineDocsLink || null,
-        pipelineDocsUrl: !pipelineDocsLink ? pipelineDocsGithubUrl : null,
-      });
-      if (threadInfo && threadInfo.ts) {
-        // Ensure game row exists before updating thread (game may not be pre-created via /api/games)
-        if (!game) db.createGame(gameId, {});
-        db.updateGameThread(gameId, threadInfo.ts, threadInfo.channel);
-        // First reply: build plan
-        const planText = [
-          `📋 *Build Plan — Build #${buildId}*`,
-          `1️⃣ Generate HTML — ${pipelineGenModel}`,
-          `2️⃣ Static + contract validation`,
-          `3️⃣ Generate Playwright tests — ${pipelineTestModel}`,
-          `4️⃣ Test → fix loop — 5 categories × max ${pipelineMaxIterations} iterations — ${pipelineFixModel}`,
-          `   Categories: game-flow · mechanics · level-progression · edge-cases · contract`,
-          `5️⃣ LLM review — ${pipelineTestModel}`,
-        ].join('\n');
-        await slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, planText);
-      }
+    threadInfo = await slack.createGameThread(gameId, {
+      title: game?.title || gameId,
+      buildId,
+      requestedBy: requestedBy || null,
+      startedAt: buildStartTime,
+      currentStep: 'Step 1 · Generating HTML',
+      llmCalls: 0,
+      specLink: specLink || null,
+      specGithubUrl: !specLink ? specGithubUrl : null,
+      pipelineDocsLink: pipelineDocsLink || null,
+      pipelineDocsUrl: !pipelineDocsLink ? pipelineDocsGithubUrl : null,
+    });
+    if (threadInfo && threadInfo.ts) {
+      // Ensure game row exists before updating thread (game may not be pre-created via /api/games)
+      if (!game) db.createGame(gameId, {});
+      db.updateGameThread(gameId, threadInfo.ts, threadInfo.channel);
+      // First reply: build plan
+      const planText = [
+        `📋 *Build Plan — Build #${buildId}*`,
+        `1️⃣ Generate HTML — ${pipelineGenModel}`,
+        `2️⃣ Static + contract validation`,
+        `3️⃣ Generate Playwright tests — ${pipelineTestModel}`,
+        `4️⃣ Test → fix loop — 5 categories × max ${pipelineMaxIterations} iterations — ${pipelineFixModel}`,
+        `   Categories: game-flow · mechanics · level-progression · edge-cases · contract`,
+        `5️⃣ LLM review — ${pipelineTestModel}`,
+      ].join('\n');
+      await slack.postThreadUpdate(threadInfo.ts, threadInfo.channel, planText);
     }
 
     // ── Block Kit helpers ────────────────────────────────────────────────────
