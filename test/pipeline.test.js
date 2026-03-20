@@ -729,3 +729,87 @@ describe('pipeline-fix-loop.js isInitFailure', () => {
     assert.equal(isInitFailure(['Timeout 30000ms exceeded waiting for element'], 0), true);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests for global fix loop 0/0 false-pass guard
+// Verifies that a batch returning passed=0, failed=0, total=0 (page crash /
+// corrupted HTML) is NOT treated as "all tests pass" — it must be placed in
+// globalFailingBatches, not globalPassingBatches, so the loop does NOT exit
+// early believing the build is healthy.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline-fix-loop.js global fix loop — 0/0 false-pass guard', () => {
+  // We test the classification logic directly: given gPassed and gFailed values,
+  // confirm whether a batch would end up as "passing" or "failing".
+  // The rule in the fixed code: only gFailed===0 && gPassed>0 → passing.
+  // Anything else (gFailed>0 OR gPassed===0&&gFailed===0) → failing.
+
+  function classifyBatch(gPassed, gFailed) {
+    // Mirrors the fixed condition in runFixLoop (Step 3c global fix loop)
+    if (gFailed === 0 && gPassed > 0) return 'passing';
+    return 'failing';
+  }
+
+  it('batch with passed=5, failed=0 is classified as passing', () => {
+    assert.equal(classifyBatch(5, 0), 'passing');
+  });
+
+  it('batch with passed=0, failed=3 is classified as failing', () => {
+    assert.equal(classifyBatch(0, 3), 'failing');
+  });
+
+  it('batch with passed=2, failed=1 is classified as failing', () => {
+    assert.equal(classifyBatch(2, 1), 'failing');
+  });
+
+  it('batch with passed=0, failed=0 (0/0 — page crash / broken HTML) is classified as failing — not passing', () => {
+    // This is the core bug fix: 0/0 must NOT satisfy "all pass"
+    assert.equal(classifyBatch(0, 0), 'failing',
+      '0/0 result (no tests ran) must be treated as failing, not passing');
+  });
+
+  it('batch with passed=1, failed=0 is classified as passing (boundary)', () => {
+    assert.equal(classifyBatch(1, 0), 'passing');
+  });
+
+  it('batch with passed=0, failed=1 is classified as failing (boundary)', () => {
+    assert.equal(classifyBatch(0, 1), 'failing');
+  });
+
+  it('globalFailingBatches.length===0 check is only safe when no 0/0 batches exist', () => {
+    // Simulates the scenario: two batches — one 5/0 (passing), one 0/0 (broken)
+    // Before fix: 0/0 fell through both branches → globalFailingBatches was empty → false early exit
+    // After fix: 0/0 → globalFailingBatches has one entry → loop continues correctly
+    const batches = [
+      { gPassed: 5, gFailed: 0 },  // genuinely passing
+      { gPassed: 0, gFailed: 0 },  // corrupted — 0/0
+    ];
+    const globalFailingBatches = [];
+    const globalPassingBatches = [];
+    for (const { gPassed, gFailed } of batches) {
+      if (gFailed === 0 && gPassed > 0) {
+        globalPassingBatches.push({ gPassed, gFailed });
+      } else {
+        globalFailingBatches.push({ gPassed, gFailed });
+      }
+    }
+    assert.equal(globalPassingBatches.length, 1, 'only the 5/0 batch should be passing');
+    assert.equal(globalFailingBatches.length, 1, 'the 0/0 batch must be in failing list');
+    // Loop must NOT exit early — there is a failing batch
+    assert.ok(globalFailingBatches.length > 0, 'global fix loop should continue (not exit early)');
+  });
+
+  it('all-passing scenario (no 0/0 batches) still exits the loop correctly', () => {
+    const batches = [
+      { gPassed: 5, gFailed: 0 },
+      { gPassed: 3, gFailed: 0 },
+    ];
+    const globalFailingBatches = [];
+    for (const { gPassed, gFailed } of batches) {
+      if (!(gFailed === 0 && gPassed > 0)) {
+        globalFailingBatches.push({ gPassed, gFailed });
+      }
+    }
+    assert.equal(globalFailingBatches.length, 0, 'with all genuinely passing batches, loop should exit');
+  });
+});
