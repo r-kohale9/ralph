@@ -290,6 +290,77 @@ describe('validate-static.js', () => {
     assert.ok(output.includes('max-width'));
   });
 
+  it('warns when game_over phase is set but no star display found', () => {
+    // game sets gameover phase but has no ★/☆ or stars-display element
+    const html = VALID_HTML.replace(
+      'function endGame()',
+      `function endGame() {
+    gameState.phase = 'gameover';
+    document.getElementById('gameArea').innerHTML = '<h2>Game Over!</h2>';
+  }
+  function _unused(`,
+    ).replace(
+      // close the injected broken function so the rest of the HTML parses
+      'function _unused(',
+      'function _realEndGame(',
+    );
+    // Build a minimal HTML that has gameover phase but no star display
+    const minHtml = VALID_HTML
+      .replace(/0\.8/g, '0.9')
+      .replace(/0\.5/g, '0.6')
+      .replace(/const stars\b/g, 'const rating')
+      .replace(/\bstars\b/g, 'rating')
+      .replace(
+        'gameState.currentQuestion++;',
+        "gameState.phase = 'gameover'; gameState.currentQuestion++;",
+      );
+    // The above will still fail star-scoring check; use a direct injection instead
+    const gameoverHtml = VALID_HTML.replace(
+      "document.getElementById('gameArea').innerHTML = '<h2>Game Over! Score: ' + gameState.score + '/' + gameState.totalQuestions + '</h2>';",
+      "gameState.phase = 'gameover'; document.getElementById('gameArea').innerHTML = '<h2>Game Over!</h2>';",
+    ).replace(/☆|★/g, ''); // strip any accidental star chars
+    const { exitCode, output } = runValidator(gameoverHtml);
+    // Should warn (exit 0 with warning text) — game_over phase present but no star display
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('WARNING') && output.includes('game_over'), `Expected game_over star warning but got: ${output}`);
+  });
+
+  it('does not warn about game_over stars when star display is present', () => {
+    const html = VALID_HTML.replace(
+      "document.getElementById('gameArea').innerHTML = '<h2>Game Over! Score: ' + gameState.score + '/' + gameState.totalQuestions + '</h2>';",
+      "gameState.phase = 'gameover'; document.getElementById('gameArea').setAttribute('data-testid','stars-display'); document.getElementById('gameArea').innerHTML = '<h2>Game Over!</h2><div data-testid=\"stars-display\">☆☆☆</div>';",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    // Should NOT warn about game_over stars specifically
+    assert.ok(!output.includes('game_over phase set but no star'), `Unexpected game_over star warning: ${output}`);
+  });
+
+  it('warns when click handlers present but no isActive/isProcessing guard', () => {
+    // Game has addEventListener click but no isActive/isProcessing variable
+    const html = VALID_HTML.replace(
+      '</script>',
+      'document.getElementById("answers").addEventListener("click", function(e) { checkAnswer(e.target.value); });\n</script>',
+    );
+    // VALID_HTML doesn't have isActive/isProcessing — should warn
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('WARNING') && output.includes('isActive'), `Expected isActive guard warning but got: ${output}`);
+  });
+
+  it('does not warn about isActive guard when guard is present', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer)',
+      'let isActive = true;\n  function checkAnswer(answer)',
+    ).replace(
+      '</script>',
+      'document.getElementById("answers").addEventListener("click", function(e) { if (!isActive) return; checkAnswer(e.target.value); });\n</script>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(!output.includes('isActive/isProcessing guard'), `Unexpected isActive warning: ${output}`);
+  });
+
   it('exits with code 2 when no file argument given', () => {
     try {
       execFileSync('node', [VALIDATOR], { encoding: 'utf-8', timeout: 5000 });
