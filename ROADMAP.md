@@ -290,10 +290,10 @@
 | P3 DevOps & Operations | 13 | 0 | 13 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 53 | 5 | 58 |
+| P6 Test Generation Quality | 53 | 7 | 60 |
 | P7 Code Architecture | 9 | 6 | 15 |
-| P8 Build Reliability | 5 | 2 | 7 |
-| **Total** | **125** | **11** | **139** |
+| P8 Build Reliability | 5 | 3 | 8 |
+| **Total** | **125** | **14** | **142** |
 
 ## What's Next
 
@@ -334,5 +334,9 @@
 28. **[SHIPPED] FeedbackManager audio popup auto-dismiss** — test harness auto-triggers primaryClick on PopupComponent after 30ms; eliminates manual popup handling in all tests; deployed 2026-03-21 (commit 16cc686).
 29. **[SHIPPED] adjustment-strategy spec fixes (4 root causes)** — button IDs in initial HTML + all `updateAdjusterUI()` rebuilds, `isProcessing=false` before setTimeout, `game_over→0 stars` explicit branch, postMessage `duration_data`/`attempts` required fields; deployed 2026-03-21 (commit 4789948).
 30. **[R&D — ACTIVE] Claude CLI auth reliability** — On 2026-03-20 ~19:07, `claude auth status` showed loggedIn=true but `claude -p` returned "Your organization does not have access to Claude." — 20+ builds failed immediately. Root cause unknown (session expiry vs usage limit). Need: (1) reproduce reliably, (2) add server-side auth health check before pipeline starts (minimal `claude -p "ping"` probe), (3) consider fallback to proxy LLM for HTML gen when `claude -p` fails. Lesson 61 in docs/lessons-learned.md.
+31. **[SHIPPED] Fix smoke-regen context: CDN packages failed vs missing static div** — commit a4a7903; associations #392 CDN smoke triggered path; correct instructions now explain ScreenLayout.inject() failure root cause, not just "add a div".
+32. **[R&D — ACTIVE] First-attempt approval rate measurement** — 3 valid data points collected (builds #388, #390, #394 approved; #391 kakuro NOT first-attempt — mechanics 3 iters; #394 rapid-challenge NOT first-attempt — game-flow phase name 'start' vs 'start_screen'). Current measured rate: 1/3 = 33% first-attempt. Phase-name normalization gap identified as top cause. Investigating P6 planned fix.
+33. **[PLANNED — P6] Page console error capture on 0/0 batch failures** — count-and-tap #393 + associations #392 both failed with 0/0 cascade after global fix; fix LLM had no signal. Implementation: capture page.on('console') + page.on('pageerror') events; emit in test harness; collect in fix-loop failure context.
+34. **[PLANNED — P8] Global fix 0/0 regression investigation** — global fix loop (Step 3c) produced HTML causing all subsequent tests to time out in count-and-tap #393 + associations #392. Need rollback guard + more constrained fix prompt when pre-fix pass count drops to 0 post-fix.
 11. **Human-run Playwright traces** — record `--trace` from a correct human test run; use as ground truth for test generation, eliminating LLM selector hallucinations
 12. **E4 warehouse-aware context** — deterministic Stage 1: spec → capability matrix → dependency graph → assembled prompt (skipped per user request)
