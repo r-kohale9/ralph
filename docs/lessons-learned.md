@@ -289,3 +289,21 @@ Check the spec's `PART-017` value. If `NO`, the call must be removed.
 **Fix:** Changed rule to "MUST be exposed on window — define as named functions inside DOMContentLoaded then assign: window.debugGame = debugGame".
 
 **Proof:** queens build 285 rejected 3 consecutive times for this exact conflict. Commit dd7f170.
+
+## Lesson 56 — Cross-batch-guard false rollbacks from 30s timeout (0/0 treated as regression)
+
+**Pattern:** `detectCrossBatchRegression()` smoke-checks prior passing batches after each new batch completes. With a 30-second timeout, game-flow tests (which can take 30-60s for complex games) would timeout and return 0/0 results. `0 < prevPassed` was true, so every batch triggered a false rollback — effectively wasting all per-batch improvements.
+
+**Observed:** queens build — every batch (mechanics, level-progression, edge-cases, contract) passed their own tests but then had cross-batch-guard fire `REGRESSION: batch X broke prior batch game-flow (was 7/7, now 0/0)`. All batches rolled back. Only game-flow tests were preserved.
+
+**Fix:** (1) Skip regression detection when `nowTotal === 0` (inconclusive — can't distinguish timeout from actual crash); (2) Increase smoke timeout from 30s → 90s. Commit 7d27432.
+
+**Rule:** When `nowTotal === 0`, the test execution itself failed (timeout, infra error). Never treat this as a regression — it's inconclusive. Only trigger rollback when `nowTotal > 0 && nowPassed < prevPassed`.
+
+## Lesson 57 — Generation LLM timeout (RALPH_LLM_TIMEOUT=300 kills large-spec HTML gen)
+
+**Pattern:** Large-spec games (interactive-chat 59KB, bubbles-pairs 64KB) that require `maxTokens: 32000` output generate HTML that takes >5 minutes. `RALPH_LLM_TIMEOUT=300` aborted these at exactly 300 seconds with `iterations=0` — before the pipeline could do anything.
+
+**Fix:** Added `RALPH_GEN_LLM_TIMEOUT` config (default 600s) used specifically at all 4 HTML generation call sites (generate-html, generate-html-retry, smoke-regen, snapshot-regen). Triage/fix calls keep 300s. Commit 4eb1d29.
+
+**Rule:** Generation calls (maxTokens=32000) need a separate, larger timeout than fix/triage calls. Never use a single global timeout for all LLM call types.
