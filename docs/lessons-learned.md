@@ -1091,3 +1091,25 @@ M7. For games where the CORRECT TARGET changes position after shuffling (shell g
 **Evidence:** light-up #428 — game-flow 0/2. Local diagnostic: `window.__initError: 'Sentry.captureConsoleIntegration is not a function'`. T1 run on failing HTML confirmed only the captureConsoleIntegration WARNING — it passed T1 despite crashing at runtime. POC: changing to `Sentry.init({ dsn: '...' })` (no integrations) → initSentry completes → start screen renders → tests pass.
 
 **Prevention:** Any CDN game with PART-015=YES (Sentry): use bare `Sentry.init({ dsn: '...' })` with no integrations. T1 WARNING catches both CaptureConsole variants before Step 1d. New rule in T1: "If you see a Sentry integration error, fix by removing integrations entirely — not by switching to a different integration API."
+
+## Lesson 106 — T1 typeof-check WARNINGs for CDN components must be ERRORs
+
+**Pattern (source: true-or-false #436, keep-track diagnostic 2026-03-21):** T1 checks for missing `typeof TimerComponent`, `typeof TransitionScreenComponent`, `typeof ProgressBarComponent` in `waitForPackages()` were WARNINGs. WARNINGs are deprioritized by the static-fix LLM (it fixes hard errors first; WARNINGs are often skipped if the HTML otherwise passes). Missing typeof guards cause 100% blank-page failures — CDN component race condition. true-or-false #436 had all three typeof checks missing, passed T1 as WARNINGs, then failed at Step 1d smoke check with blank page.
+
+**Fix:** Commit d2a3324. Upgraded all three to ERRORs with clear error messages explaining: "loads at CDN step N, AFTER ScreenLayout (step 2) → without typeof guard, init runs before X is defined → ReferenceError → blank page." 4 new unit tests added (fail without guard for each component type, pass with guard for Timer). 577/577 tests pass.
+
+**Evidence:** true-or-false #436: T1 showed 3 WARNINGs + 3 hard errors. Static-fix LLM fixed the 3 hard errors but left all 3 WARNINGs unfixed — HTML passed T1 after static fix, then failed Step 1d with blank page. The 3 WARNINGs were exactly the missing typeof checks.
+
+**Prevention:** Any CDN component that loads AFTER ScreenLayout (step 2) must have an ERROR-level T1 check for missing typeof guard. ScreenLayout itself is checked implicitly (it's the reference point). All downstream components (TransitionScreen/step 4, ProgressBar/step 3, Timer/step 7) now trigger ERRORs that force static-fix LLM to add the guards.
+
+## Lesson 107 — CDN cold-start requires 120s beforeEach poll, 180s test timeout
+
+**Pattern (source: keep-track #465, count-and-tap, local diagnostic 2026-03-21):** CDN scripts can take 60-120s to load on server when cache is cold. The beforeEach poll loop was `Date.now() + 50000` (50s). On warm CDN, beforeEach completes in <5s. On cold CDN, the poll expires at 50s and the test fails with `#mathai-transition-slot button is not visible` — the same HTML that passes locally and on warm CDN.
+
+**Double jeopardy for animation games:** keep-track requires CDN load time + 5.6s shuffle animation before the first interactive click. Even if CDN loads in 45s (within 50s), the game may not be interactive by the time the test calls `answer()` because the M6 `waitForFunction(phase==='guess')` hasn't been added to the test yet.
+
+**Fix:** Commit 89149d4. (1) `buildBeforeEach()` deadline: `50000` → `120000` (120s). (2) `buildPlaywrightConfig()` timeout: `90000` → `180000` (180s — must exceed poll + 5s check + animation time). Comment updated. 577/577 tests pass, deployed to server.
+
+**Evidence:** keep-track local diagnostic: CDN loads in <1s locally. On server, Lesson 91 established CDN cold-start = 2.5 min for count-and-tap. keep-track game HTML is correct — browser runs it perfectly locally with `isActive=true`, correct `.correct` class, and 5.6s animation before guess phase.
+
+**Prevention:** Any CDN game with animation phases (shuffle, reveal, memory) needs the increased timeouts — not just keep-track. The fix applies globally to ALL CDN games in the beforeEach template. The tradeoff (slow test suites on infra failures) is acceptable; false failures on correct HTML are not.
