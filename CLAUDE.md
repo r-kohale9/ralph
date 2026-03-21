@@ -126,7 +126,7 @@ ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && n
 
 **Kill a build immediately if:** infrastructure issues cause test failures, pipeline code was wrong at build start, iteration 2+ with 0 pass rate and clearly wrong HTML, or same test fails iterations 1 and 2 with same error.
 
-**Parallel work rule (CRITICAL):** Never idle waiting for a build — diagnose failures, fix code, deploy, and queue the next build in parallel.
+**Queue policy (CRITICAL):** Only queue builds to verify a specific fix or change. Never queue speculatively, for measurement, or to fill the queue. All queuing is manual — there is no automated queue.
 
 ## Test Harness Architecture
 
@@ -258,6 +258,8 @@ While a build runs (~25-35 min), diagnose failures, implement fixes, run tests, 
 ### 4. Deploy to server before re-queuing
 Always deploy the latest `lib/pipeline.js` (and other changed files) to the server before queuing a new build. A build started on old code wastes a full pipeline run. Sequence: fix code → `npm test` → commit → `scp` → `systemctl restart` → queue build.
 
+**Queue policy:** Only queue a build when there is a specific fix or change that requires E2E verification. Never queue speculatively or for general measurement. All queuing is manual.
+
 ### 5. Kill a build immediately if these conditions hold
 - Running on pipeline code that had a known bug (deploy first, then re-queue)
 - Iteration 1 returns 0% game-flow AND the HTML has an obvious init failure (don't wait 5 iterations)
@@ -344,7 +346,7 @@ One item must always be present in `ROADMAP.md` under `## R&D` with status `acti
 ### 12. At session start and after every context compaction — restore background task continuity
 
 When starting a new session or resuming after context compaction:
-1. **Check CronList** — if ANY cron is missing, recreate ALL 5 immediately (see exact prompts below).
+1. **Check CronList** — if ANY cron is missing, recreate ALL 4 immediately (see exact prompts below). NOTE: Cron 3 (Queue Strategist) is permanently disabled — do NOT recreate it.
 2. **Check running sub-agents** — review the conversation summary or task notifications to identify any agents that were mid-flight. If their results are pending, relaunch them with the same brief.
 3. **Check build pipeline** — SSH to server and confirm worker is running and no build has been stuck >45 min.
 4. **Check ROADMAP.md R&D slot** — confirm one R&D task is marked `active`. If the slot is empty or passive, pick the next highest-leverage item and launch a sub-agent immediately.
@@ -352,7 +354,7 @@ When starting a new session or resuming after context compaction:
 
 This rule exists because session compaction silently kills all crons, loses agent context, and can leave background work orphaned. Any future agent starting a session must run this checklist before doing anything else.
 
-#### Required crons — recreate ALL if CronList shows fewer than 5:
+#### Required crons — recreate ALL if CronList shows fewer than 4 (Cron 3 / Queue Strategist is permanently disabled):
 
 **Cron 1 — Build Doctor (every 5 min):**
 ```
@@ -388,20 +390,8 @@ Tag @U0242GULG48
 ```
 Schedule: `*/15 * * * *`
 
-**Cron 3 — Queue Strategist (hourly at :13):**
-```
-You are the Queue Strategist — expert in Ralph pipeline throughput and spec coverage.
-
-SSH: ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206
-
-1. Check queue depth and what's queued
-2. Check which games have never been approved (query builds table: games with no approved builds)
-3. If queue < 5 builds and there are unattempted or long-failed games, queue the highest-priority ones
-4. Priority order: (1) games never attempted, (2) games that failed >30 days ago, (3) games with only 1 failed attempt
-5. Use: curl -s -X POST http://localhost:3000/api/build -H 'Content-Type: application/json' -d '{"gameId":"GAME_ID","force":true}'
-6. Report: queue depth before/after, what was queued and why
-```
-Schedule: `13 * * * *`
+**Cron 3 — Queue Strategist: DISABLED**
+Automated queuing is disabled. All builds are queued manually, only to verify a specific fix or change. Do NOT recreate this cron.
 
 **Cron 4 — Roadmap Manager (hourly at :47):**
 ```
