@@ -301,6 +301,15 @@ async function handleFixJob(job) {
 const worker = new Worker(
   'ralph-builds',
   async (job) => {
+    // ─── Top-level pre-pipeline crash guard ───────────────────────────────────
+    // Wraps the ENTIRE processor body so that any crash before the inner pipeline
+    // try/catch (e.g. synchronous require() failure, missing env vars, Slack thread
+    // error, git-pull crash, spec fetch failure) is still written to DB.
+    // The inner pipeline try/catch (further below) handles pipeline-specific crashes
+    // and writes first; this guard is the outermost safety net.
+    const _topLevelBuildId = job.data?.buildId;
+    try {
+
     // Handle targeted fix jobs
     if (job.data.type === 'fix') {
       return handleFixJob(job);
@@ -1033,6 +1042,23 @@ const worker = new Worker(
       }
     }
 
+    // ── Pre-flight: verify game output directory is writable ─────────────────
+    // Catches permission errors early with a clear message rather than a cryptic
+    // EACCES deep inside the pipeline after several minutes of LLM calls.
+    {
+      const preflightDir = USE_NODE_PIPELINE
+        ? path.join(REPO_DIR, 'data', 'games', gameId, 'builds', String(buildId))
+        : path.join(REPO_DIR, 'data', 'games', gameId);
+      try {
+        fs.mkdirSync(preflightDir, { recursive: true });
+        const testFile = path.join(preflightDir, '.preflight');
+        fs.writeFileSync(testFile, '1');
+        fs.unlinkSync(testFile);
+      } catch (preflightErr) {
+        throw new Error(`pre-pipeline preflight: output directory not writable (${preflightDir}): ${preflightErr.message}`);
+      }
+    }
+
     // Run Ralph — E3: choose between bash (ralph.sh) and Node.js (pipeline.js)
     let report;
     // Heartbeat: update job progress every 2 min for monitoring visibility.
@@ -1223,6 +1249,26 @@ const worker = new Worker(
     });
 
     return report;
+
+    } catch (err) {
+      // ── Top-level crash guard catch ─────────────────────────────────────────
+      // Reached only for crashes that escaped the inner pipeline try/catch —
+      // i.e. pre-pipeline setup failures (Slack, git pull, spec fetch, etc).
+      // The inner catch already wrote error_message for pipeline-phase crashes,
+      // so we guard with a check to avoid overwriting a more specific message.
+      if (_topLevelBuildId) {
+        try {
+          const existing = db.getBuild(_topLevelBuildId);
+          if (!existing?.error_message) {
+            const errMsg = (err && (err.message || err.toString())) || 'pre-pipeline crash: no error message';
+            db.failBuild(_topLevelBuildId, `pre-pipeline crash: ${errMsg}`);
+          }
+        } catch (_dbErr) {
+          // DB write itself failed — nothing more we can do; BullMQ will fire worker.on('failed')
+        }
+      }
+      throw err; // rethrow so BullMQ marks the job as failed and fires worker.on('failed')
+    }
   },
   {
     connection,
