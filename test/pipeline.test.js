@@ -1438,3 +1438,56 @@ WINDOW.GAMESTATE SHAPE (actual runtime values — use THESE property names/types
     assert.deepEqual(phases, []);
   });
 });
+
+// ─── detectCorruptFallbackContent ─────────────────────────────────────────────
+
+const { detectCorruptFallbackContent } = require('../lib/pipeline-test-gen');
+
+describe('pipeline-test-gen.js detectCorruptFallbackContent', () => {
+  it('detects all CDN API names as corrupt', () => {
+    const input = {
+      rounds: [
+        { question: 'Event', answer: 'Target' },
+        { question: 'Input', answer: 'Action' },
+        { question: 'Source', answer: 'Destination' },
+      ],
+    };
+    const result = detectCorruptFallbackContent(input);
+    assert.equal(result.corrupt, true);
+    assert.deepEqual(result.rounds, []);
+  });
+
+  it('detects mixed CDN names + real content as corrupt when >50%', () => {
+    // 4 out of 6 values are CDN names = 67% → corrupt
+    const input = {
+      rounds: [
+        { question: 'Event', answer: 'Target' },
+        { question: 'Input', answer: 'Action' },
+        { question: 'What is 3+4?', answer: '7' },
+      ],
+    };
+    const result = detectCorruptFallbackContent(input);
+    assert.equal(result.corrupt, true);
+    assert.deepEqual(result.rounds, []);
+  });
+
+  it('does not flag real game content as corrupt', () => {
+    const input = {
+      rounds: [
+        { question: 'What is the capital of France?', answer: 'Paris' },
+        { question: 'What is 3+4?', answer: '7' },
+        { question: 'Which planet is largest?', answer: 'Jupiter' },
+      ],
+    };
+    const result = detectCorruptFallbackContent(input);
+    assert.equal(result.corrupt, undefined);
+    assert.equal(result.rounds.length, 3);
+  });
+
+  it('does not flag empty rounds as corrupt', () => {
+    const input = { rounds: [] };
+    const result = detectCorruptFallbackContent(input);
+    assert.equal(result.corrupt, undefined);
+    assert.deepEqual(result.rounds, []);
+  });
+});
