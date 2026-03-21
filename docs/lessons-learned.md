@@ -1334,3 +1334,26 @@ await transitionScreen.show({
 **Fix needed:** For hasTwoPhases games, inject explicit clarification in level-progression test-gen prompt: "hasTwoPhases = learn phase → recall phase transition. Round transitions WITHIN the recall phase are game-specific — do NOT assume #mathai-transition-slot between rounds."
 **Fix applied:** `lib/pipeline-test-gen.js` `buildGameFeaturesBlock()` — appended to the `hasTwoPhases` feature flag line: "CRITICAL for level-progression tests: hasTwoPhases describes the learn→recall PHASE transition ONLY — round transitions WITHIN the recall phase are game-specific (game may auto-advance, or use a game-internal button); do NOT assume a #mathai-transition-slot button appears between rounds within the recall phase."
 **Commit:** pending
+
+---
+
+## Lesson 106 (revised) — keep-track CDN cold-start: GCP server takes ~150s, poll loop was only 120s
+
+**Source:** keep-track #482 (2026-03-21, build killed)
+
+**Pattern:** Every test in every batch (game-flow, mechanics, contract, edge-cases, level-progression) timed out in beforeEach. Total: 2+ minutes per test × all tests = build failure across all categories.
+
+**Root cause confirmed:** GCP server CDN cold-start takes ~150s. The beforeEach poll loop for `#mathai-transition-slot button` was `Date.now() + 120000` (120s). Since CDN takes 150s to load TimerComponent (the last CDN package, step 7), waitForPackages() throws after 120s, `transitionScreen.show()` never fires, transition slot is never populated → button never visible → poll loop times out → every test fails.
+
+**Key observation:** Each Playwright test gets a fresh BrowserContext (no cache sharing between tests). Every test = cold CDN. With 3-5 tests per batch and 5 batches, this multiplied to catastrophic failure.
+
+**Fix applied (e4e149b):**
+- `lib/pipeline-test-gen.js`: CDN poll deadline `120000` → `160000` ms
+- `lib/pipeline-utils.js`: Playwright test timeout `180000` → `240000` ms (160s CDN + 75s execution margin)
+
+**Why 160s works:** CDN cold-start measured at ~150s. 160s gives 10s safety margin. Total beforeEach: 165s max. Test timeout 240s leaves 75s for actual test execution.
+
+**Distinguishing feature from Lesson 91 (count-and-tap):** Lesson 91 diagnosed a 50s beforeEach timeout (old code) and concluded "run tests locally before blaming HTML". This lesson confirms the GCP CDN cold-start is ~150s and that the poll loop must be ≥150s + margin.
+
+**Commit:** e4e149b
+
