@@ -192,19 +192,15 @@ The CDN bundle's loading order is fixed and documented in the bundle source. `Tr
 
 ## 5. Go/No-Go for E2E
 
-**Decision: READY FOR E2E — but fix the gen prompt first.**
+**Decision: APPROVED — build #459 (iter=2, 11/11 tests passing)**
 
-Prerequisites before queuing build #447:
+- game-flow: 2/2 ✓ iter=1
+- mechanics: 3/5 iter=1 → 5/5 iter=2 ✓ (fix loop recovered 2 mechanics tests)
+- level-progression: 1/1 ✓ iter=1
+- edge-cases: 1/1 ✓ iter=1
+- contract: 1/1 ✓ iter=1
 
-1. **Update `validate-static.js`** to add checks for `TransitionScreenComponent` and `ProgressBarComponent` analogous to the existing `TimerComponent` check (5f3). This ensures the static validator catches any future generation that misses the poll.
-
-2. **Update the gen prompt in `lib/pipeline.js`** (around line 905-920, the `waitForPackages` section) to explicitly state: "If the game uses `TransitionScreenComponent`, `ProgressBarComponent`, or `TimerComponent`, include `typeof X === 'undefined'` in the `waitForPackages()` while condition for EACH component." This prevents the LLM from generating the narrowly-scoped `ScreenLayout`-only check.
-
-3. **Optionally:** Update the smoke-regen prompt (line 905) to include a point: "(7) waitForPackages() must poll for ALL CDN components the game directly instantiates — not just ScreenLayout. Add: `|| typeof TransitionScreenComponent === 'undefined' || typeof ProgressBarComponent === 'undefined' || typeof TimerComponent === 'undefined'` to the while condition."
-
-**Why it will work:** With the extended `waitForPackages()` poll, initialization will block until all four CDN components are available. `transitionScreen.show()` will succeed, the `#mathai-transition-slot` button will appear, and `beforeEach` will complete in ~3-8s. Both game-flow tests verify CDN-agnostic game logic (phase transitions, reveal timer) and should pass. The DOM snapshot will also succeed, giving the test generator real runtime state.
-
-**What we gain if this build succeeds:** (1) Proof that the `waitForPackages()` race condition is the only blocker — the game logic itself (face reveal phase, select phase, feature selection UI) is correctly implemented. (2) First approved build of face-memory, completing a novel game type (multi-feature emoji face reconstruction). (3) Validation that the new static validator checks prevent recurrence.
+Approval validates Lesson 106 (TransitionScreenComponent typeof-check → T1 ERROR forcing LLM to add all CDN typeof guards). The fix loop recovered mechanics failures at iter=2.
 
 ---
 
@@ -215,6 +211,7 @@ Prerequisites before queuing build #447:
 | #161 | DOM snapshot failed (5s timeout) | TransitionScreenComponent undefined → game never initializes | Failed |
 | #232 | DOM snapshot failed (5s timeout) | TransitionScreenComponent undefined → game never initializes | Failed |
 | #446 | game-flow 0/2 iter 1, 0/2 iter 2; both fix models failed | `waitForPackages()` only polls ScreenLayout, not TransitionScreenComponent — race condition with CDN async chain | Failed |
+| #459 | APPROVED (11/11: game-flow 2/2, mechanics 5/5, level-prog 1/1, edge-cases 1/1, contract 1/1) | T1 typeof-check ERRORs (Lesson 106) forced correct waitForPackages() guards; fix loop fixed 2 mechanics failures at iter=2 | approved |
 
 ---
 
