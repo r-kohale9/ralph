@@ -373,7 +373,8 @@ await expect(page.locator(`.cup-container[data-testid="option-${correctPos}"]`))
 | 410 | Step 1d: Blank page: missing #gameContent | TimerComponent wrong API + ordering | Failed |
 | 427 | Step 1d: Blank page: missing #gameContent | Same — smoke regen did not fix it | Failed |
 | 452 | Step 1d: Blank page: missing #gameContent | Same — smoke regen did not fix it | Failed |
-| 465 | Contract-fix T1 error; game-flow 0/2 (button hidden) | initSentry before waitForPackages; transition slot button never shown after round | Failed |
+| 465 | Contract-fix T1: "initSentry() called before waitForPackages()" — iteration 3 fail | Root cause D: original gen had initSentry INSIDE waitForPackages (correct), but contract-fix LLM moved it outside while fixing other contract errors. CDN_CONSTRAINTS_BLOCK has the rule but LLM ignored it during full-HTML contract fix rewrite. | Failed |
+| 468 | Queued — Lessons 108/109 deployed | Fresh gen with updated prompts (contract mutation triage rule, M8 reveal-phase rule, ROUND LIFECYCLE RESET exception) | Queued |
 
 ---
 

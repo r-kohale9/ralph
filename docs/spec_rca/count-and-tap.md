@@ -77,7 +77,8 @@ Also: `typeof TimerComponent` ban (Lesson 87) was corrected — TimerComponent I
 | Build | Symptom | Root Cause | Status |
 |-------|---------|------------|--------|
 | #440 | game-flow 0/2 iter 1+3 (oscillated); mechanics/level-prog/edge-cases 0 test evidence; FAILED after 3 iterations | A: null gameState.content → corrupted fallback → triage skips all categories. B: CDN cold-start → beforeEach 50s timeout | Investigated; gen prompt fix deployed (c4d24f2); T1 fix (16c5640); re-queued as #457 |
-| #457 | game-flow 1/3 iter 1+2 ("phase remains playing" after answering) | C: `renderRound()` sets `isProcessing=false` immediately, but 1.5s setTimeout shows dots before rendering option buttons. harness `answer()` polls `isProcessing=false`, finds it, then querySelectorAll('.option-btn') → empty (buttons not yet rendered) → click fails silently. Timer fires 10s later, game moves on; test is desync'd. | Root cause C identified from HTML analysis (2026-03-21); gen prompt rule Lesson 109 needed; fix loop iter 3 may or may not fix |
+| #457 | game-flow 1/3 iter 1+2; mechanics 1/4; level-prog 0/1; edge-cases 0/1; contract 1/1; FAILED (1/4 cats, 4 needed) | C: renderRound() sets isProcessing=false immediately → harness answer() fires before option buttons rendered → click silently fails → timer fires → test desync. Global fix loop also failed (page broken after E8 fix). Tests pre-generated without M8 rule. | Failed — Lesson 109 rules deployed (833da9f); #471 queued for fresh build |
+| #471 | Queued — Lessons 108/109 deployed | Fresh gen with ROUND LIFECYCLE RESET exception (keep isProcessing=true until options rendered) + M8 test rule (wait for .option-btn visible) | Queued |
 
 ---
 

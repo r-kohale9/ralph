@@ -129,22 +129,15 @@ From the instrumented run, `#mathai-transition-slot` IS injected correctly by `S
 
 ## 5. Go/No-Go for E2E
 
-**Decision: NOT READY FOR E2E**
+**Decision: APPROVED — build #466 (iter=2, 10/10 tests passing)**
 
-**What's blocking:**
+- game-flow: 2/2 ✓
+- mechanics: 3/3 ✓
+- level-progression: 1/1 ✓
+- edge-cases: 3/3 ✓ (iter=2 after 1 round-timeout edge-case failure fixed in iter=1)
+- contract: 1/1 ✓
 
-1. **Gen prompt fix needed:** The generation prompt must be updated to enforce `new TimerComponent('containerId', config)` API — not `new TimerComponent(config)`. Without this, the next build will likely generate the same wrong call.
-2. **Audio URLs:** The spec's PART-017 section should either specify correct audio URLs or state "no custom preload URLs — use FeedbackManager built-ins only." Without this, the LLM will continue hallucinating non-existent paths.
-3. **No approved build yet:** All 5 builds have `iterations=0` — this game has never successfully initialized in the pipeline.
-
-**What is complete:**
-- §2 Evidence: confirmed via stack trace, CDN source inspection, screenshot
-- §3 POC: TimerComponent API confirmed from CDN source; init error reproduced and traced to exact call site
-
-**Go criteria for next E2E queue:**
-- Update PART-006 in spec to clarify: if TimerComponent is not needed (manual timer), remove the `new TimerComponent(...)` call entirely
-- Update PART-017 to either remove preload block or specify correct existing audio URLs
-- After spec update, queue one build and verify Step 1d passes (no 404s, `data-phase=start_screen` with visible transition button)
+Approval validates: TimerComponent API fix (Lesson 98 — string containerId), audio 404 exclusion (Lesson 95), and all CDN constraint rules held.
 
 ---
 
@@ -157,6 +150,7 @@ From the instrumented run, `#mathai-transition-slot` IS injected correctly by `S
 | #307 | Unknown (test_results: []) | Likely LLM generation or test-gen issue | Failed |
 | #421 | Blank page: missing #gameContent element | ScreenLayout.inject failed or game-template not cloned; data-phase=game_init (wrong), Sentry initSentry error | Failed |
 | #438 | 12x 404 (Step 1d smoke check) | `new TimerComponent({startTime:0})` crashes init; audio preload URLs hallucinated and 404 | Failed |
+| #466 | APPROVED (10/10: game-flow 2/2, mechanics 3/3, level-prog 1/1, edge-cases 3/3, contract 1/1) | All prior blockers fixed (TimerComponent API, audio 404 exclusion, CDN constraints) | approved |
 
 ---
 
