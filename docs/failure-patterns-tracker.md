@@ -74,7 +74,7 @@ Ranked by frequency × cost (build time wasted) for the current build era:
 ### 1. Surgical smoke-regen prompt (**SHIPPED** commit 8c645dc, measuring)
 **Pattern:** Smoke-regen repeat-failure rate is 38.5% (5 of 13 events). Every repeat failure wastes an entire build pipeline run (~30 min, ~$0.50).
 **Fix shipped:** `buildSmokeRegenFixPrompt()` — shows LLM failing HTML, fixes ONLY CDN init sequence (waitForPackages → FeedbackManager.init() if PART-017=YES → initSentry → ScreenLayout.inject with slots).
-**Measurement:** 1 pass (loop-the-loop #429), 1 fail (visual-memory #439 still missing #gameContent — investigating). Need 5+ data points to confirm <10% target.
+**Measurement:** 2 passes (loop-the-loop #429, disappearing-numbers #442), 1 fail (visual-memory #439 — different failure class: ScreenLayout.inject() creates empty #gameContent at runtime, not a CDN URL/init-order issue; surgical prompt cannot fix this). Surgical fix works for CDN URL/init order failures. Need 5+ data points to confirm <10% target for addressable cases.
 **Lesson:** 83
 
 ### 2. Step 1d improvement: expose CDN 404 path errors (**SHIPPED** commit e867f36, Lesson 85)
