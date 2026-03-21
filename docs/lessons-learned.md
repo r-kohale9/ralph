@@ -566,3 +566,102 @@ Also added rule to `CDN_CONSTRAINTS_BLOCK`: "waitForPackages() typeof check MUST
 Updated `buildCliGenPrompt()` PART-003 rule with the same constraint.
 
 **How to apply:** If a CDN game's DOM snapshot shows `gameState: []` (empty) and the browser error is "Packages failed to load within 10s", check whether PART-017=NO in the spec and whether the HTML's `waitForPackages` is checking FeedbackManager anyway. The gen prompt fix prevents this on new builds; for existing broken builds, re-queue after the fix is deployed.
+
+---
+
+## Lesson 73 — BullMQ job resurrection: `db.failBuild()` does NOT remove from BullMQ queue
+
+**Date:** 2026-03-21
+
+**Pattern:** Calling `db.failBuild(id, reason)` marks the DB record as `status='failed'` but has NO effect on the corresponding BullMQ/Redis job. The job remains in Redis and will be redelivered to the worker on the next worker restart. When the worker processes the resurrected job, `db.startBuild()` unconditionally overwrote `status='failed'` → `status='running'`, silently re-running a build that was intentionally cancelled.
+
+**Root cause:** BullMQ jobs are entirely Redis-backed. `db.failBuild()` only touches SQLite. The Redis job entry (keyed `bull:ralph-builds:<jobId>`) persists independently. Any worker restart causes BullMQ to redeliver delayed/waiting jobs — including ones whose DB record was already marked failed by admin operations.
+
+**How it manifested:** Five duplicate queue entries (speed-input, true-or-false, truth-tellers-liars, two-player-race, visual-memory) were cancelled via `db.failBuild()`. After a worker restart for a code deploy, all five resurrected and started running as new builds, each overwriting the failed DB record with a new running record.
+
+**Fix (commit b254482):** Added terminal state guard in `worker.js` before `db.startBuild()`:
+```javascript
+if (buildId) {
+  const existingBuild = db.getBuild(buildId);
+  if (existingBuild && ['failed', 'approved', 'rejected'].includes(existingBuild.status)) {
+    logger.warn(`[worker] Build #${buildId} (${gameId}) already in terminal state '${existingBuild.status}' — skipping stale BullMQ job`);
+    return;
+  }
+  db.startBuild(buildId, { workerId: WORKER_ID });
+}
+```
+
+**How to apply:** If you need to truly cancel a queued build: (1) call `db.failBuild(id, reason)` to mark DB, AND (2) optionally delete the Redis key directly. The terminal state guard now prevents resurrection, so step (2) is only needed if you also want to free the queue slot immediately without waiting for the next worker pick-up. To find the BullMQ job ID corresponding to a DB build: check the job `data.buildId` field in Redis.
+
+---
+
+## Lesson 74 — window.debugGame T1 false positive: T1 validator wrongly rejected required spec pattern
+
+**Date:** 2026-03-21
+
+**Pattern:** T1 static validator (`lib/validate-static.js`) had a check flagging `window.debugGame = debugGame` as an error, with a comment claiming "review model rejects window-exposed debug functions." This was incorrect — the review model does NOT reject them, and all specs explicitly REQUIRE debug functions to be assigned to `window` in the Verification Checklist.
+
+**Evidence of false positive:** simon-says build #416 was APPROVED with `iterations=0` (no fix loop) and contained 3× `window.debugGame` assignments. The review model passed it. Every other approved CDN game also has these assignments.
+
+**Compounding damage:** The gen prompt CDN_CONSTRAINTS_BLOCK had three mutually contradictory statements:
+1. Gen prompt rule: "NEVER assign debug functions to window"
+2. T1 validator: Error on `window.debugGame = ...`
+3. Spec Verification Checklist: "window.debugGame = debugGame — MUST be assigned to window"
+
+The LLM followed rule 1 (NEVER), T1 validated against rule 2, but the review model actually enforced the spec checklist (rule 3). This produced an unfixable loop: gen followed gen prompt → review rejected per spec.
+
+**Fix (commit d827777):**
+1. Removed the `debugWindowPattern` error check from `validate-static.js` entirely. Added comment: "PART-012 debug functions SHOULD be assigned to window per spec — no check here."
+2. Flipped the gen prompt rule from "NEVER" → "MUST": "PART-012 debug functions (debugGame, testAudio, etc.) MUST be assigned to window: `window.debugGame = debugGame`. Copy this pattern verbatim from the spec."
+3. Corrected the EXCEPTION note and CDN_CONSTRAINTS_BLOCK to use "MUST" language.
+
+**How to apply:** If a build fails T1 with `window.debugGame` flagged as an error, the fix is already deployed (post-commit d827777). If you see a review rejection mentioning debug functions not on window, check whether the gen prompt constraint has reverted. The correct invariant: debug functions are ALWAYS assigned to `window` — this is a spec requirement, not a lint violation.
+
+---
+
+## Lesson 75 — Phase name injection: non-standard game phases require post-processing fixup after test-gen
+
+**Date:** 2026-03-21
+
+**Pattern:** The test generator defaults to `waitForPhase(page, 'playing')` as the universal active phase. Games with custom phase names (e.g., `'memorize'` for matrix-memory, `'question'` for quiz games) have a different active phase — the `'playing'` string never appears in `data-phase`, so all `waitForPhase(page, 'playing')` calls immediately time out and the entire game-flow category fails iteration 1.
+
+**Root cause:** The test-gen LLM prompt instructed "use 'playing' as the game-active phase" as a default. For standard games this is correct. For games where the LLM was told to use a custom phase via DOM snapshot context, the generator sometimes still defaulted to 'playing'. The DOM snapshot's `gameStateShape.phase` field (e.g., `string "memorize"`) captured the runtime phase but wasn't used to override the generated test string.
+
+**Fix (commit 7796007):** Added post-processing step in `lib/pipeline-test-gen.js` that runs immediately after test generation:
+```javascript
+const snapPath = path.join(testsDir, 'dom-snapshot.json');
+if (fs.existsSync(snapPath)) {
+  const snap = JSON.parse(fs.readFileSync(snapPath, 'utf-8'));
+  const phaseEntry = snap.gameStateShape && snap.gameStateShape.phase;
+  const phaseMatch = phaseEntry && phaseEntry.match(/^string "([^"]+)"/);
+  const actualPhase = phaseMatch && phaseMatch[1];
+  const STANDARD_PHASES = new Set(['playing', 'start', 'gameover', 'results', 'transition', 'paused']);
+  if (actualPhase && !STANDARD_PHASES.has(actualPhase) &&
+      tests.includes("waitForPhase(page, 'playing')")) {
+    tests = tests.replace(
+      /waitForPhase\s*\(\s*page\s*,\s*['"]playing['"]/g,
+      `waitForPhase(page, '${actualPhase}'`,
+    );
+  }
+}
+```
+
+Only fires when: (1) dom-snapshot.json exists, (2) the actual phase is non-standard (not in STANDARD_PHASES), and (3) the generated tests contain a 'playing' reference. Standard games are unaffected.
+
+**How to apply:** If a game with a custom phase (not 'playing') fails iteration 1 with `waitForPhase('playing') timeout`, check dom-snapshot.json for `gameStateShape.phase`. If it shows `string "memorize"` (or similar non-standard phase), the post-processing should have caught it. If tests still use 'playing', verify `pipeline-test-gen.js` is deployed with this fix and that dom-snapshot.json was written before test generation ran.
+
+---
+
+## Lesson 76 — Sentry.captureConsoleIntegration is not a function: separate plugin bundle not loaded
+
+**Date:** 2026-03-21
+
+**Pattern:** CDN games fail smoke check with "Sentry.captureConsoleIntegration is not a function" immediately followed by "missing #gameContent". The smoke check fails even after smoke-regen.
+
+**Root cause:** `CDN_CONSTRAINTS_BLOCK` in `lib/prompts.js` told the LLM: "Use the flat function API instead: `Sentry.captureConsoleIntegration({levels:['error']})`". This function exists only in Sentry's separate `captureconsole.min.js` plugin bundle — NOT in the base `bundle.tracing.replay.feedback.min.js` that games load. Calling it throws `TypeError`, crashes `initSentry()`, prevents `ScreenLayout.inject()` from running, and `#gameContent` is never created.
+
+**Why smoke-regen also failed:** The regen prompt showed only the symptom ("missing #gameContent") without identifying the Sentry API as root cause. LLMs regenerated with the same broken call.
+
+**Fix (commit 562387c):** Banned `captureConsoleIntegration` in `CDN_CONSTRAINTS_BLOCK` with explicit explanation; mandated "OMIT integrations entirely — call initSentry() with no integrations argument or pass []".
+
+**How to apply:** If a CDN build's smoke-check console errors include "Sentry.captureConsoleIntegration is not a function", kill and requeue. Post-fix builds generate correct `initSentry()` without integrations.
