@@ -995,10 +995,10 @@ describe('runPageSmokeDiagnostic classifySmokeErrors — fatal pattern detection
     assert.ok(result[0].includes('Package failed to load'));
   });
 
-  it('detects "failed to load resource" (CDN 404) as fatal', () => {
+  it('does not treat "failed to load resource" 404 as fatal (audio/media 404s are non-blocking)', () => {
     const errors = ['Failed to load resource: the server responded with a status of 404'];
     const result = classifySmokeErrors(errors);
-    assert.equal(result.length, 1);
+    assert.equal(result.length, 0);
   });
 
   it('detects "is not a constructor" as fatal', () => {
