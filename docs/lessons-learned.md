@@ -753,3 +753,17 @@ HTML generation produced no `#gameContent` element. Caught by smoke-check, trigg
 **Fix (commit 668c087):** `detectCorruptFallbackContent(fallbackContent)` added to `lib/pipeline-test-gen.js`. Checks if >50% of `question`/`answer` string values across all rounds match a 10-member CDN API name set. If detected, returns `{ rounds: [], corrupt: true }` and logs a warning — the corrupt data is discarded and test-gen proceeds with empty fallbackContent. 4 unit tests; 562 total pass.
 
 **How to apply:** If tests crash with assertions on game-specific properties that don't match real game data (especially for games with async content loading), inspect `tests/game-content.json` — if it contains CDN event names rather than real game pairs, this is the pattern. Post-fix, the detection runs automatically before test-gen.
+
+---
+
+## Lesson 82 — CDN package load timeout silently kills DOMContentLoaded; window.__initError surfaces it
+
+**Date:** 2026-03-21
+
+**Pattern:** When `waitForPackages()` throws "Packages failed to load within 10s" (CDN slow under Playwright load), the error is caught by DOMContentLoaded's `catch (e)` block which only calls `console.error('Init error: ' + e.message)`. The test harness `beforeEach` then polls 50 seconds for `#mathai-transition-slot button` — a button that will never appear because `ScreenLayout.inject()` never ran. The 50s wait is silent; triage sees only a timeout with no root cause.
+
+**Fix (commit 842c649):**
+1. `lib/pipeline-test-gen.js` `beforeEach` template: reads `window.__initError` after `page.goto()` and before the polling loop. If set, logs `[test-harness] DOMContentLoaded init error: <message>` — triage now has the actual error string, not just a timeout.
+2. `lib/prompts.js` CDN_CONSTRAINTS_BLOCK: new rule "DOMContentLoaded catch block MUST set `window.__initError = e.message`" so generated HTML always includes this assignment.
+
+**How to apply:** If triage logs show `[test-harness] DOMContentLoaded init error: Packages failed to load within 10s`, the root cause is CDN package load timeout on the test server. Options: (a) re-queue and hope CDN is faster, (b) check CDN script URLs for 404s, (c) check if waitForPackages() is checking the correct package (Lesson 72: PART-017=NO → check ScreenLayout not FeedbackManager).
