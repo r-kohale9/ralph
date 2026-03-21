@@ -665,4 +665,47 @@ describe('validate-static.js', () => {
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
   });
+
+  it('fails when TimerComponent used without typeof check in waitForPackages', () => {
+    // Append TimerComponent usage to VALID_HTML without a typeof guard
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); var timer = new TimerComponent("timer-id", { timerType: "decrease" });',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('ERROR') && output.includes('TimerComponent'), `Expected TimerComponent error but got: ${output}`);
+  });
+
+  it('passes when TimerComponent has typeof check present in script', () => {
+    // Append both TimerComponent usage AND typeof guard — T1 should not flag it
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'if (typeof TimerComponent === "undefined") return; var timer = new TimerComponent("timer-id", { timerType: "decrease" }); initGame();',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(!output.includes('TimerComponent') || !output.includes('ERROR'), `Unexpected TimerComponent error: ${output}`);
+  });
+
+  it('fails when TransitionScreenComponent used without typeof check', () => {
+    // Append TransitionScreenComponent usage without a typeof guard
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); var ts = new TransitionScreenComponent({ autoInject: true });',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('ERROR') && output.includes('TransitionScreenComponent'), `Expected TransitionScreenComponent error but got: ${output}`);
+  });
+
+  it('fails when ProgressBarComponent used without typeof check', () => {
+    // Append ProgressBarComponent usage without a typeof guard
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); var pb = new ProgressBarComponent({ containerId: "progress" });',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('ERROR') && output.includes('ProgressBarComponent'), `Expected ProgressBarComponent error but got: ${output}`);
+  });
 });
