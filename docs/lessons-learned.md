@@ -459,3 +459,22 @@ Gemini uses API key authentication (not OAuth) and is unaffected by Claude org r
 **Proof:** associations #398 (next build after fix) should not hit CDN smoke check failure.
 
 **Pattern to watch:** Any spec that says `FeedbackManager.init()` without `await` prefix in a bullet list is still dangerous — LLM generates it as executable code.
+
+## Lesson 68: extractPhaseNamesFromGame() returned raw phase names that don't match syncDOMState() output
+
+**Date:** 2026-03-21  
+**Games affected:** kakuro #391, rapid-challenge #394 (2/5 non-first-attempt approvals), colour-coding-tool #398 (game-flow test expecting 'start_screen' when data-phase contains 'start')  
+**Root cause:** `extractPhaseNamesFromGame()` in `lib/prompts.js` parsed raw phase names from the HTML source code (e.g., `gameState.phase = 'start_screen'`, `gameState.phase = 'game_over'`) and injected them directly into the GF1 test-gen prompt: "use ONLY these exact strings in waitForPhase() calls." But `syncDOMState()` normalizes these before setting `data-phase` on `#app`:
+- `game_over` → `gameover`
+- `game_complete` → `results`  
+- `start_screen` → `start`
+- `game_init` → `start`
+- `game_playing` → `playing`
+
+So when the test called `waitForPhase(page, 'start_screen')`, `data-phase` was `'start'` — permanent timeout.
+
+**Fix:** Apply the same normalization map in `extractPhaseNamesFromGame()` before returning phase names (commit 32785d3). Also added CRITICAL warning to GF1 prompt block with explicit raw→canonical mapping table.
+
+**Proof:** Colour-coding-tool #398 triage confirmed the pattern: "game initially uses 'start_screen' for data-phase, but restart button sets 'start' instead of 'start_screen', causing test's expectation to fail." With the fix active on subsequent builds (crazy-maze #399+), phase-name mismatches should be eliminated.
+
+**Pattern to watch:** If triage says "waitForPhase timeout: Expected 'X', Received 'Y'" where Y is the normalized form of X, this is the same root cause.
