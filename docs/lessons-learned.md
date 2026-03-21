@@ -1502,6 +1502,30 @@ Both patterns cause `waitForPackages()` to time out → blank page → all tests
 
 ---
 
+## Lesson 131 — Global fix can unblock multiple categories simultaneously
+
+**Source:** keep-track build #503 (2026-03-22)
+
+**Pattern:** Per-category fix loops for mechanics (0/3) and level-progression (0/1) both maxed out without passing. Global fix 2 (a single 248s LLM call with full-HTML context) fixed mechanics 0/3→3/3 AND level-progression 0/1→1/1 in one shot, even though only mechanics was listed as the failing category. Root: both failures shared the same underlying bug in the HTML (isProcessing never reset in wrong-answer path). The category-scoped fix prompts did not have enough context to identify the shared root cause; the global fix prompt did.
+
+**Lesson:** Do not give up on global fix just because per-category fix loops have maxed out. Global context often finds what category-scoped fixes miss, especially when two failing categories share a root cause. A single global fix call can unblock multiple categories simultaneously.
+
+**How to apply:** After per-category fix loops exhaust their iterations with 0/N scores in 2+ categories, check whether the failing categories share a root cause in the HTML. If yes, run a global fix with full HTML context before declaring the build failed.
+
+---
+
+## Lesson 132 — Review rejection + targeted fix is normal for hard builds; kill criterion is 3/3 rejections with same reason
+
+**Source:** keep-track build #503 (2026-03-22)
+
+**Pattern:** Build #503 had 8/9 tests passing before review. Review rejected attempt 1/3 because a global fix that repaired mechanics/level-progression also regressed one edge-case test. The pipeline applied a targeted fix (158s LLM call) and resubmitted — review approved at attempt 2/3. Total build time ~99 minutes, iterations=3.
+
+**Lesson:** Review rejection on attempt 1 is not a failure signal — it is the review-fix loop working as designed. The targeted fix after rejection is fast (typically 100–200s) and corrects the regression without touching passing categories. Kill criterion for the review loop is 3/3 rejections with the same reason (same test failing, same root cause unresolved).
+
+**How to apply:** When a build enters the review loop, do not kill it on the first rejection. Confirm the targeted fix is being applied and the rejection reason is different each attempt. Only kill if all 3 review attempts reject with identical reasons.
+
+---
+
 ## Lesson 130 — BullMQ/DB cancelled-build sync guard: worker pre-flight skips terminal-status jobs
 
 **Source:** Commit 2274342

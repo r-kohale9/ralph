@@ -241,7 +241,7 @@ POC verification for 3B: COMPLETE. All three root causes confirmed with browser 
 
 ## 5. Go/No-Go for E2E
 
-Decision: **NOT READY for E2E without HTML fix** — build 503 has `isProcessing` bug. See §3C and §5 update in Build #483+#503 section below for detailed reasoning.
+Decision: **APPROVED — build #503 approved 2026-03-22.** Global fix 2 (248s) fixed mechanics 0/3→3/3 AND level-progression 0/1→1/1 simultaneously. Final score: 8/9 (1 edge-case regressed). Review rejected attempt 1/3; targeted fix (158s) applied; approved at attempt 2/3. Build total ~99 min, iterations=3.
 
 **Original decision (before build 483/503 analysis):**
 
@@ -517,7 +517,7 @@ gameState.phase = 'guess';
 | 477 | 4/7 passed: level-progression 0/1 + contract 0/1 triage-deleted; game-flow 1/2 (skipped); mechanics 2/2 pass | test gen assumed `level-transition` type requires button click + test assumed transition appears AFTER skipToEnd(); both tests deleted by triage. game-flow failure: cup element not visible during guess phase (timing) | Failed |
 | 482 | All tests timed out in beforeEach — 0/N every batch | CDN cold-start ~150s exceeds 120s poll loop in beforeEach | Killed (infra — fix deployed) |
 | 483 | game-flow 1/3 (2 tests fail both iter 1 and iter 2): "Game Over on Zero Lives" + "Victory Transition" | Iter 1: `isProcessing` stuck true >5s (server CDN race — progressBar.update or similar throws internally, leaving isProcessing=true). Iter 2: `#game-screen` remains visible after "See Results" click. Passes locally in <2ms. Server-specific timing issue. | Failed |
-| 503 | Running (2026-03-22) — game-flow already failed 3 iterations; now at level-progression | Build 503 HTML has `isProcessing` never reset in wrong-answer path before delay. Test gen for this build has no "Game Over on Zero Lives" test — only "Start" and "Victory with hardcoded correctIndices=[2,0,3,0,0]" which will fail on server. | Running |
+| 503 | Mechanics 0/3, level-progression 0/1 in per-category loop | Tests generated before M10-M12+LP4 rules; global fix 2 (248s) fixed both simultaneously; 8/9 final, review approved attempt 2/3 | APPROVED |
 
 ---
 
