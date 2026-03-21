@@ -3,7 +3,7 @@
 **Game ID:** expression-completer
 **Last updated:** 2026-03-21
 **Author:** Claude Sonnet 4.6 (pipeline analysis + Lesson 95)
-**Status:** READY FOR E2E — pipeline bug fixed, queued as #458
+**Status:** APPROVED — build #458 approved (iter=2, 8/8 tests passing)
 
 ---
 
@@ -65,7 +65,7 @@ Decision: **READY FOR E2E**
 | Build | Symptom | Root Cause | Status |
 |-------|---------|------------|--------|
 | 444 | Step 1d: "Packages failed to load" (12× audio 404) | Pipeline false positive — audio 404 smoke check | failed |
-| 458 | (queued) | Pipeline bug fixed | queued |
+| 458 | APPROVED (8/8: game-flow 2/2, mechanics 3/3, level-prog 1/1, edge-cases 1/1, contract 1/1) | Pipeline false positive fixed (Lesson 95 audio 404 exclusion) + contract mutation rules (Lesson 108) | approved |
 
 ---
 
