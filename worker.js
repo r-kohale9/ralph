@@ -441,10 +441,10 @@ const worker = new Worker(
       if (detail?.iteration != null) _logParts.push(`iter=${detail.iteration}`);
       console.log(`[worker] ${_logParts.join(' | ')}`);
 
-      // Renew BullMQ lock on every progress event to prevent stalled-job failures
-      // during long LLM/Playwright calls that block event loop renewToken().
+      // Update job progress in Redis (for monitoring/UI only — does NOT renew the BullMQ lock;
+      // lock renewal is handled by LockManager timer via lockDuration/lockRenewTime options).
       const progressData = { step, ...(detail || {}) };
-      job.updateProgress(progressData).catch(() => {}); // cosmetic: lock renewal failure must not abort the job
+      job.updateProgress(progressData).catch(() => {});
 
       // ── Track LLM call count and current step (used in parent message updates) ──
       if (detail?.llmCalls != null) llmCallCount = detail.llmCalls;
@@ -1028,8 +1028,9 @@ const worker = new Worker(
 
     // Run Ralph — E3: choose between bash (ralph.sh) and Node.js (pipeline.js)
     let report;
-    // Heartbeat: renew BullMQ lock every 2 min during long builds (LLM/Playwright calls
-    // can block the event loop long enough for the 30-min lock to expire without renewal).
+    // Heartbeat: update job progress every 2 min for monitoring visibility.
+    // NOTE: updateProgress() does NOT renew the BullMQ lock — lock renewal is handled
+    // automatically by LockManager (lockDuration=5h, renewal timer every 30min).
     const heartbeatInterval = setInterval(
       async () => {
         await job.updateProgress({ heartbeat: true, gameId }).catch(() => {});
@@ -1219,8 +1220,9 @@ const worker = new Worker(
   {
     connection,
     concurrency: CONCURRENCY,
-    lockDuration: 90 * 60 * 1000, // 90 minutes — pipeline jobs can take up to 60min with parallel builds
-    lockRenewTime: 20 * 60 * 1000, // renew every 20 minutes (lockDuration / 4.5)
+    lockDuration: 5 * 60 * 60 * 1000, // 5 hours — well above longest realistic build (Opus × 5 iters ≈ 150min)
+    lockRenewTime: 60 * 60 * 1000, // renew every 60 min (timer fires every 30min; lock never near expiry)
+    stalledInterval: 5 * 60 * 1000, // check for stalled jobs every 5 min (default 30s was too aggressive)
     limiter: {
       max: RATE_LIMIT_MAX,
       duration: RATE_LIMIT_DURATION,
