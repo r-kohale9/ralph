@@ -492,3 +492,25 @@ So when the test called `waitForPhase(page, 'start_screen')`, `data-phase` was `
 **Proof:** Commit 2666e36; affects disappearing-numbers, kakuro, face-memory, associations builds.
 
 **Pattern to watch:** Any CDN game that hits "missing #gameContent element" at Step 1d with a smoke-regen that also fails — check whether `ScreenLayout.inject()` is called with `slots` wrapper. The outer options object must have a `slots` key; passing slot flags directly at the top level is silently ignored by ScreenLayout.
+
+## Lesson 70: Three review false-rejection patterns fixed with RULE-006/007/008 + T1 checks
+
+**Date:** 2026-03-21  
+**Root cause:** The review step (Step 4) was rejecting games for three patterns that are actually correct or acceptable:
+1. **Pattern 1 (game_over phase):** Reviewer rejected games where `gameState.phase` was never set to `'game_over'` (string). But `endGame()` is the correct termination mechanism — games that call `endGame()` and send the postMessage payload are correct even if the phase is `'gameover'` (no underscore) or `'results'`. The canonical phase for the test harness is `'gameover'`; the raw `'game_over'` string is normalized by `syncDOMState()`.
+2. **Pattern 2 (isActive guard):** Reviewer rejected games where `isActive` wasn't found in the `gameState` init object, even though handlers checked `gameState.isActive`. Two separate issues: (a) `gameEnded = true` at start of `endGame()` is equivalent to `isActive = false` as a re-entry guard; (b) `isActive` must be in the gameState init object (`isActive: true`) so handlers aren't immediately blocked on the first click.
+3. **Pattern 3 (TransitionScreen not awaited):** Reviewer rejected games that called `transitionScreen.show()` without `await`. While `await` is strongly preferred (without it, race conditions occur), it is technically optional for the initial DOMContentLoaded call.
+
+**Fix:**
+- `lib/prompts.js`: Added RULE-006 (endGame() is the correct termination pattern), RULE-007 (isActive guard acceptable forms), RULE-008 (await on TransitionScreen.show() is optional) to `REVIEW_SHARED_GUIDANCE`.
+- `lib/prompts.js`: Added rule 25 (TransitionScreen await) and rule 26 (isActive in gameState init) to `buildGenerationPrompt()` ADDITIONAL GENERATION RULES.
+- `lib/prompts.js`: Updated `CDN_CONSTRAINTS_BLOCK` with `TransitionScreen AWAIT` and `isActive IN GAMESTATE INIT` constraints (propagates to fix prompts).
+- `lib/prompts.js`: Updated `buildCliGenPrompt()` with TransitionScreen await + isActive init rules.
+- `lib/validate-static.js`: Added T1 warning check 5h (TransitionScreen.show() calls not awaited — counts awaited vs total).
+- `lib/validate-static.js`: Enhanced T1 check 12 (isActive guard) to also warn when `gameState.isActive` is used in handlers but not in the gameState init object literal.
+- `test/validate-static.test.js`: 4 new tests for the new T1 checks. Total: 554 tests (was 550).
+
+**Pattern to watch:**
+- If review rejects with "phase never set to game_over" — check that `endGame()` is called correctly and sends postMessage; `RULE-006` in `REVIEW_SHARED_GUIDANCE` should prevent this.
+- If review rejects with "missing isActive guard" but handlers do check it — verify `isActive: true` is in the gameState init object. T1 check 12 now warns when it's missing from init.
+- If review rejects with "TransitionScreen not awaited" — add `await` to all `transitionScreen.show()` calls. T1 check 5h now warns when any show() calls are unawaited.

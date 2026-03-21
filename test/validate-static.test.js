@@ -584,4 +584,85 @@ describe('validate-static.js', () => {
     assert.equal(exitCode, 1);
     assert.ok(output.includes('throw new Error'));
   });
+
+  it('warns when transitionScreen.show() is called without await', () => {
+    // CDN game calls transitionScreen.show() without await — should warn (pattern 3)
+    const html = VALID_HTML.replace(
+      '</script>',
+      `let transitionScreen = { show: async function(opts) {} };
+  function startTransition() {
+    transitionScreen.show({ title: 'Level 1', onComplete: () => {} });
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('WARNING') && output.includes('transitionScreen.show()'),
+      `Expected TransitionScreen await warning but got: ${output}`,
+    );
+  });
+
+  it('does not warn when all transitionScreen.show() calls are awaited', () => {
+    // All show() calls have await — no warning expected
+    const html = VALID_HTML.replace(
+      '</script>',
+      `let transitionScreen = { show: async function(opts) {} };
+  async function startTransition() {
+    await transitionScreen.show({ title: 'Level 1', onComplete: () => {} });
+    await transitionScreen.show({ title: 'Level 2', onComplete: () => {} });
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(
+      !output.includes('transitionScreen.show()') || !output.includes('not awaited'),
+      `Unexpected TransitionScreen await warning: ${output}`,
+    );
+  });
+
+  it('warns when gameState.isActive used in handlers but not initialized in gameState', () => {
+    // Handler checks gameState.isActive but it is not in the init object
+    const html = VALID_HTML.replace(
+      '</script>',
+      `window.endGame = endGame;
+  window.addEventListener('DOMContentLoaded', async () => {
+    window.gameState = { score: 0, lives: 3, phase: 'start', gameEnded: false };
+    document.getElementById('answers').addEventListener('click', function(e) {
+      if (!gameState.isActive) return;
+      gameState.isActive = false;
+      checkAnswer(e.target.value);
+      gameState.isActive = true;
+    });
+  });
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('WARNING') && output.includes('isActive'),
+      `Expected isActive init warning but got: ${output}`,
+    );
+  });
+
+  it('does not warn when gameState.isActive is both used in handlers and initialized in gameState', () => {
+    // Handler checks gameState.isActive AND it is in the init object — no warning
+    const html = VALID_HTML.replace(
+      '</script>',
+      `window.endGame = endGame;
+  window.addEventListener('DOMContentLoaded', async () => {
+    window.gameState = { score: 0, lives: 3, phase: 'start', isActive: true, gameEnded: false };
+    document.getElementById('answers').addEventListener('click', function(e) {
+      if (!gameState.isActive) return;
+      gameState.isActive = false;
+      checkAnswer(e.target.value);
+      gameState.isActive = true;
+    });
+  });
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+  });
 });
