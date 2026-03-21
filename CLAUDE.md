@@ -168,12 +168,33 @@ See `ROADMAP.md` for full tracking across all pillars.
 
 After every build run, pipeline fix, new failure pattern, or architectural decision:
 
-1. **Update `docs/lessons-learned.md`** — add any new failure pattern with the fix and proof
-2. **Update `docs/build-manager-agent.md`** — refine kill criteria and lifecycle rules based on what was observed
-3. **Update `CLAUDE.md`** — keep it accurate as the single source of truth for any new agent starting a session
-4. **Update `ROADMAP.md`** — mark completed items done, add newly discovered improvements as planned
+1. **Update `docs/lessons-learned.md`** — two sections: (a) *Pipeline iteration lessons* (patterns from build logs/DB); (b) *Manual run lessons* (patterns found by running tests locally with screenshots). Tag each entry with its source.
+2. **Update `docs/spec_rca/<game-id>.md`** — per-spec RCA. When a game fails 2+ builds or shows a recurring pattern, create/update its file. Include: symptom, root cause, fix applied, proof, and "why I think it will work in pipeline" rationale.
+3. **Update `docs/build-manager-agent.md`** — refine kill criteria and lifecycle rules based on what was observed
+4. **Update `CLAUDE.md`** — keep it accurate as the single source of truth for any new agent starting a session
+5. **Update `ROADMAP.md`** — mark completed items done, add newly discovered improvements as planned
 
-Goal: any future agent reading these docs should operate without rediscovering known patterns. Reliability, availability, consistency, and efficiency improve only if lessons are captured immediately — not after the fact.
+### Per-spec RCA format (`docs/spec_rca/<game-id>.md`)
+Each file covers one game's full failure history, manual run findings, fixes, and pipeline confidence rationale. Template:
+```
+## Failure History | Build | Symptom | Root Cause | Status |
+## Fixes Applied | Fix | Commit | Why It Will Work In Pipeline |
+## Manual Run Findings (browser screenshots, console, network)
+## Targeted Fix / POC Summary (what was tried, what failed, what worked)
+```
+
+Goal: any future agent reading these docs should operate without rediscovering known patterns.
+
+## Build Failure Diagnosis (REQUIRED BEFORE ANY FIX)
+
+**Never diagnose a build failure from test output alone.** Always run the game yourself first:
+
+1. `curl -s "https://storage.googleapis.com/mathai-temp-assets/games/<gameId>/builds/<buildId>/index.html" -o /tmp/<gameId>/index.html`
+2. Run `node diagnostic.js` (in repo root) — serves HTML locally, injects harness, screenshots every step
+3. Observe: console errors, network 404s, `data-phase`/`data-lives`, option button visibility, `window.gameState` shape
+4. Run the failing test case step-by-step and screenshot each action
+
+**Why:** Screenshots answer "CDN slow? overlay blocking? wrong phase? wrong selector?" in seconds. Reading test output alone cannot distinguish CDN latency from HTML bugs (Lesson 91 — count-and-tap: both tests pass locally, server failure was 2.5 min CDN cold-start exceeding 50s beforeEach timeout).
 
 ---
 

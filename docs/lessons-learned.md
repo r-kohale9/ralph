@@ -898,3 +898,24 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 **Commit:** 6830daa
 
 **Affected games:** Any CDN game that loads external packages — will see runtime-dependencies.json created from next build.
+
+## Lesson 91 — Always run tests locally with browser screenshots before diagnosing HTML failures
+
+**Pattern:** count-and-tap #440 failed with "locator('#mathai-transition-slot button').first() not found within 5s" across both game-flow tests (0/2 at iterations 1 and 3). Reading test output alone suggested HTML was wrong — wrong transition slot setup, wrong fallbackContent, TimerComponent issues.
+
+**Diagnosis (wrong, from file reading alone):** Assumed fallbackContent had no round data, TimerComponent caused ReferenceError, test selectors were wrong.
+
+**Diagnosis (correct, from running tests locally with screenshots):** Downloaded HTML from GCP, injected test harness, ran game-flow tests with Playwright locally. Both tests PASSED. The game renders correctly — 4 option buttons visible, lives deduct on wrong answer, game-over triggers at 0 lives. `TimerComponent` IS defined at runtime (`typeof TimerComponent !== 'undefined'` = true).
+
+**Real root cause:** CDN cold-start on GCP server. The smoke-check browser took 2.5 minutes to load CDN (cold VM, first load). The test runner opened a fresh Playwright browser with no CDN cache. The beforeEach 50s timeout expired before CDN loaded → "transition slot button not visible". This was a transient infra issue. The oscillation (0→1→0 across iterations) was the fix loop breaking HTML that was actually correct.
+
+**Additional findings from running tests:**
+- `window.nextRound` not exposed on window → silent failures for level-progression tests
+- TimerComponent IS in CDN bundle (loads late, after ScreenLayout/FeedbackManager)
+- Audio preload 404s (FeedbackManager tries generic audio paths) are non-blocking
+
+**Fix:** Corrected Lesson 87 — changed "NEVER use TimerComponent" to "add typeof TimerComponent to waitForPackages() loop". Changed T1 5f3 from ERROR to WARNING. Re-queued count-and-tap #457 with corrected code.
+
+**Rule:** Before diagnosing any HTML failure, run `node diagnostic.js` locally: download HTML from GCP, inject harness, screenshot every step. Screenshots answer "overlay blocking? wrong phase? CDN slow?" in seconds. Reading test output alone cannot distinguish CDN latency from game logic bugs.
+
+**Commit:** 16c5640
