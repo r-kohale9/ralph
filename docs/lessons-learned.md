@@ -514,3 +514,37 @@ So when the test called `waitForPhase(page, 'start_screen')`, `data-phase` was `
 - If review rejects with "phase never set to game_over" — check that `endGame()` is called correctly and sends postMessage; `RULE-006` in `REVIEW_SHARED_GUIDANCE` should prevent this.
 - If review rejects with "missing isActive guard" but handlers do check it — verify `isActive: true` is in the gameState init object. T1 check 12 now warns when it's missing from init.
 - If review rejects with "TransitionScreen not awaited" — add `await` to all `transitionScreen.show()` calls. T1 check 5h now warns when any show() calls are unawaited.
+
+## Lesson 71: Silent failures (iterations=0, error_message=NULL) — root causes identified and fixed
+
+**Date:** 2026-03-21
+**Scale:** 204 of 344 failed builds (59%) had NULL error_message in the DB, making root cause diagnosis impossible via DB queries alone.
+
+**Root cause 1 — completeBuild() never set error_message:**
+`db.completeBuild()` updated status, iterations, test_results, etc., but the SQL never touched the `error_message` column. The column was only written by `db.failBuild()` (called for crashes/orphans). When the pipeline returned a FAILED report normally (e.g., HTML generation failed, T1 validation killed it), `completeBuild()` stored `status='failed'` but left `error_message=NULL`. The report's `errors` array had the failure reason but it was never persisted.
+
+**Root cause 2 — report.iterations never set in runPipeline():**
+`report.iterations` was initialized to 0 and was only updated in `pipeline-targeted-fix.js`. In `runPipeline()` and `runFixLoop()`, `report.iterations` was never set. Result: all builds that went through the test loop showed `iterations=0` in the DB, even if the fix loop ran 5 iterations.
+
+**Failure pattern breakdown (from 59 ralph-report.json files analyzed):**
+- 30x: `HTML generation failed: claude -p exited with code 1` — LLM process crashed (non-zero exit)
+- 8x: `HTML generation failed: claude -p exited with code 143` — SIGTERM (timeout/kill)
+- 3x: `HTML generation failed: Proxy returned HTTP 500: auth_unavailable` — Claude OAuth blocked
+- 2x: `HTML generation failed: claude -p timed out after 300s` — gen timeout
+- 2x: `HTML generation failed: Proxy returned HTTP 403` — auth error
+- 13x: Empty errors array + test_results present — fix loop ran but pipeline code had iterations=0 bug
+
+**Fix (commit 4131eca):**
+1. `db.completeBuild()` now sets `error_message = COALESCE(error_message, ?)` where the value is:
+   - `report.errors.join('; ')` when errors array is non-empty
+   - Derived summary `"Tests failed: X/Y passed after N iteration(s). Review: SKIPPED"` when errors is empty but test_results exist
+   - Generic fallback when both are empty
+   - `COALESCE` ensures pre-existing error_message (set by failBuild() for crashes) is never overwritten
+   - NULL for approved builds (no error_message set when status != 'failed')
+2. `runPipeline()` now computes `report.iterations = Math.max(...report.test_results.map(r => r.iteration || 1))` after `runFixLoop()` returns, so the DB reflects the actual iteration count.
+
+**Tests:** 4 new unit tests in `test/db.test.js`: from report.errors, from test_results fallback, COALESCE non-overwrite, approved builds have null error_message.
+
+**How to apply:** After this fix, any new failed build will have a non-null error_message in the DB. To backfill existing silent failures, query `reports` in `data/games/*/builds/*/ralph-report.json` and update via `db.failBuild(id, errors[0])` if `error_message IS NULL`. Future diagnostic queries like `SELECT game_id, error_message FROM builds WHERE status='failed' AND error_message LIKE '%code 1%'` will work immediately.
+
+**Detection going forward:** If `error_message IS NULL AND status='failed'` appears in the DB after this fix, it indicates either: (a) the build was failed by an external process that called `failBuild()` with an empty string (check the fallback in worker.js line 1069), or (b) a new code path was added to the pipeline that returns a FAILED report without populating `report.errors`. Both cases are now caught by the worker-level safety net.
