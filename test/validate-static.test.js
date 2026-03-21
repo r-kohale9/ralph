@@ -526,18 +526,19 @@ describe('validate-static.js', () => {
     assert.equal(exitCode, 0);
   });
 
-  it('passes when waitForPackages has correct 10000ms timeout and throw', () => {
+  it('passes when waitForPackages has correct 120000ms timeout and throw', () => {
+    // Lesson 117: 120000ms is now the required timeout (CDN cold-start takes 30–120s)
     const html = VALID_HTML.replace(
       '<script>',
       '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n<script>'
     ).replace(
       'function initGame()',
       `async function waitForPackages() {
-    const timeout = 10000;
+    const timeout = 120000;
     const interval = 50;
     let elapsed = 0;
     while (typeof FeedbackManager === 'undefined') {
-      if (elapsed >= timeout) { throw new Error('Packages failed to load within 10s'); }
+      if (elapsed >= timeout) { throw new Error('Packages failed to load within 120s'); }
       await new Promise(resolve => setTimeout(resolve, interval));
       elapsed += interval;
     }
@@ -548,11 +549,15 @@ describe('validate-static.js', () => {
     assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
   });
 
-  it('fails when waitForPackages has wrong timeout (>10s)', () => {
+  it('fails when waitForPackages has short timeout (10000ms) with CDN scripts', () => {
+    // Lesson 117: 10000ms is now WRONG — CDN cold-start takes 30–120s in fresh test browsers
     const html = VALID_HTML.replace(
+      '<script>',
+      '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n<script>'
+    ).replace(
       'function initGame()',
       `async function waitForPackages() {
-    const timeout = 15000;
+    const timeout = 10000;
     const interval = 50;
     let elapsed = 0;
     while (typeof FeedbackManager === 'undefined') {
@@ -565,7 +570,7 @@ describe('validate-static.js', () => {
     );
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 1);
-    assert.ok(output.includes('timeout=10000'));
+    assert.ok(output.includes('120000ms'), `Expected error about 120000ms but got: ${output}`);
   });
 
   it('fails when waitForPackages does not throw on timeout', () => {
