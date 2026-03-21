@@ -329,8 +329,15 @@ const worker = new Worker(
     // Start Sentry transaction for this build
     const transaction = sentry.startBuildTransaction(gameId, buildId);
 
-    // Update DB: build started
+    // Update DB: build started — but skip if already in a terminal state.
+    // db.failBuild() on a queued build does NOT remove it from BullMQ; on worker restart
+    // the job is redelivered. Guard here prevents cancelled/duplicate builds from resurrecting.
     if (buildId) {
+      const existingBuild = db.getBuild(buildId);
+      if (existingBuild && ['failed', 'approved', 'rejected'].includes(existingBuild.status)) {
+        logger.warn(`[worker] Build #${buildId} (${gameId}) already in terminal state '${existingBuild.status}' — skipping stale BullMQ job`);
+        return;
+      }
       db.startBuild(buildId, { workerId: WORKER_ID });
     }
 
