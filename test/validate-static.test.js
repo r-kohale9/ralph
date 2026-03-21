@@ -585,8 +585,8 @@ describe('validate-static.js', () => {
     assert.ok(output.includes('throw new Error'));
   });
 
-  it('warns when transitionScreen.show() is called without await', () => {
-    // CDN game calls transitionScreen.show() without await — should warn (pattern 3)
+  it('fails when transitionScreen.show() is called without await', () => {
+    // CDN game calls transitionScreen.show() without await — now an ERROR (upgraded from WARNING in Lesson 101)
     const html = VALID_HTML.replace(
       '</script>',
       `let transitionScreen = { show: async function(opts) {} };
@@ -596,10 +596,10 @@ describe('validate-static.js', () => {
   </script>`,
     );
     const { exitCode, output } = runValidator(html);
-    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.equal(exitCode, 1, `Expected failure (ERROR) but got exit ${exitCode}: ${output}`);
     assert.ok(
-      output.includes('WARNING') && output.includes('transitionScreen.show()'),
-      `Expected TransitionScreen await warning but got: ${output}`,
+      output.includes('ERROR') && output.includes('transitionScreen.show()') && output.includes('not awaited'),
+      `Expected TransitionScreen await ERROR but got: ${output}`,
     );
   });
 
