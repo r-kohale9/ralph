@@ -1005,3 +1005,13 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 **Evidence:** diagnostic.js patched both fixes → `gameContentExists: true`, `appPhase: "start"`, start screen renders, no init errors. POC verified before E2E. keep-track #465 queued.
 
 **Prevention:** Any PART-006=YES game: TimerComponent constructor MUST use string ID as first arg AND MUST be called after ScreenLayout.inject() + template clone. T1 ERROR enforces both.
+
+## Lesson 100 — Spec PART-006 contradiction: YES triggers TimerComponent but note says setInterval
+
+**Pattern (source: two-player-race #421, #438, local diagnostic 2026-03-21):** Spec PART table had `PART-006 | TimerComponent | YES | ... (manual setInterval, not TimerComponent class)`. The gen prompt rule is "if PART-006=YES, use TimerComponent." LLM followed YES → generated `new TimerComponent({ startTime: 0 })` (wrong constructor API) → crash before ScreenLayout.inject() → blank page. The parenthetical "not TimerComponent class" was ignored.
+
+**Fix:** Changed PART-006 from YES to NO in spec on server. Gen prompt will now generate plain setInterval for countdown. CDN TimerComponent not needed and not safe for this game.
+
+**Secondary bug (two-player-race #438):** LLM hallucinated `audio/success.mp3` and `audio/error.mp3` (generic local paths) instead of spec's actual `cdn.mathai.ai/mathai-assets/dev/.../XXXX.mp3` URLs. FeedbackManager retried each 6× = 12 console 404 errors → smoke check false-positive (same pattern as Lesson 95 but from wrong URLs in generated code, not CDN path). Fix: audio 404 smoke check exclusion already in place (c5bfa4c). Root cause is LLM hallucinating audio IDs — spec's audio preload block has the correct URLs, LLM must copy them exactly.
+
+**Prevention:** Spec PART-006=YES must unambiguously mean "use TimerComponent CDN class." If the intent is plain setInterval, use PART-006=NO. Any PART table YES/NO must agree with the implementation note.
