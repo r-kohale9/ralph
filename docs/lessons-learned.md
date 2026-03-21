@@ -1357,3 +1357,166 @@ await transitionScreen.show({
 
 **Commit:** e4e149b
 
+---
+
+## Lesson 121 — Empty spec after triage skip — wasted fix LLM call
+
+**Source:** Pipeline build observation — position-maximizer #484, keep-track #483 (commit 16f9586)
+
+**Pattern:** When triage returns a `'mixed'` verdict (some tests are bad, some are HTML issues), it skips the bad tests and leaves only the good tests in the spec. If the only test in the spec was the bad one, the spec file becomes empty. Previously, the guard that prevented a pointless fix LLM call only fired for the `'skip_tests'` verdict — not for `'mixed'`. So even with an empty spec, `pipeline-fix-loop.js` still launched a full fix LLM call (~3 minutes wasted). Then iteration 2 returned 0/0 ("page likely broken by last fix") even though the game was fine — the spec simply had no tests left to run.
+
+**Real example:** position-maximizer #484 mechanics batch had 2 tests. Triage (verdict `'mixed'`) skipped "Correct slot selection" because it tested internal `pendingEndProblem` state inaccessible from the outside. The spec became empty. Old code ran `fix-mechanics-1` anyway (266.4s wasted). Iteration 2 and 3 returned 0/0 with no actionable signal.
+
+**Fix:** After the `triageSkipTests` block, added a check: if `triageSkipTests.length > 0` and none of the batch spec files exist on disk (`!batch.some(f => fs.existsSync(f))`), add the batch to `deletedSpecBatches` and `break` out of the fix loop (skip fix). `lib/pipeline-fix-loop.js` lines 822–829. Commit 16f9586.
+
+**How to apply:** If a build shows an unexpected fix LLM call for a category whose only test was triage-skipped, this was the gap. With the fix deployed, the fix loop exits immediately when triage empties the spec — no LLM call, no wasted 3 minutes.
+
+---
+
+## Lesson 122 — Approval gate failed on triage-skipped categories not in triageDeletedCategories
+
+**Source:** Pipeline build failure — keep-track #483 and position-maximizer #484, both FAILED at Step 4 (commit d2b4d23)
+
+**Pattern:** Step 4 approval gate exempts 0/0 categories using the `triageDeletedCategories` set (populated from `deletedSpecBatches` in `runBatchFixLoop`). But `deletedSpecBatches` was only populated via the `triageDecision === 'skip_tests'` path. When triage verdict is `'mixed'` (fix some tests as HTML issues AND skip others), the category is not added to `deletedSpecBatches` even if skipping the bad tests empties the spec entirely. Result: Step 4 sees 0/0 for that category → "0 test evidence" → FAILED.
+
+**Real example:** Both keep-track #483 and position-maximizer #484 had a mechanics batch where triage verdict was `'mixed'`, one bad test was skipped, the spec was deleted, but `triageDeletedCategories` was never updated. Step 4 found 0/0 evidence for mechanics and failed both builds. Both were re-queued as #503 and #504.
+
+**Fix:** In `pipeline.js` Step 4, added a `batchesWithSkippedTests` set populated from `report.skipped_tests[].batch`. The `isTriageSkipped(cat)` helper returns `true` if the category appears in EITHER `triageDeletedCategories` OR `batchesWithSkippedTests`. Categories where all tests were triage-skipped (leaving 0 evidence) are now correctly exempted from the evidence gate. Commit d2b4d23.
+
+**How to apply:** If a future build fails Step 4 with "N category with 0 test evidence" and the build log shows triage skipped tests in that category (verdict `'mixed'`), the category should have been exempted. Verify the commit is deployed. If the issue recurs, check whether `report.skipped_tests` is being populated and whether the batch label matches the category name used in the gate check.
+
+---
+
+## Lesson 123 — 0/0 no-snapshot early-exit in per-category fix loop
+
+**Source:** Pipeline build observation (commit 15f9c70)
+
+**Pattern:** When a category batch has `passed === 0 && failed === 0 && !bestHtmlSnapshot` (no tests ever passed, no snapshot of working HTML captured), the per-category fix loop was allowed to continue for up to 2 additional iterations even though there was no recoverable state. The fix LLM had nothing to improve — no passing test baseline, no snapshot to revert to. These iterations wasted ~6 minutes per affected category with zero probability of recovery.
+
+**Root cause:** The early-exit condition inside `runBatchFixLoop` only checked `passed === 0 && failed === 0` for the "page likely broken by last fix" case (which also restores `bestHtmlSnapshot`). There was no check for the distinct case where `bestHtmlSnapshot` was never set — meaning the category never passed a single test across ALL prior iterations.
+
+**Fix:** Added an explicit early-exit before the fix LLM call: if `passed === 0 && failed === 0 && !bestHtmlSnapshot`, log "category never passed — no recovery path, breaking" and `break` out of the loop immediately. This eliminates all remaining fix iterations for categories that were broken from the start. Commit 15f9c70.
+
+**How to apply:** If a build shows a category running 3 fix iterations with all returning 0/0 and no progress events indicating snapshot capture, this was the gap. With the fix deployed, the fix loop exits on the first 0/0+no-snapshot result — no LLM calls, no wasted time.
+
+---
+
+## Lesson 124 — Test-gen rules M10-M12: runtime selectors, multi-sub-phase, counter tests
+
+**Source:** Commit 26d1cf6 — mechanics test generation rules
+
+**M10 — Runtime-undefined selectors built from gameState at gen-time:**
+Test generators sometimes build selectors like `[data-value="${gameState.rounds[0].answer}"]` using gameState values that exist at generation time but are dynamic at runtime. The game resets between rounds; the static value baked into the test string no longer matches the live DOM. Fix: never interpolate gameState property values directly into selectors at gen-time — use `page.evaluate()` to read the current value at runtime, then construct the selector.
+
+**M11 — Multi-sub-phase games: assert phase2 after completing ALL phase1 sub-steps:**
+For games with sub-phases within a phase (e.g., a "memorize" → "recall" split inside the playing phase), tests that assert the phase2 state after only partial phase1 completion will time out. The transition only triggers after ALL sub-steps in phase1 are complete. Fix: ensure the test loop completes the full phase1 round count before asserting the phase2 transition.
+
+**M12 — Counter tests must startGame() first to zero counters:**
+Tests asserting counter values (score, lives, round number) that read the DOM before calling `startGame()` may see stale counter state from a previous test or from the initial page load. Fix: always call `startGame()` before asserting any counter starting state. Harness `startGame()` resets the game; counter assertions on initial values are only valid immediately after `startGame()` returns.
+
+**How to apply:** When mechanics tests fail with selector timeouts after a game round, check for gen-time interpolated selectors (M10). When phase-transition tests time out, check whether all sub-steps were completed (M11). When counter assertions fail on the first test run, check whether `startGame()` was called first (M12).
+
+---
+
+## Lesson 125 — Test-gen rules GF3-GF5: game-flow timing and selector constraints
+
+**Source:** Commit 6d16090 — game-flow test generation rules
+
+**GF3 — waitForPhase('gameover', 15000) after lives reach 0:**
+Game-over transitions after the last life is lost are not instantaneous. The game may play a sound effect, animate a death sequence, or defer the phase change via `setTimeout`. Using the default `waitForPhase` timeout (5s) causes false failures. Fix: always pass an explicit 15000ms timeout to `waitForPhase(page, 'gameover', 15000)` after the last wrong answer.
+
+**GF4 — waitForPhase('results', 20000) after skipToEnd/endGame:**
+The results screen transition (triggered by `skipToEnd()` or `window.__ralph.endGame()`) may involve CDN TransitionScreen animation which takes up to 10s. The default 5s timeout will miss this. Fix: use `waitForPhase(page, 'results', 20000)` after any end-game trigger.
+
+**GF5 — Never use #mathai-transition-slot button in game-flow tests:**
+Game-flow tests describe what happens DURING gameplay — wrong answers, lives loss, game-over. They must not interact with `#mathai-transition-slot` (the CDN level-transition slot) because that button only appears between levels/rounds in specific game types, not during core gameplay. Using it in game-flow tests causes timeout failures on every game that doesn't show a transition between individual answer rounds.
+
+**How to apply:** If game-flow tests fail with `waitForPhase('gameover') timeout`, add the 15000ms explicit timeout (GF3). If results screen is not reached after `skipToEnd()`, use 20000ms (GF4). If game-flow tests fail with transition-slot timeouts, remove the slot interaction from game-flow tests (GF5).
+
+---
+
+## Lesson 126 — Test-gen rules CT3-CT5: contract test constraints
+
+**Source:** Commit 310c928 — contract test generation rules
+
+**CT3 — Never use #mathai-transition-slot button in contract tests:**
+Contract tests assert postMessage payload correctness. They must not interact with the CDN transition slot — the contract test's `endGame()` path should be triggered via `window.__ralph.endGame()` or `skipToEnd()`, not via UI button clicks that may or may not be present depending on game type.
+
+**CT4 — Always waitForPhase('results', 20000) before getLastPostMessage():**
+The postMessage payload is sent during the results phase transition. `getLastPostMessage()` reads the last captured message — but if the results phase hasn't arrived yet, the capture may be empty or stale. Always `await waitForPhase(page, 'results', 20000)` before calling `getLastPostMessage()`.
+
+**CT5 — Assert nested payload (msg.data.metrics.score, not msg.score):**
+The postMessage payload structure is nested: `{ type: 'GAME_COMPLETE', data: { metrics: { score, stars, lives, ... } } }`. Test generators sometimes flatten this into `msg.score` or `msg.metrics.score` — both wrong. The correct path is always `msg.data.metrics.score` (and similar for other metrics fields). Always verify the full path against the `signalPayload` structure in the spec.
+
+**How to apply:** If contract tests fail because `getLastPostMessage()` returns null, check that `waitForPhase('results', 20000)` precedes the call (CT4). If contract assertions fail with "undefined is not a number", check whether the assertion uses the full nested path `msg.data.metrics.*` (CT5).
+
+---
+
+## Lesson 127 — Test-gen rules EC1-EC3: edge-case test constraints
+
+**Source:** Commit 2d7e78f — edge-case test generation rules
+
+**EC1 — gameover phase assertion needs waitForPhase (async 300-800ms):**
+Edge-case tests that trigger game-over (via 0 lives or time expiry) must use `waitForPhase(page, 'gameover', 15000)` — NOT immediate DOM assertions. The game-over transition takes 300-800ms after the trigger event (animation, sound, state update sequence). Asserting `data-phase === 'gameover'` immediately after a click will fail because the transition hasn't completed.
+
+**EC2 — Debounce/isProcessing guard race: await settle before rapid second click:**
+Games with `isProcessing` guards or debounce logic reject rapid clicks. Edge-case tests that click two buttons quickly (e.g., to test double-submission prevention) must allow the game to complete processing the first click before firing the second. Minimum: `await page.waitForTimeout(100)` between clicks. Without this, both clicks may be processed (no debounce actually triggered) or both may be blocked (test fails because second click never registers).
+
+**EC3 — Wrong start-button selector resolves to restart button on results screen:**
+If an edge-case test uses a generic start-button selector (e.g., `button:has-text("Start")`) after a game-over, the same text may match the restart button on the results screen. The test successfully "starts" what it thinks is a new game, but actually restarts from the results screen — different game state, different DOM, different phase. Always use phase-specific selectors or precede the click with `waitForPhase(page, 'start')`.
+
+**How to apply:** EC1 — add 15000ms timeout to gameover waitForPhase in edge-case tests. EC2 — add a short `waitForTimeout` between rapid-click sequences. EC3 — verify start-button selectors are phase-specific to avoid matching restart buttons.
+
+---
+
+## Lesson 128 — Test-gen rules LP4-LP6: level-progression test constraints
+
+**Source:** Commit c76fde4 — level-progression test generation rules
+
+**LP4 — #mathai-transition-slot button never renders for type='level-transition':**
+`TransitionScreen.show()` with `type: 'level-transition'` renders into `#mathai-transition-slot` but does NOT render a button by default. The buttons array must be explicitly provided (e.g., `buttons: [{ text: "Next", type: "primary", action: () => nextLevel() }]`). Tests that poll for `#mathai-transition-slot button` without a configured button will always time out.
+
+**LP5 — Stale getRound()/data-round: syncDOMState 500ms poll, await waitForFunction:**
+`getRound(page)` reads `#app[data-round]` which is updated by `syncDOMState()` on a 500ms poll interval. After advancing to the next round, the DOM attribute may still show the previous round number for up to 500ms. Tests that read `getRound()` immediately after a round transition may get a stale value. Fix: use `await page.waitForFunction(() => parseInt(document.querySelector('#app')?.dataset?.round) >= expectedRound, { timeout: 5000 })` instead of polling `getRound()` directly.
+
+**LP6 — Hardcoded spec-derived counts use toBe(N) but implementation uses >=N:**
+Level-progression tests that assert exact counts (e.g., `expect(roundCount).toBe(5)`) fail when the game implementation allows more than the spec minimum. Spec language like "at least 3 rounds" or "3+ rounds" means the test should use `toBeGreaterThanOrEqual(3)` not `toBe(3)`. Hardcoded `toBe` assertions from spec-derived counts cause false failures on games that run bonus rounds.
+
+**How to apply:** LP4 — check that `TransitionScreen.show()` includes a `buttons` array when tests expect a transition slot button. LP5 — replace `getRound()` with `waitForFunction` for round-number assertions after transitions. LP6 — prefer `toBeGreaterThanOrEqual(N)` over `toBe(N)` for round/level counts derived from spec language.
+
+---
+
+## Lesson 129 — CDN URL path normalization: unpkg.com/@mathai/* and cdn.homeworkapp.ai/cdn/components/ 404s
+
+**Source:** Commit d06ad43
+
+**Pattern:** LLMs hallucinate two CDN URL patterns that 404 at runtime:
+1. `unpkg.com/@mathai/...` — treats the CDN package as an npm package on unpkg, which doesn't host it
+2. `cdn.homeworkapp.ai/cdn/components/web/...` — wrong path prefix (`/cdn/components/web/` instead of the canonical storage.googleapis.com path)
+
+Both patterns cause `waitForPackages()` to time out → blank page → all tests fail.
+
+**Fix:** `fixCdnPathsInFile()` extended to detect and remove both patterns. When either is found, the canonical `storage.googleapis.com/test-dynamic-assets` CDN block is injected instead. `checkCdnScriptUrls()` extended to HEAD-check `unpkg.com/@mathai/` URLs (in addition to the existing storage.googleapis.com / cdn.homeworkapp.ai checks) — failures are surfaced as "BROKEN CDN SCRIPT URLS" in the smoke-regen prompt. Commit d06ad43.
+
+**How to apply:** If a smoke-check failure shows `unpkg.com/@mathai/` or `cdn.homeworkapp.ai/cdn/components/web/` in the console error ("Failed to load resource"), this is the pattern. Post-fix, `fixCdnPathsInFile()` catches it after generation and after smoke-regen. If it recurs, verify the post-generation CDN path fix-pass is running.
+
+---
+
+## Lesson 130 — BullMQ/DB cancelled-build sync guard: worker pre-flight skips terminal-status jobs
+
+**Source:** Commit 2274342
+
+**Pattern:** When a build was cancelled via the Cancel API (`POST /api/cancel`), the DB record was marked `status='cancelled'` but the corresponding BullMQ job was not removed from Redis. On the next worker restart (e.g., after a code deploy), BullMQ redelivered the cancelled job. The worker picked it up, called `db.startBuild()`, overwrote `status='cancelled'` → `status='running'`, and ran the full pipeline on a job that was explicitly cancelled — wasting a full pipeline run and potentially interfering with a replacement build queued for the same game.
+
+**Root cause (two parts):**
+1. Cancel API called `db.failBuild()` (marking SQLite) but did not call `queue.remove(jobId)` to remove the Redis job.
+2. Worker pre-flight (Lesson 73, commit b254482) checked for `['failed', 'approved', 'rejected']` terminal states but not `'cancelled'`.
+
+**Fix:**
+1. Cancel API now calls `await queue.remove(jobId)` after `db.failBuild()` — removes the BullMQ job from Redis atomically.
+2. Worker pre-flight terminal state list extended to include `'cancelled'`: `['failed', 'approved', 'rejected', 'cancelled']`. If a cancelled job resurrects (e.g., via AOF replay), the worker logs a warning and skips it.
+
+**Commit:** 2274342
+
+**How to apply:** After cancelling a build, confirm the job is gone from BullMQ: `redis-cli LLEN bull:ralph-builds:wait` should decrease. If a cancelled build mysteriously restarts after a worker restart, check whether the Cancel API deployed with the `queue.remove()` call included. The worker terminal state guard is a safety net — the primary fix is removing the job from Redis on cancel.
+
