@@ -953,3 +953,11 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 **Evidence:** Console timeline from diagnostic: ScreenLayout at +152ms → crash at +186ms → TimerComponent at +706ms. `#mathai-transition-slot` had 0 children despite `#gameContent` having 2 children (template cloned before crash). Screenshots at `/tmp/visual-memory-debug/`.
 
 **Prevention:** Any PART-006=YES game must check `typeof TimerComponent === 'undefined'` in `waitForPackages()` condition alongside ScreenLayout. T1 validator warns if TimerComponent used without typeof check.
+
+## Lesson 95 — Audio/media 404s are non-fatal; smoke pattern too aggressive
+
+**Pattern (source: expression-completer #444, 2026-03-21):** `FeedbackManager.sound.preload()` references audio files at `storage.googleapis.com/test-dynamic-assets/audio/*.mp3`. These files don't exist on the CDN. Playwright logs 12× "Failed to load resource: the server responded with a status of 404 ()". SMOKE_FATAL_PATTERNS matched `/failed\s+to\s+load\s+resource(?!.*status of 403)/i` — the 403 exclusion only covered cdn.homeworkapp.ai auth failures. 404s were not excluded. Build failed at Step 1d with 12 "fatal" 404 errors. The game HTML itself was correct.
+
+**Fix:** Extended the negative lookahead to exclude both 403 AND 404: `(?!.*status of 40[34])`. Real CDN package failures always manifest as "Packages failed to load" or "X is not defined" — caught by other patterns. Audio/media 404s are non-blocking for game functionality. Commit: c5bfa4c. expression-completer re-queued as #458.
+
+**Evidence:** error_message field in DB was 12× identical "Failed to load resource: 404" strings. No other errors. CDN package URLs in HTML were correct (storage.googleapis.com/test-dynamic-assets/packages/). Unit test updated: 404 resource error → result.length = 0 (non-fatal).
