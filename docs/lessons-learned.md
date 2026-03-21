@@ -739,3 +739,17 @@ HTML generation produced no `#gameContent` element. Caught by smoke-check, trigg
 **The CDN package timeout issue (Root cause 3) is not fixable without changing the review model's `≤10s` requirement for waitForPackages. It is a known network variance issue — next build attempt (447) may succeed if CDN packages load within 10s.**
 
 **How to apply:** Any game with unlimited-lives accuracy scoring should have an explicit CRITICAL note in the spec prohibiting lives-based test assertions. Any game where `window.gameState.content` populates asynchronously (after a network fetch) is at risk of corrupt fallbackContent — the spec should describe the actual content structure with a concrete example.
+
+---
+
+## Lesson 81 — Corrupt fallbackContent: SignalCollector API names captured instead of real game data
+
+**Date:** 2026-03-21
+
+**Pattern:** Test generator uses `fallbackContent.rounds` to populate test assertions. For games that load content asynchronously (e.g., Associations fetches word pairs from a server), `window.gameState.content` is null when `captureGameDomSnapshot()` runs at Step 2.5. The pipeline falls back to `extractSpecRounds()` — but this function can parse CDN SignalCollector API surface names ('Event', 'Target', 'Input', 'Action', 'Source', 'Destination') from spec markdown tables as if they were game round data.
+
+**Symptom:** Tests crash with assertions against game-specific properties (e.g., `.emoji`, `.name`) on objects that are actually CDN API event descriptors. Tests pass `question: "Event"` into game logic and get unexpected crashes.
+
+**Fix (commit 668c087):** `detectCorruptFallbackContent(fallbackContent)` added to `lib/pipeline-test-gen.js`. Checks if >50% of `question`/`answer` string values across all rounds match a 10-member CDN API name set. If detected, returns `{ rounds: [], corrupt: true }` and logs a warning — the corrupt data is discarded and test-gen proceeds with empty fallbackContent. 4 unit tests; 562 total pass.
+
+**How to apply:** If tests crash with assertions on game-specific properties that don't match real game data (especially for games with async content loading), inspect `tests/game-content.json` — if it contains CDN event names rather than real game pairs, this is the pattern. Post-fix, the detection runs automatically before test-gen.
