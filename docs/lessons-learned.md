@@ -858,4 +858,28 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 - T1 static validator now raises ERROR (not warning) for `TimerComponent` in HTML
 - Use `setInterval`/`setTimeout` for countdown/elapsed timers
 
-**Commit:** [pending]
+**Commit:** 48e9992
+
+## Lesson 88 — ScreenLayout.inject() creates empty #gameContent at runtime despite syntactically correct call
+
+**Pattern:** visual-memory #439 failed smoke-check with `#gameContent` having 0 children even after surgical CDN init fix regen. The HTML had the correct `ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } })` call with the mandatory `slots:` wrapper. CDN URLs were correct. PART-017=NO was handled correctly. Yet Playwright reported `#gameContent` empty after 8 seconds.
+
+**Root cause (investigated):** Likely a subtle ScreenLayout API timing issue — `inject()` may require all CDN packages to be fully initialized (not just ScreenLayout itself) before the DOM slot is created, OR the `<template id="game-template">` clone into `#gameContent` is failing silently if `#gameContent` does not yet exist immediately after `inject()` returns synchronously. Neither the surgical smoke-regen prompt nor the gen prompt addresses this edge case.
+
+**Key insight:** The surgical smoke-regen prompt (commit 8c645dc, Lesson 83) is tuned for CDN URL errors and wrong init order, but it CANNOT fix runtime ScreenLayout API behavior issues. When the HTML already has the correct syntactic pattern, a second surgical regen produces the same HTML and the same failure.
+
+**Current status:** No fix deployed. When a CDN game fails smoke-check with correct CDN URLs and correct `ScreenLayout.inject()` syntax, the cause is likely this runtime timing issue. A Playwright trace is needed to observe exactly when `#gameContent` appears relative to the DOMContentLoaded sequence.
+
+**Affected games:** visual-memory #439.
+
+## Lesson 89 — colour-coding-tool PART-017=YES: overly broad CDN domain rule causes wrong asset URL domain
+
+**Pattern:** colour-coding-tool #441 was early-review-rejected because audio/sticker asset URLs used `storage.googleapis.com/test-dynamic-assets` instead of the spec-provided `cdn.mathai.ai` paths. The spec (PART-017=YES) included explicit example code with `cdn.mathai.ai/mathai-assets/dev/...` URLs for game audio and sticker GIFs.
+
+**Root cause:** `CDN_CONSTRAINTS_BLOCK` contained the rule "EVERY URL in the file must use storage.googleapis.com/test-dynamic-assets". The LLM applied this rule too broadly, replacing spec-provided `cdn.mathai.ai` asset URLs. The rule was intended for PACKAGE SCRIPT tags only, not for spec-provided media asset URLs.
+
+**Note:** The `fixCdnDomainsInFile()` pipeline fix-pass ONLY fixes script src tags (wrong domain → correct domain), NOT audio/sticker JS string URLs. So even with the post-processing pass running, the wrong asset URLs survived into the early-review stage.
+
+**Fix:** CDN_CONSTRAINTS_BLOCK updated to explicitly scope the domain rule to package script tags, and add an exception for spec-provided asset URLs in PART-017=YES games. Commit: [will update].
+
+**Affected games:** colour-coding-tool #441.
