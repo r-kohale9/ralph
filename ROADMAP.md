@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 21, 2026 (sync: debug-window contradiction corrected (d827777); 0/0 approval gate + CSS comma-ID fix (e843db2); audio URL CDN constraint (a32341d); fixCdnDomainsInFile audio corruption fix (7adcb0f); never-approved games R&D complete → phase-name injection R&D now active)
+**Last updated:** March 21, 2026 (sync: TimerComponent undefined pattern added (new P6 planned); smoke-regen measurement confirmed active; full error messages in fix loop + test.describe() enforcement + Slack failure messages + git pull branch fix marked done; Summary counts updated)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -175,6 +175,7 @@
 | 'start_screen' vs 'start' phase-name normalization in test gen | **done (2026-03-21, commit 32785d3)** | lib/prompts.js | `extractPhaseNamesFromGame()` now normalizes phase names through the same mapping table as `syncDOMState()` before injecting into GF1 block (game_over→gameover, game_complete→results, start_screen→start, game_init→start, game_playing→playing). Added CRITICAL warning to GF1 prompt block with explicit raw→canonical mapping table. 550 tests pass. Expected: eliminate phase-name mismatch timeouts in game-flow (root cause of 2 non-first-attempt approvals). |
 | Sentry.Integrations.CaptureConsole constructor error in initSentry() | **done (2026-03-21, commit 14b15d1)** | lib/prompts.js, lib/validate-static.js | face-memory build failed at Step 1d: `TypeError: Sentry.Integrations.CaptureConsole is not a constructor`. Fixed: initSentry() template in CDN_CONSTRAINTS_BLOCK updated to remove the deprecated `Sentry.Integrations.CaptureConsole` usage; T1 static check added to flag `Sentry.Integrations.CaptureConsole` in generated HTML. Prevents Step 1d smoke-check failures for all CDN games that call initSentry(). |
 | count-and-tap recurring null error_message failures (new pattern) | planned | lib/pipeline.js, worker.js | DB shows 2 recent count-and-tap failures with `error_message=null` and `iterations=0` — distinct from the CDN classification bug fixed in 54dd4b7. Null error_message at iter=0 means the job failed before Step 1 began or the worker crashed without calling `failBuild()`. Need: (1) trace job logs for count-and-tap to identify whether it's a BullMQ job stall, init crash, or unguarded throw before pipeline entry; (2) add failsafe: wrap entire job handler top-level in try/catch that always sets error_message; (3) if infrastructure issue, add pre-flight health check before job starts. Success criterion: zero null error_message failures in next 5 count-and-tap builds. |
+| **TimerComponent is not defined — CDN component hallucination** | planned | lib/prompts.js, lib/validate-static.js | Server DB shows builds 420 (truth-tellers-liars) and 422 (visual-memory) both failed Step 1d with `ReferenceError: TimerComponent is not defined`. LLM generates HTML that references `TimerComponent` — not in the standard CDN package bundle. Fix: (1) determine if TimerComponent is a real CDN component or a hallucination; (2) if hallucination, ban it in gen prompt CDN_CONSTRAINTS_BLOCK and add T1 error check for `TimerComponent` references in HTML; (3) add `TimerComponent is not defined` to classifySmokeErrors() fatal patterns so smoke-regen prompt explains the fix; (4) if real component, add correct CDN script URL to allowed set. Success criterion: zero `TimerComponent is not defined` Step 1d failures in next 5 CDN builds. |
 
 ---
 
@@ -231,6 +232,7 @@
 | **Non-standard lifecycle test gen — H1** | **done (2026-03-20, commit b27e010, confirmed 2026-03-21)** | lib/prompts.js | H1 (LIVES SYSTEM CHECK) confirmed: associations build 405 mechanics tests contained no lives-decrement assertions after H1 ship — correct non-lives tests generated ("Correct Match Scoring", "Incorrect Match Feedback", "Play Again Resets State"). Hypothesis confirmed. |
 | **Non-standard lifecycle test gen — H2** | **done (2026-03-21, confirmed)** | lib/pipeline-test-gen.js | H2 (GAME FEATURE FLAGS) was already fully implemented: `buildGameFeaturesBlock()` called in both `buildTestCasesPrompt()` (Step 2a) and `buildTestGenCategoryPrompt()` (Step 2b). Measurement agent incorrectly reported it as missing — code review confirmed injection active. Both H1 + H2 complete. |
 | **Smoke-regen effectiveness measurement** | **active (R&D, 2026-03-21)** | lib/pipeline.js | Measuring whether CDN smoke-regen repeat-failure rate dropped after ScreenLayout slots fix (commit 2666e36). Need to count smoke-check events in builds 420+ and compare before/after. Success criterion: repeat-failure rate <10%. |
+| **TimerComponent hallucination + phase-name normalization impact measurement** | **next** | lib/prompts.js, lib/validate-static.js, lib/pipeline-test-gen.js | Two failure patterns from builds 420-422 to address: (1) `TimerComponent is not defined` in visual-memory and truth-tellers-liars — hallucinated CDN component; ban in gen prompt + T1 check; (2) measure whether phase-name normalization fix (32785d3) reduced game-flow iter-1 failures across builds 430+. Hypothesis: banning TimerComponent + phase-name fix together should cut Step 1d failures by ~30% and game-flow iter-1 timeout rate by ~20%. Success: zero TimerComponent errors + game-flow iter-1 pass rate >70% across next 10 CDN builds. |
 | **Screenshot-on-timeout fix context** | **done (2026-03-20, commit dc0c72f)** | Playwright config: `screenshot: 'only-on-failure'`; `collectTimeoutScreenshots()` walks JSON result tree and returns base64 PNGs for failing timeout tests (max 2); fix prompt becomes a vision content array when screenshots exist. 550 tests pass. Expected: timeout-class failures diagnosed visually in first fix iteration — LLM sees what game looked like when test hung. |
 | **adjustment-strategy spec fix verification** | **measuring** | 4 root causes fixed in spec (button IDs, isProcessing race, calcStars game_over→0, postMessage fields) via commit 4789948. Builds #376 and #377 queued for verification. Awaiting first clean build with corrected spec to confirm approval in ≤3 iterations. |
 | **Rate limit raised 10→20 builds/hr** | **done (2026-03-21, commit ac6588a)** | server.js or worker.js | Manually-cancelled builds consumed rate-limiter slots; 8+ admin cancellations blocked all legitimate builds for ~50 min. Raised limit gives 3× headroom. Lesson 60 in docs/lessons-learned.md. 550 tests pass. |
@@ -311,10 +313,10 @@
 | P3 DevOps & Operations | 13 | 0 | 13 |
 | P4 Code Quality | 6 | 0 | 6 |
 | P5 Scalability | 13 | 1 | 14 |
-| P6 Test Generation Quality | 58 | 6 | 64 |
-| P7 Code Architecture | 9 | 6 | 15 |
-| P8 Build Reliability | 6 | 3 | 9 |
-| **Total** | **131** | **13** | **147** |
+| P6 Test Generation Quality | 58 | 7 | 65 |
+| P7 Code Architecture | 15 | 0 | 15 |
+| P8 Build Reliability | 7 | 1 | 8 |
+| **Total** | **138** | **9** | **147** |
 
 ## What's Next
 
