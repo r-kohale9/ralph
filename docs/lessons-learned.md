@@ -711,3 +711,31 @@ Only fires when: (1) dom-snapshot.json exists, (2) the actual phase is non-stand
 **Fix (commit cc5fae7):** Changed `reStaticResult.errors.length > 0` → `!reStaticResult.passed`. Error lines extracted from `reStaticResult.output.split('\n').filter(l => l.includes('✗'))`, consistent with the rest of the file.
 
 **How to apply:** If future code accesses properties on `runStaticValidation()` output, always use `.passed` (boolean) and `.output` (string) — never `.errors` (does not exist).
+
+---
+
+## Lesson 80 — associations chronic failure: 4 root causes across 15 builds
+
+**Date:** 2026-03-21
+
+**Pattern:** associations had 15 consecutive failures (0% approval rate) spanning multiple pipeline eras. Each era had a distinct root cause:
+
+**Root cause 1 (builds 109, 157, 158, 291, 345): Wrong mechanics tests — lives on unlimited-lives game**
+Test generator produced `❤️❤️` hearts/lives-decrement assertions on an accuracy-scored unlimited-lives game. `totalLives: 0` means no hearts render — correct game, wrong test. Fix loop cannot resolve this. Fix: add CRITICAL no-lives note to spec; H1 LIVES SYSTEM CHECK rule in test-gen prompt.
+
+**Root cause 2 (builds 392, 396): Step 1d smoke-check failure — missing #gameContent**
+HTML generation produced no `#gameContent` element. Caught by smoke-check, triggered smoke-regen. These are pre-test-loop failures covered by Step 1d + smoke-regen.
+
+**Root cause 3 (build 405): CDN package load timeout causes silent DOMContentLoaded crash**
+`waitForPackages()` 10s timeout fires during Playwright test runs (CDN packages take >10s under test server load). Error is caught silently by DOMContentLoaded `catch (e)` block. `ScreenLayout.inject()` never runs. `#mathai-transition-slot button` never appears. `beforeEach` polls 50s then times out on every test. Note: this is non-deterministic — smoke check at Step 1d uses a different network context and may pass while Playwright tests fail.
+
+**Root cause 4 (build 405): Corrupt fallbackContent — SignalCollector events captured**
+`captureGameDomSnapshot()` runs at Step 2.5 before pairs load into `window.gameState.content`. When content is null, the snapshot pipeline falls back to `game-content.json` populated with SignalCollector event API surface names (`{ question: "Event", answer: "Target" }`). Tests using `fallbackContent.rounds` get garbage data, causing assertion crashes.
+
+**Fix applied:**
+1. Spec fix: CRITICAL no-lives note added (prevents wrong test generation)
+2. Spec fix: CRITICAL content-structure note added (prevents corrupt fallbackContent)
+
+**The CDN package timeout issue (Root cause 3) is not fixable without changing the review model's `≤10s` requirement for waitForPackages. It is a known network variance issue — next build attempt (447) may succeed if CDN packages load within 10s.**
+
+**How to apply:** Any game with unlimited-lives accuracy scoring should have an explicit CRITICAL note in the spec prohibiting lives-based test assertions. Any game where `window.gameState.content` populates asynchronously (after a network fetch) is at risk of corrupt fallbackContent — the spec should describe the actual content structure with a concrete example.
