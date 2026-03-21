@@ -135,7 +135,16 @@ POC verification: COMPLETE. Both fixes together resolve the blank page.
 
 ## 5. Go/No-Go for E2E
 
-Decision: **READY FOR E2E** — with a recommended pipeline fix first.
+Decision: **NOT READY FOR E2E** — TimerComponent fix resolved blank page but build #465 revealed two new blockers (see §4 update).
+
+**Build #465 findings (2026-03-21):** TimerComponent API fix WORKED — no blank page, game actually ran to 3 iterations. But two new issues found:
+1. `initSentry() called before waitForPackages()` — T1 hard error blocked the contract-fix exit on every iteration until iteration 3 finally passed
+2. `game-flow 0/2` — `#mathai-transition-slot button` resolves to element but is `hidden` (not missing). The game is not showing the transition screen after round completion. The `Continue` button exists but stays hidden — game logic never calls `transitionScreen.show()` after a round ends.
+3. mechanics 0/2 — `.cup-container[data-signal-id="cup-2"]` missing `correct` CSS class after player clicks correct cup — game logic not applying visual feedback
+
+**Blockers before E2E:**
+1. Add `initSentry()` ordering rule to gen prompt: must be called INSIDE `waitForPackages()` callback, not before it
+2. Diagnose game-flow: why does the game not call `transitionScreen.show()` after a round ends? Likely the round-complete logic has a bug in the generated code.
 
 Evidence of root cause (§2): Complete. DB records, HTML inspection, CDN API verification, diagnostic run with error message confirmed.
 
@@ -159,6 +168,7 @@ Without these fixes, the LLM will likely generate the same wrong API again (3 co
 | 410 | Step 1d: Blank page: missing #gameContent | TimerComponent wrong API + ordering | Failed |
 | 427 | Step 1d: Blank page: missing #gameContent | Same — smoke regen did not fix it | Failed |
 | 452 | Step 1d: Blank page: missing #gameContent | Same — smoke regen did not fix it | Failed |
+| 465 | Contract-fix T1 error; game-flow 0/2 (button hidden) | initSentry before waitForPackages; transition slot button never shown after round | Failed |
 
 ---
 
