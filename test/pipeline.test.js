@@ -873,6 +873,84 @@ describe('pipeline-fix-loop.js global fix loop — 0/0 false-pass guard', () => 
     }
     assert.equal(globalFailingBatches.length, 0, 'with all genuinely passing batches, loop should exit');
   });
+
+  // ── Approval gate: zeroCoverageCats >= 1 (not >= 2) ────────────────────────
+  // A build with exactly one non-game-flow category showing 0/0 must NOT be approved.
+  // Previously the guard was >= 2 categories; this tests the stricter >= 1 threshold.
+
+  function simulateApprovalGate(categoryResults) {
+    // Mirrors pipeline.js Step 4 logic for zeroCoverageCats
+    const gameFlowResult = categoryResults['game-flow'];
+    if (gameFlowResult && gameFlowResult.passed === 0 && gameFlowResult.failed === 0) {
+      return 'FAILED:game-flow-0/0';
+    }
+    const zeroCoverageCats = Object.entries(categoryResults)
+      .filter(([, r]) => r.passed === 0 && r.failed === 0)
+      .map(([cat]) => cat);
+    if (zeroCoverageCats.length >= 1) {
+      return `FAILED:zero-coverage:${zeroCoverageCats.join(',')}`;
+    }
+    return 'PROCEED_TO_REVIEW';
+  }
+
+  it('approval gate: single 0/0 non-game-flow category fails the build', () => {
+    const result = simulateApprovalGate({
+      'game-flow': { passed: 2, failed: 0 },
+      'mechanics':  { passed: 0, failed: 0 }, // 0/0 — page broken
+      'edge-cases': { passed: 3, failed: 0 },
+    });
+    assert.ok(result.startsWith('FAILED'), `expected FAILED, got ${result}`);
+    assert.ok(result.includes('mechanics'), `expected mechanics in failure reason, got ${result}`);
+  });
+
+  it('approval gate: all categories passing proceeds to review', () => {
+    const result = simulateApprovalGate({
+      'game-flow': { passed: 2, failed: 0 },
+      'mechanics':  { passed: 4, failed: 0 },
+      'edge-cases': { passed: 3, failed: 0 },
+    });
+    assert.equal(result, 'PROCEED_TO_REVIEW');
+  });
+
+  it('approval gate: game-flow 0/0 fails the build (guard fires first)', () => {
+    const result = simulateApprovalGate({
+      'game-flow': { passed: 0, failed: 0 }, // 0/0
+      'mechanics':  { passed: 4, failed: 0 },
+    });
+    assert.ok(result.startsWith('FAILED:game-flow'), `expected FAILED:game-flow, got ${result}`);
+  });
+
+  it('approval gate: two non-game-flow 0/0 categories fails the build', () => {
+    const result = simulateApprovalGate({
+      'game-flow': { passed: 2, failed: 0 },
+      'mechanics':  { passed: 0, failed: 0 },
+      'edge-cases': { passed: 0, failed: 0 },
+    });
+    assert.ok(result.startsWith('FAILED'), `expected FAILED, got ${result}`);
+  });
+
+  it('hasCrossFailures includes 0/0 batches so global fix loop is triggered', () => {
+    // Mirrors pipeline-fix-loop.js hasCrossFailures logic after the fix
+    const categoryResults = {
+      'game-flow': { passed: 2, failed: 0 },
+      'mechanics':  { passed: 0, failed: 0 }, // 0/0 — should trigger global fix loop
+    };
+    const hasCrossFailures = Object.values(categoryResults).some(
+      (r) => r.failed > 0 || (r.passed === 0 && r.failed === 0),
+    );
+    assert.ok(hasCrossFailures, '0/0 category must trigger global fix loop');
+  });
+
+  it('hasCrossFailures is false when all categories pass with > 0 tests', () => {
+    const categoryResults = {
+      'game-flow': { passed: 2, failed: 0 },
+      'mechanics':  { passed: 4, failed: 0 },
+    };
+    const hasCrossFailures = Object.values(categoryResults).some(
+      (r) => r.failed > 0 || (r.passed === 0 && r.failed === 0),
+    );
+    assert.ok(!hasCrossFailures, 'no 0/0 and no failures — global fix loop should not trigger');
+  });
 });
 
 // ─── runPageSmokeDiagnostic / classifySmokeErrors tests ──────────────────────
