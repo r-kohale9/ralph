@@ -891,10 +891,18 @@ const worker = new Worker(
         'contract-static-fix',
         'global-fix-prompt',
         'global-fix-rolled-back',
-        'review-fix',
         'review-fix-applied',
       ]);
       if (silentSteps.has(step)) return;
+
+      // ── review-fix: log rejection reason summary for R&D pattern analysis ───
+      if (step === 'review-fix') {
+        const rejection = detail?.rejection || '';
+        // Log first 200 chars of rejection reason so we can identify patterns without flooding
+        const snippet = rejection.replace(/\s+/g, ' ').slice(0, 200);
+        logger.warn(`[worker] review-rejected | game=${gameId} | attempt=${detail?.attempt || '?'} | reason: ${snippet}`);
+        return;
+      }
 
       if (step === 'static-validation-fix-failed') {
         const bodyText = '❌ *Static validation fix failed* — build may be unstable';
