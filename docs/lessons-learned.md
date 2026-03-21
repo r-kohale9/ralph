@@ -1323,3 +1323,14 @@ await transitionScreen.show({
 **Action:** Upgrade T1 check 5f4 (TimerComponent wrong constructor) from WARNING → ERROR to also self-enforce Lesson 98.
 
 **Commit:** 50b5a4e (T1 check 5e1)
+
+---
+
+## Lesson 120 — hasTwoPhases flag causes level-progression test gen to wrongly assume #mathai-transition-slot between rounds
+
+**Source:** disappearing-numbers #479 (2026-03-21)
+**Pattern:** When `hasTwoPhases: true` is injected into test-gen prompts, the level-progression test generator infers that round transitions within the recall phase use a CDN `#mathai-transition-slot button`. But `hasTwoPhases` only describes the learn→recall phase transition — round transitions within recall are game-specific (may auto-advance, may use game-internal buttons).
+**Symptom:** Triage message: "test incorrectly assumes #mathai-transition-slot button will appear between game rounds, but game likely auto-advances." Spec file deleted. Approval gate catches 0 test evidence.
+**Fix needed:** For hasTwoPhases games, inject explicit clarification in level-progression test-gen prompt: "hasTwoPhases = learn phase → recall phase transition. Round transitions WITHIN the recall phase are game-specific — do NOT assume #mathai-transition-slot between rounds."
+**Fix applied:** `lib/pipeline-test-gen.js` `buildGameFeaturesBlock()` — appended to the `hasTwoPhases` feature flag line: "CRITICAL for level-progression tests: hasTwoPhases describes the learn→recall PHASE transition ONLY — round transitions WITHIN the recall phase are game-specific (game may auto-advance, or use a game-internal button); do NOT assume a #mathai-transition-slot button appears between rounds within the recall phase."
+**Commit:** pending

@@ -157,18 +157,23 @@ The fix is a 1-line constructor call change. No pipeline or test code changes ne
 
 ## 5. Go/No-Go for E2E
 
-**Decision: READY FOR E2E** (updated after build 475 failed + Lesson 118 deployed)
+**Decision: NOT READY FOR E2E** — need level-progression test gen fix deployed first (Lesson 120)
 
-**Build #475 outcome:** level-progression failed 0/1 all 3 iterations. Fix loop could not fix pre-Lesson-118 HTML (TransitionScreen.show() with wrong `{hasButton, buttonText, onComplete}` API). Same "start button never visible" error in all 3 triage events.
+**Build #479 outcome (2026-03-21):** level-progression test generator produced a test looking for `#mathai-transition-slot button` between rounds within the recall phase. Triage message: "test incorrectly assumes #mathai-transition-slot button will appear between game rounds, but game likely auto-advances." Spec file deleted → 0 test evidence → approval gate rejected with "1 category/categories with 0 test evidence (level-progression)".
+
+All other categories passed (#479): game-flow 3/3 ✅, mechanics 2/2 ✅, edge-cases 2/2 ✅, contract 1/1 ✅. Only level-progression failed.
+
+**Root cause of #479 failure:** `hasTwoPhases: true` feature flag in test-gen prompts was misinterpreted by the LLM. The flag describes the learn→recall phase transition, but the LLM inferred that round transitions within the recall phase also use a CDN `#mathai-transition-slot button`. Disappearing-numbers auto-advances through rounds — no slot button between rounds.
+
+**Fix deployed (Lesson 120):** `lib/pipeline-test-gen.js` `buildGameFeaturesBlock()` updated — `hasTwoPhases` line now includes explicit clarification: "round transitions WITHIN the recall phase are game-specific — do NOT assume #mathai-transition-slot between rounds." This must be deployed to server before queuing next build.
 
 **What's complete:**
-- §2 Evidence: confirmed for build 475 — CDN timeline shows `buttons: undefined` logged, `#transitionButtons` is empty in DOM, no `__initError`. Level-progression test confirms "start button never visible" = TransitionScreen button not rendered.
-- Gen prompt rule deployed: Lesson 118 (commit 6d8411b) — explicit anti-pattern in prompts.js: "NEVER use `hasButton`, `buttonText`, or `onComplete`; use `buttons: [{ text, type, action }]` array format."
-- Gen prompt deployed to server (hot-reload via require cache bust).
+- §2 Evidence: confirmed for builds 475 + 479 (see Build #479 Analysis section below)
+- Gen prompt rule deployed: Lesson 118 (commit 6d8411b) — TransitionScreen buttons API
+- Gen prompt rule deployed: Lesson 119 (commit 50b5a4e) — waitForPackages 120s timeout (T1 check 5e1)
+- Lesson 120 clarification added to `pipeline-test-gen.js` `hasTwoPhases` feature flag description
 
-**POC note:** Full Playwright POC not run (API fix is mechanical — the correct format is documented in spec and confirmed by RCA). Evidence is sufficient: `#transitionButtons` was empty with wrong API → correct format will render buttons.
-
-**Ready to queue:** build #479 will generate fresh HTML with both Lesson 117 (120s timeout) and Lesson 118 (TransitionScreen buttons) already in gen prompt. Expected to pass in ≤2 iterations.
+**Blocking:** Deploy Lesson 120 clarification to server before queuing next build.
 
 ---
 
@@ -185,6 +190,7 @@ The fix is a 1-line constructor call change. No pipeline or test code changes ne
 | #442 | Orphaned (worker restarted) | Worker restarted mid-build; base HTML has `TimerComponent` API mismatch | Infra failure + underlying game code bug |
 | #464 | Orphaned (worker SIGKILL'd at 10-min grace period); `index-fix2.html` has zero CDN `<script src>` tags → "Init error: Packages failed to load within 10s" → blank page | LLM fix pass (game-flow fix2) dropped ALL CDN `<script src>` tags from the HTML — every package load fails, `waitForPackages()` times out | Infra failure (orphan) + fix LLM dropped CDN script tags. T1 check 5c2 (commit debe44a) now catches this: "MISSING: CDN `<script src>` tag". Lesson 114. |
 | #475 | Game-flow tests pass (game-flow fixed by E8). level-progression 0/1 all 3 iterations — "start button never becomes visible" (same beforeEach timeout pattern). Edge-cases, contract continued. Build failed at approval gate: level-progression 0 test evidence. | TransitionScreen.show() wrong API (`{hasButton, buttonText}`) in initial HTML. Fix loop ran 3 iters but couldn't repair pre-Lesson-118 HTML. Root cause: HTML generated before Lesson 118 was in gen prompt. | Build failed (max iterations, 0/1 level-prog). Lesson 118 deployed to gen prompt (commit 6d8411b). READY FOR E2E: queue #479 fresh gen. |
+| #479 | game-flow 3/3 ✅, mechanics 2/2 ✅, edge-cases 2/2 ✅, contract 1/1 ✅ — but level-progression 0/2 at iter=1, triage=skip_tests (spec deleted), 0 test evidence → approval gate FAILED: "1 category/categories with 0 test evidence (level-progression)". | `hasTwoPhases: true` feature flag caused test generator to assume `#mathai-transition-slot button` between rounds within recall phase. Game auto-advances through rounds — no slot button. Triage correctly identified wrong test but deleted spec → 0 evidence. (Lesson 120) | Failed (level-progression 0 test evidence — triage deleted wrong test). Lesson 120 fix added to pipeline-test-gen.js — deploy before re-queuing. |
 
 ---
 
@@ -273,9 +279,36 @@ This is a distinct bug from build 442's `TimerComponent` issue, but may share a 
 
 ---
 
+## Build #479 Analysis (2026-03-21)
+
+**Build outcome:** Approval gate FAILED — "1 category/categories with 0 test evidence (level-progression)".
+
+**Timeline:**
+- game-flow: 3/3 at iter=2 ✅ (fix: #results-screen visibility)
+- mechanics: 2/2 at iter=2 ✅ (fix: score/lives not updating on answer)
+- level-progression: 0/2 at iter=1, triage=skip_tests, spec deleted → 0 test evidence ❌
+- edge-cases: 2/2 at iter=2 ✅ (fix: 0 lives → gameover check missing)
+- contract: 1/1 at iter=2 ✅ (fix: game_complete postMessage not emitted)
+
+**level-progression failure analysis:**
+
+Triage message: "The test incorrectly assumes a #mathai-transition-slot button will appear between game rounds, but the game likely auto-advances or uses an internal 'Next' button, causing the visibility check to time out on the hidden start button."
+
+The test generator saw `hasTwoPhases: true` in the feature flags and incorrectly inferred that round transitions within the recall phase also use a CDN `#mathai-transition-slot button`. In disappearing-numbers, the game auto-advances through its rounds — there is no slot button between rounds. The CDN transition slot is only used for the learn→recall phase boundary.
+
+Triage correctly identified the test was wrong (`skip_tests`) but deleting the spec file meant 0 test evidence for the category, which the approval gate treats as a hard failure.
+
+**Root cause:** Ambiguous `hasTwoPhases: true` description in feature flag injection. The flag says "learn + recall phases" but does not explicitly distinguish phase-boundary transitions (slot button shown) from within-recall round transitions (game-specific, may auto-advance).
+
+**Fix applied:** `lib/pipeline-test-gen.js` `buildGameFeaturesBlock()` — `hasTwoPhases` feature flag line now includes: "CRITICAL for level-progression tests: hasTwoPhases describes the learn→recall PHASE transition ONLY — round transitions WITHIN the recall phase are game-specific (game may auto-advance, or use a game-internal button); do NOT assume a #mathai-transition-slot button appears between rounds within the recall phase."
+
+**Note on T1 static check (Lesson 119):** Build #479 also triggered T1 check 5e1 — generated HTML had `const timeout = 10000` instead of 120000. static-fix LLM corrected it. Demonstrates the rule-to-validator pattern working correctly.
+
+---
+
 ## Targeted Fix Summary
 
-### Required gen prompt fixes (updated after build 475 diagnostic):
+### Required gen prompt fixes (updated after build 479 diagnostic):
 
 1. **`TransitionScreenComponent.show()` API (NEW — build 475 root cause):**
    - WRONG: `{ hasButton: true, buttonText: 'Start', onComplete: fn }`
@@ -290,7 +323,12 @@ This is a distinct bug from build 442's `TimerComponent` issue, but may share a 
    - CORRECT: `ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } })`
    - NOT `ScreenLayout.inject('app', { progressBar: true, transitionScreen: true })` (missing `slots:` wrapper)
 
-4. **No pipeline code changes needed** — all failures are LLM generation errors, not pipeline logic errors.
+4. **`hasTwoPhases` level-progression test gen clarification (NEW — build 479 root cause):**
+   - `hasTwoPhases: true` caused test generator to assume `#mathai-transition-slot button` between rounds within recall phase
+   - Fix: added clarification to `buildGameFeaturesBlock()` in `lib/pipeline-test-gen.js` — round transitions WITHIN recall phase are game-specific, NOT slot-button transitions
+   - File: `lib/pipeline-test-gen.js` (Lesson 120)
+
+5. **No other pipeline code changes needed for items 1–3** — items 1–3 are LLM generation errors addressed via gen prompt rules.
 
 ### POC for build 475 fix (not yet run):
 The fix is straightforward — replace all 5 `transitionScreen.show()` calls to use `buttons: [{ text, type, action }]` format. A local patched-HTML Playwright run should confirm `#mathai-transition-slot button` becomes visible within 3s. This POC has not been run yet (diagnostic confirmed the failure but not a fix verification).
