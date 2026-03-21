@@ -548,3 +548,21 @@ So when the test called `waitForPhase(page, 'start_screen')`, `data-phase` was `
 **How to apply:** After this fix, any new failed build will have a non-null error_message in the DB. To backfill existing silent failures, query `reports` in `data/games/*/builds/*/ralph-report.json` and update via `db.failBuild(id, errors[0])` if `error_message IS NULL`. Future diagnostic queries like `SELECT game_id, error_message FROM builds WHERE status='failed' AND error_message LIKE '%code 1%'` will work immediately.
 
 **Detection going forward:** If `error_message IS NULL AND status='failed'` appears in the DB after this fix, it indicates either: (a) the build was failed by an external process that called `failBuild()` with an empty string (check the fallback in worker.js line 1069), or (b) a new code path was added to the pipeline that returns a FAILED report without populating `report.errors`. Both cases are now caught by the worker-level safety net.
+
+---
+
+### Lesson 72 — waitForPackages must check a loaded package; PART-017=NO → check ScreenLayout not FeedbackManager
+
+**Root cause (light-up #411):** The gen prompt's `waitForPackages` template hardcoded `while (typeof FeedbackManager === 'undefined')`. But light-up's spec has PART-017=NO (no Feedback Integration), so FeedbackManager is never loaded by the CDN scripts. The loop spun for 10 seconds, threw "Packages failed to load within 10s", crashed the DOMContentLoaded handler before `window.gameState` was populated, and left `gameState: []` (empty). All tests then timed out on `waitForPhase()`.
+
+**Diagnosis signal:** DOM snapshot shows `gameState: []` (empty array, not object) and the browser error is "Packages failed to load within 10s".
+
+**Fix (commit fd7a36c):** Updated `buildGenerationPrompt()` PART-003 section to show TWO variants based on PART-017:
+- PART-017=YES → `while (typeof FeedbackManager === 'undefined')` (unchanged)
+- PART-017=NO → `while (typeof ScreenLayout === 'undefined')` (ScreenLayout is always loaded)
+
+Also added rule to `CDN_CONSTRAINTS_BLOCK`: "waitForPackages() typeof check MUST match packages that ARE loaded: if PART-017=YES check FeedbackManager; if PART-017=NO check ScreenLayout. NEVER check typeof FeedbackManager when PART-017=NO."
+
+Updated `buildCliGenPrompt()` PART-003 rule with the same constraint.
+
+**How to apply:** If a CDN game's DOM snapshot shows `gameState: []` (empty) and the browser error is "Packages failed to load within 10s", check whether PART-017=NO in the spec and whether the HTML's `waitForPackages` is checking FeedbackManager anyway. The gen prompt fix prevents this on new builds; for existing broken builds, re-queue after the fix is deployed.
