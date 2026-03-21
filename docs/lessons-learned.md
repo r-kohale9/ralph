@@ -919,3 +919,25 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 **Rule:** Before diagnosing any HTML failure, run `node diagnostic.js` locally: download HTML from GCP, inject harness, screenshot every step. Screenshots answer "overlay blocking? wrong phase? CDN slow?" in seconds. Reading test output alone cannot distinguish CDN latency from game logic bugs.
 
 **Commit:** 16c5640
+
+## Lesson 92 — Surgical smoke-regen was dead code: specMeta.isCdnGame never set
+
+**Pattern:** commit 8c645dc (Lesson 83) added `buildSmokeRegenFixPrompt()` — a surgical CDN init fix that shows the LLM failing HTML and fixes ONLY the CDN init block. It was gated on `if (specMeta.isCdnGame)`. But `extractSpecMetadata()` (pipeline-utils.js) never sets `isCdnGame` — the function only sets `totalRounds`, `totalLives`, `interactionType`, `starType`, `starThresholds`. So `specMeta.isCdnGame` was always `undefined`, the `if` was permanently false, and the surgical fix path NEVER executed in any build. Every smoke regen fired the full regen (else branch) instead.
+
+**Discovery method:** Background investigation agent cross-checked `extractSpecMetadata()` return value against the `if (specMeta.isCdnGame)` check. Confirmed by running `node -e "require('./lib/pipeline-utils').extractSpecMetadata(spec)"` — no `isCdnGame` key in result.
+
+**Impact:** The measured 38.5% repeat-failure rate on smoke-regen was 100% full regens, not surgical fixes. The surgical fix prompt (which is the correct approach) had never been tested in production. We've been measuring the wrong intervention.
+
+**Fix:** Replace `if (specMeta.isCdnGame)` with HTML-based CDN detection: `const isCdnGame = failingHtml.includes('storage.googleapis.com/test-dynamic-assets') || failingHtml.includes('cdn.homeworkapp.ai')`. The failing HTML is already read at this point (for `checkCdnScriptUrls`), so no extra I/O. Now the surgical path fires for all CDN games. Commit: c4d24f2
+
+**Evidence:** Confirmed by investigation agent (task a5414227a1a48b84d). Pipeline.js lines 889-916 examined. extractSpecMetadata() at pipeline-utils.js lines 413-476 confirmed no isCdnGame field. Node.js eval confirmed return shape.
+
+## Lesson 93 — window.gameState.content must be pre-populated; game_init is async
+
+**Pattern:** count-and-tap #440 generated correct game HTML. But `captureGameDomSnapshot()` reads `window.gameState?.content` synchronously at snapshot time. The game only sets `content` when it receives a `game_init` postMessage — which the test harness sends asynchronously after page load. At snapshot time, content was null. `extractSpecRounds()` was used as fallback — but it parsed the spec's metadata overview table (Field/Value rows) instead of the actual round data (JSON code block with `dotCount`, `options`, `correctAnswer`). Test gen received `fallbackContent.rounds[0].correctAnswer = undefined`, producing selector `.option-btn[data-value="undefined"]` which never exists. Triage correctly skipped all affected tests. Build FAILED: 0 test evidence across 3 categories.
+
+**Fix:** Gen prompt rule added to CDN_CONSTRAINTS_BLOCK: "window.gameState.content MUST be pre-populated with fallback/default round data at the START of DOMContentLoaded (before await waitForPackages()), then override with real content when game_init arrives." This makes the DOM snapshot tool always read real round data, not null. Commit: c4d24f2
+
+**Evidence:** Confirmed by investigation agent (task a0d098ed34ae74469). gameState shape returned as {} (empty) at snapshot time. game-content.json never written. fallbackContent had wrong shape (question/answer pairs from metadata table, not dotCount/options/correctAnswer from round schema).
+
+**Secondary fix needed:** `extractSpecRounds()` should prefer JSON fenced code blocks over markdown tables when spec round data is in JSON schema format. Markdown table fallback is fragile when spec overview table appears first.
