@@ -1301,3 +1301,25 @@ await transitionScreen.show({
 **Fix:** Added explicit anti-pattern warning to gen prompt CDN rules and smoke-regen prompt: NEVER use `hasButton`, `buttonText`, or `onComplete` — ALWAYS use `buttons: [{ text, type, action }]`.
 
 **Commit:** 6d8411b
+
+---
+
+## Lesson 119 — T1 check 5e1 self-enforces waitForPackages 120s timeout (R&D #55 validated)
+
+**Source:** disappearing-numbers #479 (2026-03-21)
+
+**Pattern:** Gen prompt has Lesson 117 rule (120s timeout) but LLM still generates `const timeout = 10000`. Without T1 enforcement, this would cause CDN cold-start failures in every test browser. T1 check 5e1 (R&D #55, commit 50b5a4e) catches it automatically.
+
+**Observed:** #479 generated HTML with `const timeout = 10000` at line 394. T1 check 5e1 flagged it as ERROR. static-fix LLM (117s) corrected it to `const timeout = 120000`. Build proceeds with correct timeout.
+
+**Why this matters:** Gen prompt rules alone are insufficient — LLMs drift and ignore them. T1 self-enforcement is the reliable backstop. Same pattern as T1 W3/W4 for data-testid and syncDOMState. This is the "rule-to-validator" pattern: every critical rule in the gen prompt should have a corresponding T1 check.
+
+**Rule-to-validator pattern applied to:**
+- Lesson 117 (waitForPackages timeout) → T1 check 5e1 ✅
+- TimerComponent wrong API → T1 check 5f4 (WARNING — should be ERROR)
+- Missing CDN script tags → T1 check 5c2 ✅
+- Missing #gameContent → T1 smoke check ✅
+
+**Action:** Upgrade T1 check 5f4 (TimerComponent wrong constructor) from WARNING → ERROR to also self-enforce Lesson 98.
+
+**Commit:** 50b5a4e (T1 check 5e1)
