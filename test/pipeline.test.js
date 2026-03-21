@@ -1292,7 +1292,7 @@ describe('pipeline.js fixCdnDomainsInFile', () => {
     return f;
   }
 
-  it('replaces cdn.mathai.ai with cdn.homeworkapp.ai then replaces with canonical storage.googleapis.com scripts', () => {
+  it('replaces cdn.mathai.ai directly with canonical storage.googleapis.com/test-dynamic-assets', () => {
     const html = `<!DOCTYPE html><html><head>
 <script src="https://cdn.mathai.ai/game-packages/feedback-manager/v1/feedback-manager.umd.js"></script>
 </head><body><div id="gameContent"></div></body></html>`;
