@@ -1261,3 +1261,19 @@ function renderRound(index) {
 
 **Commit:** ce79a04
 
+
+---
+
+## Lesson 117 — waitForPackages() 10s timeout is always fatal in CDN test browsers
+
+**Source:** R&D #54, disappearing-numbers #475 (2026-03-21)
+
+**Pattern:** CDN game test build fails game-flow iter 1 AND iter 2 with identical triage `fix_html`: "game fails to initialize and render start screen button inside #mathai-transition-slot." Fix loop applies HTML fix each iteration but the symptom never changes.
+
+**Root cause:** `waitForPackages()` had `const timeout = 10000` (10 seconds). In Playwright test browsers, every test file opens a FRESH browser instance with no HTTP cache. CDN packages (storage.googleapis.com) take 30-120s to load cold on a GCP VM. The game throws "Packages failed to load within 10s" before CDN finishes, `window.__initError` gets set, the transition slot is never populated, and all tests fail in `beforeEach`. The triage LLM correctly classifies this as `fix_html` (the game doesn't render) but has no way to increase a timeout it can't see.
+
+**Evidence:** disappearing-numbers #475 — same error across iter 1 and iter 2; diagnostic shows `waitForPackages()` timeout at 10s in index-fix1.html while CDN cold-start takes 30+ seconds in fresh browser.
+
+**Fix:** Increased `waitForPackages()` timeout from `10000` to `120000` (2 min) everywhere in `lib/prompts.js` — gen prompt template, CDN constraints block, smoke-regen prompt, inline rule at line 91. 120s matches beforeEach CDN poll (Lesson 107) and gives CDN adequate cold-start window.
+
+**Commit:** c32e39f
