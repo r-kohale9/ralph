@@ -883,3 +883,18 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 **Fix:** CDN_CONSTRAINTS_BLOCK updated to explicitly scope the domain rule to package script tags, and add an exception for spec-provided asset URLs in PART-017=YES games. Commit: [will update].
 
 **Affected games:** colour-coding-tool #441.
+
+## Lesson 90 — Runtime dependency pre-validation: catch broken CDN URLs before test-gen
+
+**Pattern:** CDN games fetch external URLs at runtime (packages/helpers/index.js, packages/components/index.js, packages/feedback-manager/index.js) via `<script>` tags. If any URL returns 404/non-200, the CDN bundle silently fails to load. This surfaces as a blank page / "Packages failed to load" smoke-check failure. The existing `checkCdnScriptUrls()` in pipeline.js checks static HTML script tags before smoke-regen; but if the smoke-check passes but a game still loads broken URLs at runtime (e.g. during DOM snapshot), those failures were invisible.
+
+**Fix:** `captureGameDomSnapshot()` (pipeline-utils.js) now intercepts `page.on('request', ...)` to capture all external URLs fetched at runtime from storage.googleapis.com, cdn.homeworkapp.ai, cdn.mathai.ai. After the snapshot session, HEAD-checks each unique URL. Failures are:
+1. Logged immediately to worker console
+2. Saved to `tests/runtime-dependencies.json` for audit  
+3. Appended as "BROKEN RUNTIME CDN DEPENDENCIES" section to the DOM snapshot string — the test-gen LLM sees broken URLs in context and can reference them
+
+**Value:** Converts silent CDN load failures (50s beforeEach timeout, cryptic test errors) into explicit URL-level error messages visible to both the worker log and the test-gen/smoke-regen LLMs.
+
+**Commit:** 6830daa
+
+**Affected games:** Any CDN game that loads external packages — will see runtime-dependencies.json created from next build.
