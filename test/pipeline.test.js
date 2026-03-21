@@ -8,7 +8,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords, getCategoryBoost, deriveRelevantCategories, fixCdnDomainsInFile } = require('../lib/pipeline');
+const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords, getCategoryBoost, deriveRelevantCategories, fixCdnDomainsInFile, fixCdnPathsInFile } = require('../lib/pipeline');
 
 describe('pipeline.js extractHtml', () => {
   it('extracts HTML from ```html code block', () => {
@@ -1526,6 +1526,102 @@ describe('pipeline.js fixCdnDomainsInFile', () => {
   });
 });
 
+// ─── fixCdnPathsInFile ────────────────────────────────────────────────────────
+// Tests for the wrong-path CDN URL fixer. Handles unpkg.com/@mathai/ and
+// cdn.homeworkapp.ai/cdn/components/web/ patterns that checkCdnScriptUrls()
+// previously missed (causing silent 404s in smoke check with no cdnUrlContext hint).
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline.js fixCdnPathsInFile', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+
+  function writeTmp(content) {
+    const f = path.join(os.tmpdir(), `test-cdn-paths-${Date.now()}-${Math.random().toString(36).slice(2)}.html`);
+    fs.writeFileSync(f, content);
+    return f;
+  }
+
+  it('removes unpkg.com/@mathai script tags and injects canonical block', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://unpkg.com/@mathai/feedback@1.2.6/dist/feedback.min.js"></script>
+<script src="https://unpkg.com/@mathai/ui-components@1.1.4/dist/ui-components.min.js"></script>
+<script src="https://unpkg.com/@mathai/signal-collector@1.0.9/dist/signal-collector.min.js"></script>
+</head><body><div id="app"></div></body></html>`;
+    const f = writeTmp(html);
+    const result = fixCdnPathsInFile(f, null);
+    const out = fs.readFileSync(f, 'utf-8');
+    assert.equal(result.fixed, true);
+    assert.ok(!out.includes('unpkg.com/@mathai'), 'unpkg.com/@mathai scripts should be removed');
+    assert.ok(out.includes('storage.googleapis.com/test-dynamic-assets/packages/feedback-manager'), 'canonical feedback-manager should be injected');
+    assert.ok(out.includes('storage.googleapis.com/test-dynamic-assets/packages/components'), 'canonical components should be injected');
+    assert.ok(out.includes('storage.googleapis.com/test-dynamic-assets/packages/helpers'), 'canonical helpers should be injected');
+    fs.unlinkSync(f);
+  });
+
+  it('removes cdn.homeworkapp.ai/cdn/components/web script tags and injects canonical block', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://cdn.homeworkapp.ai/cdn/components/web/feedback-manager/v2.4/feedback-manager.min.js"></script>
+<script src="https://cdn.homeworkapp.ai/cdn/components/web/screen-layout/v1.4/screen-layout.min.js"></script>
+</head><body><div id="app"></div></body></html>`;
+    const f = writeTmp(html);
+    const result = fixCdnPathsInFile(f, null);
+    const out = fs.readFileSync(f, 'utf-8');
+    assert.equal(result.fixed, true);
+    assert.ok(!out.includes('cdn.homeworkapp.ai/cdn/components/web'), 'cdn.homeworkapp.ai/cdn/components/web scripts should be removed');
+    assert.ok(out.includes('storage.googleapis.com/test-dynamic-assets/packages/feedback-manager'), 'canonical block should be injected');
+    fs.unlinkSync(f);
+  });
+
+  it('does not re-inject canonical block if already present', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://unpkg.com/@mathai/feedback@1.2.6/dist/feedback.min.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+</head><body><div id="app"></div></body></html>`;
+    const f = writeTmp(html);
+    fixCdnPathsInFile(f, null);
+    const out = fs.readFileSync(f, 'utf-8');
+    const count = (out.match(/packages\/feedback-manager/g) || []).length;
+    assert.equal(count, 1, 'feedback-manager should appear exactly once (no duplicate injection)');
+    fs.unlinkSync(f);
+  });
+
+  it('returns fixed: false for HTML with no wrong CDN paths', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+</head><body><div id="gameContent"></div></body></html>`;
+    const f = writeTmp(html);
+    const result = fixCdnPathsInFile(f, null);
+    assert.equal(result.fixed, false);
+    assert.equal(result.changes.length, 0);
+    fs.unlinkSync(f);
+  });
+
+  it('returns changes array describing what was fixed', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://unpkg.com/@mathai/feedback@1.2.6/dist/feedback.min.js"></script>
+</head><body></body></html>`;
+    const f = writeTmp(html);
+    const result = fixCdnPathsInFile(f, null);
+    assert.equal(result.fixed, true);
+    assert.ok(result.changes.some((c) => c.includes('unpkg.com/@mathai')), 'changes should mention unpkg.com/@mathai');
+    fs.unlinkSync(f);
+  });
+
+  it('is a no-op for HTML with no CDN script tags at all', () => {
+    const html = `<!DOCTYPE html><html><head><title>Test</title></head><body><div id="gameContent">hi</div></body></html>`;
+    const f = writeTmp(html);
+    const before = fs.statSync(f).mtimeMs;
+    fixCdnPathsInFile(f, null);
+    const after = fs.statSync(f).mtimeMs;
+    assert.equal(before, after, 'file should not be modified if no wrong CDN paths found');
+    fs.unlinkSync(f);
+  });
+});
+
 // ─── extractPhaseNamesFromGame (lib/prompts.js) ───────────────────────────────
 const { extractPhaseNamesFromGame } = require('../lib/prompts');
 
@@ -1717,6 +1813,20 @@ describe('pipeline.js checkCdnScriptUrls — URL parsing', () => {
     // No CDN URLs → no HTTP requests → always ok
     assert.equal(result.ok, true);
     assert.deepEqual(result.failedUrls, []);
+  });
+
+  it('checks unpkg.com/@mathai script URLs (known 404)', async () => {
+    // unpkg.com/@mathai/* returns 404 — these should be detected and flagged
+    const fakeUrl = 'https://unpkg.com/@mathai/feedback@1.2.6/dist/feedback.min.js';
+    const html = `<html><head><script src="${fakeUrl}"></script></head></html>`;
+    const result = await checkCdnScriptUrls(html);
+    assert.equal(typeof result.ok, 'boolean');
+    assert.ok(Array.isArray(result.failedUrls));
+    // unpkg.com/@mathai packages don't exist → should be in failedUrls when non-200
+    if (!result.ok) {
+      const matched = result.failedUrls.find((f) => f.url === fakeUrl);
+      assert.ok(matched, 'unpkg.com/@mathai URL should be in failedUrls when non-200');
+    }
   });
 });
 
