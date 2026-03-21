@@ -878,17 +878,27 @@ describe('pipeline-fix-loop.js global fix loop — 0/0 false-pass guard', () => 
   // A build with exactly one non-game-flow category showing 0/0 must NOT be approved.
   // Previously the guard was >= 2 categories; this tests the stricter >= 1 threshold.
 
-  function simulateApprovalGate(categoryResults) {
-    // Mirrors pipeline.js Step 4 logic for zeroCoverageCats
+  function simulateApprovalGate(categoryResults, triageDeletedCategories = new Set()) {
+    // Mirrors pipeline.js Step 4 logic for zeroCoverageCats (R&D #57: triage-deleted awareness)
     const gameFlowResult = categoryResults['game-flow'];
     if (gameFlowResult && gameFlowResult.passed === 0 && gameFlowResult.failed === 0) {
-      return 'FAILED:game-flow-0/0';
+      if (triageDeletedCategories.has('game-flow')) {
+        // triage-deleted: proceed, don't block approval
+      } else {
+        return 'FAILED:game-flow-0/0';
+      }
     }
     const zeroCoverageCats = Object.entries(categoryResults)
-      .filter(([, r]) => r.passed === 0 && r.failed === 0)
+      .filter(([cat, r]) => r.passed === 0 && r.failed === 0 && !triageDeletedCategories.has(cat))
+      .map(([cat]) => cat);
+    const skippedCats = Object.entries(categoryResults)
+      .filter(([cat, r]) => r.passed === 0 && r.failed === 0 && triageDeletedCategories.has(cat))
       .map(([cat]) => cat);
     if (zeroCoverageCats.length >= 1) {
       return `FAILED:zero-coverage:${zeroCoverageCats.join(',')}`;
+    }
+    if (skippedCats.length > 0) {
+      return `PROCEED_TO_REVIEW:skipped:${skippedCats.join(',')}`;
     }
     return 'PROCEED_TO_REVIEW';
   }
@@ -927,6 +937,80 @@ describe('pipeline-fix-loop.js global fix loop — 0/0 false-pass guard', () => 
       'edge-cases': { passed: 0, failed: 0 },
     });
     assert.ok(result.startsWith('FAILED'), `expected FAILED, got ${result}`);
+  });
+
+  // ── R&D #57: triage-deleted categories should not block approval ─────────────
+  // When all spec files in a category are deleted by triage (test logic issues, not HTML bugs),
+  // the approval gate must treat the category as SKIPPED rather than failing the build.
+
+  it('approval gate: triage-deleted non-game-flow 0/0 category proceeds to review (R&D #57)', () => {
+    // Mirrors disappearing-numbers #479: level-progression triage-deleted, other cats passed
+    const result = simulateApprovalGate(
+      {
+        'game-flow':          { passed: 3, failed: 0 },
+        'mechanics':          { passed: 2, failed: 0 },
+        'edge-cases':         { passed: 2, failed: 0 },
+        'contract':           { passed: 1, failed: 0 },
+        'level-progression':  { passed: 0, failed: 0 }, // triage-deleted
+      },
+      new Set(['level-progression']),
+    );
+    assert.ok(result.startsWith('PROCEED_TO_REVIEW'), `expected PROCEED_TO_REVIEW, got ${result}`);
+    assert.ok(result.includes('level-progression'), `expected skipped category in result, got ${result}`);
+  });
+
+  it('approval gate: non-triage-deleted 0/0 category still fails the build (R&D #57)', () => {
+    // level-progression is 0/0 but NOT in triageDeletedCategories — page was broken, must fail
+    const result = simulateApprovalGate(
+      {
+        'game-flow':          { passed: 3, failed: 0 },
+        'mechanics':          { passed: 2, failed: 0 },
+        'level-progression':  { passed: 0, failed: 0 }, // not triage-deleted
+      },
+      new Set(), // empty — no triage-deleted categories
+    );
+    assert.ok(result.startsWith('FAILED'), `expected FAILED, got ${result}`);
+    assert.ok(result.includes('level-progression'), `expected level-progression in reason, got ${result}`);
+  });
+
+  it('approval gate: triage-deleted game-flow proceeds to review (R&D #57)', () => {
+    // game-flow triage-deleted should not block approval (test gen issue, not HTML issue)
+    const result = simulateApprovalGate(
+      {
+        'game-flow':  { passed: 0, failed: 0 }, // triage-deleted
+        'mechanics':  { passed: 3, failed: 0 },
+        'edge-cases': { passed: 2, failed: 0 },
+      },
+      new Set(['game-flow']),
+    );
+    assert.ok(result.startsWith('PROCEED_TO_REVIEW'), `expected PROCEED_TO_REVIEW, got ${result}`);
+  });
+
+  it('approval gate: non-triage-deleted game-flow 0/0 still fails (R&D #57)', () => {
+    // game-flow 0/0 with no triage deletion must still block approval
+    const result = simulateApprovalGate(
+      {
+        'game-flow':  { passed: 0, failed: 0 }, // NOT triage-deleted
+        'mechanics':  { passed: 3, failed: 0 },
+      },
+      new Set(),
+    );
+    assert.ok(result.startsWith('FAILED:game-flow'), `expected FAILED:game-flow, got ${result}`);
+  });
+
+  it('approval gate: multiple triage-deleted categories all proceed to review (R&D #57)', () => {
+    const result = simulateApprovalGate(
+      {
+        'game-flow':         { passed: 2, failed: 0 },
+        'mechanics':         { passed: 0, failed: 0 }, // triage-deleted
+        'level-progression': { passed: 0, failed: 0 }, // triage-deleted
+        'edge-cases':        { passed: 1, failed: 0 },
+      },
+      new Set(['mechanics', 'level-progression']),
+    );
+    assert.ok(result.startsWith('PROCEED_TO_REVIEW'), `expected PROCEED_TO_REVIEW, got ${result}`);
+    assert.ok(result.includes('mechanics'), `expected mechanics in skipped list, got ${result}`);
+    assert.ok(result.includes('level-progression'), `expected level-progression in skipped list, got ${result}`);
   });
 
   it('hasCrossFailures includes 0/0 batches so global fix loop is triggered', () => {
