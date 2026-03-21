@@ -5,7 +5,7 @@ analysis + manual observation from `docs/lessons-learned.md`.
 
 Use this as the **primary input for R&D slot selection**. Update after every build cycle.
 
-**Last updated:** 2026-03-21
+**Last updated:** 2026-03-21 (updated Rank 3 CDN URL pre-validation + Rank 7 surgical smoke-regen status)
 
 ---
 
@@ -26,11 +26,11 @@ Use this as the **primary input for R&D slot selection**. Update after every bui
 |------|---------|----------|----------------------|----------------|------------|------------|--------|
 | 1 | **Step 1d smoke-check: missing #gameContent (blank page)** | CDN init | 13 of last 50 failed builds | hide-unhide, keep-track, kakuro, associations, disappearing-numbers, kakuro, two-player-race, true-or-false + more | ScreenLayout.inject() never called — either waitForPackages checks wrong package (PART-017=NO → checked FeedbackManager), ScreenLayout missing `slots` wrapper, or from-scratch smoke-regen re-introduces same bug | partial — slots wrapper (L69), PART-017 package check (L72), smoke-regen prompt (L83) shipped; repeat-regen rate still 38.5% | 46, 69, 72, 83 |
 | 2 | **Rendering/toBeVisible scatter (all categories fail)** | Rendering | 19 occurrences (`failure_patterns` table, game_id=adjustment-strategy) | adjustment-strategy | FeedbackManager.init() popup race (PART-017=NO game), or test-side visibility assumption mismatch — both surface as toBeVisible() failures across all categories | partial — gen prompt rule (L51) + pre-triage skip guard (L48) shipped; pre-triage fires at >3 toBeVisible failures | 48, 51 |
-| 3 | **Step 1d smoke-check: CDN 404 (wrong URL or path)** | CDN URL | 4 of last 50 failed builds | memory-flip, hide-unhide, true-or-false + others | CDN script URLs have wrong domain (cdn.mathai.ai vs cdn.homeworkapp.ai) or wrong path — 404s cause silent package load failure | partial — post-gen fixup replaces cdn.mathai.ai (L38), gen prompt rule 18, CDN_CONSTRAINTS_BLOCK; wrong-path 404s (not domain) still undetected | 38, 26 |
-| 4 | **JS init error at smoke-check (ReferenceError / TypeError in initSentry)** | CDN init | 2 of last 50 failed builds + recurs across builds | light-up, face-memory, visual-memory, truth-tellers-liars | Sentry.captureConsoleIntegration (not in base bundle), TimerComponent not defined, or other undefined CDN component referenced before load | partial — captureConsoleIntegration banned (L76), CDN_CONSTRAINTS_BLOCK updated; new undefined-ref patterns can still appear | 76 |
+| 3 | **Step 1d smoke-check: CDN 404 (wrong URL or path)** | CDN URL | 4 of last 50 failed builds | memory-flip, hide-unhide, true-or-false + others | CDN script URLs have wrong domain (cdn.mathai.ai vs cdn.homeworkapp.ai) or wrong path — 404s cause silent package load failure | partial — post-gen fixup replaces cdn.mathai.ai (L38), gen prompt rule 18, CDN_CONSTRAINTS_BLOCK; CDN URL pre-validation shipped (commit e867f36, Lesson 85) — HEAD-checks all CDN script src tags and injects failing URL+status into smoke-regen prompt; wrong-path 404s visible to LLM now | 38, 26, 85 |
+| 4 | **JS init error at smoke-check (ReferenceError / TypeError in initSentry)** | CDN init | 2 of last 50 failed builds + recurs across builds | light-up, face-memory, visual-memory, truth-tellers-liars | Sentry.captureConsoleIntegration (not in base bundle), TimerComponent not defined, or other undefined CDN component referenced before load | partial — captureConsoleIntegration banned (L76), TimerComponent banned (L87) + T1 error check; other undefined-ref patterns still possible | 76, 87 |
 | 5 | **waitForPhase() timeout — phase not updated in data-phase** | Game state | 2 occurrences (`failure_patterns` table, category=scoring) + widespread in pre-fix builds | adjustment-strategy + CDN games generally | gameState.phase set but syncDOMState() not called immediately after; or window.gameState not on window (syncDOMState reads window.gameState only) | partial — rule 22 (syncDOMState after every phase assignment, L50) + T1 check 5b3 (window.gameState exposure, L40) shipped; still appears on games not regenerated since fix | 40, 50 |
 | 6 | **Timing: locator.click timeout** | Timing | 1 occurrence (`failure_patterns` table, category=timing, game_id=adjustment-strategy) + recurring | adjustment-strategy + others | Multiple causes: #popup-backdrop overlay not hidden after VisibilityTracker.onResume() intercepts clicks; isProcessing flag never reset; beforeEach transition-slot timeout fires before game ready | partial — L58 (backdrop hide in onResume), L35/37 (conditional beforeEach), L64 (non-CDN startGame fallback) shipped | 58, 64, 35, 37 |
-| 7 | **Smoke-regen repeat failure (38.5% rate)** | Infra / prompt | 5 of 13 smoke-regen events in builds ≥420 | loop-the-loop, bubbles-pairs, face-memory + others | Smoke-regen uses "regenerate from scratch" approach — LLM reintroduces same CDN init mistakes; surgical CDN init fix prompt not yet implemented | open — Lesson 83 identifies root cause and expected fix; **no commit yet** | 83 |
+| 7 | **Smoke-regen repeat failure (38.5% rate)** | Infra / prompt | 5 of 13 smoke-regen events in builds ≥420 | loop-the-loop, bubbles-pairs, face-memory, visual-memory + others | Smoke-regen uses "regenerate from scratch" approach — LLM reintroduces same CDN init mistakes | partial — surgical CDN init fix prompt shipped (commit 8c645dc, Lesson 83); buildSmokeRegenFixPrompt() shows failing HTML and fixes ONLY init block; measuring repeat rate: 1 pass (loop-the-loop #429), 1 fail (visual-memory #439, investigating) | 83 |
 | 8 | **Worker restart orphan (build lost mid-pipeline)** | Infra | 7 of last 50 failed builds | matrix-memory, hide-unhide, colour-coding-tool + others | Worker restarted (deploy or OOM kill) while LLM call in-progress; build marked orphaned; BullMQ terminal-state guard prevents resurrection (L73) but orphaned builds still require manual requeue | partial — L73 (terminal state guard), L47 (queue-sync auto-requeue at startup) shipped; OOM restarts still cause orphans | 43, 47, 73 |
 | 9 | **Phase name mismatch: waitForPhase('playing') on custom-phase game** | Test gen | Recurring pre-Lesson-75 fix; 2-3 builds affected | matrix-memory + any game with non-standard phase | Test generator defaults to 'playing' even when DOM snapshot shows different active phase (e.g., 'memorize') | partial — post-processing fixup (L75) replaces 'playing' → actual phase from dom-snapshot.json; only fires when snapshot exists and phase is non-standard | 68, 75 |
 | 10 | **skip_test singular vs skip_tests plural triage mismatch** | Fix loop | Pre-fix: all builds where skip was intended ran a spurious fix LLM call and often corrupted HTML | Widespread | Triage prompt described `skip_test` (singular) but code checked `skip_tests` (plural); LLM followed prompt description | resolved — normalization alias added (L63); however prompt/code parity is a recurring class of bug | 63 |
@@ -70,16 +70,17 @@ Use this as the **primary input for R&D slot selection**. Update after every bui
 
 Ranked by frequency × cost (build time wasted) for the current build era:
 
-### 1. Surgical smoke-regen prompt (open, HIGH leverage)
+### 1. Surgical smoke-regen prompt (**SHIPPED** commit 8c645dc, measuring)
 **Pattern:** Smoke-regen repeat-failure rate is 38.5% (5 of 13 events). Every repeat failure wastes an entire build pipeline run (~30 min, ~$0.50).
-**Hypothesis:** Switching smoke-regen from "regenerate from scratch" → "surgical CDN init section fix" (show failing HTML, fix only waitForPackages→ScreenLayout.inject() block) reduces repeat-failure rate from 38.5% → ~8%.
-**Action:** Implement surgical regen prompt in `lib/pipeline.js` smoke-regen path. Queue 5 builds known to hit smoke failures. Compare before/after repeat rates.
+**Fix shipped:** `buildSmokeRegenFixPrompt()` — shows LLM failing HTML, fixes ONLY CDN init sequence (waitForPackages → FeedbackManager.init() if PART-017=YES → initSentry → ScreenLayout.inject with slots).
+**Measurement:** 1 pass (loop-the-loop #429), 1 fail (visual-memory #439 still missing #gameContent — investigating). Need 5+ data points to confirm <10% target.
 **Lesson:** 83
 
-### 2. Step 1d improvement: expose CDN 404 path errors (open, HIGH leverage)
+### 2. Step 1d improvement: expose CDN 404 path errors (**SHIPPED** commit e867f36, Lesson 85)
 **Pattern:** 4 of 13 smoke failures are CDN 404 due to wrong path (not wrong domain — domain fixup already runs). The smoke-check captures `Failed to load resource: 404` but does not surface WHICH URL failed.
-**Action:** Extract the 404-ing URL from smoke console errors. If the domain is correct but path is wrong, try a surgical URL-path fixup before triggering regen. This avoids a full regen for a one-line HTML fix.
-**Lesson:** 83 (root cause 2)
+**Fix shipped:** `checkCdnScriptUrls()` HEAD-checks all CDN script src tags in parallel, injects failing URL + HTTP status into smoke-regen prompt as "BROKEN CDN SCRIPT URLS (HIGH PRIORITY)". LLM can now correct the exact path.
+**Next:** Watch count-and-tap #440 — first live test of URL pre-validation in a CDN game smoke failure.
+**Lesson:** 85
 
 ### 3. Per-game approval rate monitoring dashboard (open, MEDIUM leverage)
 **Pattern:** adjustment-strategy ran 60 builds at 8% approval rate before root causes were systematically identified (Lesson 59). There is no automated alert when a game's approval rate drops below a threshold over N builds.

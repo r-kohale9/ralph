@@ -847,3 +847,15 @@ LLM now sees exactly which URL failed and what domain to replace it with, rather
 **DB audit:** No existing approved builds had 0/0 categories — the bug was latent, not yet triggered in production. 6 new unit tests added. 573 total pass.
 
 **How to apply:** Any time a build is approved but a category shows 0/0 in the report, it was approved incorrectly. Post-fix, 0/0 categories halt the build before review (Gap 1) and trigger the global fix loop (Gap 2).
+## Lesson 87 — TimerComponent: not in CDN bundle → ReferenceError crash
+
+**Pattern:** Games referencing `TimerComponent` fail smoke-check with `ReferenceError: TimerComponent is not defined`. This crashes `DOMContentLoaded` before `ScreenLayout.inject()` runs, leaving `#gameContent` never created → blank page on every smoke-check.
+
+**Root cause:** `packages/components/index.js` does NOT export `TimerComponent`. The LLM hallucinates it as a valid CDN class because the gen prompt previously contained a rule "TimerComponent MUST be initialized with startTime: 0", which implicitly suggested it was valid. Affected games: light-up, face-memory, visual-memory, truth-tellers-liars.
+
+**Fix:** 
+- CDN_CONSTRAINTS_BLOCK rule changed from "startTime: 0" → "NEVER use TimerComponent"
+- T1 static validator now raises ERROR (not warning) for `TimerComponent` in HTML
+- Use `setInterval`/`setTimeout` for countdown/elapsed timers
+
+**Commit:** [pending]
