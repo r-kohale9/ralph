@@ -665,3 +665,33 @@ Only fires when: (1) dom-snapshot.json exists, (2) the actual phase is non-stand
 **Fix (commit 562387c):** Banned `captureConsoleIntegration` in `CDN_CONSTRAINTS_BLOCK` with explicit explanation; mandated "OMIT integrations entirely — call initSentry() with no integrations argument or pass []".
 
 **How to apply:** If a CDN build's smoke-check console errors include "Sentry.captureConsoleIntegration is not a function", kill and requeue. Post-fix builds generate correct `initSentry()` without integrations.
+
+---
+
+## Lesson 77 — `.resolves` on already-awaited value throws TypeError: received value must be a Promise
+
+**Date:** 2026-03-21
+
+**Pattern:** Test generator produces `expect(await page.evaluate(() => window.gameState.lives)).resolves.toBe(3)`. This throws `TypeError: received value must be a Promise and resolve to the expected value, but instead it resolved to 3` — crashing the test at runtime and causing 0/0 for the batch.
+
+**Root cause:** `.resolves` is a Jest/Playwright test matcher modifier for unresolved Promises. When the value has already been `await`ed, it is a plain value (e.g., number 3), not a Promise. Applying `.resolves` to a non-Promise throws.
+
+**Fix (commit 576f3a2):**
+1. Post-processing in `lib/pipeline-test-gen.js` strips `.resolves` from `expect(await ...).resolves.` patterns automatically after test gen.
+2. R7 rule added to test-gen prompt: "NEVER USE .resolves ON AN AWAITED VALUE — WRONG: `expect(await page.evaluate(...)).resolves.toBe(3)` — RIGHT: `expect(await page.evaluate(...)).toBe(3)`"
+
+**How to apply:** If a batch returns 0/0 and the test file contains `.resolves.toBe()` or `.resolves.toEqual()` on an `await` expression, this is the bug. Post-fix, post-processing catches it automatically; R7 rule prevents generation.
+
+---
+
+## Lesson 78 — CDN game toBeVisible assertions need 10s timeout after startGame()
+
+**Date:** 2026-03-21
+
+**Pattern:** `await expect(page.locator('#question-text')).toBeVisible()` flakes on CDN games immediately after `startGame()`. The CDN ScreenLayout and TransitionScreen components continue rendering for 5-10 seconds after the transition animation completes. The default 5s Playwright timeout fires during this window.
+
+**Root cause:** CDN components (TransitionScreen, ProgressBar, ScreenLayout) are async and may not expose game elements until their internal render cycle completes. `startGame()` returns when the transition animation starts, not when all CDN slots are populated.
+
+**Fix (commit 576f3a2):** R6 rule added to test-gen prompt: "For CDN games, use `{ timeout: 10000 }` on toBeVisible() assertions immediately after startGame(). Default 5s timeout will flake on slow CDN loads."
+
+**How to apply:** If a CDN game's mechanics or game-flow tests flake with `toBeVisible()` timeout immediately after startGame() but pass on retry, increase the timeout to 10000ms on those specific assertions.
