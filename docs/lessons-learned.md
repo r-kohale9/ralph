@@ -808,3 +808,24 @@ HTML generation produced no `#gameContent` element. Caught by smoke-check, trigg
 3. Catch block now logs full stack trace for future debugging
 
 **How to apply:** Any access to `runStaticValidation()` result fields should defensively guard both `.passed` (boolean, safe) and `.output` (string, but can be undefined if process exits without stdout). Always `(result.output || '').split(...)` — never `result.output.split(...)` directly.
+
+---
+
+## Lesson 85 — CDN script 404/403 errors are invisible to smoke-regen LLM without URL pre-validation
+
+**Date:** 2026-03-21
+
+**Pattern:** When CDN script URLs return 404 or 403, `waitForPackages()` times out after 10s and throws. The smoke-regen LLM only sees "Packages failed to load within 10s" — it has no idea which specific URL failed. The LLM guesses at CDN init sequence fixes (ScreenLayout.inject() format etc.) when the actual problem is a wrong URL path that needs correction.
+
+**Examples observed:** memory-flip #432 and true-or-false #436 both failed smoke-regen with CDN 404s. The surgical init fix (commit 8c645dc) could not help since the issue was URL correctness, not init sequence order.
+
+**Fix (commit e867f36):** `checkCdnScriptUrls(htmlContent)` added to `lib/pipeline.js`. Before constructing the smoke-regen prompt:
+1. Parses all `<script src>` tags from failing HTML
+2. Filters to CDN URLs (storage.googleapis.com, cdn.homeworkapp.ai)
+3. Fires parallel HEAD requests with 5s timeout each
+4. If any return non-200: builds `cdnUrlContext` listing each failed URL + HTTP status
+5. Injects into smoke-regen prompt as "BROKEN CDN SCRIPT URLS (HIGH PRIORITY — fix these first)"
+
+LLM now sees exactly which URL failed and what domain to replace it with, rather than only seeing "packages failed to load".
+
+**How to apply:** Any time smoke-regen logs show `cdnUrlContext` with HTTP 404/403, the root cause is URL path hallucination (not init sequence). The LLM is now told the exact broken URL. Check that `fixCdnDomainsInFile()` is also running after the regen to catch any domain re-introduction.
