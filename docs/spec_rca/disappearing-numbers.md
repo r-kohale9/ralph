@@ -3,7 +3,7 @@
 **Game ID:** disappearing-numbers
 **Last updated:** 2026-03-21
 **Author:** Claude Sonnet 4.6 (local diagnostic run — build 442 base HTML)
-**Status:** READY FOR E2E — root cause identified and POC fix verified locally
+**Status:** READY FOR E2E — Lesson 114 (CDN script tag T1 check) deployed (debe44a); queue fresh build
 
 ---
 
@@ -184,6 +184,7 @@ Both required conditions are met:
 | #324 | 0 iterations, null error | BullMQ crash (infra) | Infra failure |
 | #400 | Step 1d: Blank page: missing #gameContent | `ScreenLayout.inject()` without `slots:` wrapper → `#gameContent` never created → null dereference crash | Game code bug (different generation) |
 | #442 | Orphaned (worker restarted) | Worker restarted mid-build; base HTML has `TimerComponent` API mismatch | Infra failure + underlying game code bug |
+| #464 | Orphaned (worker SIGKILL'd at 10-min grace period); `index-fix2.html` has zero CDN `<script src>` tags → "Init error: Packages failed to load within 10s" → blank page | LLM fix pass (game-flow fix2) dropped ALL CDN `<script src>` tags from the HTML — every package load fails, `waitForPackages()` times out | Infra failure (orphan) + fix LLM dropped CDN script tags. T1 check 5c2 (commit debe44a) now catches this: "MISSING: CDN `<script src>` tag". Lesson 114. |
 
 ---
 

@@ -1218,3 +1218,20 @@ function renderRound(index) {
 
 **How to apply:** Global fix loop 0/0 is now never treated as "page broken." If a game consistently shows 0/0 in the global fix loop (not just once), that signals a persistent infra issue (port conflict, OOM) — diagnose infrastructure before assuming the HTML is broken. A single 0/0 occurrence is ignored and the previous score is kept.
 
+
+---
+
+## Lesson 114 — LLM fix pass drops all CDN <script src> tags → "Packages failed to load within 10s"
+
+**Source:** Local diagnostic lesson — disappearing-numbers #464 (2026-03-21)
+
+**What happened:** disappearing-numbers #464 ran game-flow fix iterations (game-flow-fix1, game-flow-fix2 uploaded to GCP). Diagnostic of `index-fix2.html` found **zero external `<script src>` tags** — no CDN package bundles loaded at all. `waitForPackages()` polled for `ScreenLayout`, `ProgressBarComponent`, `TransitionScreenComponent`, `TimerComponent` for 10 seconds, found none, threw `"Init error: Packages failed to load within 10s"`. Blank white page, `#mathai-transition-slot` never populated, all tests fail in `beforeEach` after 50-second timeout.
+
+**Root cause:** The game-flow fix LLM (fix2 HTML) generated a full HTML rewrite that included all game logic but accidentally omitted all `<script src="...">` tags for the CDN packages. The inline game script was complete and correct — but the packages it depends on were never fetched.
+
+**T1 gap:** validate-static.js had no check for CDN script tag presence. The validator checked `waitForPackages()` timeout/throw behavior but not whether packages were actually being loaded.
+
+**Fix (commit debe44a):** Added T1 check 5c2: when `waitForPackages()` is defined (CDN game), validate that at least one `<script src="https://storage.googleapis.com/...">` tag is present. If missing → T1 ERROR → pipeline triggers static-fix LLM to regenerate. 577 tests pass.
+
+**How to apply:** Any CDN game that fails with "Packages failed to load within 10s" with a blank page — check if CDN script tags are present in the HTML. If not, the LLM dropped them during a fix pass. T1 check 5c2 now catches this before test gen runs.
+
