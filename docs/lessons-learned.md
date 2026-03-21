@@ -789,3 +789,22 @@ HTML generation produced no `#gameContent` element. Caught by smoke-check, trigg
 **Expected impact:** If 4/5 failures are caused by the from-scratch regen approach, switching to a surgical fix prompt could reduce repeat-failure rate from 38.5% to ~8% (1/13 — just the CDN URL 403 case which requires a different fix).
 
 **How to apply:** When investigating a smoke-regen failure where the post-regen HTML still lacks #gameContent, check if the HTML's CDN script URLs return 403. If yes, this is a URL path issue, not a prompt issue. If no, the LLM generated broken ScreenLayout.inject() again — switch to surgical fix prompt approach.
+
+---
+
+## Lesson 84 — Step 1b T1 re-check silently skipped: undefined .output from runStaticValidation() catch path
+
+**Date:** 2026-03-21
+
+**Pattern:** After contract auto-fix (Step 1b), the pipeline re-runs T1 static validation and then calls `reStaticResult.output.split('\n').filter(...)` to extract error lines. If `runStaticValidation()` throws internally (e.g., process killed with no stdout buffered), the catch path returns `{ passed: false, output: err.stdout || err.message }`. When `err.stdout` is undefined (no buffered output) AND `err.message` is also falsy, the result is `undefined || undefined = undefined`. Then `undefined.split(...)` throws TypeError.
+
+**Why it was silent:** The TypeError was caught by the Step 1b outer `try/catch` at line 728, logged as a warning, and execution continued. The T1 re-check after contract-fix was silently skipped — same failure mode as Lesson 79 (cc5fae7), just one level deeper.
+
+**This is the same class of bug as Lesson 79.** The cc5fae7 fix changed `reStaticResult.errors.length` to `reStaticResult.output.split(...)` but left `output` itself unguarded.
+
+**Fix (commit 6e4f06b):**
+1. `reStaticResult.output.split(...)` → `(reStaticResult.output || '').split(...)` — null guard on output
+2. `recheckErrors.length` → `(recheckErrors || []).length` — belt-and-suspenders for the re-validate check
+3. Catch block now logs full stack trace for future debugging
+
+**How to apply:** Any access to `runStaticValidation()` result fields should defensively guard both `.passed` (boolean, safe) and `.output` (string, but can be undefined if process exits without stdout). Always `(result.output || '').split(...)` — never `result.output.split(...)` directly.
