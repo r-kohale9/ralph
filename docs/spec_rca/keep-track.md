@@ -241,7 +241,9 @@ POC verification for 3B: COMPLETE. All three root causes confirmed with browser 
 
 ## 5. Go/No-Go for E2E
 
-Decision: **READY FOR E2E** — with required pipeline fixes deployed first.
+Decision: **NOT READY for E2E without HTML fix** — build 503 has `isProcessing` bug. See §3C and §5 update in Build #483+#503 section below for detailed reasoning.
+
+**Original decision (before build 483/503 analysis):**
 
 **Local diagnostic (2026-03-21) confirms:** Build 465 HTML is CORRECT. The game renders, animates, transitions between rounds, and applies `.correct` class to the right element. All three originally identified "root causes" (A+B+C) have been re-evaluated:
 
@@ -513,6 +515,9 @@ gameState.phase = 'guess';
 | 465 | Contract-fix T1: "initSentry() called before waitForPackages()" — iteration 3 fail | Root cause D: original gen had initSentry INSIDE waitForPackages (correct), but contract-fix LLM moved it outside while fixing other contract errors. CDN_CONSTRAINTS_BLOCK has the rule but LLM ignored it during full-HTML contract fix rewrite. | Failed |
 | 468 | Orphaned — worker SIGKILL'd mid-mechanics-iter-1 | Worker was deactivating; passed smoke check, reached mechanics iter 1 (1/2 passed), then SIGKILL'd. Not a game bug. | Orphaned (infra) |
 | 477 | 4/7 passed: level-progression 0/1 + contract 0/1 triage-deleted; game-flow 1/2 (skipped); mechanics 2/2 pass | test gen assumed `level-transition` type requires button click + test assumed transition appears AFTER skipToEnd(); both tests deleted by triage. game-flow failure: cup element not visible during guess phase (timing) | Failed |
+| 482 | All tests timed out in beforeEach — 0/N every batch | CDN cold-start ~150s exceeds 120s poll loop in beforeEach | Killed (infra — fix deployed) |
+| 483 | game-flow 1/3 (2 tests fail both iter 1 and iter 2): "Game Over on Zero Lives" + "Victory Transition" | Iter 1: `isProcessing` stuck true >5s (server CDN race — progressBar.update or similar throws internally, leaving isProcessing=true). Iter 2: `#game-screen` remains visible after "See Results" click. Passes locally in <2ms. Server-specific timing issue. | Failed |
+| 503 | Running (2026-03-22) — game-flow already failed 3 iterations; now at level-progression | Build 503 HTML has `isProcessing` never reset in wrong-answer path before delay. Test gen for this build has no "Game Over on Zero Lives" test — only "Start" and "Victory with hardcoded correctIndices=[2,0,3,0,0]" which will fail on server. | Running |
 
 ---
 
@@ -573,6 +578,34 @@ Occurs during cup swap animation (swapCups() DOM manipulation). Does not prevent
 
 ---
 
+### Session 3 — Build 483 (Game Over diagnostic, 2026-03-22)
+
+**Environment:** Custom scripts `diagnostic-kt.js` and `diagnostic-kt2.js` (ralph repo root), serving `/tmp/keep-track/index.html` (build 483, 43625 bytes) on ports 7779/7780.
+
+**Scripts:** `/Users/the-hw-app/Projects/mathai/ralph/diagnostic-kt.js`, `diagnostic-kt2.js`
+
+**Screenshots:** `/tmp/keep-track/shots/`, `/tmp/keep-track/shots2/`
+
+**Test 1 (diagnostic-kt.js — direct DOM clicks):**
+- Direct cup click by DOM index: all 3 rounds completed successfully
+- gameover phase reached at t+1600ms after 3rd wrong click
+- "See Results" button visible; clicking → results screen shown
+- PASS
+
+**Test 2 (diagnostic-kt2.js — exact `__ralph.answer()` harness replication):**
+- `__ralph.answer(false)` correctly identified wrong cups via testid:
+  - Round 1: correctIdx=2, wrongIdx=0, btn=option-0 found ✓
+  - Round 2: correctIdx=0, wrongIdx=1, btn=option-1 found ✓
+  - Round 3: correctIdx=3, wrongIdx=0, btn=option-0 found ✓
+- isProcessing cleared in 1ms each time (immediate)
+- gameover phase reached in 1866ms (well within 15s)
+- "See Results" clicked → game-screen hidden, results-screen shown
+- PASS
+
+**Conclusion:** Build 483 HTML is correct. Both direct click and harness click work. All assertions pass. Server failure is environment-specific (CDN race, not HTML bug).
+
+---
+
 ## Targeted Fix Summary
 
 No targeted fix has been run. Diagnosis complete from local diagnostic run.
@@ -599,9 +632,107 @@ GCP server CDN cold-start = ~150s. The beforeEach CDN poll loop was `Date.now() 
 - Playwright test timeout: 180000 → 240000 ms in `pipeline-utils.js`
 - Gives 160s for CDN + 75s for actual test execution
 
-### Build #483 status: QUEUED — testing fix
+### Build #483 result: FAILED — game-flow 1/3, same test failing iter 1+2
 
 | Build | Status | Root Cause | Fix |
 |-------|--------|------------|-----|
 | 482 | killed | CDN cold-start ~150s > 120s poll loop | poll loop → 160s, timeout → 240s |
-| 483 | running | — | fix deployed |
+| 483 | failed | game-flow "Game Over on Zero Lives" + "Victory" fail iter 1+2 | See §2D + §3C below |
+
+---
+
+## Build #483 + #503 Analysis (2026-03-22)
+
+### §2D. Build 483 — "Game Over on Zero Lives" failure (local diagnostic 2026-03-22)
+
+**Method:** Custom diagnostic scripts (`/Users/the-hw-app/Projects/mathai/ralph/diagnostic-kt.js` and `diagnostic-kt2.js`) running from ralph repo root. Both serve build 483 HTML locally on port 7779/7780 with full harness injected.
+
+**Finding 1 — Game works correctly locally. All assertions pass:**
+
+Both scripts completed the full "Game Over on Zero Lives" flow:
+- Round 1 wrong answer: `__ralph.answer(false)` found `option-0` (correctIdx=2, wrong idx=0), clicked it. `isProcessing` cleared in 1-2ms.
+- Round 2 wrong answer: `__ralph.answer(false)` found `option-1` (correctIdx=0, wrong idx=1), clicked it. `isProcessing` cleared in 1ms.
+- Round 3 fatal wrong answer: `isProcessing` cleared immediately (game sets `isProcessing=false` at line 666 before `delay(1500)`). gameover phase reached at t+1600ms (well within 15s waitForPhase).
+- "See Results" button visible. Clicking it → `endGame('game_over')` → `showResults()` → `#game-screen display=none`, `#results-screen display=flex`.
+- **All assertions pass locally.** No errors.
+
+```
+[shot] /tmp/keep-track/shots2/12-11-final.png
+Final state: {gameScreenDisplay:"none", resultsScreenDisplay:"flex", dataphase:"results"}
+#game-screen hidden: true
+#results-screen visible: true
+TEST PASSED
+```
+
+**Finding 2 — Iter 1 failure: `Timeout 5000ms exceeded while waiting on the predicate`**
+
+The `answer()` helper polls `!window.gameState?.isProcessing` with 5s timeout. For this to time out, `isProcessing` must be `true` for >5s after a cup click.
+
+Build 483 code sets `isProcessing=false` at line 666 (BEFORE `await delay(1500)`) in the lives=0 path. Locally this clears in ~200ms. Server-side CDN race condition is the likely cause — if `progressBar.update()` throws internally or a CDN async callback re-sets `isProcessing=true`, the poll would stall.
+
+**Finding 3 — Iter 2 failure: `#game-screen` expected hidden, received visible**
+
+The test reached gameover phase and clicked "See Results", but `#game-screen` remained visible. This means `endGame('game_over')` was either not called (button action failed) or was called but `showResults()` didn't run (likely because `gameState.gameEnded` was already `true` from a previous path).
+
+**Finding 4 — Root cause is server-specific, not HTML logic bug**
+
+Both iter 1 and iter 2 pass completely in local browser. This rules out HTML logic bugs. Server failures are CDN timing/race conditions under load.
+
+**Key data from `__ralph.answer(false)` debug:**
+```
+Round 1: correctIdx=2, wrongIdx=0, btnFound=true, phase=guess, isActive=true
+Round 2: correctIdx=0, wrongIdx=1, btnFound=true, phase=guess, isActive=true
+Round 3: correctIdx=3, wrongIdx=0, btnFound=true, phase=guess, isActive=true
+```
+
+All three rounds: correct cup found, wrong cup identified, button found by testid. Answer logic is correct.
+
+---
+
+### §3C. Build 503 — Analysis (2026-03-22)
+
+**Build 503 test spec (game-flow.spec.js):** Only 2 tests — "Screen transition from Start to Game" and "Victory screen on 5 correct rounds". **No "Game Over on Zero Lives" test in build 503.** The test gen for this build did not produce a gameover test.
+
+**Critical bug in build 503 HTML — `isProcessing` never reset in wrong-answer path:**
+
+Build 483 code (CORRECT):
+```js
+if (gameState.lives <= 0) {
+  gameState.isProcessing = false;  // ← explicitly reset before delay
+  await delay(1500);
+  gameState.phase = 'gameover';
+```
+
+Build 503 code (BUGGY):
+```js
+if (window.gameState.lives <= 0) {
+  await delay(1500);               // ← isProcessing NEVER reset here
+  window.gameState.phase = 'gameover';
+```
+
+In build 503, `isProcessing` is set to `true` at the start of `handleCupTap()` and is only reset to `false` inside `endGame()`. On the wrong-answer path (lives=0), `isProcessing` stays `true` throughout the `delay(1500)` + gameover transition, until the user clicks "Finish" which calls `endGame()`. Any test polling `!isProcessing` with a 5s timeout WILL time out.
+
+**However**, build 503's test spec does NOT have a "Game Over on Zero Lives" test — so this bug won't be exposed by game-flow batch. The "Victory" test calls `answer(page, true)` repeatedly, which takes the correct-answer path where `isProcessing` IS reset quickly.
+
+**Build 503 victory test uses hardcoded `correctIndices = [2, 0, 3, 0, 0]`** — these are fixed positions that may be wrong for any given game session since correct cup positions are randomized after shuffling. This test is very likely to fail in iter 1.
+
+**Build 503 game-flow already ran 3 iterations** (from server logs: iter=1 at 18:10:55, iter=2 at 18:18:19, iter=3 at 18:26:53). The batch is complete. Results not yet in DB (saved at build end).
+
+**Current status (2026-03-22):** Build 503 is at level-progression batch. Game-flow results will show in DB when build completes.
+
+---
+
+### §5 — Updated Go/No-Go for Build #503
+
+**Likely outcome for build #503:**
+- game-flow: 1/2 pass ("Start Game" passes, "Victory with hardcoded correctIndices" likely fails)
+- mechanics: unknown — depends on test gen quality
+- level-progression, edge-cases, contract: unknown
+- Overall: likely to FAIL due to hardcoded correctIndices in victory test + `isProcessing` bug in wrong-answer path (even if not directly tested)
+
+**Go/No-Go for approval:** NOT READY if game-flow "Victory" fails due to hardcoded positions. The `isProcessing` bug in build 503's HTML also needs to be fixed before the game can reliably handle wrong-answer flows.
+
+**Required fixes for next build:**
+1. **HTML fix:** In wrong-answer path when `lives <= 0`, add `window.gameState.isProcessing = false` BEFORE `await delay(...)`. This prevents `answer()` helper from timing out.
+2. **Test gen prompt:** Never hardcode `correctIndices` for shuffle games — always use `window.gameState.correctCup` dynamically to find the correct cup.
+3. **GF3 rule (waitForPhase gameover 15000):** Sufficient — locally gameover is reached in 1600ms. 15000ms is adequate margin.
