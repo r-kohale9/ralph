@@ -1204,3 +1204,17 @@ function renderRound(index) {
 
 **How to apply:** The global fix loop should now only trigger for categories where spec files still exist and have real failures. Deleted specs (test logic errors) no longer cause cascading global fix loop invocations.
 
+---
+
+## Lesson 113 — Global fix loop 0/0 result treated as inconclusive, not page-broken
+
+**Source:** Pipeline iteration lesson — associations #462, light-up #463, true-or-false #467 (2026-03-21)
+
+**What happened:** When Playwright runs tests in the global fix loop and returns 0/0 (no tests passed, no tests failed), the pipeline was treating it as a failing batch: "page may be broken, trigger LLM HTML fix." This caused unnecessary LLM fix calls when the real issue was not the HTML but the test runner itself (resource exhaustion under parallel builds, Playwright startup failure, or spec parse error). Observed: 5-second exits from Playwright for game-flow batches where no beforeEach hook even started.
+
+**Root cause of 0/0 in global loop:** Parallel builds running multiple Chromium instances on a 2GB server can cause Playwright to fail to start a page or crash immediately in beforeEach, producing 0 expected / 0 unexpected results. The per-batch loop already had a guard for this case (`detectCrossBatchRegression`: if `nowTotal === 0`, skip the regression check). The global fix loop lacked an equivalent guard.
+
+**Fix (commit 2e0f890):** When `gPassed === 0 && gFailed === 0` in the global fix loop iteration, treat as inconclusive: log a warning, skip the LLM HTML fix, and keep the per-batch score for that batch. This mirrors the `detectCrossBatchRegression` behavior on line 313: `if (nowTotal === 0) continue`.
+
+**How to apply:** Global fix loop 0/0 is now never treated as "page broken." If a game consistently shows 0/0 in the global fix loop (not just once), that signals a persistent infra issue (port conflict, OOM) — diagnose infrastructure before assuming the HTML is broken. A single 0/0 occurrence is ignored and the previous score is kept.
+
