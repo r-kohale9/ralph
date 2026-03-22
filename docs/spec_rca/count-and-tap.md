@@ -108,14 +108,14 @@ Also: `typeof TimerComponent` ban (Lesson 87) was corrected — TimerComponent I
 
 ## 5. Go/No-Go for E2E
 
-**Build #471 status: NOT READY without gen prompt fix for FeedbackManager namespace.**
+**APPROVED — Build #551 approved 2026-03-22. FeedbackManager.playDynamicFeedback fix verified working.**
 
-- §2 Evidence: Complete. Local Playwright diagnostic confirms `FeedbackManager.sound.playDynamicFeedback` throws synchronously → `scheduleNextRound()` never called → `isProcessing` stuck true → level-progression test deadlocks.
+- §2 Evidence: Complete. Local Playwright diagnostic confirmed `FeedbackManager.sound.playDynamicFeedback` throws synchronously → `scheduleNextRound()` never called → `isProcessing` stuck true → round lifecycle deadlocked.
 - §3 POC: Confirmed — patching the 2 occurrences in index.html from `FeedbackManager.sound.playDynamicFeedback` to `FeedbackManager.playDynamicFeedback` allows rounds to advance correctly (round 0 → 1, isProcessing resets to false).
 - §4 Reliability: High — deterministic text substitution; FeedbackManager API is stable.
-- **Blocking item:** Gen prompt does not yet have a rule about `FeedbackManager.playDynamicFeedback` vs `FeedbackManager.sound.playDynamicFeedback`. Without adding this rule, the next build will likely regenerate the same broken call.
+- §5 Go/No-Go: APPROVED — build #551 returned 11/12 iter 1, approved 2026-03-22. PART-011-SOUND T1 check (commit 26fcfb6) provides ongoing defense-in-depth.
 
-**Required before next E2E:** Add to gen prompt: "Audio feedback: call `FeedbackManager.playDynamicFeedback({ event: 'success' })` and `FeedbackManager.playDynamicFeedback({ event: 'error' })` — NOT `FeedbackManager.sound.playDynamicFeedback` (that method does not exist on the sound sub-object)."
+**Edge case note:** Timer expiry phase was 'results' instead of 'gameover' in build #551 iter 1 (edge-cases 2/3). Fixed by fix loop iter 2. Future gen prompt should clarify: timer expiry at lives=0 sets phase='gameover', not 'results'.
 
 **Previous Go/No-Go (builds #440/#457):**
 - §2 Evidence: Complete. gameStateShape={}, game-content.json absent, fallbackContent wrong shape, triage output confirms. Plus: local diagnostic proves HTML is correct (both tests pass locally).
@@ -131,6 +131,7 @@ Also: `typeof TimerComponent` ban (Lesson 87) was corrected — TimerComponent I
 | #440 | game-flow 0/2 iter 1+3 (oscillated); mechanics/level-prog/edge-cases 0 test evidence; FAILED after 3 iterations | A: null gameState.content → corrupted fallback → triage skips all categories. B: CDN cold-start → beforeEach 50s timeout | Investigated; gen prompt fix deployed (c4d24f2); T1 fix (16c5640); re-queued as #457 |
 | #457 | game-flow 1/3 iter 1+2; mechanics 1/4; level-prog 0/1; edge-cases 0/1; contract 1/1; FAILED (1/4 cats, 4 needed) | C: renderRound() sets isProcessing=false immediately → harness answer() fires before option buttons rendered → click silently fails → timer fires → test desync. Global fix loop also failed (page broken after E8 fix). Tests pre-generated without M8 rule. | Failed — Lesson 109 rules deployed (833da9f); #471 queued for fresh build |
 | #471 | level-progression 0/1 all 3 iters; mechanics triage-deleted (0 evidence); edge-cases initially failed "transition slot button never visible" then fixed by fix-1; global fix loop still failed level-prog; FAILED | `FeedbackManager.sound.playDynamicFeedback` does not exist — throws synchronously inside `showFeedback()` before `scheduleNextRound()` is called → `isProcessing` stuck `true` → round lifecycle deadlocked. Verified by local Playwright diagnostic 2026-03-21. POC fix confirmed: replace with `FeedbackManager.playDynamicFeedback` → round advances. | Investigated; gen prompt fix required before next build (#472) |
+| #551 | edge-cases 2/3 iter 1 (timer expiry phase 'results' instead of 'gameover'); fixed iter 2; 11/12 iter 1; APPROVED | FeedbackManager.playDynamicFeedback namespace fix (prompts.js line 81) verified — rounds cycle correctly; PART-011-SOUND T1 check shipped as defense-in-depth | APPROVED (2026-03-22) |
 
 ---
 
@@ -185,6 +186,7 @@ Also: `typeof TimerComponent` ban (Lesson 87) was corrected — TimerComponent I
 | window.gameState.content pre-population | c4d24f2 | Gen prompt rule: pre-populate content before waitForPackages(), override on game_init |
 | Surgical smoke-regen dead code | c4d24f2 | specMeta.isCdnGame (never set) → HTML-based CDN detection |
 | FeedbackManager namespace fix (PENDING) | — | Gen prompt must add rule: use `FeedbackManager.playDynamicFeedback()` not `FeedbackManager.sound.playDynamicFeedback()`. POC verified 2026-03-21. Deploy before build #472. |
+| FeedbackManager.sound.playDynamicFeedback namespace | Already in prompts.js line 81 (prior session); PART-011-SOUND T1 check (commit 26fcfb6) | Build #551 APPROVED — fix confirmed working |
 
 ---
 

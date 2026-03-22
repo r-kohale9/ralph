@@ -2220,3 +2220,11 @@ window.loadRound = function(n) {
 ```
 
 **Take:** Any round-based CDN game missing `window.loadRound` will produce mechanics 0% no matter how many fix iterations run. The fix loop iterates on the symptom (timeout) but cannot diagnose or fix a missing window exposure. T1 check + static-fix is the correct backstop — same defense-in-depth pattern as GEN-112/PART-023-API (Lesson 172–173).
+
+## Lesson 175 — FeedbackManager.playDynamicFeedback namespace fix verified; timer expiry phase edge case (2026-03-22, build #551 count-and-tap)
+
+**Source:** Build #551 test results
+
+FeedbackManager.playDynamicFeedback namespace fix (prompts.js rule at line 81: "NEVER use FeedbackManager.sound.playDynamicFeedback") verified working in count-and-tap build #551 (APPROVED, 11/12 iter 1). Round lifecycle does NOT deadlock — `scheduleNextRound()` fires correctly after `showFeedback()`. PART-011-SOUND T1 check (commit 26fcfb6) adds defense-in-depth for future builds.
+
+Edge-case finding: count-and-tap timer expiry sends game to `results` phase instead of `gameover` phase — caught and fixed by fix loop iter 2. If timer expires with 0 lives, game_over should fire with phase=gameover (not results). Future gen prompt: clarify that game_over via timer expiry at lives=0 sets phase='gameover', not 'results'.
