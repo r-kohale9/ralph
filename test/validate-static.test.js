@@ -1562,6 +1562,16 @@ describe('PART-028: CSS stylesheet integrity check', () => {
     );
   });
 
+  it('fails with PART-028-CSS-STRIPPED when <style> block is completely empty', () => {
+    const html = VALID_HTML.replace(/<style[^>]*>[\s\S]*?<\/style>/i, '<style></style>');
+    const { exitCode, output } = runValidator(html);
+    assert.strictEqual(exitCode, 1, `Expected exit code 1 but got ${exitCode}. Output: ${output}`);
+    assert.ok(
+      output.includes('PART-028-CSS-STRIPPED'),
+      `Expected PART-028-CSS-STRIPPED error in output: ${output}`,
+    );
+  });
+
   it('emits PART-028-NO-CSS warning when no <style> block exists', () => {
     const html = VALID_HTML.replace(/<style[^>]*>[\s\S]*?<\/style>/i, '');
     const { exitCode, output } = runValidator(html);
