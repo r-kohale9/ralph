@@ -343,11 +343,24 @@ One item must always be present in `ROADMAP.md` under `## R&D` with status `acti
 
 **What to produce:** For each local test session, update `docs/spec_rca/<game-id>.md` with §2 (evidence with screenshots) and §3 (POC verification). Mark the game ready or not ready for E2E.
 
+**Failure classification (REQUIRED) — every session must end with one of these two verdicts:**
+
+| Verdict | Meaning | Next action |
+|---------|---------|-------------|
+| **HTML bug** | Game is broken in the browser — wrong phase, blank screen, missing elements, CDN init failure, API misuse | Write POC fix → hand to R&D slot as a gen prompt rule + T1 check hypothesis |
+| **Test bug** | Game works correctly in the browser — tests are wrong (wrong selector, wrong timing, wrong assertion) | Write a specific test-gen prompt fix hypothesis → hand to R&D slot for test-gen prompt update |
+
+The distinction matters because the fix goes to a different place:
+- HTML bugs → CDN_CONSTRAINTS_BLOCK in `lib/prompts.js` + T1 check in `lib/validate-static.js`
+- Test bugs → test-gen category prompts in `lib/prompts.js` (mechanics, game-flow, contract, edge-cases, level-progression sections)
+
+A finding without a classification is incomplete. "Game passes locally" is a valid finding only if the verdict is written: "test bug — game is correct, test assertion is wrong because X."
+
 **Non-negotiable constraints:**
 - Local test slot runs in a sub-agent so main context stays free
 - Must produce a concrete finding: screenshot + console output + hypothesis confirmed/refuted
 - "Reading the HTML" does not count — must actually run the browser
-- If the game passes locally (like count-and-tap), that IS a finding: root cause is server-side infra, not HTML
+- If the game passes locally, that IS a finding — classify as test bug, identify which test assertion is wrong and why
 
 ### 14. Always maintain one active Education Implementation Slot — MANDATORY, same as R&D and local test slots
 
