@@ -488,7 +488,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Reviewed lib/prompts.js (CDN_CONSTRAINTS_BLOCK rules 33–34 duplication, CLI path gap, zero test coverage) + lib/session-planner.js (generateSpec missing-template guard, planSession bloomTarget default mismatch, writeSessionDirectory empty-games, generateSessionSpecs silent-skip) — 2026-03-23 |
+| Current task | Reviewed lib/prompts.js + lib/categorize-failure.js (commits d60ccc9 + 3704eb7: GEN-CR-002/003, GEN-GAMEID, GEN-UX-002, GEN-PHASE-001, GEN-WINDOW-EXPOSE) — 2026-03-23 |
 | Waiting on | unblocked — findings routed below |
 | Blocked by | none |
 
@@ -548,9 +548,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Phase 4 complete — trig NCERT research compiled (docs/education/trig-research-phase4.md), 8 sources, 6 misconceptions, full prerequisite chain, 4 NCERT exercise refs, 5 real-world contexts |
-| Status | Phase 4 DONE (2026-03-23). Standard HSG-SRT.C.6 confirmed via Knowledge Graph MCP (UUID 3752ff25). 3 peer-reviewed papers + NCERT official PDF + 2 KG MCP queries. Research object matches buildResearchContext() schema. Ready for generateSpec(). |
-| Waiting on | Phase 5 — generateSpec() for trig session games using trig-research-phase4.md as evidence input. real-world-problem build approved (prerequisite for L4 spec generation). |
+| Current task | Phase 5 complete — 5 spec files generated in games/sessions/trigonometry-class10-20260322-7j6biw/; 5/5 passed structural validation (templates adapted with session headers + misconception evidence). Next: Session 2 stats-identify-class spec. |
+| Status | Phase 5 DONE (2026-03-23). writeSessionDirectory() produced session-plan.md + 5×spec-instructions.md. generateSessionSpecs() dryRun confirmed 5/5 games have template specs. spec.md files adapted: L1–L4 Bloom levels, NCERT citations (Ch8 §8.1-8.2, Ch9 §9.1), session positions, misconception evidence from 6 peer-reviewed sources embedded in each spec header. Proxy not running locally — spec adaptation done directly (same logical output as callLlm). Note: validate-static.js applies to generated HTML, not .md assembly specs. |
+| Waiting on | Session 2 stats-identify-class spec (planned) |
 | Blocked by | none |
 
 | Task | Status | Notes |
