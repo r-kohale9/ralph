@@ -11,10 +11,10 @@
 
 | Game # | Game ID | Bloom Level | Interaction Type | Status | Build |
 |--------|---------|-------------|-----------------|--------|-------|
-| 1 | `name-the-sides` | L1 Remember | Diagram labeling — assign Hyp/Opp/Adj labels to 3 triangle sides | active — build #552 running | #550 FAILED (GEN-114), #552 queued |
+| 1 | `name-the-sides` | L1 Remember | Diagram labeling — assign Hyp/Opp/Adj labels to 3 triangle sides | APPROVED | #557 APPROVED (iter=3) |
 | 2 | `soh-cah-toa-worked-example` | L2 Understand | Worked example sub-phases (example→faded→practice) + MCQ | APPROVED | #544 APPROVED |
 | 3 | `find-triangle-side` | L3 Apply | Two-step: select ratio (MCQ) + compute missing side (typed input) | APPROVED | #549 APPROVED |
-| 4 | `which-ratio` | L2–L3 Understand→Apply | MCQ + worked example panel on first wrong attempt | spec written, not yet built | — |
+| 4 | `which-ratio` | L2–L3 Understand→Apply | MCQ + worked example panel on first wrong attempt | active — #558 queued | — |
 | 5 | `compute-it` | L3 Apply | Typed numeric input — standard angle values + side computation | planned | — |
 | 6 | `real-world` | L4 Analyze | Multi-step: diagram read → ratio select → compute in context units | planned | — |
 
@@ -110,7 +110,13 @@ Level 3 rounds introduce inverse trig (tan⁻¹) for angle-finding problems. "A 
 | #546 | quadratic-formula-worked-example | APPROVED | MCQ shuffle + trackEvent fix at review-fix-1; CDN timing stall early-exit confirmed; CT8 rule derived |
 | #549 | find-triangle-side | APPROVED | Two-step MCQ + typed input pattern works; 9 rounds, 3 levels |
 | #550 | name-the-sides | FAILED | GEN-114: window.loadRound missing — jumpToRound() was a silent no-op, data-phase stuck at 'results' after endGame(); 0/6 × 3 iterations |
-| #552 | name-the-sides | running | GEN-114 fix deployed (commit e4d84f1); T1 PART-021-LOADROUND warning added; verifying window.loadRound fix |
+| #552 | name-the-sides | FAILED | GEN-115: contract-fix T1 regression → early-review rejection at iter=0 |
+| #553 | name-the-sides | FAILED | GEN-116: interactionType=drag false-positive from prohibition text → 0 passing all batches |
+| #554 | name-the-sides | KILLED | GEN-117: transitionScreen.hide() missing → #gameContent display:none → all isVisible() fail; killed at iter=0 |
+| #555 | name-the-sides | FAILED (infra) | APPROVED by reviewer — failed post-approval EACCES (warehouse/game/ owned root:root); infra fixed with chown |
+| #556 | name-the-sides | FAILED | GEN-118: startGame() called transitionScreen.hide() but never showed #gameContent; game-flow 0/3 all iters |
+| #557 | name-the-sides | APPROVED | GEN-116+117+118 compound fix resolved init failure class; iter=3; trig session Game 1 complete |
+| #558 | which-ratio | queued | Trig session Game 4 — first build; GEN-114/115/116/117/118 all active |
 
 ---
 

@@ -10,6 +10,7 @@
 | #554 | Killed at early-review (iter=0): HTML confirmed missing `transitionScreen.hide()` — #gameContent stays display:none for entire game, all isVisible() fail | `startGame()` never calls `transitionScreen.hide()` — ScreenLayout sets #gameContent to display:none; CDN does not auto-reveal; GEN-117 fix pending | Killed (confirmed HTML bug before tests ran) |
 | #555 | APPROVED by reviewer but EACCES post-approval — warehouse/game/ owned root:root → copyfile failed | Infrastructure: directory owned by root instead of the-hw-app; fixed with chown; build #556 re-queued | Failed (infra) |
 | #556 | game-flow 0/3 all iters; level-progression CDN stall false-positive | startGame() called transitionScreen.hide() but never showed #gameContent — GEN-117 rule was incomplete; GEN-118 fix pending | Failed |
+| #557 | — | GEN-116+117+118 compound fix resolved init failure class; game-flow passed; iter=3 | APPROVED (2026-03-22) |
 
 ---
 
@@ -112,7 +113,7 @@ if (/currentRound|totalRounds/.test(html) && !/window\.loadRound/.test(html)) {
 
 ## 5. Go/No-Go for E2E
 
-**Decision: NOT READY — Build #556 failed: startGame() missing explicit #gameContent show. GEN-118 fix deploying, build #557 queued.**
+**Decision: APPROVED — build #557 (2026-03-22). GEN-116+117+118 compound fix resolved the init failure class. iter=3. Trig session Game 1 complete. which-ratio (Game 4) queued as build #558.**
 
 **GEN-114/115/116/117 all confirmed present in approved HTML (build #555).**
 
