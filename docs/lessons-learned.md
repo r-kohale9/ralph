@@ -1544,3 +1544,136 @@ Both patterns cause `waitForPackages()` to time out → blank page → all tests
 
 **How to apply:** After cancelling a build, confirm the job is gone from BullMQ: `redis-cli LLEN bull:ralph-builds:wait` should decrease. If a cancelled build mysteriously restarts after a worker restart, check whether the Cancel API deployed with the `queue.remove()` call included. The worker terminal state guard is a safety net — the primary fix is removing the job from Redis on cancel.
 
+---
+
+## R&D Analysis Lesson 133 — Top remaining failure patterns (builds 480–515, 2026-03-22)
+
+**Source:** DB query of last 50 builds with test_results on production server. Total: 102 failures across 36 approved + 11 failed builds.
+
+**Failure distribution by spec file:**
+- game-flow.spec.js: 28 failures (27%)
+- mechanics.spec.js: 22 failures (22%)
+- edge-cases.spec.js: 19 failures (19%)
+- contract.spec.js: 17 failures (17%)
+- level-progression.spec.js: 16 failures (16%)
+
+**Error type distribution:**
+- value-mismatch (Object.is equality): 30 occurrences — largest single category
+- toHaveAttribute wrong phase: 23 occurrences
+- element-not-visible: 22 occurrences
+- wrong-class: 11 occurrences
+- postMessage-null (contract): 8 occurrences
+
+**Key finding: 70 of 102 failures appear in APPROVED builds (residual failures that survived the 70% pass threshold).** The majority of remaining failures are test quality issues (test gen assumptions that do not match game behavior), not HTML game logic bugs. Targeting test gen prompts is higher leverage than targeting HTML gen prompts.
+
+---
+
+### Pattern A — Custom sub-phases not handled: test uses `waitForPhase('playing')` but game phase is `'reveal'` or `'guess'`
+
+**Evidence:** keep-track #503 — 5 failures all showing `Expected: "guess" Received: "reveal"` or `data-phase="reveal"` stuck. Test generator defaulted to `waitForPhase(page, 'playing')` as the intermediate active-game phase, but keep-track's phase sequence is `'start'`→`'reveal'`→`'guess'` — `'playing'` never appears.
+
+**Root cause:** GF test-gen prompt instructs `waitForPhase(page, 'playing')` as the standard active-phase check. The DOM snapshot injects `gameStateShape.phase: string "reveal"` but the test generator ignores it in favor of the default. M6 (Lesson 102) handles `isActive===true` for shuffle games; the intermediate sub-phase path is a separate unaddressed gap.
+
+**Proposed rule GF6:** Add to `buildTestGenCategoryPrompt()` in `lib/prompts.js`:
+```
+GF6. NEVER default to waitForPhase(page, 'playing') if the DOM snapshot gameStateShape shows a
+     different active phase. Check gameStateShape.phase in the WINDOW.GAMESTATE SHAPE section.
+     If it shows string "reveal", string "guess", string "memorize", etc., use THAT phase in
+     waitForPhase() calls — NOT 'playing'. The 'playing' default only applies when gameStateShape
+     explicitly shows phase: string "playing".
+```
+
+---
+
+### Pattern B — `waitForPhase('gameover')` timeout: game stays on `'playing'` (5x match-the-cards, one-digit-doubles, disappearing-numbers, count-and-tap)
+
+**Evidence:** `Expected: "gameover" Received: "playing"` with 15000ms timeout. GF3 (Lesson 125) already specifies `waitForPhase('gameover', 15000)`. These are in approved builds (accepted residual failures), indicating CDN cold-start + deferred `endGame()` call (via `setTimeout(..., 400)` after feedback animation).
+
+**Root cause:** 15s is sometimes not enough when `endGame()` is deferred 400ms inside feedback animation AND CDN packages take >10s. The combined latency (`10s CDN + 2s animation + 400ms defer`) can exceed 15s on cold-start runs.
+
+**Proposed amendment to GF3:** Change `waitForPhase(page, 'gameover', 15000)` → `waitForPhase(page, 'gameover', 20000)` in the GF3 rule text in `lib/prompts.js`. 5 extra seconds costs nothing if the game-over fires quickly; prevents false failures on cold-CDN runs.
+
+---
+
+### Pattern C — Contract postMessage null: `getLastPostMessage()` returns null (7x across disappearing-numbers, match-the-cards, keep-track)
+
+**Evidence:** `expect(received).not.toBeNull() — Received: null`. CT4 (Lesson 126) states `waitForPhase('results', 20000)` must precede `getLastPostMessage()`. Yet 7 failures persist across multiple games, suggesting CT4 is not consistently applied in generated tests.
+
+**Root cause:** Two sub-cases: (a) test calls `getLastPostMessage()` before `waitForPhase('results')` resolves — the message was captured but the test read it too early; (b) `endGame()` threw before reaching the `postMessage` call (e.g., `calcStars` crashed) — postMessage never fired.
+
+**Proposed amendment CT4-AMENDED:** Strengthen CT4 in `buildTestGenCategoryPrompt()` lib/prompts.js:
+```
+CT4 (amended). ALWAYS structure contract tests as:
+  1. skipToEnd(page) OR drive the game to completion via answer() calls
+  2. await waitForPhase(page, 'results', 20000)  ← REQUIRED, 20s minimum
+  3. const msg = await getLastPostMessage(page);
+  4. expect(msg).not.toBeNull();  ← if null here, it is an HTML bug in endGame()
+  NEVER call getLastPostMessage() before waitForPhase('results') resolves.
+```
+
+---
+
+### Pattern D — getLives/getScore race against syncDOMState 500ms poll (30x total; 15x in approved builds)
+
+**Evidence:** `Expected: 2 Received: 3` (lives not decremented yet), `Expected: 1 Received: 0` (round counter not updated yet). Pattern appears across mechanics, edge-cases, level-progression. 15 occurrences in approved builds = persistent test gen quality gap.
+
+**Root cause:** `getLives(page)`, `getScore(page)`, `getRound(page)` all read `#app[data-lives]` / `#app[data-score]` / `#app[data-round]`. These attributes are written by `syncDOMState()` on a 500ms polling interval. A test that reads them immediately after an action (click, answer) may see a stale value — the attribute has not been updated yet in the 500ms window.
+
+**Proposed rule M13:** Add to `buildTestGenCategoryPrompt()` in `lib/prompts.js`:
+```
+M13. NEVER read getLives(page), getScore(page), or getRound(page) immediately after an action.
+     syncDOMState() writes data-* attributes on a 500ms poll. After a click/answer that changes
+     these counters, wait for the expected value before asserting:
+     await expect.poll(() => getLives(page), { timeout: 3000 }).toBe(expectedLives);
+     WRONG: const lives = await getLives(page); expect(lives).toBe(N);  // stale read
+     RIGHT: await expect.poll(() => getLives(page), { timeout: 3000 }).toBe(N);
+```
+
+---
+
+### Pattern E — Strict-mode violation: duplicate data-testid resolves to 2 elements (1x expression-completer #511)
+
+**Evidence:** `locator('[data-testid="option-1"]') resolved to 2 elements` — one visible in game screen, one hidden in a different screen, both sharing the same testid. Playwright strict mode throws.
+
+**Root cause:** HTML generation reuses `data-testid` values across different screens. This is a gen-level HTML quality issue.
+
+**Proposed rule RULE-DUP:** Add to `buildGenerationPrompt()` ADDITIONAL GENERATION RULES in `lib/prompts.js`:
+```
+RULE-DUP. data-testid values MUST be globally unique across the entire HTML. Never reuse the same
+data-testid in different screens, overlays, or game states. Use screen-qualified IDs where needed:
+game-option-1, results-option-1 — NOT both named option-1.
+```
+
+---
+
+**Summary table:**
+
+| Pattern | Occurrences | Approved/Failed | Proposed Fix | File |
+|---------|-------------|-----------------|--------------|------|
+| Custom sub-phase: waitForPhase defaults to 'playing' | 5 recent | approved | Add GF6 rule | prompts.js |
+| gameover phase 15s timeout too short | 5 recent | approved | Amend GF3: 15000→20000 | prompts.js |
+| Contract postMessage null (CT4 not applied) | 7 total | mixed | Amend CT4 | prompts.js |
+| getLives/getScore syncDOMState race | 30 total | 15 approved | Add M13 rule | prompts.js |
+| Duplicate data-testid strict-mode | 1 recent | approved | Add RULE-DUP | prompts.js |
+
+All 5 are prompt-level fixes in `lib/prompts.js`. None requires pipeline architecture changes. Combined, these rules target approximately 45% of remaining residual test failures visible in production builds.
+
+---
+
+## Lesson 134 — Post-Lesson-133 gap analysis: GEN-109/M15/GF8/CT7/EC6 (2026-03-22)
+
+**Source:** Pipeline iteration (builds 505-516 DB analysis + failure_patterns table)
+
+**Pattern:** Five failure patterns confirmed in builds 505-516 not covered by Lessons 1-133:
+1. **GEN-109**: `isProcessing` flag stays `true` after reveal animation — blocks next input. Affected: count-and-tap, face-memory, keep-track. Fix: explicit labeled rule in gen prompt CDN_CONSTRAINTS_BLOCK (underlying behavior was documented but unlabeled).
+2. **M15**: CSS class assertions (`.correct`/`.wrong`/`.disabled`) fail because DOM class updates lag state changes by 1-2 frames inside setTimeouts or requestAnimationFrame. Fix: `expect.poll()` for class checks, or minimum 10s timeout. (Note: M14 already existed for wrong-answer path; CSS class timing is a distinct gap numbered M15.)
+3. **GF8**: Screen visibility assertions race against phase transitions — `toBeVisible`/`toBeHidden` on screens fail if called before phase settles. Fix: `waitForPhase` before visibility check.
+4. **CT7**: Gen prompt emits `type: 'game_complete'` but CT5/CT6/C2 test-gen examples asserted `msg.type === 'gameOver'` — latent type mismatch bug confirmed by validate-contract.js. Fix: all test-gen prompt examples updated to `'game_complete'` (the authoritative CDN contract value).
+5. **EC6**: `page.locator(element)` instead of string — "expected string, got object" error. Fix: explicit rule that locator arg must always be a CSS selector string.
+
+**CT7 Root Cause Detail:** `validate-contract.js` lines 95-127 confirm CDN games use `type: 'game_complete'`. The gen prompt (line 248) correctly says `type: 'game_complete'`. But CT5 (line 1128), CT6 (line 1138), C2 (line 1111), and line 954 all said `expect(msg.type).toBe('gameOver')` — the harness-normalized event name, not the raw postMessage payload type. Fixed in commit 4e6f5f6.
+
+**Rules added:** GEN-109 (gen prompt), M15, GF8, CT7 (bug fix), EC6 in lib/prompts.js (commit 4e6f5f6).
+
+**Strategic note:** 70% of remaining failures in builds 505-516 were in approved builds below the 70% pass threshold — pipeline was approving games despite residual failures. The bottleneck is LLM compliance with existing rules, not missing rules. These 5 cover the genuine gaps; all others are compliance/repetition issues.
+
