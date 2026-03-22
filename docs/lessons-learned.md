@@ -1677,6 +1677,20 @@ All 5 are prompt-level fixes in `lib/prompts.js`. None requires pipeline archite
 
 **Strategic note:** 70% of remaining failures in builds 505-516 were in approved builds below the 70% pass threshold — pipeline was approving games despite residual failures. The bottleneck is LLM compliance with existing rules, not missing rules. These 5 cover the genuine gaps; all others are compliance/repetition issues.
 
+## Lesson 136 — Test linter rule validation: 4 of 8 rules were dead; replaced with effective patterns
+**Source:** Pipeline iteration lesson (2026-03-22, commit 7cd470a)
+
+**Pattern:** After shipping linter rules, run an effectiveness check against the existing corpus before assuming rules work. Of 8 lint rules shipped in Lesson 135, 4 fired zero times across 664 test files and 145 builds — the regex patterns didn't match actual LLM output.
+
+**Root cause per dead rule:**
+- M15: Pattern checked for class names like 'active'/'correct' but LLM used specific game class names; widened to catch the structural pattern (`.toHaveClass(` after `await page.locator`)
+- CT7/CT7_GAMEOVER: LLM already uses correct `game_complete` type names — these caught non-existent bugs. Replaced with HARDCODED_TIMEOUT and RAW_CLICK (real problems found in corpus)
+- CT6_NULL: Multiline regex `[^}]*?(?!null)` never matches — negative lookahead after character class doesn't work as intended; replaced with simple direct-access pattern
+
+**Fix:** After shipping any lint/static rule, immediately grep the existing corpus to confirm hit rate. Rules with 0 hits in 100+ files should be either fixed or retired.
+
+**Effective rules (by corpus hit rate):** TRANSITION_SLOT 100%, GF8 64%, M13 45%, RULE-DUP 27%, M15/CT6_NULL/HARDCODED_TIMEOUT/RAW_CLICK (new — not yet measured)
+
 ## Lesson 135 — endGame() phase order (GEN-110) + T1 post-fix validation (2026-03-22)
 
 **Source:** Pipeline iteration (consistent-failure RCA, docs/rnd-consistent-failures-rca.md, builds 400-515)
