@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-PHASE-001 SHIPPED (3704eb7) — data-phase rule extended to ALL game types (was MCQ/timed only); GEN-WINDOW-EXPOSE rule 36 added — window.endGame/restartGame/nextRound/gameState mandatory for all games; deployed to server (no restart — build #565 running) |
-| Status | TE-CR-001 (ARIA-001 order-independence) + TE-CR-003 (ARIA-002) already implemented. M16 (choice-btn ≥44px assertion) SHIPPED (d60ccc9). TE-CR-002 (categorizeFailure coverage) DONE (b6551a5). 982/982 pass. |
-| Waiting on | Build #565 complete → restart worker to load new prompts.js → diagnose failures under GEN-PHASE-001 |
+| Current task | Extend M16 to cover .option-btn touch target (11th confirmed instance, mcq-addition-blitz F9 → Test Engineering). Add `min-height: 44px` assertion for .option-btn elements alongside existing .choice-btn assertion. |
+| Status | 982/982 pass. Build #565 done, worker restarted with GEN-STEP-001 + CR-013 active. |
+| Waiting on | analytics pass rates to confirm lowest category |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
