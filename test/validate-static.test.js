@@ -897,6 +897,40 @@ describe('progressBar.init() method does not exist check (5f9)', () => {
   });
 });
 
+describe('progressBar hallucinated methods check (5f10)', () => {
+  const HALLUCINATED_METHODS = ['start', 'reset', 'setLives', 'pause', 'resume'];
+
+  for (const method of HALLUCINATED_METHODS) {
+    it(`fails when progressBar.${method}() is called`, () => {
+      const html = VALID_HTML.replace('initGame();', `initGame(); progressBar.${method}();`);
+      const { exitCode, output } = runValidator(html);
+      assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+      assert.ok(
+        output.includes('ERROR') && output.includes(`progressBar.${method}`),
+        `Expected progressBar.${method} error but got: ${output}`,
+      );
+    });
+  }
+
+  it('passes when only valid progressBar methods are used (update, destroy)', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(0, 3); progressBar.destroy();');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('5f10'),
+      `Unexpected 5f10 error for valid progressBar usage: ${output}`,
+    );
+  });
+
+  it('does not flag progressBar.update() as a hallucinated method', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(1, 3);');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('progressBar.update') || !output.includes('ERROR'),
+      `Unexpected error for progressBar.update(): ${output}`,
+    );
+  });
+});
+
 describe('TimerComponent slot not created by ScreenLayout (5f8)', () => {
   const cdnHtmlWithTimer = (slotsConfig) => `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>T</title><style>body{}</style></head>
