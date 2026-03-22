@@ -193,7 +193,7 @@ let currentQ = null;  // set at top of renderRound()
 
 ```
 waitForPackages()
-  → FeedbackManager.init()
+  // DO NOT CALL FeedbackManager.init() — causes blocking audio popup in iframe context
   → new SignalCollector(...)
   → ScreenLayout.inject('app', { slots: { progressBar: false, transitionScreen: true } })
   → FeedbackManager.sound.preload([
@@ -472,6 +472,9 @@ Constraints: exactly 4 options; answer must appear in options exactly once.
 ---
 
 ## Section 12 — Anti-Patterns Checklist
+
+**Anti-pattern #1: FeedbackManager.init() — DO NOT CALL**
+Calling FeedbackManager.init() triggers a blocking audio permission popup that freezes the game in an iframe context. This function is globally banned. Do not include it anywhere in the generated HTML.
 
 - [ ] No `setInterval`/`setTimeout` for timer — `TimerComponent` only
 - [ ] All game logic in global scope, not inside `DOMContentLoaded`
