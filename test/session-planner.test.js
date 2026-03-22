@@ -15,6 +15,8 @@ const {
   planSession,
   generateSessionId,
   writeSessionDirectory,
+  generateSpec,
+  generateSessionSpecs,
 } = require('../lib/session-planner');
 
 // ─── CONCEPT_GRAPH structure tests ───────────────────────────────────────────
@@ -617,6 +619,275 @@ describe('writeSessionDirectory', () => {
         tableRows.length,
         sessionPlan.games.length,
         `table must have ${sessionPlan.games.length} data rows, found ${tableRows.length}`,
+      );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ─── generateSpec tests — Phase 3 ────────────────────────────────────────────
+describe('generateSpec — Phase 3', () => {
+  // Build a minimal spec-instructions.md for testing
+  function makeSpecInstructions(tmpDir, opts) {
+    const o = opts || {};
+    const templateSpecId = o.templateSpecId || 'find-triangle-side';
+    const content = [
+      `# Spec Instructions: Game 1 — test-game`,
+      '',
+      `**Session ID:** \`test-session-123\``,
+      `**Position in session:** 1 of 1`,
+      `**Skill taught:** Test skill`,
+      `**Bloom level:** L3 — Apply`,
+      `**Curriculum standard:** NCERT Class 10 Ch 8 §8.1`,
+      `**Estimated time:** 5 minutes`,
+      `**Template spec:** \`games/${templateSpecId}/spec.md\``,
+      `**Template status:** template_exists`,
+      '',
+      '---',
+      '',
+      '## Template Spec Reference',
+      '',
+      `Copy from \`games/${templateSpecId}/spec.md\`.`,
+      '',
+      '### Preserve Unchanged (DO NOT MODIFY)',
+      '',
+      '- All CDN `<script>` import blocks',
+      '',
+      '### Substitute (CHANGE these values)',
+      '',
+      '- **Round data:** Use 3 rounds with angles 30, 45, 60.',
+    ].join('\n');
+
+    const gameDir = path.join(tmpDir, 'game-1-test-game');
+    fs.mkdirSync(gameDir, { recursive: true });
+    const specInstructionsPath = path.join(gameDir, 'spec-instructions.md');
+    fs.writeFileSync(specInstructionsPath, content, 'utf8');
+    return specInstructionsPath;
+  }
+
+  it('dryRun:true returns correct shape without making LLM call or writing files', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-genspec-dry-'));
+    try {
+      const specInstructionsPath = makeSpecInstructions(tmpDir);
+      const result = await generateSpec(specInstructionsPath, { dryRun: true });
+
+      assert.equal(typeof result.specPath, 'string', 'specPath must be a string');
+      assert.ok(result.specPath.endsWith('spec.md'), 'specPath must end with spec.md');
+      assert.ok(Array.isArray(result.violations), 'violations must be an array');
+      assert.equal(typeof result.templateUsed, 'string', 'templateUsed must be a string');
+      assert.equal(typeof result.wordCount, 'number', 'wordCount must be a number');
+      // dryRun must NOT write spec.md
+      assert.ok(!fs.existsSync(result.specPath), 'dryRun must not write spec.md to disk');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('dryRun:true specPath is inside the game directory (same dir as spec-instructions.md)', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-genspec-path-'));
+    try {
+      const specInstructionsPath = makeSpecInstructions(tmpDir);
+      const result = await generateSpec(specInstructionsPath, { dryRun: true });
+      const expectedDir = path.dirname(specInstructionsPath);
+      assert.equal(path.dirname(result.specPath), expectedDir, 'spec.md must be in the same directory as spec-instructions.md');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('dryRun:true templateUsed reflects templateSpecId from instructions file', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-genspec-tmpl-'));
+    try {
+      const specInstructionsPath = makeSpecInstructions(tmpDir, { templateSpecId: 'real-world-problem' });
+      const result = await generateSpec(specInstructionsPath, { dryRun: true });
+      assert.ok(
+        result.templateUsed.includes('real-world-problem'),
+        `templateUsed must mention "real-world-problem", got: ${result.templateUsed}`,
+      );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('throws when specInstructionsPath does not exist', async () => {
+    await assert.rejects(
+      () => generateSpec('/tmp/nonexistent-spec-instructions-xyz.md', { dryRun: true }),
+      /not found/,
+    );
+  });
+
+  it('throws when specInstructionsPath is null', async () => {
+    await assert.rejects(() => generateSpec(null, { dryRun: true }), /specInstructionsPath is required/);
+  });
+
+  it('violations array is populated when validate-static finds issues', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-genspec-viol-'));
+    try {
+      // Write a minimal HTML that is missing DOCTYPE — validate-static will flag it
+      const gameDir = path.join(tmpDir, 'game-1-bad-game');
+      fs.mkdirSync(gameDir, { recursive: true });
+      const specPath = path.join(gameDir, 'spec.md');
+      // Write invalid HTML content directly (simulate what the LLM might return)
+      const badHtml = '<html><body><p>No DOCTYPE, no proper structure</p></body></html>';
+      fs.writeFileSync(specPath, badHtml, 'utf8');
+
+      // Import runValidateStatic indirectly by testing through the module
+      // We can test by calling validateStatic logic: validate-static runs on HTML
+      // Here we verify that the violations logic works by running validate-static
+      // on our bad HTML via a child process
+      const { execFileSync } = require('child_process');
+      const validateScript = path.join(__dirname, '../lib/validate-static.js');
+      let violations = [];
+      try {
+        execFileSync(process.execPath, [validateScript, specPath], {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      } catch (err) {
+        const output = (err.stdout || '') + (err.stderr || '');
+        violations = output
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0 && (l.startsWith('MISSING:') || l.startsWith('FORBIDDEN:') || l.startsWith('ERROR') || l.startsWith('WARNING') || l.startsWith('✗')));
+      }
+      assert.ok(violations.length > 0, 'validate-static must report violations for invalid HTML');
+      assert.ok(
+        violations.some((v) => /DOCTYPE|HTML root|HEAD|BODY/i.test(v)),
+        `expected a structure violation, got: ${violations.join(', ')}`,
+      );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ─── generateSessionSpecs tests — Phase 3 ────────────────────────────────────
+describe('generateSessionSpecs — Phase 3', () => {
+  // Create a minimal session directory with a session-plan.md and N game dirs
+  function makeSessionDir(tmpDir, opts) {
+    const o = opts || {};
+    const gameCount = o.gameCount !== undefined ? o.gameCount : 2;
+
+    // session-plan.md (content doesn't need to be parsed — we scan the directory)
+    const sessionPlanContent = [
+      '# Session Plan: Test Session',
+      '',
+      `**Session ID:** \`test-session-abc\``,
+      '**Concept:** trigonometry',
+    ].join('\n');
+    fs.writeFileSync(path.join(tmpDir, 'session-plan.md'), sessionPlanContent, 'utf8');
+
+    // Per-game directories with spec-instructions.md
+    for (let i = 1; i <= gameCount; i++) {
+      const gameDir = path.join(tmpDir, `game-${i}-test-game-${i}`);
+      fs.mkdirSync(gameDir, { recursive: true });
+      const instructions = [
+        `# Spec Instructions: Game ${i}`,
+        '',
+        `**Template spec:** \`games/find-triangle-side/spec.md\``,
+        '',
+        '### Substitute',
+        '- **Round data:** 3 rounds.',
+      ].join('\n');
+      fs.writeFileSync(path.join(gameDir, 'spec-instructions.md'), instructions, 'utf8');
+    }
+
+    return tmpDir;
+  }
+
+  it('dryRun:true returns one result per game directory with spec-instructions.md', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-gensess-dry-'));
+    try {
+      makeSessionDir(tmpDir, { gameCount: 3 });
+      const results = await generateSessionSpecs(tmpDir, { dryRun: true });
+      assert.ok(Array.isArray(results), 'results must be an array');
+      assert.equal(results.length, 3, 'must return one result per game directory (3)');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('dryRun:true each result has required fields', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-gensess-fields-'));
+    try {
+      makeSessionDir(tmpDir, { gameCount: 2 });
+      const results = await generateSessionSpecs(tmpDir, { dryRun: true });
+      for (const result of results) {
+        assert.equal(typeof result.gameDir, 'string', 'result must have gameDir string');
+        assert.equal(typeof result.specPath, 'string', 'result must have specPath string');
+        assert.ok(Array.isArray(result.violations), 'result must have violations array');
+        assert.equal(typeof result.templateUsed, 'string', 'result must have templateUsed string');
+        assert.equal(typeof result.wordCount, 'number', 'result must have wordCount number');
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('dryRun:true results are ordered by game number', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-gensess-order-'));
+    try {
+      makeSessionDir(tmpDir, { gameCount: 3 });
+      const results = await generateSessionSpecs(tmpDir, { dryRun: true });
+      // gameDirs should be sorted: game-1-... game-2-... game-3-...
+      const gameDirNames = results.map((r) => path.basename(r.gameDir));
+      for (let i = 1; i < gameDirNames.length; i++) {
+        const numPrev = parseInt(gameDirNames[i - 1].split('-')[1], 10);
+        const numCurr = parseInt(gameDirNames[i].split('-')[1], 10);
+        assert.ok(numCurr >= numPrev, `game dirs must be in ascending order: ${gameDirNames.join(', ')}`);
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('dryRun:true skips game dirs without spec-instructions.md', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-gensess-skip-'));
+    try {
+      makeSessionDir(tmpDir, { gameCount: 2 });
+      // Add a game dir WITHOUT spec-instructions.md
+      const emptyGameDir = path.join(tmpDir, 'game-3-no-instructions');
+      fs.mkdirSync(emptyGameDir, { recursive: true });
+
+      const results = await generateSessionSpecs(tmpDir, { dryRun: true });
+      // Only 2 results — game-3 has no spec-instructions.md
+      assert.equal(results.length, 2, 'must skip game dirs without spec-instructions.md');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('dryRun:true non-game-N dirs are ignored', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-gensess-nondir-'));
+    try {
+      makeSessionDir(tmpDir, { gameCount: 1 });
+      // Add a directory that does NOT match game-N-<id> pattern
+      const otherDir = path.join(tmpDir, 'assets');
+      fs.mkdirSync(otherDir, { recursive: true });
+      fs.writeFileSync(path.join(otherDir, 'spec-instructions.md'), '# Not a game dir', 'utf8');
+
+      const results = await generateSessionSpecs(tmpDir, { dryRun: true });
+      assert.equal(results.length, 1, 'must only process game-N-<id> directories');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('throws when sessionDir does not exist', async () => {
+    await assert.rejects(
+      () => generateSessionSpecs('/tmp/nonexistent-session-dir-xyz', { dryRun: true }),
+      /not found/,
+    );
+  });
+
+  it('throws when sessionDir exists but has no session-plan.md', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-gensess-noplan-'));
+    try {
+      // No session-plan.md written
+      await assert.rejects(
+        () => generateSessionSpecs(tmpDir, { dryRun: true }),
+        /session-plan\.md not found/,
       );
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
