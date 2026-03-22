@@ -218,6 +218,8 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 **Constraints:** R&D never blocks critical work. Must produce a measurable result — "made it cleaner" is not R&D.
 
+**Never sit idle waiting for a build.** While a verification build runs, the R&D sub-agent must be doing real work: analysing prior build logs, drafting the next hypothesis, writing the prompt rule, updating docs, or pre-staging the next fix. "Waiting for results" is not a task — it is idling. If there is nothing to implement yet, analyse the next failure pattern in the backlog and draft the hypothesis.
+
 ### 14. Always maintain one active local test slot — MANDATORY
 
 **Local testing is always running.** One sub-agent must ALWAYS be running `diagnostic.js` against a recently failed build.
@@ -232,6 +234,8 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 | **Test bug** | Game correct, tests wrong | Test-gen prompt fix hypothesis → hand to R&D |
 
 "Reading the HTML" does not count — must run the browser. "Game passes locally" is a valid finding only if classified as a test bug with a specific assertion identified.
+
+**Never sit idle waiting for a build.** While a build runs, the local test slot sub-agent must be running `diagnostic.js` against a different recently failed game, or — if all recent failures are fully diagnosed — drafting the RCA doc, writing the T1 check, or preparing the gen prompt fix for handoff to R&D. "Waiting for build results" is not work.
 
 ### 15. Always maintain one active Education Implementation Slot — MANDATORY
 
@@ -249,6 +253,8 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 5. `docs/spec_rca/<game-id>.md`
 
 **Constraints:** Must produce a measurable artifact per session. Education slot never blocks critical pipeline work.
+
+**Never sit idle waiting for a build.** While a build runs, the Education sub-agent must be working on the next deliverable: spec-drafting the next game in the session sequence, updating interaction-patterns.md, researching Bloom level design for an upcoming game, or preparing the which-ratio/compute-it/real-world spec. "Waiting for build results" is not work. Always have the next game's spec at least 50% drafted before the current build completes.
 
 ### 16. Session restore — run this checklist at every session start or after context compaction
 
