@@ -2362,6 +2362,22 @@ Also fix timeout inconsistency: C1 rule uses `waitForPhase('results', 10000)` bu
 
 Both name-the-sides (#557) and which-ratio (#560) had their entire `<style>` block replaced with a comment by a targeted fix LLM. The triangle diagram in name-the-sides is completely invisible without CSS (CSS border-trick shape — 0×0px without styles). PART-028 T1 check + FIX-001 gen rule now prevent this. Both games need re-queue. Pattern: any build that went through a targeted fix before PART-028 was deployed (2026-03-23) should be considered potentially CSS-stripped and audited.
 
+## Lesson 185 — New game first-build: warehouse template directory must be created on server (Build 563, 2026-03-23)
+
+**Symptom:** Build fails immediately (iterations=0) with error_message "Spec file not found".
+
+**Root cause:** The pipeline reads the spec from `warehouse/templates/<gameId>/spec.md` on the server. For a brand-new game that has never been built, this directory does not exist. git pull creates `games/<gameId>/spec.md` but does NOT create `warehouse/templates/<gameId>/` or its symlink (symlinks require git to be on a commit that includes them).
+
+**Fix:**
+```bash
+ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "sudo mkdir -p /opt/ralph/warehouse/templates/<gameId> && sudo chown the-hw-app:the-hw-app /opt/ralph/warehouse/templates/<gameId>"
+scp -i ~/.ssh/google_compute_engine games/<gameId>/spec.md the-hw-app@34.93.153.206:/tmp/spec.md
+ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cp /tmp/spec.md /opt/ralph/warehouse/templates/<gameId>/spec.md"
+```
+Then re-queue the build.
+
+**Prevention:** Before queuing any new game that hasn't been built before, run the mkdir+SCP sequence above. Add to pre-queue checklist.
+
 ## Lesson 183 — CT9 + C1 + RULE-003: Contract test gen rules shipped 2026-03-23
 
 **Source:** prompts.js fix | **Date:** 2026-03-23

@@ -84,6 +84,14 @@ ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && n
 
 **Queue policy (CRITICAL):** Only queue builds to verify a specific fix or change. Never queue speculatively, for measurement, or to fill the queue. All queuing is manual — there is no automated queue.
 
+**First build for a new game (REQUIRED before queuing):**
+```bash
+# Create template dir + deploy spec on server
+ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "sudo mkdir -p /opt/ralph/warehouse/templates/<gameId> && sudo chown the-hw-app:the-hw-app /opt/ralph/warehouse/templates/<gameId>"
+scp -i ~/.ssh/google_compute_engine games/<gameId>/spec.md the-hw-app@34.93.153.206:/tmp/spec.md
+ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cp /tmp/spec.md /opt/ralph/warehouse/templates/<gameId>/spec.md"
+```
+
 ## Agent & Cron Capabilities
 
 Delegate ALL implementation, research, and long-running tasks to sub-agents.
