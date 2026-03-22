@@ -1604,3 +1604,62 @@ describe('PART-028: CSS stylesheet integrity check', () => {
     );
   });
 });
+
+describe('ARIA-001: feedback div aria-live warning (W5)', () => {
+  it('emits ARIA-001 warning when a div with id containing "feedback" lacks aria-live', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="correct-feedback" class="feedback hidden">Correct!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning when feedback div lacks aria-live. Output: ${output}`,
+    );
+  });
+
+  it('emits ARIA-001 warning when a div with class containing "feedback" lacks aria-live', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div class="feedback-message hidden">Incorrect!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning when feedback-message div lacks aria-live. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-001 warning when feedback div has aria-live="polite"', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="correct-feedback" aria-live="polite" class="feedback hidden">Correct!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 warning when feedback div has aria-live. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-001 warning when feedback div has aria-live="assertive"', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="feedback" aria-live="assertive" class="feedback">Wrong!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 warning when feedback div has aria-live=assertive. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-001 warning when HTML has no feedback divs at all', () => {
+    // VALID_HTML has no feedback divs
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 warning on HTML with no feedback divs. Output: ${output}`,
+    );
+  });
+});
