@@ -18,32 +18,21 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** Batch audit of 4 approved games — quadratic-formula-worked-example first (build #546, stub ui-ux.md)
-**Waiting on:** diagnostic.js run for each game (requires local sub-agent with browser)
+**Current task:** Next batch — addition-mcq-blitz, addition-mcq-lives, addition-mcq (stub ui-ux.md games from inventory)
+**Waiting on:** unblocked
 **Blocked by:** none
 
-### Next Audit Batch (queued 2026-03-23)
+### Batch 2 — Completed 2026-03-23 (static analysis)
 
-Priority order — most recently approved first, without a **real** audit (9-line stubs counted as unaudited):
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | quadratic-formula-worked-example | #546 | audited (static analysis) 2026-03-23 | done |
+| 2 | soh-cah-toa-worked-example | #544 | audited (static analysis) 2026-03-23 | done |
+| 3 | right-triangle-area | #543 | audited (static analysis) 2026-03-23 | done — games/ dir created |
+| 4 | word-pairs | #529 | audited (static analysis) 2026-03-23 | done |
 
-| Priority | Game | Build ID | GCP URL | ui-ux.md state | Status |
-|----------|------|----------|---------|----------------|--------|
-| 1 | quadratic-formula-worked-example | #546 | https://storage.googleapis.com/mathai-temp-assets/games/quadratic-formula-worked-example/builds/546/index.html | stub (9 lines) | queued |
-| 2 | soh-cah-toa-worked-example | #544 | https://storage.googleapis.com/mathai-temp-assets/games/soh-cah-toa-worked-example/builds/544/index.html | stub (9 lines) | queued |
-| 3 | right-triangle-area | #543 | https://storage.googleapis.com/mathai-temp-assets/games/right-triangle-area/builds/543/index.html | missing — no games/ folder | queued |
-| 4 | word-pairs | #529 | https://storage.googleapis.com/mathai-temp-assets/games/word-pairs/builds/529/index.html | missing — games/ folder exists | queued |
-
-**Notes:**
-- `quadratic-formula-worked-example` and `soh-cah-toa-worked-example`: ui-ux.md exists as a 9-line stub ("Audit pending") — overwrite with real audit content
-- `right-triangle-area`: no `games/` folder at all — create `games/right-triangle-area/` directory and `ui-ux.md`
-- `word-pairs`: `games/word-pairs/` folder exists — create `ui-ux.md` in it
-- None of the 4 have warehouse template folders; `games/<game>/ui-ux.md` is the primary file for each
-- Several other approved games also have stub ui-ux.md (addition-mcq, math-cross-grid, etc.) — see Stub Inventory below
-
-**Stub inventory (ui-ux.md exists but unpopulated — 9 lines):**
-addition-mcq-blitz, addition-mcq-lives, addition-mcq, adjustment-strategy, associations, math-cross-grid, math-mcq-quiz, mcq-addition-blitz, real-world-problem — all pending future batches
-
-**Previously active target (superseded):** soh-cah-toa-worked-example — was listed as next but now included in this batch as priority #2
+**Stub inventory (ui-ux.md exists but unpopulated — pending future batches):**
+addition-mcq-blitz, addition-mcq-lives, addition-mcq, adjustment-strategy, associations, math-cross-grid, math-mcq-quiz, mcq-addition-blitz, real-world-problem
 
 ---
 
@@ -56,6 +45,10 @@ addition-mcq-blitz, addition-mcq-lives, addition-mcq, adjustment-strategy, assoc
 | 2026-03-23 | which-ratio | #561 | 7 issues (4a, 2b, 1c) | CSS stripping resolved; 4 gen prompt rules confirmed pending in ROADMAP.md; 2 spec additions proposed; 1 CDN constraint unchanged |
 | 2026-03-23 | count-and-tap | #551 | 7 issues (4a, 1b, 2 low) | CSS strip CRITICAL confirmed; ARIA-001 extension proposed; 44px gap confirmed 3rd instance; dead-code guard new rule proposed; dot-warning spec addition; all handoffs routed |
 | 2026-03-23 | find-triangle-side | #549 | 10 issues (6a, 2b, 2 low) | Results static CRITICAL confirmed 2nd instance; 4 new gen rules added to ROADMAP (slot ID, local assets, SignalCollector args, results fixed); ARIA-001 coverage verified; all handoffs routed |
+| 2026-03-23 | quadratic-formula-worked-example | #546 | 8 issues (5a, 0b, 1c, 2 low) | CSS intact; results not fixed (3rd instance); ARIA-001 (4th); slot ID wrong string (3rd); min-height 44px (4th); postMessage path inconsistency flagged; all handoffs routed |
+| 2026-03-23 | soh-cah-toa-worked-example | #544 | 7 issues (5a, 1b, 1 low) | CSS intact — cleanest build in batch; results not fixed (4th); ARIA-001 (5th); slot ID options missing key; min-height 44px (5th); hide()/show() string selector bug found; formula accessibility spec addition |
+| 2026-03-23 | right-triangle-area | #543 | 9 issues (7a, 1b, 1c) | CSS STRIPPED (4th instance); canvas 500px > 480px new rule; undefined CSS vars for feedback color; ProgressBar hash-prefix slot ID (4th); ARIA-001 (6th); results not fixed (5th); FeedbackManager.sound.play non-standard API; Google Fonts dependency |
+| 2026-03-23 | word-pairs | #529 | 8 issues (5a, 1b, 1d, 1 low) | CSS STRIPPED (5th instance); ARIA-001 (7th); results not fixed (6th); data-testid/id mismatch; data-lives hardcoded 0; Sentry SDK v7 vs v10 inconsistency; no learn-phase countdown spec addition |
 
 ---
 
@@ -87,24 +80,55 @@ See [games/find-triangle-side/ui-ux.md](../../games/find-triangle-side/ui-ux.md)
 
 **Results screen static-position — CRITICAL.** CSS present and intact. 10 total issues: 6 gen prompt rules (results fixed, wrong slot ID, no ARIA, 44px buttons, local asset path, SignalCollector args), 2 spec additions (formula formatting, mobile overflow), 2 low. 4 new ROADMAP R&D entries added.
 
+## quadratic-formula-worked-example Audit #546 (2026-03-23)
+
+See [games/quadratic-formula-worked-example/ui-ux.md](../../games/quadratic-formula-worked-example/ui-ux.md)
+
+**CSS intact.** 8 issues: 5 gen prompt rules (results not fixed — 3rd instance, ARIA-001 — 4th instance, ProgressBar slot string wrong — 3rd instance, min-height 44px — 4th instance, postMessage path inconsistency), 1 CDN constraint (layout via ScreenLayout), 2 low. Results screen rule and ARIA-001 now at 3-4 confirmed instances — ship both immediately.
+
+## soh-cah-toa-worked-example Audit #544 (2026-03-23)
+
+See [games/soh-cah-toa-worked-example/ui-ux.md](../../games/soh-cah-toa-worked-example/ui-ux.md)
+
+**CSS intact — cleanest build in batch.** 7 issues: 5 gen prompt rules (results not fixed — 4th instance, ARIA-001 — 5th instance, ProgressBar options missing slotId key, min-height 44px — 5th instance, hide()/show() string selector bug), 1 spec addition (formula accessibility), 1 low. ARIA-001 and results screen rule both at 4-5 confirmed instances — must ship.
+
+## right-triangle-area Audit #543 (2026-03-23)
+
+See [games/right-triangle-area/ui-ux.md](../../games/right-triangle-area/ui-ux.md)
+
+**CSS STRIPPED — CRITICAL (4th confirmed instance).** 9 issues: 7 gen prompt rules (CSS strip — FIX-001 pre-dates PART-028, canvas 500px > 480px new rule, undefined CSS vars for feedback color, ProgressBar hash-prefix slot ID — 4th instance, ARIA-001 — 6th instance, results not fixed — 5th instance, FeedbackManager.sound.play non-standard API), 1 spec addition (Google Fonts dependency), 1 CDN constraint. New rules: canvas max-width and CSS variable consistency.
+
+## word-pairs Audit #529 (2026-03-23)
+
+See [games/word-pairs/ui-ux.md](../../games/word-pairs/ui-ux.md)
+
+**CSS STRIPPED — CRITICAL (5th confirmed instance, 2 style blocks both stripped).** 8 issues: 5 gen prompt rules (CSS strip — pre-PART-028, ARIA-001 — 7th instance, results not fixed — 6th instance, data-testid/id mismatch new rule, Sentry v7 vs v10 standardisation), 1 spec addition (learn-phase countdown), 1 test gap (data-lives hardcoded 0), 1 low. ARIA-001 now at 7 confirmed instances — immediate ship required.
+
 ---
 
 ## Known Visual Issue Patterns
 
 | Pattern | First seen | Also seen in | Classification | Status |
 |---------|-----------|-------------|---------------|--------|
-| CSS stylesheet stripped during JS-only surgical fix | which-ratio #560 | name-the-sides #557, count-and-tap #551 | (a) gen prompt rule + T1 check | FIX-001 shipped 2026-03-23 |
-| Dynamic feedback elements missing aria-live | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549 | (a) gen prompt rule | ARIA-001 shipped 2026-03-23 — verify coverage extends to inline panels |
-| Option buttons missing explicit 44px touch targets | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549 | (a) gen prompt rule | Pending — 4 confirmed instances |
+| CSS stylesheet stripped during JS-only surgical fix | which-ratio #560 | name-the-sides #557, count-and-tap #551, right-triangle-area #543, word-pairs #529 | (a) gen prompt rule + T1 check | FIX-001 shipped 2026-03-23; PART-028 T1 deployed 2026-03-22; 5 confirmed instances |
+| Dynamic feedback elements missing aria-live | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529 | (a) gen prompt rule | ARIA-001 shipped 2026-03-23 — **7 confirmed instances — SHIP NOW as hard rule** |
+| Option buttons missing explicit 44px touch targets | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544 | (a) gen prompt rule | Pending — **5 confirmed instances — SHIP NOW** |
 | SVG muted lines using low-contrast colour (#64748b) | which-ratio #560 | find-triangle-side #549 | (a) gen prompt rule | Pending — 2 confirmed instances |
-| Results screen is static-position (not overlay) | name-the-sides #557 | find-triangle-side #549 | (a) gen prompt rule | Pending — 2 confirmed instances |
+| Results screen is static-position (not overlay) | name-the-sides #557 | find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529 | (a) gen prompt rule | Pending — **6 confirmed instances — SHIP NOW** |
 | progressBar.update() emits Invalid count value error | name-the-sides #557 | — | (a) gen prompt rule | Proposed |
 | CSS-trick triangle (border-based) breaks without CSS | name-the-sides #557 | — | (a) gen prompt rule | Proposed — prefer SVG |
 | Two-triangle layout on mobile causes excessive scroll | name-the-sides #557 | — | (b) spec addition | Proposed |
-| Wrong ProgressBarComponent slot ID | find-triangle-side #549 | — | (a) gen prompt rule | New — added to ROADMAP 2026-03-23 |
+| Wrong ProgressBarComponent slot ID (positional string, hash-prefix, or missing slotId key) | find-triangle-side #549 | quadratic-formula #546, right-triangle-area #543 | (a) gen prompt rule | Pending — 3 confirmed instances (3 variants: wrong string, hash-prefix, missing key) |
 | Local asset path in TransitionScreen icons | find-triangle-side #549 | — | (a) gen prompt rule | New — added to ROADMAP 2026-03-23 |
 | SignalCollector instantiated without constructor args | find-triangle-side #549 | — | (a) gen prompt rule | New — added to ROADMAP 2026-03-23 |
 | Dead-code guard: isActive set false then immediately true | count-and-tap #551 | — | (a) gen prompt rule | New — added to ROADMAP 2026-03-23 |
+| Canvas element wider than 480px mobile viewport | right-triangle-area #543 | — | (a) gen prompt rule | New — canvas must use max-width: 100% |
+| Undefined CSS variable tokens used for feedback color | right-triangle-area #543 | — | (a) gen prompt rule | New — only use --mathai-success, --mathai-error, --mathai-warning |
+| FeedbackManager.sound.play() non-standard API path | right-triangle-area #543 | — | (a) gen prompt rule | New — verify PART-011-SOUND covers this; ban if not |
+| data-testid does not match element id | word-pairs #529 | — | (a) gen prompt rule | New — testid must match id; no divergence |
+| Sentry SDK version inconsistency (v7 vs v10) | word-pairs #529 | — | (a) gen prompt rule | New — standardise to v10.23.0 three-script pattern |
+| hide()/show() helpers called with CSS selector strings instead of DOM elements | soh-cah-toa #544 | — | (a) gen prompt rule | New — helpers must receive element objects only |
+| data-lives hardcoded to 0 for non-lives games | word-pairs #529 | — | (d) test gap | New — test assertions on data-lives must handle games with totalLives: 0 |
 
 ---
 
@@ -114,13 +138,18 @@ See [games/find-triangle-side/ui-ux.md](../../games/find-triangle-side/ui-ux.md)
 
 | Rule | Source audit | Confirmed also in | Date | Status |
 |------|-------------|------------------|------|--------|
-| Never strip CSS stylesheet | which-ratio #560 | name-the-sides #557, count-and-tap #551 | 2026-03-23 | FIX-001 shipped (dc03155) + PART-028 T1 check |
-| Explicit 44px touch targets on all buttons | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549 | 2026-03-23 | Pending — 4 confirmed instances |
-| ARIA live regions on dynamic feedback | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549 | 2026-03-23 | ARIA-001 shipped (dc03155) — verify inline panel coverage |
+| Never strip CSS stylesheet | which-ratio #560 | name-the-sides #557, count-and-tap #551, right-triangle-area #543, word-pairs #529 | 2026-03-23 | FIX-001 shipped (dc03155) + PART-028 T1 check — 5 instances confirmed |
+| Explicit 44px touch targets on all buttons | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544 | 2026-03-23 | **Pending — 5 confirmed instances — SHIP NOW** |
+| ARIA live regions on dynamic feedback | which-ratio #560 | name-the-sides #557, count-and-tap #551, find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529 | 2026-03-23 | ARIA-001 shipped (dc03155) — **7 instances; ship inline panel coverage immediately** |
 | SVG diagram contrast + fallback dimensions | which-ratio #560 | find-triangle-side #549 | 2026-03-23 | Pending — 2 confirmed instances |
-| Results screen must be position:fixed full-screen overlay | name-the-sides #557 | find-triangle-side #549 | 2026-03-23 | Pending — 2 confirmed instances, prioritise |
+| Results screen must be position:fixed full-screen overlay | name-the-sides #557 | find-triangle-side #549, quadratic-formula #546, soh-cah-toa #544, right-triangle-area #543, word-pairs #529 | 2026-03-23 | **Pending — 6 confirmed instances — SHIP NOW** |
 | progressBar.update() completed arg must be >= 0 | name-the-sides #557 | — | 2026-03-23 | Proposed — not yet in prompts.js |
-| ProgressBarComponent slot ID must be 'mathai-progress-slot' | find-triangle-side #549 | — | 2026-03-23 | New — added to ROADMAP 2026-03-23 |
+| ProgressBarComponent slot ID must be 'mathai-progress-slot' (options object with slotId key) | find-triangle-side #549 | quadratic-formula #546, right-triangle-area #543 | 2026-03-23 | Pending — 3 instances, 3 variants — added to ROADMAP |
 | Never use local asset paths in TransitionScreen icons | find-triangle-side #549 | — | 2026-03-23 | New — added to ROADMAP 2026-03-23 |
 | Always pass constructor args to SignalCollector | find-triangle-side #549 | — | 2026-03-23 | New — added to ROADMAP 2026-03-23 |
 | Never negate isActive guard immediately (dead code) | count-and-tap #551 | — | 2026-03-23 | New — added to ROADMAP 2026-03-23 |
+| Canvas elements must use max-width: 100%; height: auto for responsive layout | right-triangle-area #543 | — | 2026-03-23 | New — added to ROADMAP 2026-03-23 |
+| Only use defined CSS variable tokens for feedback colors | right-triangle-area #543 | — | 2026-03-23 | New — ban --color-orange, --mathai-green; use --mathai-success/error/warning |
+| data-testid must match element id exactly | word-pairs #529 | — | 2026-03-23 | New — added to ROADMAP 2026-03-23 |
+| Standardise Sentry SDK to v10.23.0 three-script pattern | word-pairs #529 | — | 2026-03-23 | New — word-pairs uses v7; CDN_CONSTRAINTS_BLOCK must enforce v10 |
+| hide()/show() helpers must receive DOM element objects, not CSS selector strings | soh-cah-toa #544 | — | 2026-03-23 | New — runtime TypeError if string passed to classList |
