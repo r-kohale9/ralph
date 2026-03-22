@@ -131,6 +131,8 @@
 | DOM snapshot for test generation context | done | lib/pipeline.js | Headless Playwright captures actual element IDs/classes from running game; injected into test-gen prompts |
 | Per-category pass rate tracking | done | lib/pipeline.js, ralph-report.json | category_results in report; identifies which category consistently fails |
 | Human-run Playwright traces as gold standard | planned | — | Record --trace from a correct human test run; use trace viewer output as ground truth for test generation |
+| **Add unit tests for updateThreadOpener: 'running'/'APPROVED'/'FAILED' status branches** | **pending** | test/slack.test.js | Source: Code Review 2026-03-23. `updateThreadOpener` in lib/slack.js has zero test coverage — statusEmoji and statusLabel branching for 'running' (added in 9101650) is completely untested. Add tests for each status branch using a mocked webClient. |
+| **Add unit test: PART-028 empty/whitespace-only `<style></style>` block not caught** | **pending** | test/validate-static.test.js | Source: Code Review 2026-03-23. Logic gap: `stripped.length===0 && content.trim().length>0` means empty `<style></style>` passes silently (content.trim() is empty so second predicate fails, no error, no warning). Test should assert PART-028-CSS-STRIPPED fires on `<style></style>` and `<style>   </style>`. Route the fix decision to Gen Quality (extend condition vs separate check). |
 | **Add assertion: results screen must have position:fixed or z-index>0** | **pending** | lib/prompts.js | Source: UI/UX audit name-the-sides (UI-NS-004 test gap). Tests only check `data-phase='results'` — game can "complete" with results screen scrolled off-screen (position:static, y=1037px on mobile). Add Playwright assertion in game-flow/contract tests verifying results screen has `position: fixed` or `z-index > 0` before asserting gameplay completion. |
 | **Add assertion: page must have zero console PAGEERRORs during gameplay** | **pending** | lib/prompts.js | Source: UI/UX audit name-the-sides (UI-NS-007 test gap). `progressBar.update(-9)` fires PAGEERROR every round — tests pass while browser logs errors. Add Playwright page.on('pageerror') listener in sharedBoilerplate; fail any test that records a PAGEERROR during the test run. Surfaces silent JS errors that don't directly break assertions but indicate broken game logic. |
 | Smoke-regen: recurring "missing #gameContent" after regen (disappearing-numbers, associations, kakuro) | **done (2026-03-21, commit 2666e36)** | lib/pipeline.js, lib/prompts.js | Root cause: LLM omitted `slots` wrapper in ScreenLayout.inject() call — options passed directly are silently ignored, #gameContent never created. Fix: CDN_CONSTRAINTS_BLOCK updated with exact CORRECT/WRONG example; smoke-regen prompt now includes correct call snippet; gen prompt Rule 2 uses exact call. See Lesson 69. |
@@ -437,6 +439,24 @@
 
 ---
 
+## Code Review — Pipeline Source Code (active)
+
+**Active slot state:**
+| Field | Value |
+|-------|-------|
+| Current task | Reviewed lib/validate-static.js PART-028 + lib/slack.js updateThreadOpener 'running' status + worker.js onProgress non-blocking calls (commits dc03155, b65fdb7, 9101650) |
+| Waiting on | unblocked — findings routed below |
+| Blocked by | none |
+
+**Log:**
+| Date | Files reviewed | Finding | Routed to |
+|------|---------------|---------|-----------|
+| 2026-03-23 | lib/validate-static.js (PART-028), lib/slack.js (updateThreadOpener), worker.js (onProgress) | **Edge case gap:** PART-028-CSS-STRIPPED does NOT fire when `<style></style>` is empty or whitespace-only (condition: `stripped.length===0 && content.trim().length>0` — empty block fails second predicate, so no error fires and no warning fires either since styleBlocks.length>0). A targeted fix LLM that outputs `<style></style>` with no content at all bypasses PART-028 entirely. **No test coverage** for empty/whitespace-only style block case. | Test Engineering: add test for empty `<style></style>`; Gen Quality: extend PART-028 condition or add separate check |
+| 2026-03-23 | lib/slack.js (updateThreadOpener), test/slack.test.js | **Test gap:** `updateThreadOpener` has zero test coverage in test/slack.test.js — the 'running' status emoji/label branching added in 9101650 is untested. `buildParentBlocks` is also uncovered for status='running'. | Test Engineering: add unit tests for updateThreadOpener with status='running', 'APPROVED', 'FAILED' |
+| 2026-03-23 | worker.js (onProgress non-blocking updateThreadOpener call, line 507) | **Clean — no logic error.** Non-blocking `.catch(()=>{})` is correct pattern; `currentBuildStep !== prevBuildStep` guard prevents flood of Slack API calls on high-frequency progress events. `iterations: 0` passed during running state is intentional (build not yet complete). | — |
+
+---
+
 ## Education — Pedagogical Quality (active)
 
 > See [docs/education/README.md](docs/education/README.md) for full Education slot R&D intuition and approach.
@@ -446,9 +466,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | real-world-problem spec review + Session 2 area identification |
-| Status | which-ratio #561 APPROVED; real-world-problem spec review in progress |
-| Waiting on | real-world-problem spec review findings → then queue real-world-problem build |
+| Current task | Apply 2 Priority 1 spec fixes to games/real-world-problem/spec.md, then queue build |
+| Status | Spec review COMPLETE (see games/real-world-problem/spec-review.md). Session 2 = Statistics (Candidate B) — see docs/education/session2-candidate.md. Two spec fixes pending before queue. |
+| Waiting on | unblocked — spec fixes are a direct edit, no build needed |
 | Blocked by | none |
 
 | Task | Status | Notes |
@@ -459,7 +479,8 @@
 | **Rule 14: Education Implementation Slot** | **done (2026-03-22)** | New mandatory rule added to CLAUDE.md — one active education task must always be tracked in this section, same non-negotiable status as R&D slot. |
 | **name-the-sides spec — trig session Game 1 (Bloom L2)** | **APPROVED #557 (2026-03-22, iter=3)** | 785-line spec for label-assignment game: learner assigns Hypotenuse/Opposite/Adjacent to 3 sides of a right triangle relative to a marked reference angle. 9 rounds (3 difficulty tiers: standard → rotated → two-angle). No lives, no timer (rounds 1-6), optional inline JS timer (7-9). Star logic based on skipped rounds. Simplification: CSS-drawn triangle + 3 MCQ button rows per side (no custom SVG CDN). Session plan position: FIRST game in trig sequence — prerequisite for soh-cah-toa-worked-example. NCERT Ch 8 §8.1 / CC HSG-SRT.C.6. 7 builds required across 5 independent failure layers (GEN-114/115/116/117/118). Build #557 APPROVED at iter=3 — GEN-116+117+118 compound fix resolved init failure class. |
 | **which-ratio spec — trig session Game 4 (Bloom L2–L3)** | **APPROVED #561 (2026-03-23, iter=3)** | MCQ + worked example panel on first wrong attempt. Given a triangle with two sides labeled and an angle marked, identify which ratio (sin/cos/tan) relates those two sides to that angle. No lives — learning mode. Stars by accuracy. Bridges ratio recognition (Game 2) and computation (Game 3). NCERT Ch 8 §8.3 / CC HSG-SRT.C.7. Build #558 queued (2026-03-22). #559 APPROVED 8/10 tests by reviewer but FAILED post-approval EACCES (same root-owned infra bug as name-the-sides #555) — permissions fixed, #560 re-queued. #561 APPROVED iter=3. |
-| **real-world-problem spec — trig session Game 6 (Bloom L4)** | **active — spec review in progress** | 714-line spec: 4 rounds (ladder/ramp/flagpole/cable), word-problem-three-step interaction, cognitive-demand test category, no new CDN parts. which-ratio #561 APPROVED; real-world-problem spec review in progress → queue build after review findings resolved. Waiting on: spec review findings. Blocked by: none. |
+| **real-world-problem spec — trig session Game 6 (Bloom L4)** | **active — 2 spec fixes pending before queue** | 714-line spec reviewed 2026-03-23 (see games/real-world-problem/spec-review.md). Bloom L4 verified: genuine Analyze, not cosmetic. CDN compliance clean. Two Priority 1 fixes required before queuing: (1) FeedbackManager.sound ambiguity — spec header (line 5) says game calls FeedbackManager.sound/playDynamicFeedback directly, but PART-017=NO and neither game flow (Section 6) nor anti-patterns (Section 7) mentions these calls. Spec must resolve: either remove the header claim and ban both calls entirely (matching approved pattern from find-triangle-side #549), or add explicit sound call instructions to Section 6. (2) compute-it prerequisite decision — if built before compute-it is approved, spec already mandates a collapsible reference panel (sin/cos/tan values, line 711). Confirm whether compute-it is approved before queuing and remove the conditional ambiguity. Fix (1) is higher priority — sound call ambiguity directly affects LLM generation choice. Session 2 identified as Statistics (NCERT Class 10 Ch 14); see docs/education/session2-candidate.md. |
+| **Session 2 — Statistics (Mean, Median, Mode) spec planning** | **planned** | Candidate B chosen over Quadratics and Linear Equations: no new CDN parts, broadest learner prerequisites (Class 9+ arithmetic), validates session architecture in non-geometry domain. 5 games planned (stats-identify-class L1 → stats-mean-direct L2-L3 → stats-median L3 → stats-mode L3 → stats-which-measure L4). New pattern required: inline HTML frequency table rendered from inputSchema — feasible without CDN changes. Next step: write spec for Game 1 (stats-identify-class). Waiting on: real-world-problem build first (maintain build-in-order rule). |
 | **which-ratio spec — add feedback timing requirements** | **pending** | games/which-ratio/spec.md | Source: UI/UX audit which-ratio #561 (Issues 5+6). (1) Correct feedback must display for at least 1500ms before auto-advance — current implementation uses 1200ms. (2) Skip feedback duration must be consistent across all skip paths (worked-example Skip vs second-attempt paths currently use 1500ms vs 2000ms). Add a single `FEEDBACK_DURATION_MS` constant and apply to all paths. |
 
 ---
