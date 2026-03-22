@@ -200,6 +200,20 @@ Include: (1) what we expect to learn or gain if it completes, (2) why it has not
 
 Delegate ALL implementation, research, and long-running tasks to sub-agents. The parent agent must remain available to the user at all times. After launching any sub-agent or after any user message, immediately ask: "What is the next thing I can do right now?" Then do it.
 
+### Slot Activity Principle (applies to all four slots)
+
+**A slot is never passive.** "Waiting for a build", "nothing to do until X completes", and "monitoring" are not slot activities. Every slot has an unbounded backlog of available work that does not depend on any build being running:
+
+- **R&D:** Past build logs, failure pattern analysis, hypothesis drafting, prompt rule writing, doc updates — all available at any time from existing DB + docs.
+- **Local test:** Past failed build HTMLs are permanently on GCP — run `diagnostic.js` on any undiagnosed game at any time. RCA docs can always be written or improved.
+- **Test gen:** Past builds always have test output to analyse. Category-level pass rates can always be computed from the DB. Test-gen prompt rules can always be drafted or refined from existing failure evidence. There is never a state where test gen quality cannot be improved.
+- **Education:** Next game spec can always be drafted, interaction-patterns.md always has gaps to fill, past approved games can always be audited for pedagogical quality.
+- **UI/UX:** The approved game library grows with every build. Any approved game that hasn't been visually audited is valid work. There is no state where "there is nothing to audit."
+
+If a slot agent reports "waiting for results" or "monitoring the build", it is idling. Replace it with a concrete next action from the list above immediately.
+
+---
+
 ### 13. Always maintain one active R&D task — MANDATORY
 
 **R&D is always running.** One sub-agent must ALWAYS be actively working on an R&D task. The moment one completes, immediately pick the next and launch a new sub-agent in the same response. One item must always be marked `active` in `ROADMAP.md` under `## R&D`.
@@ -218,8 +232,6 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 **Constraints:** R&D never blocks critical work. Must produce a measurable result — "made it cleaner" is not R&D.
 
-**Never sit idle waiting for a build.** While a verification build runs, the R&D sub-agent must be doing real work: analysing prior build logs, drafting the next hypothesis, writing the prompt rule, updating docs, or pre-staging the next fix. "Waiting for results" is not a task — it is idling. If there is nothing to implement yet, analyse the next failure pattern in the backlog and draft the hypothesis.
-
 ### 14. Always maintain one active local test slot — MANDATORY
 
 **Local testing is always running.** One sub-agent must ALWAYS be running `diagnostic.js` against a recently failed build.
@@ -235,7 +247,29 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 "Reading the HTML" does not count — must run the browser. "Game passes locally" is a valid finding only if classified as a test bug with a specific assertion identified.
 
-**Never sit idle waiting for a build.** While a build runs, the local test slot sub-agent must be running `diagnostic.js` against a different recently failed game, or — if all recent failures are fully diagnosed — drafting the RCA doc, writing the T1 check, or preparing the gen prompt fix for handoff to R&D. "Waiting for build results" is not work.
+### 14b. Always maintain one active Test Gen Slot — MANDATORY
+
+**Test gen quality is always being improved.** One sub-agent must ALWAYS be actively analysing and improving test generation quality. R&D owns pipeline reliability; local test owns game diagnosis; Test Gen owns the quality of tests produced by the pipeline.
+
+**What Test Gen covers:** category-level pass rates, false-positive test assertions, missing coverage for key game states (lives deducted, round transition, results phase), selector brittleness, timing issues, and prompt rules in `lib/pipeline-test-gen.js` and `lib/prompts.js`.
+
+**How to pick the active task:**
+1. Query DB: which test categories have the lowest pass rates across the last 20 builds? Start there.
+2. Check `docs/lessons-learned.md` for any test-gen bug classified by local test but not yet fixed in the prompt.
+3. Check `docs/spec_rca/` for any game with a "test bug" verdict that hasn't had a test-gen prompt fix shipped.
+
+**Required output per session:**
+1. At least one concrete finding: a specific test assertion that fires falsely, a missing coverage case, or a category with documented low pass rate.
+2. A proposed fix: either a prompt rule addition to `lib/prompts.js` or a structural change to `lib/pipeline-test-gen.js`.
+3. Update `docs/lessons-learned.md` with the finding and proposed fix.
+
+**Always-available work (no build required):**
+- Pull category pass rates from DB: `SELECT category, AVG(pass_rate) FROM test_results GROUP BY category ORDER BY AVG(pass_rate)`
+- Read past test output from GCP build artifacts and identify false-positive patterns
+- Draft improved test-gen prompt rules from existing failure evidence in `docs/spec_rca/`
+- Compare test assertions in approved vs failed builds to identify what working tests look like
+
+**Constraints:** Test gen never blocks critical pipeline work. Must produce a documented finding per session — "tests look okay" is not an output.
 
 ### 15. Always maintain one active Education Implementation Slot — MANDATORY
 
@@ -254,8 +288,6 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 **Constraints:** Must produce a measurable artifact per session. Education slot never blocks critical pipeline work.
 
-**Never sit idle waiting for a build.** While a build runs, the Education sub-agent must be working on the next deliverable: spec-drafting the next game in the session sequence, updating interaction-patterns.md, researching Bloom level design for an upcoming game, or preparing the which-ratio/compute-it/real-world spec. "Waiting for build results" is not work. Always have the next game's spec at least 50% drafted before the current build completes.
-
 ### 16. Always maintain one active UI/UX Slot — MANDATORY
 
 **UI/UX review is always running.** One sub-agent must ALWAYS be actively auditing the visual and interaction quality of approved games. R&D targets pipeline reliability; Education targets learning science; UI/UX targets the learner's sensory and interaction experience.
@@ -271,8 +303,6 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 4. For each (b) issue: open a spec revision PR or note in the spec_rca doc
 5. Update `docs/ui-ux/audit-log.md` with game, date, issues found, and resolution path
 
-**Never sit idle waiting for a build.** While a build runs, the UI/UX sub-agent must be running a visual audit on an already-approved game, drafting prompt rules from prior audit findings, or updating `docs/ui-ux/audit-log.md`. "Waiting for results" is not work.
-
 **Constraints:** UI/UX never blocks critical pipeline work. Must produce a documented issue list per session — "looks fine" is not an audit.
 
 ### 17. Session restore — run this checklist at every session start or after context compaction
@@ -282,5 +312,6 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 3. **Build pipeline** — SSH, confirm worker running, no build stuck >45 min.
 4. **R&D slot** — confirm one task marked `active` in `ROADMAP.md`. If empty, launch immediately.
 5. **Local test slot** — confirm active + previous session produced HTML/test-bug classification + R&D handoff.
-6. **Education slot** — confirm active task; read `docs/education/trig-session.md` for current state.
-7. **UI/UX slot** — confirm active audit target; read `docs/ui-ux/audit-log.md` for current state. If doc doesn't exist yet, create it and start with the most recently approved game.
+6. **Test gen slot** — confirm active task. If none, query DB for lowest-pass-rate test category and launch analysis immediately.
+7. **Education slot** — confirm active task; read `docs/education/trig-session.md` for current state.
+8. **UI/UX slot** — confirm active audit target; read `docs/ui-ux/audit-log.md` for current state. If doc doesn't exist yet, create it and start with the most recently approved game.
