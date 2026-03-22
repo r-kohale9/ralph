@@ -253,3 +253,71 @@ describe('injectTestHarness — large file safety', () => {
     );
   });
 });
+
+// ─── nextRound alias acceptance (TE-F6 adjustment-strategy) ──────────────────
+//
+// The harness should NOT warn "MISSING window.nextRound" when the game exposes
+// an accepted alias: window.loadRound or window.jumpToRound.
+// __ralph.jumpToRound() already falls through to these aliases, so the
+// diagnostic check must mirror that tolerance.
+
+describe('injectTestHarness — nextRound alias acceptance (TE-F6)', () => {
+  function captureConsoleErrors(fn) {
+    const errors = [];
+    const orig = console.error;
+    console.error = (...args) => errors.push(args.join(' '));
+    fn();
+    console.error = orig;
+    return errors;
+  }
+
+  it('does not warn MISSING nextRound when window.loadRound is defined as alias', async () => {
+    // Inject harness into HTML that defines loadRound but not nextRound
+    const gameBody = `<script>
+window.gameState = { phase: 'playing', lives: 3, score: 0, currentRound: 0 };
+window.endGame = function() {};
+window.restartGame = function() {};
+window.loadRound = function(n) { window.gameState.currentRound = n; };
+</script>`;
+    const html = makeHtml(gameBody);
+    const result = injectTestHarness(html, SPEC_MCQ);
+    assert.ok(result.includes('id="ralph-test-harness"'), 'harness injected');
+
+    // The harness script text must not contain the old single-alias MISSING nextRound warning text
+    assert.ok(
+      !result.includes('MISSING window.nextRound / window.loadRound / window.jumpToRound') ||
+        result.includes('typeof window.loadRound'),
+      'harness source checks loadRound alias',
+    );
+
+    // Verify harness source uses multi-alias check (structural assertion on injected code)
+    assert.ok(
+      result.includes('window.loadRound') && result.includes('window.jumpToRound'),
+      'harness checks loadRound and jumpToRound aliases in round-nav check',
+    );
+  });
+
+  it('does not warn MISSING nextRound when window.jumpToRound is defined as alias', () => {
+    const gameBody = `<script>
+window.gameState = { phase: 'playing', lives: 3, score: 0, currentRound: 0 };
+window.endGame = function() {};
+window.restartGame = function() {};
+window.jumpToRound = function(n) { window.gameState.currentRound = n; };
+</script>`;
+    const html = makeHtml(gameBody);
+    const result = injectTestHarness(html, SPEC_MCQ);
+    assert.ok(result.includes('id="ralph-test-harness"'), 'harness injected');
+
+    // Verify harness source checks jumpToRound alias
+    assert.ok(
+      result.includes('window.jumpToRound'),
+      'harness checks jumpToRound alias in round-nav check',
+    );
+
+    // Confirm the MISSING message now references all three aliases
+    assert.ok(
+      result.includes('window.nextRound / window.loadRound / window.jumpToRound'),
+      'updated MISSING message references all three round-nav aliases',
+    );
+  });
+});
