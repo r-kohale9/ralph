@@ -1281,6 +1281,20 @@ const worker = new Worker(
     // Update game status
     db.updateGameStatus(gameId, report.status === 'APPROVED' ? 'approved' : report.status.toLowerCase());
 
+    // Post-approval: resolve all open failure patterns for this game (CODE-001)
+    // resolveFailurePattern() was never called on the approval path — fix loop patterns accumulated
+    // indefinitely, degrading cross-build pattern injection with noise. Resolve all unresolved
+    // patterns for the game so the pattern DB stays clean after a successful build.
+    if (report.status === 'APPROVED') {
+      const openPatterns = db.getFailurePatterns(gameId).filter((p) => !p.resolved);
+      for (const fp of openPatterns) {
+        db.resolveFailurePattern(gameId, fp.pattern);
+      }
+      if (openPatterns.length > 0) {
+        logger.info(`[worker] Resolved ${openPatterns.length} failure pattern(s) for ${gameId} after approval`);
+      }
+    }
+
     // Post-approval: sync approved HTML back to warehouse so future builds start from known-good base
     if (report.status === 'APPROVED') {
       const approvedHtmlSrc = path.join(REPO_DIR, 'data', 'games', gameId, 'builds', String(buildId), 'index.html');
