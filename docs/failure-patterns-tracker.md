@@ -5,7 +5,7 @@ analysis + manual observation from `docs/lessons-learned.md`.
 
 Use this as the **primary input for R&D slot selection**. Update after every build cycle.
 
-**Last updated:** 2026-03-21 (updated Rank 3 CDN URL pre-validation + Rank 7 surgical smoke-regen status)
+**Last updated:** 2026-03-22 (added Ranks 12–14 from RCA analysis of builds 450–515; added R&D recommendation #6 T1-after-fix)
 
 ---
 
@@ -35,6 +35,9 @@ Use this as the **primary input for R&D slot selection**. Update after every bui
 | 9 | **Phase name mismatch: waitForPhase('playing') on custom-phase game** | Test gen | Recurring pre-Lesson-75 fix; 2-3 builds affected | matrix-memory + any game with non-standard phase | Test generator defaults to 'playing' even when DOM snapshot shows different active phase (e.g., 'memorize') | partial — post-processing fixup (L75) replaces 'playing' → actual phase from dom-snapshot.json; only fires when snapshot exists and phase is non-standard | 68, 75 |
 | 10 | **skip_test singular vs skip_tests plural triage mismatch** | Fix loop | Pre-fix: all builds where skip was intended ran a spurious fix LLM call and often corrupted HTML | Widespread | Triage prompt described `skip_test` (singular) but code checked `skip_tests` (plural); LLM followed prompt description | resolved — normalization alias added (L63); however prompt/code parity is a recurring class of bug | 63 |
 | 11 | **PART-017=YES: wrong domain for spec-provided audio/sticker asset URLs** | CDN URL | 1 build (colour-coding-tool #441) | colour-coding-tool | Gen prompt CDN domain rule too broad: LLM replaces spec-provided cdn.mathai.ai asset URLs with storage.googleapis.com/test-dynamic-assets | partial — CDN_CONSTRAINTS_BLOCK rule narrowed to package scripts only; spec-provided asset URLs now explicitly exempted | 89 |
+| 12 | **`endGame()` does not set `gameState.phase = 'game_over'` before postMessage** | game-flow | 7 builds (#453,457,463,471,473,487,514), 5 games | memory-flip, count-and-tap, light-up, one-digit-doubles, match-the-cards | `endGame()` sends postMessage but skips `gameState.phase = 'game_over'; syncDOMState()` — `#app[data-phase]` stays `'playing'`, `waitForPhase('gameover')` times out | open — no T1 check for endGame phase assignment; gen prompt rule 8 is too vague to prevent | — |
+| 13 | **postMessage returns null (game_complete not received by harness)** | contract | 4 builds (#465,479/480,509), 2 games | keep-track, disappearing-numbers | Three sub-causes: (A) async delay before postMessage fires, (B) wrong `type` field (e.g. `'game_over'`), (C) endGame() crashes before postMessage runs | open — fix loop cannot repair across 3 iterations; requires triage context improvement | — |
+| 14 | **Results/victory screen hidden after endGame** | game-flow | 5 builds (#479,480,483,503,513), 3 games | disappearing-numbers, keep-track, associations | `gameState.phase = 'game_complete'` not in syncDOMState normalization map → data-phase never becomes 'results' → results screen CSS never triggers | open — syncDOMState harness missing 'game_complete'→'results' mapping; gen prompt doesn't mandate 'results' phase | 68 |
 
 ---
 
@@ -91,6 +94,11 @@ Ranked by frequency × cost (build time wasted) for the current build era:
 **Pattern:** The R&D finding in `feedback_rnd_fix_loop_insight.md` shows every approved build has iterations=0 when the gen prompt produces correct output. The fix loop adds iterations but rarely rescues a fundamentally broken generation. The highest ROI is improving gen prompt quality, not fix loop mechanics.
 **Action:** Audit the 10 most recent approved builds — check how many had iterations=0. Then audit the 10 most recent failures — check what iteration the fix loop failed at and whether the failures were gen-prompt addressable (new rule) vs. inherently non-fixable (wrong spec, CDN outage).
 
+### 6. T1 validation after each fix iteration — prevents fix LLM from breaking CDN init (open, HIGH leverage)
+**Pattern:** The fix loop at iteration 2+ sometimes patches an unrelated bug but corrupts `ScreenLayout.inject()` or `waitForPackages` in the process. T1 validation only runs at Step 1b (initial gen). Once the fix loop starts, any CDN init corruption introduced by the fix LLM goes undetected until the next test run returns `#mathai-transition-slot button` missing across ALL categories (8 builds, 5 games affected in builds 450–515).
+**Action:** After applying each HTML fix and before running Playwright tests, re-run `runStaticValidation()` on the new HTML. Compare errors to pre-fix baseline: if any NEW errors appear (not in the pre-fix result), discard the fix and either retry with a more constrained prompt or fall back to the pre-fix HTML. This is the same principle as `detectCrossBatchRegression()` but applied to static validation, not test results.
+**Estimated impact:** 8 of 65 builds (12%) would have avoided cascading transition-slot failures.
+
 ### 5. DOMContentLoaded init error surface improvement (partial, MEDIUM leverage)
 **Pattern:** CDN package load timeouts crash DOMContentLoaded silently. Lesson 82 added `window.__initError` assignment to the CDN constraints block, but this only helps for future builds. Existing games without this pattern still produce silent 50s beforeEach timeouts.
 **Action:** Add `window.__initError` check to the `beforeEach` template post-processing (guaranteed injection regardless of what LLM generates). This makes triage available for 100% of CDN package timeout failures, not just newly generated games.
@@ -102,7 +110,10 @@ Ranked by frequency × cost (build time wasted) for the current build era:
 
 | Source | Query | Last run |
 |--------|-------|----------|
-| `failure_patterns` table | `SELECT pattern, category, occurrences, game_id FROM failure_patterns ORDER BY occurrences DESC LIMIT 30` | 2026-03-21 |
-| `builds` table failures | `SELECT game_id, error_message, iterations FROM builds WHERE status IN ('failed','rejected') AND error_message IS NOT NULL ORDER BY id DESC LIMIT 50` | 2026-03-21 |
+| `failure_patterns` table | `SELECT pattern, category, occurrences, game_id FROM failure_patterns ORDER BY occurrences DESC LIMIT 30` | 2026-03-22 |
+| `builds` table failures | `SELECT game_id, error_message, iterations FROM builds WHERE status IN ('failed','rejected') AND error_message IS NOT NULL ORDER BY id DESC LIMIT 50` | 2026-03-22 |
+| `builds` table test_results JSON | Error signature extraction across builds 450–515 (error type regex matching per batch/iteration) | 2026-03-22 |
+| `learnings` table | Build 450–503 learnings (10 records with failure details) | 2026-03-22 |
 | Worker logs | `journalctl -u ralph-worker --since "2026-03-20" \| grep -E '(smoke-check-failed\|REJECTED\|FAILED\|Error:)' \| sort \| uniq -c \| sort -rn \| head -30` | 2026-03-21 |
-| Manual observation | `docs/lessons-learned.md` Lessons 70–84 | 2026-03-21 |
+| Manual observation | `docs/lessons-learned.md` Lessons 70–93 | 2026-03-22 |
+| Full RCA | `docs/rnd-consistent-failures-rca.md` | 2026-03-22 |
