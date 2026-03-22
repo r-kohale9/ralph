@@ -2144,6 +2144,16 @@ Source: Build #538 RCA (right-triangle-area, 2026-03-22)
 
 ---
 
+## Lesson 169 — quadratic-formula-worked-example build #545 FAILED: CDN cold-start timing regression (2026-03-22)
+- Source: Pipeline log 2026-03-22
+- Pattern: Same HTML produced 10/12 passing in fix loop but only 5/12 in final retest. game-flow: 3/4 → 0/4 on same HTML. level-progression: 1/1 → 0/1 on same HTML. This is not an HTML bug — it's CDN cold-start timing (same pattern as count-and-tap Lesson 91, 2.5 min CDN cold-start exceeding beforeEach timeout).
+- Fix loop results (per-category): game-flow 3/4 (3 tests passed confirming game logic works), mechanics 5/5 (100% — algebra MCQ logic correct), level-progression 1/1 (100%), edge-cases 1/2, contract 0/2 (both deleted by triage — wrong field names: game sends `livesRemaining` instead of `rounds_completed`, `time` instead of `duration_ms`).
+- Root cause of CDN timing: Between fix-loop test runs and final retest, the CDN server went cold. The CDN packages (WorkedExampleComponent, FeedbackManager, ScreenLayout) take 2-3 minutes to warm up after first load. The final retest runs on a server that hasn't served CDN assets recently, causing timeouts in the 50s beforeEach period.
+- Take: algebra worked-example (PART-036) game logic IS correct — mechanics and level-progression pass 100% in warm conditions. The failure is server-side CDN cold-start, not HTML logic. The build should be re-queued after running diagnostic.js locally to confirm the CDN timing hypothesis.
+- Secondary issue: postMessage structure mismatch (contract 0/2 deleted). Game sends `{type: 'game_complete', data: {metrics: {livesRemaining, score, time, stars}}}` but spec requires `{metrics: {rounds_completed, wrong_in_practice, duration_ms, stars, accuracy}}`. This needs a separate fix in the gen prompt to enforce the correct postMessage schema for worked-example games.
+
+---
+
 ## Lesson 166 — Contract test 0/2 persistent across 3 iterations but build still approved (2026-03-22)
 - Source: Pipeline log 2026-03-22, build #544
 - Pattern: contract tests can fail across all 3 fix iterations and the build still gets approved at final review if the reviewer determines the game logic is functionally correct.
