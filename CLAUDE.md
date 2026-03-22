@@ -256,7 +256,26 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 **Never sit idle waiting for a build.** While a build runs, the Education sub-agent must be working on the next deliverable: spec-drafting the next game in the session sequence, updating interaction-patterns.md, researching Bloom level design for an upcoming game, or preparing the which-ratio/compute-it/real-world spec. "Waiting for build results" is not work. Always have the next game's spec at least 50% drafted before the current build completes.
 
-### 16. Session restore — run this checklist at every session start or after context compaction
+### 16. Always maintain one active UI/UX Slot — MANDATORY
+
+**UI/UX review is always running.** One sub-agent must ALWAYS be actively auditing the visual and interaction quality of approved games. R&D targets pipeline reliability; Education targets learning science; UI/UX targets the learner's sensory and interaction experience.
+
+**What UI/UX covers:** visual layout and spacing, mobile responsiveness (480px), colour contrast and accessibility, feedback clarity (correct/incorrect states), animation and transition quality, progress indicators, button affordance, error states, loading states, and consistency across games in a session.
+
+**How to pick the target game:** Start with the most recently approved game that has not had a UI/UX audit. Then work backwards through the approved game library. Record audit status in `docs/ui-ux/audit-log.md`.
+
+**Required output per session:**
+1. Screenshot audit — run `diagnostic.js` against the approved HTML, capture screenshots at every phase
+2. Issue list — categorise as: (a) gen prompt rule (fix at generation time), (b) spec addition (add visual requirement to spec), or (c) CDN constraint (not fixable without CDN changes)
+3. For each (a) issue: propose a gen prompt rule addition; hand to R&D
+4. For each (b) issue: open a spec revision PR or note in the spec_rca doc
+5. Update `docs/ui-ux/audit-log.md` with game, date, issues found, and resolution path
+
+**Never sit idle waiting for a build.** While a build runs, the UI/UX sub-agent must be running a visual audit on an already-approved game, drafting prompt rules from prior audit findings, or updating `docs/ui-ux/audit-log.md`. "Waiting for results" is not work.
+
+**Constraints:** UI/UX never blocks critical pipeline work. Must produce a documented issue list per session — "looks fine" is not an audit.
+
+### 17. Session restore — run this checklist at every session start or after context compaction
 
 1. **CronList** — if <5 crons (excluding disabled Cron 3), recreate all from `docs/areas/crons.md`.
 2. **Running agents** — relaunch any mid-flight agents from the conversation summary.
@@ -264,3 +283,4 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 4. **R&D slot** — confirm one task marked `active` in `ROADMAP.md`. If empty, launch immediately.
 5. **Local test slot** — confirm active + previous session produced HTML/test-bug classification + R&D handoff.
 6. **Education slot** — confirm active task; read `docs/education/trig-session.md` for current state.
+7. **UI/UX slot** — confirm active audit target; read `docs/ui-ux/audit-log.md` for current state. If doc doesn't exist yet, create it and start with the most recently approved game.

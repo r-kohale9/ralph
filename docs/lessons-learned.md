@@ -2307,3 +2307,23 @@ The spec (line 681) contained the explicit prohibition: "Do NOT use drag-and-dro
 **Fix:** GEN-119 rule added to `CDN_CONSTRAINTS_BLOCK` in `lib/prompts.js`: the `fallbackContent` closing `}` MUST be on its own line. Never append the closing `}` inline at the end of the last property value. T1 PART-027-JS-SYNTAX check added to `lib/validate-static.js`.
 
 **Rule:** `fallbackContent` must always be formatted with its closing `}` on its own line. Any inline script containing a JavaScript syntax error will be caught at T1 before smoke check.
+
+## Lesson 181 — Post-Approval EACCES: Warehouse Dirs Created as root:root
+
+**Source:** Builds #555, #559 (name-the-sides, which-ratio) | **Date:** 2026-03-22
+
+**Pattern:** After a build is approved, the pipeline copies the final HTML to `warehouse/templates/<game>/game/`. If this directory was created by a previous deploy or server operation as `root:root`, the worker (running as `the-hw-app`) fails with `EACCES: permission denied`. The game status stays `approved` in the DB but no file is written.
+
+**Fix:**
+```bash
+# Fix one game
+sudo chown -R the-hw-app:the-hw-app /opt/ralph/warehouse/templates/<game>/game/
+sudo chmod -R 775 /opt/ralph/warehouse/templates/<game>/
+
+# Audit all warehouse dirs (run after any batch server operation)
+ls -la /opt/ralph/warehouse/templates/ | grep "^d" | awk '{print $3, $9}' | grep -v "the-hw-app"
+```
+
+**Prevention:** After any `sudo`-run server operation touching `/opt/ralph/warehouse/`, immediately re-audit ownership. The pipeline does not retry post-approval copy on EACCES — the build must be re-queued manually (reset game status + queue new build).
+
+**Affected dirs found 2026-03-22:** which-ratio, soh-cah-toa-worked-example, count-and-tap, right-triangle-area — all fixed proactively.

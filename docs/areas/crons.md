@@ -37,6 +37,7 @@ Spawn a sub-agent to:
    - ❌ Failed: [list with 1-line reason]
    - 🔬 R&D: [current task + status]
    - 🎓 Education slot: [current task + status]
+   - 🎨 UI/UX: [current audit target + status]
    - 🚢 Shipped: [improvements since last update]
    - 🚨 Needs attention: [any flag or "none"]
 Tag @U0242GULG48
@@ -87,8 +88,9 @@ Cron + slot health check. Report inline ONLY — do NOT send any Slack message.
 1. Check CronList — are all 5 non-disabled crons present? Report count.
 2. Check ROADMAP.md R&D slot — is one task marked 'active'? Report.
 3. Check Education slot in ROADMAP.md — is one task marked 'active'? Report.
-4. Check local test slot — is there a recent spec_rca update (within last session)? Report.
-5. If any slot is empty, flag it: "SLOT EMPTY — launch immediately".
+4. Check UI/UX slot — is there an active audit target in docs/ui-ux/audit-log.md? Report.
+5. Check local test slot — is there a recent spec_rca update (within last session)? Report.
+6. If any slot is empty, flag it: "SLOT EMPTY — launch immediately".
 
-Output: 5 lines max, inline only.
+Output: 6 lines max, inline only.
 ```
