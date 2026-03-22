@@ -824,6 +824,37 @@ describe('initSentry() called but not defined check (5f0)', () => {
   });
 });
 
+describe('TimerComponent(null) containerId check (5f5)', () => {
+  it('fails when new TimerComponent(null, ...) is used', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); new TimerComponent(null, { timerType: "decrease" });');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('new TimerComponent(null'),
+      `Expected TimerComponent-null error but got: ${output}`,
+    );
+  });
+
+  it('fails when new TimerComponent(undefined, ...) is used', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); new TimerComponent(undefined, { timerType: "decrease" });');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('new TimerComponent(null'),
+      `Expected TimerComponent-null error but got: ${output}`,
+    );
+  });
+
+  it('passes when TimerComponent is used with a valid string container ID', () => {
+    const html = VALID_HTML.replace('initGame();', "initGame(); new TimerComponent('timer-container', { timerType: 'decrease' });");
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('new TimerComponent(null'),
+      `Unexpected 5f5 error for valid TimerComponent usage: ${output}`,
+    );
+  });
+});
+
 describe('SentryHelper in waitForPackages check (5h2)', () => {
   it('fails when typeof SentryHelper in waitForPackages', () => {
     // Insert a waitForPackages that checks SentryHelper — SentryHelper is NOT a CDN global
