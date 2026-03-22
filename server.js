@@ -11,7 +11,7 @@ const slack = require('./lib/slack');
 const logger = require('./lib/logger');
 const sentry = require('./lib/sentry');
 const metrics = require('./lib/metrics');
-const { buildSessionPlan } = require('./lib/session-planner');
+const sessionPlanner = require('./lib/session-planner');
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 const BULK_THRESHOLD = parseInt(process.env.RALPH_BULK_THRESHOLD || '5', 10);
@@ -654,16 +654,59 @@ function createApp(deps = {}) {
     res.json({ queued: true, buildId: newBuildId, gameId });
   });
 
-  // ─── Session Planner API (Phase 1: static concept graph) ──────────────────
+  // ─── Session Planner API (Phase 1: DB-backed concept graph) ──────────────
+  app.post('/api/session', async (req, res) => {
+    const { objective, gradeLevel, curriculumHint = 'NCERT' } = req.body;
+    if (!objective) return res.status(400).json({ error: 'objective is required' });
+    try {
+      const plan = await sessionPlanner.buildSessionPlan({ objective, gradeLevel, curriculumHint });
+      if (plan.error) return res.status(404).json(plan);
+      res.json(plan);
+    } catch (err) {
+      logger.error({ err }, 'Session plan generation failed');
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/session/:planId/build', async (req, res) => {
+    const { planId } = req.params;
+    const { requestedBy } = req.body;
+    try {
+      const plan = db.getSession(planId);
+      if (!plan) return res.status(404).json({ error: 'Session plan not found. Call POST /api/session first.' });
+      if (plan.status !== 'pending')
+        return res.status(409).json({ error: `Session already in status: ${plan.status}` });
+      const firstGame = plan.games[0];
+      if (!firstGame) return res.status(422).json({ error: 'Session has no games' });
+      if (!queue) return res.status(503).json({ error: 'Build queue not available' });
+      const job = await queue.add('build-game', {
+        gameId: firstGame.game_id,
+        specPath: `warehouse/templates/${firstGame.game_id}/spec.md`,
+        requestedBy: requestedBy || 'session-planner',
+        sessionPlanId: planId,
+      });
+      db.updateSession(planId, { status: 'building' });
+      db.updateSessionGame(planId, firstGame.game_id, { buildId: job.id, status: 'building' });
+      logger.info(`Session ${planId} build started`, { event: 'session_build_started', planId });
+      res.json({ planId, status: 'building', firstGameQueued: firstGame.game_id, buildJobId: job.id });
+    } catch (err) {
+      logger.error({ err }, 'Session build failed to start');
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/session/:planId', (req, res) => {
+    const { planId } = req.params;
+    const plan = db.getSession(planId);
+    if (!plan) return res.status(404).json({ error: 'Session not found' });
+    res.json(plan);
+  });
+
   app.post('/api/session-plan', async (req, res) => {
     const { concept, studentLevel, curriculumHint } = req.body;
-    if (!concept) {
-      return res.status(400).json({ error: 'concept required' });
-    }
-    const plan = buildSessionPlan(concept, { studentLevel, curriculumHint });
-    if (plan.error) {
-      return res.status(404).json(plan);
-    }
+    if (!concept) return res.status(400).json({ error: 'concept required' });
+    const plan = await sessionPlanner.buildSessionPlan({ objective: concept, gradeLevel: studentLevel, curriculumHint });
+    if (plan.error) return res.status(404).json(plan);
     res.json(plan);
   });
 
