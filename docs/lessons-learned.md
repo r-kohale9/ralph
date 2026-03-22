@@ -2097,3 +2097,20 @@ Source: Build #538 RCA (right-triangle-area, 2026-03-22)
 **Pattern:** Generated code used `ScreenLayout.inject('app', { slots: { progressBar: true } })` and then `new TimerComponent('mathai-timer-slot', ...)`. The `mathai-timer-slot` div is only created by ScreenLayout when `timer: true` is included in the slots config. Without `timer: true`, `document.getElementById('mathai-timer-slot')` returns null → TimerComponent constructor throws `'Container with id "mathai-timer-slot" not found'` → DOMContentLoaded crash → blank page.
 **Fix:** T1 §5f8 rejects `new TimerComponent('mathai-timer-slot', ...)` when `timer: true` is absent from the ScreenLayout slots call. Gen prompt rule: "If using TimerComponent with 'mathai-timer-slot', ScreenLayout slots MUST include `timer: true`." Smoke-regen BUG 5 catches residual cases. Commits 8657a6d + ad4a15a.
 **Note:** Defense in depth — gen prompt prevents generation, T1 §5f8 catches if gen rule is ignored, smoke-regen BUG 5 repairs residual.
+
+---
+
+## Lesson 163 — progressBar.init() is not a function (Layer 7, right-triangle-area build #543)
+**Source:** Build log (smoke check error at Step 1d)
+**Pattern:** The early-review-fix step introduced `progressBar.init()` — calling a method that does not exist on ProgressBarComponent. ProgressBarComponent API is EXACTLY: constructor(slotId, config) + `.update(currentRound, totalRounds)` + `.destroy()`. There is NO `.init()`, `.start()`, `.reset()`, `.setLives()`, or any other method.
+**Error:** `TypeError: progressBar.init is not a function` → caught by DOMContentLoaded catch → blank page.
+**Fix:** T1 §5f9 (catches `progressBar.init(` pattern) + gen prompt rule (explicitly lists all 3 allowed methods) + smoke-regen BUG 6. Smoke-regen fixed it without BUG 6 in build #543 (general CDN init fix prompt handled it). Deploy: commit ede9df4, 764 tests.
+**Milestone:** Smoke check PASSED for first time in 13 right-triangle-area builds. Build #543 entered test generation (Step 2a) at 10:27 — first time this game has reached tests.
+
+----
+
+## Lesson 164 — right-triangle-area APPROVED on build #543 after 13 consecutive failures (2026-03-22)
+- Source: Build log
+- Timeline: 7 CDN init error layers peeled across builds #534-#543. Each build revealed one new root cause. All 7 fixed with T1 checks + gen prompt rules + smoke-regen BUG patterns.
+- Result: Build #543 APPROVED: 2 iterations, 1373 seconds (~23 min), 5/5 test batches passed (game-flow 3/3, mechanics 3/3 at iter 2, level-progression 1/1, edge-cases all pass, contract 1/1).
+- Lesson: CDN game failures almost always have multiple sequential layers. A systematic layer-by-layer approach (diagnose → T1 + prompt + smoke-regen → next build) is more reliable than trying to fix everything at once. The T1 validator's defense-in-depth strategy worked: §5h2 SentryHelper, §5f0 initSentry, §5f5 TimerComponent null, §5f6 Canvas CSS vars, §5f7 progressBar.timer, §5f8 timer slot, §5f9 progressBar.init — 7 checks preventing 7 blank-page crash patterns.

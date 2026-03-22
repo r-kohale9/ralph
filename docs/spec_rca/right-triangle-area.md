@@ -262,11 +262,11 @@ if (/signalCollector\.trackEvent\b/.test(html)) {
 
 **Why the same game failed three times:** Three independent pipeline-level bugs cascaded sequentially. Each build revealed the next hidden failure once the preceding bug was fixed. The game's own HTML logic is sound — all failures have been pipeline or hallucination bugs, not game design issues.
 
-## 5. Go/No-Go for E2E
+## 5. Go/No-Go for E2E: APPROVED ✅
+Build #543 APPROVED on 2026-03-22. After 13 consecutive failures (builds #530-#543), 7 CDN init error layers were identified, T1-checked, and fixed.
+Final test results: 2 iterations, 1373s, 5/5 batches passed.
 
-**READY FOR E2E — all 6 layers fixed, build #543 queued.**
-
-6 sequential pipeline/hallucination layers were peeled across builds #527–#542. Each layer was hidden by the one preceding it. All 6 are now fixed and deployed:
+7 sequential pipeline/hallucination layers were peeled across builds #527–#543. Each layer was hidden by the one preceding it. All 7 are now fixed and deployed:
 
 | Layer | Build | Root Cause | Fix |
 |-------|-------|------------|-----|
@@ -276,8 +276,9 @@ if (/signalCollector\.trackEvent\b/.test(html)) {
 | 4 | #540 | `addColorStop('var(--color-sky)')` → Canvas API DOMException (CSS vars not resolved) | T1 §5f6 + gen prompt: commit cd04177 |
 | 5 | #541 | `progressBar.timer` → undefined → `timer.start()` TypeError | T1 §5f7 + gen prompt: commit dd844f4 |
 | 6 | #542 | `new TimerComponent('timer-container', ...)` → slot `'timer-container'` not declared in ScreenLayout.inject() `slots:` → element never injected → component init fails → blank page | T1 §5f8 + gen prompt: commits 8657a6d + ad4a15a |
+| 7 | #543 | `progressBar.init()` — method does not exist on ProgressBarComponent (introduced by early-review-fix at Step 1c) → DOMContentLoaded catch → blank page | T1 §5f9 + gen prompt + smoke-regen BUG 6: commit ede9df4, 764 tests. Smoke PASSED. |
 
-**Build #543** is the first build with all 6 layers addressed. Hypothesis: #543 passes Step 1d smoke check on first attempt and advances to test generation.
+**Build #543** was the first build with all 7 layers addressed. Result: smoke check PASSED (after smoke-regen fixed Layer 7); build entered test generation (Step 2a) at 10:27 on 2026-03-22.
 
 **Resolved items (all confirmed deployed):**
 - T1 false-positive for `window.components?.X` (commit 65aed12) — confirmed working in builds #532 and #533
@@ -301,8 +302,9 @@ The game's core HTML logic (canvas triangle rendering, area formula, CDN init st
 | #536 | Step 1d: Blank page, missing #gameContent | SentryHelper in waitForPackages() hangs forever | FAILED |
 | #538 | Step 1d: ReferenceError: initSentry is not defined | LLM called initSentry() inside waitForPackages callback (correct), but never defined function initSentry() — thought it was CDN-provided. Missing function → ReferenceError → catch → ScreenLayout.inject() never runs → blank page | FAILED — layer 2 of same chain |
 | #540 | Step 1d smoke fail: `addColorStop('var(--color-sky)')` — DOMException: color could not be parsed | Canvas API does not resolve CSS variables — literal hex/rgba required | Fixed: T1 §5f6 + gen prompt rule (commit cd04177), #541 queued |
-| #541 | Step 1d smoke fail: `timer = progressBar.timer; timer.start()` → TypeError: Cannot read properties of undefined (reading 'start') | ProgressBarComponent has no .timer property — LLM hallucinated the API; timer must be created separately via TimerComponent | Fixed: T1 §5f7 + gen prompt rule (commit dd844f4), #542 queued |
-| #542 | Running — first build with all 5 layers fixed | PENDING |
+| #541 | Step 1d smoke fail: `TypeError: Cannot read properties of undefined (reading 'start')` | `progressBar.timer` undefined (Layer 5) — ProgressBarComponent does not expose a .timer property; LLM hallucinated the API | Fixed: T1 §5f7 + gen prompt rule (commit dd844f4) |
+| #542 | Step 1d smoke fail: `Container with id "mathai-timer-slot" not found` | `timer: true` missing from ScreenLayout slots (Layer 6) — mathai-timer-slot div never created; TimerComponent constructor throws | Fixed: T1 §5f8 + gen prompt rule + smoke-regen BUG 5 (commits 8657a6d + ad4a15a) |
+| #543 | Step 1d smoke fail: `TypeError: progressBar.init is not a function` (Layer 7) — introduced by early-review-fix at Step 1c | early-review-fix LLM called `progressBar.init()` which does not exist on ProgressBarComponent (API is constructor + .update() + .destroy() only) → DOMContentLoaded catch → blank page | Fixed by smoke-regen (general CDN init fix prompt); T1 §5f9 + gen prompt rule deployed (commit ede9df4, 764 tests). Smoke PASSED — build entered test generation (Step 2a) at 10:27 on 2026-03-22. First time in 13 builds. **APPROVED** 2026-03-22: 2 iterations, 1373s, 5/5 batches passed (game-flow 3/3, mechanics 3/3, level-progression 1/1, edge-cases all pass, contract 1/1). |
 
 ## Root Cause (build #536 — layer 1)
 `typeof SentryHelper === 'undefined'` in waitForPackages() causes infinite loop — SentryHelper is not a CDN global. Also had `typeof TimerComponent === 'undefined'` (TimerComponent IS real, but still caused hang when not needed). Both the original and regen HTMLs had SentryHelper, causing all smoke checks to fail.
