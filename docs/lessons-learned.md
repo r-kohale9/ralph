@@ -1806,3 +1806,17 @@ Multiple places described syncDOMState call-sites as "transitionScreen onComplet
 **Pattern:** Positive examples propagate to 100% of generated tests for that category. Prohibition rules are advisory. This is why violation rates persist even after adding ban rules — the RIGHT examples are teaching the banned pattern.
 
 **Next:** Measure violation rates on builds #518–521 (currently running) and the subsequent batch to verify HARDCODED_TIMEOUT and M13 rates drop. The beforeAll fix alone should eliminate HARDCODED_TIMEOUT from 100% of builds.
+
+## Lesson 143 — Fix loop gets stuck on CDN cold-start timing failures (source: build #525 static analysis)
+
+**Pattern:** Contract test reports "start button never appears" across 3+ fix iterations. HTML is architecturally correct (ScreenLayout.inject, transitionScreen.show, waitForPackages all present). LLM fix applies cosmetic changes (CSS stripping) because it cannot identify a logic bug — there is none.
+
+**Root cause:** `waitForPackages()` timeout (120s) < GCP CDN cold-start latency (~150s). Contract test runs in a fresh Playwright page (CDN cold). waitForPackages times out before CDN loads → transitionScreen.show() never executes → #mathai-transition-slot never populated → start button never appears.
+
+**Fix:** Increase waitForPackages timeout to ≥180s in gen prompt. Add as GEN rule for all CDN games.
+
+**Diagnostic signal:** If fix loop sees identical "start button never appears" / "first UI element never appears" error across 2+ iterations AND static HTML analysis shows correct init structure, the root cause is CDN timing, not HTML. Stop fix loop iterations — they're useless. Mark for CDN-timing fix (prompt rule) instead.
+
+**Related:** Lesson 91 (count-and-tap CDN cold-start, 2.5min CDN delay exceeding 50s beforeEach timeout).
+
+**Proposed pipeline improvement:** Detect CDN timing failures early — if contract/game-flow first iteration fails with timeout-on-first-UI-element AND HTML has correct waitForPackages structure, skip remaining per-category iterations and go directly to global fix with CDN-timing hint. Saves 2-4 LLM fix calls per affected build.
