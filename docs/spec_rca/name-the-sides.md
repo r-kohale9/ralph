@@ -9,6 +9,7 @@
 | #553 | 0p/3f game-flow, 0p/5f mechanics, 0p/2f edge-cases, 0p/1f contract — global best 0 passing, FAILED | interactionType=drag false-positive: spec's prohibition "Do NOT use drag-and-drop" triggered drag regex → drag tests generated → game uses MCQ buttons | Failed |
 | #554 | Killed at early-review (iter=0): HTML confirmed missing `transitionScreen.hide()` — #gameContent stays display:none for entire game, all isVisible() fail | `startGame()` never calls `transitionScreen.hide()` — ScreenLayout sets #gameContent to display:none; CDN does not auto-reveal; GEN-117 fix pending | Killed (confirmed HTML bug before tests ran) |
 | #555 | APPROVED by reviewer but EACCES post-approval — warehouse/game/ owned root:root → copyfile failed | Infrastructure: directory owned by root instead of the-hw-app; fixed with chown; build #556 re-queued | Failed (infra) |
+| #556 | game-flow 0/3 all iters; level-progression CDN stall false-positive | startGame() called transitionScreen.hide() but never showed #gameContent — GEN-117 rule was incomplete; GEN-118 fix pending | Failed |
 
 ---
 
@@ -111,11 +112,11 @@ if (/currentRound|totalRounds/.test(html) && !/window\.loadRound/.test(html)) {
 
 ## 5. Go/No-Go for E2E
 
-**Decision: NEAR-READY — Build #555 approved by reviewer; failed post-approval due to infra (chown). Build #556 queued after directory fix.**
+**Decision: NOT READY — Build #556 failed: startGame() missing explicit #gameContent show. GEN-118 fix deploying, build #557 queued.**
 
-**GEN-114/115/116/117 all confirmed present in approved HTML.**
+**GEN-114/115/116/117 all confirmed present in approved HTML (build #555).**
 
-**Build #556** is the re-queue to get a clean warehouse write after directory ownership fix.
+**GEN-118: after transitionScreen.hide(), startGame() MUST also call document.getElementById('gameContent').style.display = 'block'**
 
 **Build #555 outcome:** APPROVED by reviewer on attempt 2. Failed post-approval: EACCES on warehouse/game/ directory (owned root:root). Infrastructure fix applied (chown + chmod); build #556 re-queued. See §Build #555 below.
 
@@ -261,3 +262,27 @@ GEN-117 deployed in commit df16818:
 ### Impact on Go/No-Go
 
 Build #555 queued with all four fixes. See updated §5.
+
+---
+
+## Build #556 — GEN-118: startGame() Missing #gameContent Show
+
+**Build outcome:** FAILED at test-loop exhaustion (iterations=3). Review skipped — passRate 64%, threshold 70%.
+
+### What happened
+
+1. startGame() correctly called transitionScreen.hide() (GEN-117 fix present).
+2. #gameContent remained invisible — transitionScreen.hide() does NOT auto-reveal it.
+3. All game-flow tests timed out waiting for triangle/label-panel elements.
+4. Level-progression CDN stall detected (false positive) — same underlying invisible-gameContent bug made the failure signature look like CDN latency.
+5. Global fix loop ran 2 iterations but could not recover — fix LLM didn't identify the missing classList.remove('hidden').
+
+### Root cause
+
+GEN-117 rule stated "call transitionScreen.hide() to reveal #gameContent" — this is WRONG. ScreenLayout.inject() sets #gameContent to display:none. transitionScreen.hide() only dismisses the transition overlay. Caller must ALSO explicitly set: `document.getElementById('gameContent').style.display = 'block'`
+
+Build #555 (approved) happened to include `domRefs.gameContainer.style.display = 'block'` in startGame(). Build #556 LLM followed GEN-117 exactly but omitted the explicit gameContent show.
+
+### Fix
+
+GEN-118 deployed: prompts.js GEN-117 ROUTING rule updated with explicit #gameContent show requirement; CORRECT PATTERN at line 369 updated; T1 PART-026-GAMECONTENT WARNING added.
