@@ -467,3 +467,150 @@ describe('worker pre-flight: skip cancelled builds', () => {
     assert.ok(!shouldSkipJob(undefined), 'must not skip when build record is undefined');
   });
 });
+
+describe('E7: categorizeFailure — new branches (Fix B)', () => {
+  // Replicate categorizeFailure from worker.js for isolated testing
+  function categorizeFailure(failureDesc) {
+    const desc = failureDesc.toLowerCase();
+    if (/render|dom|element|visible|display/.test(desc)) return 'rendering';
+    if (/gamestate|state|init/.test(desc)) return 'state';
+    if (/score|star|progress/.test(desc)) return 'scoring';
+    if (/timer|timeout|countdown/.test(desc)) return 'timing';
+    if (/click|input|touch|interact/.test(desc)) return 'interaction';
+    if (/postmessage|message|event/.test(desc)) return 'messaging';
+    if (/layout|responsive|width|480/.test(desc)) return 'layout';
+    if (/endgame|complete|finish/.test(desc)) return 'completion';
+    if (/undefined|null|cannot read prop|TypeError/i.test(desc)) return 'state';
+    if (/lives|wrong answer|correct answer|retry|interaction/i.test(desc)) return 'interaction';
+    if (/victory|game over|out of lives|completion/i.test(desc)) return 'completion';
+    if (/cannot find module|module not found|require/i.test(desc)) return 'infra';
+    return 'unknown';
+  }
+
+  it('returns "state" for TypeError: Cannot read properties of undefined', () => {
+    assert.equal(categorizeFailure('TypeError: Cannot read properties of undefined'), 'state');
+  });
+
+  it('returns "interaction" for "Expected lives to update after wrong answer"', () => {
+    assert.equal(categorizeFailure('Expected lives to update after wrong answer'), 'interaction');
+  });
+
+  it('returns "completion" for "game over screen not shown"', () => {
+    assert.equal(categorizeFailure('game over screen not shown'), 'completion');
+  });
+
+  it('returns "infra" for "Cannot find module \'./game-utils\'"', () => {
+    assert.equal(categorizeFailure("Cannot find module './game-utils'"), 'infra');
+  });
+
+  it('returns "infra" for "module not found: ./helpers"', () => {
+    assert.equal(categorizeFailure('module not found: ./helpers'), 'infra');
+  });
+
+  it('returns "completion" for "victory screen missing"', () => {
+    assert.equal(categorizeFailure('victory screen missing'), 'completion');
+  });
+
+  it('returns "interaction" for "retry button not functional"', () => {
+    assert.equal(categorizeFailure('retry button not functional'), 'interaction');
+  });
+});
+
+describe('E7: recordFailurePattern guard — unknown filter (Fix A)', () => {
+  it('does NOT call recordFailurePattern when failures array contains only "unknown"', () => {
+    // Replicate the E7 recording logic from worker.js
+    function recordPatterns(testResults, recordFn) {
+      if (!Array.isArray(testResults)) return;
+      const lastResult = testResults.reduce((worst, r) =>
+        (r.failed || 0) > (worst?.failed || 0) ? r : worst, null);
+      if (lastResult && lastResult.failures) {
+        const failures = lastResult.failures.split(', ').filter(f => Boolean(f) && f !== 'unknown');
+        if (failures.length > 0) {
+          for (const failure of failures) {
+            recordFn(failure);
+          }
+        }
+      }
+    }
+
+    let callCount = 0;
+    recordPatterns([{ failed: 1, failures: 'unknown' }], () => { callCount++; });
+    assert.equal(callCount, 0, 'recordFailurePattern must not be called for "unknown" failures');
+  });
+
+  it('does NOT call recordFailurePattern when failures string is empty', () => {
+    function recordPatterns(testResults, recordFn) {
+      if (!Array.isArray(testResults)) return;
+      const lastResult = testResults.reduce((worst, r) =>
+        (r.failed || 0) > (worst?.failed || 0) ? r : worst, null);
+      if (lastResult && lastResult.failures) {
+        const failures = lastResult.failures.split(', ').filter(f => Boolean(f) && f !== 'unknown');
+        if (failures.length > 0) {
+          for (const failure of failures) {
+            recordFn(failure);
+          }
+        }
+      }
+    }
+
+    let callCount = 0;
+    recordPatterns([{ failed: 1, failures: '' }], () => { callCount++; });
+    assert.equal(callCount, 0, 'recordFailurePattern must not be called for empty failures');
+  });
+
+  it('calls recordFailurePattern for real failure strings', () => {
+    function recordPatterns(testResults, recordFn) {
+      if (!Array.isArray(testResults)) return;
+      const lastResult = testResults.reduce((worst, r) =>
+        (r.failed || 0) > (worst?.failed || 0) ? r : worst, null);
+      if (lastResult && lastResult.failures) {
+        const failures = lastResult.failures.split(', ').filter(f => Boolean(f) && f !== 'unknown');
+        if (failures.length > 0) {
+          for (const failure of failures) {
+            recordFn(failure);
+          }
+        }
+      }
+    }
+
+    const recorded = [];
+    recordPatterns([{ failed: 2, failures: 'TypeError: Cannot read props, game over not shown' }], (f) => { recorded.push(f); });
+    assert.equal(recorded.length, 2);
+    assert.ok(recorded[0].includes('TypeError'));
+  });
+});
+
+describe('E7: worst-result selection (Fix C)', () => {
+  // Replicate the reduce logic from worker.js
+  function pickWorstResult(testResults) {
+    return testResults.reduce((worst, r) =>
+      (r.failed || 0) > (worst?.failed || 0) ? r : worst, null);
+  }
+
+  it('picks the entry with the highest failed count', () => {
+    const results = [
+      { iteration: 1, failed: 2, failures: 'render error' },
+      { iteration: 2, failed: 5, failures: 'TypeError: Cannot read props' },
+      { iteration: 3, failed: 1, failures: 'game over missing' },
+    ];
+    const worst = pickWorstResult(results);
+    assert.equal(worst.failed, 5);
+    assert.ok(worst.failures.includes('TypeError'));
+  });
+
+  it('returns null for empty array', () => {
+    const worst = pickWorstResult([]);
+    assert.equal(worst, null);
+  });
+
+  it('handles all-zero failed counts (picks first entry or last with equal)', () => {
+    const results = [
+      { iteration: 1, failed: 0, failures: 'none' },
+      { iteration: 2, failed: 0, failures: 'none2' },
+    ];
+    // With all zeros, reduce stays on the initial null since 0 > 0 is false — null returned
+    const worst = pickWorstResult(results);
+    // (0 || 0) > (null?.failed || 0) => 0 > 0 => false, so stays null
+    assert.equal(worst, null);
+  });
+});

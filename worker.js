@@ -66,6 +66,10 @@ function categorizeFailure(failureDesc) {
   if (/postmessage|message|event/.test(desc)) return 'messaging';
   if (/layout|responsive|width|480/.test(desc)) return 'layout';
   if (/endgame|complete|finish/.test(desc)) return 'completion';
+  if (/undefined|null|cannot read prop|TypeError/i.test(desc)) return 'state';
+  if (/lives|wrong answer|correct answer|retry|interaction/i.test(desc)) return 'interaction';
+  if (/victory|game over|out of lives|completion/i.test(desc)) return 'completion';
+  if (/cannot find module|module not found|require/i.test(desc)) return 'infra';
   return 'unknown';
 }
 
@@ -1154,12 +1158,15 @@ const worker = new Worker(
 
     // E7: Record failure patterns for analysis
     if (report.status === 'FAILED' && Array.isArray(report.test_results)) {
-      const lastResult = report.test_results[report.test_results.length - 1];
+      const lastResult = report.test_results.reduce((worst, r) =>
+        (r.failed || 0) > (worst?.failed || 0) ? r : worst, null);
       if (lastResult && lastResult.failures) {
-        const failures = lastResult.failures.split(', ').filter(Boolean);
-        for (const failure of failures) {
-          const category = categorizeFailure(failure);
-          db.recordFailurePattern(gameId, failure, category);
+        const failures = lastResult.failures.split(', ').filter(f => Boolean(f) && f !== 'unknown');
+        if (failures.length > 0) {
+          for (const failure of failures) {
+            const category = categorizeFailure(failure);
+            db.recordFailurePattern(gameId, failure, category);
+          }
         }
       }
     }
