@@ -1963,3 +1963,25 @@ Updated error messages to show both Option A and Option B so static-fix LLMs pro
 - **T1 static validator (`lib/validate-static.js`):** Added check — scan HTML for `setTimeout(` appearing inside the `startGame()` function body. If found, emit ERROR: `RULE-SYNC-1 violation: startGame() body wrapped in setTimeout — CDN TransitionScreen will not dismiss`.
 
 **Prevention rule (RULE-SYNC-1):** `startGame()` must execute its full init logic synchronously. Any `setTimeout`, `setInterval`, `Promise`, or `async/await` wrapping the top-level function body is a T1 error. Games affected: any CDN game with `TransitionScreen` where the LLM added `setTimeout` in `startGame()`. Detection is reliable at T1 — fire before test generation so smoke-regen can fix it immediately.
+
+**Measurement plan — build #535 (soh-cah-toa-worked-example):**
+
+Build #535 is the first build with both RULE-SYNC-1 gen prompt rule and §5i T1 check active. It directly measures whether the fix eliminates the game-flow 0/5 failure from build #531.
+
+| Metric | Build #531 (baseline) | Build #535 (target) |
+|--------|-----------------------|---------------------|
+| T1 RULE-SYNC-1 error at Step 1b | not checked | must be ABSENT (LLM obeyed gen rule) |
+| game-flow iteration 1 pass rate | 0/5 (0%) | ≥3/5 (≥60%) |
+| mechanics iteration 1 pass rate | 0/3 (0%) | ≥2/3 (≥67%) |
+| Global fix loop triggered | yes (caused regression) | no (if game-flow passes) |
+| Final build outcome | FAILED (0/11) | target: APPROVED |
+
+**CONFIRMED if:** T1 RULE-SYNC-1 check is silent (no error emitted at Step 1b) AND game-flow ≥3/5 on first attempt.
+
+**HYPOTHESIS WRONG — gen prompt insufficient if:** T1 RULE-SYNC-1 error fires at Step 1b (LLM still generated `setTimeout` despite explicit gen rule) → need stronger enforcement (static-fix must patch it before smoke check; smoke-regen prompt must include RULE-SYNC-1 fix instruction).
+
+**HYPOTHESIS WRONG — different root cause if:** T1 is silent AND game-flow still 0/5 → the `setTimeout` was not the only failure mode; need fresh local diagnostic.js run against build #535 HTML to identify the new root cause.
+
+**Secondary measurement — global fix loop regression guard:** If game-flow does pass (≥3/5), confirm the global fix loop does NOT fire (Step 3c should be skipped or fire with ≥80% categories already passing). If global fix fires and regresses categories, next R&D task is global fix loop suppression at high pass rate (planned in ROADMAP.md).
+
+**Source:** R&D analysis 2026-03-22.
