@@ -884,4 +884,196 @@ describe('startGame() synchronous check (5i) — RULE-SYNC-1', () => {
       `Unexpected startGame synchronous error: ${output}`,
     );
   });
+
+  it('fails when HTML uses window.mira.components namespace (hallucination)', () => {
+    // window.mira does not exist in CDN — destructuring from it assigns undefined to all consts
+    // causing waitForPackages() to spin forever and #gameContent to never be created
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const { ScreenLayout, ProgressBarComponent, TransitionScreenComponent, TimerComponent, VisibilityTracker } = window.mira.components;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('window.mira.components does not exist'),
+      `Expected window.mira.components error but got: ${output}`,
+    );
+  });
+
+  it('does not flag window.mira.components when bare window.ScreenLayout globals are used (correct CDN pattern)', () => {
+    // CDN components are bare window globals — this is the correct pattern.
+    // Note: adding ScreenLayout/ProgressBarComponent to VALID_HTML (which has no ScreenLayout.inject()
+    // or typeof guard) will trigger other checks (5e, 5f3) — that's fine and expected.
+    // This test only verifies that window.mira.components is NOT flagged for correct bare-global usage.
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const sl = window.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('window.mira.components does not exist'),
+      `Unexpected window.mira.components error for correct bare-global usage: ${output}`,
+    );
+  });
+});
+
+describe('Hallucinated CDN namespace checks (5k)', () => {
+  it('fails when window.cdn.ScreenLayout namespace is used', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const sl = window.cdn.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Hallucinated CDN namespace'),
+      `Expected hallucinated namespace error but got: ${output}`,
+    );
+  });
+
+  it('fails when window.mathai.ScreenLayout namespace is used', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const sl = window.mathai.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Hallucinated CDN namespace'),
+      `Expected hallucinated namespace error but got: ${output}`,
+    );
+  });
+
+  it('fails when window.Ralph.ScreenLayout namespace is used', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const sl = window.Ralph.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Hallucinated CDN namespace'),
+      `Expected hallucinated namespace error but got: ${output}`,
+    );
+  });
+
+  it('fails when window.homeworkapp.ScreenLayout namespace is used', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const sl = window.homeworkapp.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Hallucinated CDN namespace'),
+      `Expected hallucinated namespace error but got: ${output}`,
+    );
+  });
+
+  it('fails when window.homeworkapp.TimerComponent namespace is used (case-insensitive)', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const timer = new window.homeworkapp.TimerComponent('timer-slot', {});
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Hallucinated CDN namespace'),
+      `Expected hallucinated namespace error but got: ${output}`,
+    );
+  });
+
+  it('passes when window.cdn is used for a non-CDN purpose (no CDN component names present)', () => {
+    // window.cdn.someOtherThing — not a CDN component name, so no error
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const cfg = window.cdn.config;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    // Should NOT flag — no CDN component names (ScreenLayout, ProgressBarComponent, etc.) present
+    assert.ok(
+      !output.includes('Hallucinated CDN namespace'),
+      `Unexpected hallucinated namespace error for non-component cdn usage: ${output}`,
+    );
+  });
+
+  it('passes when window.components is used — this IS a valid CDN access pattern', () => {
+    // window.components?.TimerComponent is explicitly allowed (used in 5f3 typeof checks)
+    const html = VALID_HTML.replace(
+      '</script>',
+      `while (typeof window.components?.TimerComponent === 'undefined') { await new Promise(r => setTimeout(r, 50)); }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('Hallucinated CDN namespace'),
+      `window.components should be allowed as valid CDN access pattern but got error: ${output}`,
+    );
+  });
+
+  it('passes when using bare window.ScreenLayout (no namespace)', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `while (typeof ScreenLayout === 'undefined') { await new Promise(r => setTimeout(r, 50)); }
+  const sl = window.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('Hallucinated CDN namespace'),
+      `Bare window.ScreenLayout should be valid but got error: ${output}`,
+    );
+  });
+});
+
+describe('require() / ES import in CDN game script checks (5l)', () => {
+  it('fails when require() is used to load a CDN package by name', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const FeedbackManager = require('feedback-manager');
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('require()'),
+      `Expected require() error but got: ${output}`,
+    );
+  });
+
+  it('fails when require() references @mathai scoped package', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const { ScreenLayout } = require('@mathai/components');
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('require()'),
+      `Expected require() error but got: ${output}`,
+    );
+  });
+
+  it('passes when require() appears without a CDN package name — unrelated usage', () => {
+    // require() in a comment, or referencing a non-CDN string
+    const html = VALID_HTML.replace(
+      '</script>',
+      `// This game does not require additional libraries
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes("require()"),
+      `Unexpected require() error for comment usage: ${output}`,
+    );
+  });
 });

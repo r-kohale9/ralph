@@ -128,7 +128,64 @@ node lib/validate-static.js /tmp/test-true-positive.html
 npm test → # pass 644 # fail 0
 ```
 
-## 2b. Evidence of Root Cause — Build #532 (signalCollector.trackEvent hallucination)
+## 2b. Evidence of Root Cause — Build #533 (window.mira.components hallucination — DIFFERENT root cause)
+
+**Source:** Static analysis of `/opt/ralph/data/games/right-triangle-area/builds/533/index.html` + server journal logs. 2026-03-22.
+
+**Context:** Build #533 was queued to verify the `signalCollector.trackEvent` T1 fix. The fix WAS in place — build #533 passed T1 (static-validation-passed in logs at 07:58:16). However, it still failed at Step 1d with "Blank page: missing #gameContent element".
+
+**Evidence A — Build #533 passed T1 (signalCollector.trackEvent fix confirmed working):**
+```
+07:58:16 [worker] static-validation-passed | game=right-triangle-area
+```
+The T1 check for `signalCollector.trackEvent` worked correctly — T1 passed, meaning the LLM did NOT generate `.trackEvent()` this time.
+
+**Evidence B — Contract-fix introduced a T1 error, but build proceeded:**
+```
+07:59:22 [pipeline] Step 1b: Contract-fix introduced 1 T1 error(s) — logged for fix loop
+```
+The contract-fix LLM introduced one T1 error (missing 480px/max-width constraint — confirmed by running T1 locally on build #533's `index.html`: `✗ MISSING: No 480px or max-width constraint found`). This is logged for the fix loop but does NOT block the smoke check.
+
+**Evidence C — Smoke check failure: `#gameContent` never created:**
+```
+08:03:10 [pipeline] Step 1d: Fatal smoke errors detected: Blank page: missing #gameContent element
+08:06:28 [pipeline] Step 1d: Fatal smoke errors detected: Blank page: missing #gameContent element  ← smoke-regen also fails
+08:06:28 Job 17 failed: Step 1d: Page load failed after regeneration attempt
+```
+
+**Evidence D — Root cause: `window.mira.components` namespace hallucination:**
+
+Build #533's `index.html` line 52:
+```js
+const { ScreenLayout, ProgressBarComponent, TransitionScreenComponent, TimerComponent, VisibilityTracker } = window.mira.components;
+```
+
+`window.mira.components` does NOT exist. The CDN bundles expose:
+- `window.ScreenLayout`, `window.ProgressBarComponent`, etc. (globals via `components/index.js` → `loadAllComponents()`)
+- `window.SignalCollector`, `window.VisibilityTracker`, etc. (globals via `helpers/index.js` → `loadAllHelpers()`)
+- `window.MathAIComponents` — a summary object set AFTER all components load asynchronously
+- `window.MathAIHelpers` — same pattern for helpers
+
+Neither bundle creates `window.mira` or `window.mira.components`. The destructuring assigns `undefined` to all components.
+
+**Evidence E — Why `waitForPackages()` doesn't save it:**
+
+Build #533's `waitForPackages()` loop (lines 106):
+```js
+while (typeof ScreenLayout === 'undefined' || typeof ProgressBarComponent === 'undefined' || ...)
+```
+
+`ScreenLayout` is a `const` in module scope holding `undefined` (from the failed destructuring). `typeof undefined === 'undefined'` is `true` — so the loop spins indefinitely. `ScreenLayout.inject()` never runs. `#gameContent` is never created. The smoke check (8s timeout) fires "Blank page: missing #gameContent element" at 07:58:16+~5min.
+
+**Evidence F — This is a NEW hallucination, not the same as #530/#532:**
+
+- Build #530: `window.components?.ProgressBarComponent` (partially correct — wrong namespace, but at least scoped)
+- Build #532: `signalCollector.trackEvent()` (method hallucination)
+- Build #533: `window.mira.components` (wrong namespace — `window.mira` does not exist)
+
+Three independent LLM hallucinations about CDN API shape. The correct namespace is `window.ScreenLayout` (bare global) or `window.MathAIComponents.ScreenLayout` (only available after async load completes).
+
+## 2c. Evidence of Root Cause — Build #532 (signalCollector.trackEvent hallucination)
 
 **Source:** Build #532 Step 1d smoke-check log. 2026-03-22.
 
@@ -149,7 +206,25 @@ The CDN `signalCollector` object from PART-011 exposes lifecycle methods (`.sign
 **Evidence D — Hallucination recurrence:**
 The same `.trackEvent()` call appeared in 3 consecutive independently-generated HTML files. Without a constraint in the gen prompt or a T1 gate, every subsequent build of this game (and other PART-011 games) will produce the same hallucination.
 
-## 3b. POC Fix Verification — signalCollector.trackEvent (PENDING)
+## 3b. POC Fix Verification — window.mira.components hallucination (Build #533)
+
+**Fix location 1 — `lib/validate-static.js`:** Add a T1 check that fires if `window.mira.components` appears in the HTML:
+```js
+if (/window\.mira\.components/.test(html)) {
+  errors.push('ERROR: window.mira.components does not exist — CDN components are bare globals: window.ScreenLayout, window.ProgressBarComponent, etc. (set async by components/index.js). Do not destructure from window.mira.components.');
+}
+```
+
+**Fix location 2 — Gen prompt `CDN_CONSTRAINTS_BLOCK`:** Add:
+```
+- window.mira does NOT exist. CDN components/helpers are NOT under window.mira.components or any window.mira namespace.
+- CDN components are bare globals: window.ScreenLayout, window.ProgressBarComponent, window.TransitionScreenComponent, window.TimerComponent, etc. — BUT they are loaded asynchronously, so waitForPackages() must check them.
+- Correct waitForPackages pattern: check typeof window.ScreenLayout === 'undefined' (bare global, not window.mira.components.ScreenLayout)
+```
+
+**POC verification status:** NOT COMPLETE. T1 check + gen prompt update needed before build #534.
+
+## 3c. POC Fix Verification — signalCollector.trackEvent (PENDING)
 
 **Fix location 1 — `lib/validate-static.js`:** Add a T1 check that fires if `signalCollector.trackEvent` appears in the HTML:
 ```js
@@ -189,16 +264,24 @@ if (/signalCollector\.trackEvent\b/.test(html)) {
 
 ## 5. Go/No-Go for E2E
 
-**NOT READY FOR E2E — signalCollector.trackEvent hallucination must be fixed first.**
+**NOT READY FOR E2E — `window.mira.components` hallucination must be fixed first.**
 
-Build #532 confirmed the T1 false-positive fix worked (smoke check advanced past Step 1b), but revealed a second independent failure: `Init error: signalCollector.trackEvent is not a function` at Step 1d. This hallucination appeared in all three builds (#527, #530, #532) and will recur until fixed at the source.
+Build #533 confirmed the `signalCollector.trackEvent` T1 fix worked (T1 passed at 07:58:16). However a third independent hallucination appeared: the LLM destructured components from `window.mira.components` (a namespace that doesn't exist), causing `waitForPackages()` to spin indefinitely and `ScreenLayout.inject()` to never run. Builds #527–#533 have now exposed four sequential pipeline/hallucination bugs — each one hidden by the previous.
 
-**Blocking items before next E2E:**
-1. Add `signalCollector.trackEvent` as a T1 static-validation error in `lib/validate-static.js`
-2. Add prohibition to gen prompt `CDN_CONSTRAINTS_BLOCK`: `signalCollector` has no `.trackEvent()` — use PART-011 lifecycle API (`.signalCorrect()`, `.signalWrong()`, `.seal()`, `.getPayload()`)
-3. Add `signalCollector.trackEvent is not a function` to `classifySmokeErrors()` fatal patterns in `lib/pipeline.js`
+**Blocking items before build #534:**
+1. Add `window.mira.components` as a T1 static-validation error in `lib/validate-static.js` — fires if the HTML contains the string `window.mira.components`
+2. Add prohibition to gen prompt `CDN_CONSTRAINTS_BLOCK`:
+   - `window.mira` does NOT exist. Never destructure from `window.mira.components`.
+   - CDN components are bare globals: `window.ScreenLayout`, `window.ProgressBarComponent`, `window.TransitionScreenComponent`, `window.TimerComponent`, etc.
+   - Correct `waitForPackages()` pattern: check `typeof window.ScreenLayout === 'undefined'` (bare global)
+3. Run `npm test` to confirm no regressions
+4. Deploy `lib/validate-static.js` and `lib/pipeline.js` to server before queuing build #534
 
-Once these three fixes are deployed, re-queue right-triangle-area. The game's HTML structure is sound (correct canvas triangle rendering, correct area formula logic, correct CDN init pattern). Pipeline-level bugs have been the only failure mode across all three builds.
+**Resolved items (already fixed and confirmed):**
+- T1 false-positive for `window.components?.X` (commit 65aed12) — confirmed working in builds #532 and #533
+- `signalCollector.trackEvent` hallucination — T1 check deployed; build #533 passed T1 without triggering it
+
+The game's core HTML logic (canvas triangle rendering, area formula, CDN init structure) is sound. All failures have been pipeline or namespace hallucination bugs. Once the `window.mira.components` check is deployed, the next build should advance past Step 1d for the first time.
 
 ## Failure History
 
@@ -206,7 +289,8 @@ Once these three fixes are deployed, re-queue right-triangle-area. The game's HT
 |-------|---------|------------|--------|
 | #527 | game-flow all fail; E8 iteration blank page | TimerComponent('headless-timer') throws (slot not in DOM); E8 merge stripped CDN scripts | Fixed in gen prompt + T1 E8 CDN check |
 | #530 | Blank page: missing #gameContent element (Step 1d, both initial + smoke-regen) | T1 validator false-positive for `window.components?.TimerComponent` → static-fix LLM adds broken bare-global checks → waitForPackages spins 120s → #gameContent never created | Fixed: commit 65aed12 corrects T1 validator to accept window.components?.X form |
-| #532 | Init error: signalCollector.trackEvent is not a function (Step 1d) | LLM hallucinates `.trackEvent()` on signalCollector (PART-011); method does not exist in CDN API | NOT FIXED — T1 check + gen prompt prohibition needed before next build |
+| #532 | Init error: signalCollector.trackEvent is not a function (Step 1d) | LLM hallucinates `.trackEvent()` on signalCollector (PART-011); method does not exist in CDN API | Fixed: T1 check + gen prompt prohibition deployed before build #533 |
+| #533 | Blank page: missing #gameContent element (Step 1d, both initial + smoke-regen) | LLM generated `const { ScreenLayout, ... } = window.mira.components` — `window.mira` doesn't exist; components are bare globals (window.ScreenLayout etc.); destructuring yields undefined everywhere; waitForPackages() spins forever; ScreenLayout.inject() never runs; #gameContent never created | NOT FIXED — T1 check for `window.mira.components` + gen prompt clarification needed before build #534 |
 
 ## Manual Run Findings
 
@@ -231,4 +315,12 @@ For build #530 specifically: the original `index-generated.html` (49KB, from GCP
 - Partial success: T1 fix worked — HTML passed Step 1b. Build advanced further than #527 or #530.
 - New failure: Step 1d smoke check threw `Init error: signalCollector.trackEvent is not a function` — a second independent hallucination bug not visible in earlier builds because the T1 cascade hid it.
 - Root cause: LLM hallucinates `signalCollector.trackEvent(event)` on the PART-011 CDN object which has no such method.
-- Status: T1 check + gen prompt prohibition + classifySmokeErrors() entry needed. Build #533 blocked until fixes deployed.
+- Status: T1 check + gen prompt prohibition deployed before build #533. Build #533 confirmed fix worked (T1 passed).
+
+**Build #533:**
+- What was tried: Queued to verify `signalCollector.trackEvent` T1 fix.
+- Partial success: `signalCollector.trackEvent` T1 check worked — T1 passed (07:58:16). Also: contract-fix introduced 1 T1 error (missing 480px constraint — logged for fix loop, non-blocking).
+- New failure: Step 1d smoke check reported "Blank page: missing #gameContent element" — same surface symptom as build #530 but different root cause.
+- Root cause: LLM generated `const { ScreenLayout, ProgressBarComponent, ... } = window.mira.components` — `window.mira` namespace does not exist. Components are bare globals (window.ScreenLayout etc.) set asynchronously by `components/index.js → loadAllComponents()`. Destructuring yields `undefined` for all components. `waitForPackages()` loops on `typeof ScreenLayout === 'undefined'` which is always `true` (const holds undefined). `ScreenLayout.inject()` never runs. `#gameContent` never created.
+- CDN confirmed: `components/index.js` calls `loadAllComponents()` async and sets `window.MathAIComponents` after load. No `window.mira` namespace anywhere in either the helpers or components bundles.
+- Status: T1 check for `window.mira.components` + gen prompt prohibition needed before build #534.
