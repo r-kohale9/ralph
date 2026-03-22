@@ -10,7 +10,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { lintGeneratedTests } = require('../lib/pipeline-test-gen');
+const { lintGeneratedTests, hasRunnableTestCalls } = require('../lib/pipeline-test-gen');
 
 // Silence lint WARN output during tests
 const silentLog = () => {};
@@ -484,5 +484,52 @@ test.describe('Game flow', () => {
     const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
     const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
     assert.equal(ht.length, 1, 'HARDCODED_TIMEOUT inside test body after test.describe must still be flagged');
+  });
+});
+
+describe('hasRunnableTestCalls — zero-test guard after banned-selector strip', () => {
+  it('returns true for content with a top-level test() call', () => {
+    const content = `
+test('level progression works', async ({ page }) => {
+  await startGame(page);
+  await clickNextLevel(page);
+});
+`;
+    assert.equal(hasRunnableTestCalls(content), true, 'Should return true when test() call is present');
+  });
+
+  it('returns true for content with test() indented inside test.describe()', () => {
+    const content = `test.describe('Game flow', () => {
+  test('starts correctly', async ({ page }) => {
+    await startGame(page);
+  });
+});`;
+    assert.equal(hasRunnableTestCalls(content), true, 'Should return true when test() is inside test.describe()');
+  });
+
+  it('returns false when all tests were stripped to REMOVED comments', () => {
+    // Simulates output after banned-selector strip removes every test() block:
+    const content = [
+      '// REMOVED: direct #mathai-transition-slot button click (banned — use clickNextLevel())',
+      '// REMOVED: #mathai-transition-slot button assertion (banned — CDN clears slot after startGame)',
+      '// REMOVED: #mathai-transition-slot button poll assertion (banned — CDN clears slot after startGame)',
+    ].join('\n') + '\n';
+    assert.equal(hasRunnableTestCalls(content), false, 'Should return false when only REMOVED comments remain');
+  });
+
+  it('returns false for empty string', () => {
+    assert.equal(hasRunnableTestCalls(''), false, 'Should return false for empty content');
+  });
+
+  it('returns false for boilerplate-only content with no test() calls', () => {
+    const content = `async function startGame(page) {
+  await page.locator('#mathai-transition-slot button').first().click();
+}
+
+async function clickNextLevel(page) {
+  await page.locator('#mathai-transition-slot button').first().click();
+}
+`;
+    assert.equal(hasRunnableTestCalls(content), false, 'Should return false when only helper functions are present');
   });
 });
