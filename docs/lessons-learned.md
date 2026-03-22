@@ -2327,3 +2327,33 @@ ls -la /opt/ralph/warehouse/templates/ | grep "^d" | awk '{print $3, $9}' | grep
 **Prevention:** After any `sudo`-run server operation touching `/opt/ralph/warehouse/`, immediately re-audit ownership. The pipeline does not retry post-approval copy on EACCES — the build must be re-queued manually (reset game status + queue new build).
 
 **Affected dirs found 2026-03-22:** which-ratio, soh-cah-toa-worked-example, count-and-tap, right-triangle-area — all fixed proactively.
+
+## Lesson 182 — Test Gen: Contract category 30.8% pass rate — two root causes, one persisting post-CT8
+
+**Source:** Test Gen slot analysis | **Date:** 2026-03-23
+
+**Pattern:** The `contract` batch has the lowest pass rate of all categories (30.8% across last 50 builds; 45.1% for game-flow, 53.3% for level-progression, 65.7% for edge-cases, 67.2% for mechanics). Two root causes account for all 20 contract failures analyzed:
+
+**Root Cause A — expect.poll() return value misuse (11 occurrences, all pre-build-546):**
+`TypeError: Cannot read properties of undefined (reading 'type')` — generated test assigned `const msg = await expect.poll(...)` which returns an Expect object, not the polled value. Triage correctly deleted these tests. CT8 rule was added in build #546 to address this. Post-CT8 contract pass rate is 66.7% (6/9 tests), confirming CT8 was effective.
+
+**Root Cause B — #mathai-transition-slot button .not.toBeVisible() assertion as precondition (5 occurrences, builds #547 and #553, both post-CT8):**
+Contract tests assert `expect(page.locator('#mathai-transition-slot button')).not.toBeVisible()` AFTER calling skipToEnd(), as a precondition check before reading postMessage. This is distinct from CT3 (which bans CLICKING through the slot to reach game completion). The slot button IS visible in some games after skipToEnd() because the game triggers a 'game-over' transition screen. This causes the `.not.toBeVisible()` assertion to fail. CT3 covers the navigation case but not the assertion-as-precondition case.
+
+**Evidence:**
+- Overall contract pass rate: 30.8% (12 passed, 27 failed out of 39 total across last 50 builds)
+- Root Cause A: 11 contract failure entries with `TypeError: Cannot read properties of undefined (reading 'type')` — builds #526, #528, #531, #544, #545, all pre-CT8
+- Root Cause B: 5 contract failure entries with `locator('#mathai-transition-slot button').not.toBeVisible() failed` — builds #547 (find-triangle-side iter 1) and #553 (name-the-sides iters 1+2), both post-CT8; build #553 stuck all 3 iterations
+- Post-CT8 contract improvement: 30.8% → 66.7% confirms CT8 eliminated Root Cause A
+
+**Proposed fix — add CT9 rule to lib/prompts.js contract section:**
+```
+CT9. NEVER assert '#mathai-transition-slot button' visibility (toBeVisible OR not.toBeVisible) anywhere in a contract test — not as a precondition, not as a navigation step, not as a state check. The transition slot state after skipToEnd() is undefined — it may show a game-over screen with a visible button, or it may be absent. Use ONLY waitForPhase(page, 'results', 20000) to verify game completion before reading postMessage. Pattern:
+    WRONG: await skipToEnd(page, 'victory'); await expect(page.locator('#mathai-transition-slot button')).not.toBeVisible(); const msg = ...
+    RIGHT: await skipToEnd(page, 'victory'); await waitForPhase(page, 'results', 20000); const msg = ...
+    (find-triangle-side #547, name-the-sides #553 — .not.toBeVisible() on slot button after skipToEnd() failed because game-over transition screen was showing)
+```
+
+Also fix timeout inconsistency: C1 rule uses `waitForPhase('results', 10000)` but CT4 mandates 20000ms. C1's 10s example must be updated to 20s to avoid generated tests using the shorter timeout seen in C1 example.
+
+**Status:** Proposed — needs implementation in lib/prompts.js contract section + verification build
