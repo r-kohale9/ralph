@@ -124,8 +124,10 @@ Listed in priority order:
 
 ### Priority 1 (required before queuing):
 1. **Clarify FeedbackManager.sound usage:** Remove the ambiguous spec header note or explicitly add `FeedbackManager.sound` calls to the game flow description (Section 6). The header says the game uses it; the parts table and game flow do not mention it. This ambiguity will cause the LLM to make an arbitrary choice during generation.
+   **STATUS: APPLIED 2026-03-23** — Spec header rewritten to ban `FeedbackManager.sound` and `playDynamicFeedback` explicitly. Anti-pattern #13 added to Section 7.
 
 2. **Confirm compute-it prerequisite status:** If compute-it is not approved at queue time, the spec's CDN compliance note mandates a trig values reference panel. Decide now and add it to the spec as a conditional (not runtime-conditional — the spec needs to resolve this before generation).
+   **STATUS: APPLIED 2026-03-23** — Conditional resolved: compute-it is not yet approved (status: planned), so the reference panel is now an unconditional requirement in Section 11.
 
 3. **Add `data-side` attribute to step-1 button test selectors:** In Section 8 test scenarios, replace "click button whose text equals 'hypotenuse'" with `[data-side='hypotenuse']`. This makes tests robust to label copy changes.
 
@@ -140,6 +142,6 @@ Listed in priority order:
 
 ## Summary
 
-The real-world-problem spec is **ready to queue** after the two Priority 1 items are resolved (FeedbackManager.sound ambiguity + compute-it prerequisite decision). The Bloom level is correctly enforced by structure, not just by label. Misconception coverage is strong for the 4-round constraint. The cognitive-demand test category is the best-specified test section in the entire trig session. CDN compliance is clean.
+The real-world-problem spec is **ready to queue**. Both Priority 1 items have been resolved (2026-03-23): FeedbackManager.sound ambiguity removed + compute-it prerequisite conditionality resolved to unconditional reference panel. The Bloom level is correctly enforced by structure, not just by label. Misconception coverage is strong for the 4-round constraint. The cognitive-demand test category is the best-specified test section in the entire trig session. CDN compliance is clean.
 
 **Estimated build risk:** Low. The interaction pattern (multi-step MCQ + typed input + SVG) is a direct extension of find-triangle-side (#549), which is an approved build. The only novel element is the three-step decomposition with instructional-only feedback on steps 1-2, which is simpler than the faded-example mechanics of soh-cah-toa-worked-example (#544).

@@ -2,7 +2,7 @@
 
 > **Self-contained template.** An LLM reading ONLY this file should produce a working HTML file. No need to re-read the warehouse.
 
-> **CRITICAL — PART-017 is NO (Feedback Integration NOT included).** Do NOT call `FeedbackManager.init()` in this game. Calling it triggers an audio permission popup that causes non-deterministic test failures in Playwright. The game uses `FeedbackManager.sound` and `FeedbackManager.playDynamicFeedback` directly (which do not require init). Omit `FeedbackManager.init()` entirely.
+> **CRITICAL — PART-017 is NO (Feedback Integration NOT included).** Do NOT call `FeedbackManager.init()` in this game. Calling it triggers an audio permission popup that causes non-deterministic test failures in Playwright. Omit `FeedbackManager.init()` entirely. Do NOT call `FeedbackManager.sound` or `FeedbackManager.playDynamicFeedback` — all audio calls are omitted in this game (same pattern as find-triangle-side build #549).
 
 > **CRITICAL — window.gameState MUST be set.** `window.gameState = gameState` must appear at the bottom of the gameState declaration block. The test harness reads `window.gameState` to sync `data-phase` / `data-lives` / `data-score`. If omitted, `waitForPhase()` will always timeout.
 
@@ -603,6 +603,7 @@ Standard PART-024 TransitionScreen start. On "Play" click: `startGame()` → `re
 10. **Do NOT hardcode SVG labels** — all labels, angle positions, and unknown-side markers must be set dynamically in `renderRound()` from `diagramConfig`.
 11. **Do NOT advance past step 1 without a correct OR continued diagram answer** — the learner must either answer correctly or explicitly click "Continue" after seeing feedback. Same rule applies for the step 2→3 transition. Skipping a step entirely removes the L4 cognitive demand.
 12. **Do NOT label the SVG sides with the geometric term and the context noun simultaneously in step 1** — showing "opposite (pole)" in the diagram while asking "which side is opposite?" trivializes step 1. Use only the context noun (e.g., "pole (5 m)") in the diagram; the geometric label is the learner's answer.
+13. **`FeedbackManager.sound` and `playDynamicFeedback` must NOT be called (PART-017=NO).** Omit all audio calls. This game produces no sound — same pattern as find-triangle-side (build #549), soh-cah-toa-worked-example (build #544), and name-the-sides (build #557).
 
 ---
 
@@ -708,7 +709,7 @@ A two-step version (skip step 1, go straight to ratio selection) would reduce th
 - **No new CDN parts required.** All interaction is achievable with PART-013 (fixed MCQ validation), PART-014 (function validation for typed numeric), PART-022 (option buttons), PART-023 (progress bar), PART-024 (transition screens), and inline JS/CSS.
 - **No drag-and-drop.** Step 1 uses three MCQ buttons, not draggable labels onto the SVG. Drag-and-drop on SVG hit areas is not supported by any current CDN part (see interaction-patterns.md). MCQ button rows achieve the same cognitive demand without the CDN dependency.
 - **SVG rendered inline.** The triangle diagram is an inline `<svg>` block with text elements updated dynamically by `renderRound()`. Same pattern used in `find-triangle-side` (approved build #549).
-- **Calculator button is NOT included.** Rounds 1–4 use standard angles (30°, 45°, 60°) whose trig values are taught in Game 5 (`compute-it`). If this spec is built before `compute-it` is approved, include a collapsible reference panel: "sin(30°)=0.5, cos(30°)=0.866, sin(60°)=0.866, cos(60°)=0.5, tan(45°)=1."
+- **Calculator button is NOT included.** Rounds 1–4 use standard angles (30°, 45°, 60°) whose trig values are taught in Game 5 (`compute-it`). Include a collapsible reference panel showing: "sin(30°)=0.5, cos(30°)=0.866, sin(60°)=0.866, cos(60°)=0.5, tan(45°)=1." (`compute-it` is not yet approved; panel is required until it is.)
 - **No `FeedbackManager.init()`.** As in all approved trig session games (find-triangle-side #549, soh-cah-toa-worked-example #544, name-the-sides #557).
 - **Tolerance is ±0.15** throughout. Matches find-triangle-side tolerance. Accommodates learners who use rounded trig values (e.g., sin(60°) = 0.87 instead of 0.866) and get answers like 8.7 instead of 8.66.
 - **Three-step panel layout uses inline CSS toggle** (adding/removing `hidden` class). No CDN panel-switching part is needed.
