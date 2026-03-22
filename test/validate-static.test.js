@@ -876,6 +876,27 @@ describe('progressBar.timer property access check (5f7)', () => {
   });
 });
 
+describe('progressBar.init() method does not exist check (5f9)', () => {
+  it('fails when progressBar.init() is called', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.init();');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('progressBar.init'),
+      `Expected progressBar.init error but got: ${output}`,
+    );
+  });
+
+  it('passes when progressBar.update() is used instead', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(0, 10);');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('progressBar.init'),
+      `Unexpected 5f9 error for valid progressBar.update usage: ${output}`,
+    );
+  });
+});
+
 describe('TimerComponent slot not created by ScreenLayout (5f8)', () => {
   const cdnHtmlWithTimer = (slotsConfig) => `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>T</title><style>body{}</style></head>
