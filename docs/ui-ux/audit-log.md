@@ -18,10 +18,10 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** addition-mcq — 2026-03-23 (spec-only; no approved build; 10 findings — 7a, 2b, 0c, 1d) — COMPLETED
+**Current task:** reciprocal-ratios — 2026-03-23 — BLOCKED: no spec exists. Game directory, spec.md, and games/index.md entry all absent. Referenced only in docs/education/session-planner-v1.md line 257 as a future template. No audit possible until spec is written.
 **Last completed:** addition-mcq — 2026-03-23
-**Waiting on:** next game in queue (no further stubs in inventory)
-**Blocked by:** none
+**Waiting on:** reciprocal-ratios spec creation (Education slot)
+**Blocked by:** spec does not exist
 
 ### Batch 2 — Completed 2026-03-23 (static analysis)
 
