@@ -1,6 +1,6 @@
 # Ralph Pipeline — Cron Definitions
 
-All crons are session-only. Recreate all 6 at session start if CronList shows fewer than 6 (4 operational + slot health check + slot watchdog).
+All crons are session-only. Recreate all 7 at session start if CronList shows fewer than 7 (4 operational + slot health check + slot watchdog + analytics cron). The Code Review slot does not have its own cron — it is monitored by Slot Watchdog (step 8) and Slot Health Check (step 9).
 **Cron 3 (Queue Strategist) is PERMANENTLY DISABLED — do NOT recreate it.**
 
 ## Cron 1 — Build Doctor (every 5 min)
@@ -61,9 +61,9 @@ You are the Roadmap Manager — expert in Ralph pipeline strategy and prioritiza
 Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md and /Users/the-hw-app/Projects/mathai/ralph/docs/lessons-learned.md
 
 1. Check if any planned items are now complete based on recent commits (git log --oneline -10)
-2. Check if the R&D slot has an active task — if not, identify the highest-leverage next R&D task from recent build data
-3. Update ROADMAP.md if needed (mark items done, update R&D slot)
-4. Report: what changed, what's the active R&D task
+2. Check if the Gen Quality slot has an active task — if not, identify the highest-leverage next Gen Quality task from recent build data
+3. Update ROADMAP.md if needed (mark items done, update Gen Quality slot)
+4. Report: what changed, what's the active Gen Quality task
 ```
 
 ## Cron 5 — Roadmap Task Check (hourly at :23)
@@ -73,13 +73,13 @@ Schedule: `23 * * * *`
 ```
 Roadmap task queue check. Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md
 
-Check: is there exactly one R&D task marked 'active'? If not, identify the highest-leverage pending R&D item (look at recent build failure patterns, iteration counts, which failures are most common) and mark it active.
+Check: is there exactly one Gen Quality task marked 'active'? If not, identify the highest-leverage pending Gen Quality item (look at recent build failure patterns, iteration counts, which failures are most common) and mark it active.
 
-Check: is there a pending local test slot handoff (HTML bug or test bug classification) that has not yet been routed to R&D? If yes, that handoff becomes the R&D task immediately — HTML bugs go to CDN_CONSTRAINTS_BLOCK + T1 checks, test bugs go to test-gen category prompts.
+Check: is there a pending Test Engineering slot handoff (HTML bug or test bug classification) that has not yet been routed to Gen Quality? If yes, that handoff becomes the Gen Quality task immediately — HTML bugs go to CDN_CONSTRAINTS_BLOCK + T1 checks, test bugs go to test-gen category prompts.
 
 Also check: are there any P8 priority items in the backlog that can be implemented now (no blockers, clear scope)? If yes, report which one should be next.
 
-Report in 3 lines: R&D slot status, active task, recommended next action.
+Report in 3 lines: Gen Quality slot status, active task, recommended next action.
 ```
 
 ## Cron 6 — Slot Health Check (every 30 min)
@@ -89,14 +89,17 @@ Schedule: `*/30 * * * *`
 ```
 Cron + slot health check. Report inline ONLY — do NOT send any Slack message.
 
-1. Check CronList — are all 6 non-disabled crons present? Report count.
-2. Check ROADMAP.md R&D slot — is one task marked 'active'? Report.
+1. Check CronList — are all 7 non-disabled crons present (including Analytics at :15/:45)? Report count.
+2. Check ROADMAP.md Gen Quality slot — is one task marked 'active'? Report.
 3. Check Education slot in ROADMAP.md — is one task marked 'active'? Report.
 4. Check UI/UX slot — is there an active audit target in docs/ui-ux/audit-log.md? Report.
-5. Check test quality slot — is there an active diagnosis or category-improvement task this session? Report lowest category pass rate from recent builds if available.
-6. If any slot is empty or passive, flag it: "SLOT EMPTY — launch immediately".
+5. Check Test Engineering slot — is there an active diagnosis or category-improvement task this session? Report lowest category pass rate from recent builds if available.
+6. Check Local Verification slot — has any fix been shipped this session that hasn't been locally verified? If yes, flag: "UNVERIFIED FIX — run local verification immediately".
+7. Check Analytics slot — when was the last Analytics output? If >30 min, flag: "ANALYTICS STALE — query DB now".
+8. If any slot is empty or passive, flag it: "SLOT EMPTY — launch immediately".
+9. Check Code Review slot — has any code review been run this session? If not AND there are recent commits to lib/, flag: "CODE REVIEW PENDING — run against [most recently modified lib/ file]".
 
-Output: 7 lines max, inline only.
+Output: 10 lines max, inline only.
 ```
 
 ## Cron 7 — Slot Watchdog (every 5 min)
@@ -104,17 +107,17 @@ Output: 7 lines max, inline only.
 Schedule: `*/5 * * * *`
 
 ```
-Slot watchdog. Check all 4 slots for idleness and launch sub-agents for any that are idle. Report inline ONLY — do NOT send Slack.
+Slot watchdog. Check all 7 slots for idleness and launch sub-agents for any that are idle. Report inline ONLY — do NOT send Slack.
 
 IDLE DETECTION — check each slot:
 
-1. R&D slot: Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md ## R&D table.
+1. Gen Quality slot: Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md ## R&D table.
    IDLE if: no row has status containing "active".
-   ACTION: Spawn sub-agent — pick the highest-leverage pending item (look at R&D backlog + recent build failure patterns), mark it active in ROADMAP.md, and begin the R&D task.
+   ACTION: Spawn sub-agent — use last Analytics output (if available) to pick the highest-leverage pending item; otherwise look at Gen Quality backlog + recent build failure patterns. Mark it active in ROADMAP.md and begin the task.
 
-2. Test Quality slot: Read ROADMAP.md ## Test Quality (or Test gen) section.
+2. Test Engineering slot: Read ROADMAP.md ## Test Quality (or Test gen) section.
    IDLE if: no task is marked active AND no build is currently running that a diagnosis depends on.
-   ACTION: Spawn sub-agent — SSH to server, query DB for lowest category pass rate, begin Phase B improvement (draft CT rule, implement in lib/prompts.js, run tests, deploy).
+   ACTION: Spawn sub-agent — use last Analytics output lowest-category finding if available; otherwise SSH to server, query DB for lowest category pass rate, begin Phase B improvement (draft CT rule, implement in lib/prompts.js, run tests, deploy).
 
 3. Education slot: Read /Users/the-hw-app/Projects/mathai/ralph/docs/education/trig-session.md and ROADMAP.md Education section.
    IDLE if: next unbuilt game has no active build queued AND no spec work in progress.
@@ -125,23 +128,69 @@ IDLE DETECTION — check each slot:
    ACTION: Spawn sub-agent — run diagnostic.js against next unaudited approved game, produce ui-ux.md with issue list.
 
 5. Cross-slot handoff routing: Read games/*/ui-ux.md for any game audited this session.
-   For each (a) gen-prompt-rule finding NOT yet in ROADMAP.md R&D backlog: add it as a pending R&D task.
-   For each (d) test-coverage-gap finding NOT yet in ROADMAP.md Test Quality backlog: add it.
+   For each (a) gen-prompt-rule finding NOT yet in ROADMAP.md Gen Quality backlog: add it as a pending Gen Quality task.
+   For each (d) test-coverage-gap finding NOT yet in ROADMAP.md Test Engineering backlog: add it.
    This step runs every fire — UI/UX findings must never sit unrouted.
 
+6. Analytics slot: Check when last Analytics output was produced this session.
+   IDLE if: no Analytics output in last 30 min.
+   ACTION: Spawn sub-agent — query DB for (a) lowest category pass rate, (b) top failure patterns, (c) last 10 builds approval rate, (d) never-approved game list. Format output as ANALYTICS UPDATE block. Store result for Slot Watchdog next fire.
+
+7. Local Verification slot: Check if any fix has been shipped this session without local verification.
+   IDLE if: any unverified fix exists (gen rule, T1 check, test-gen rule deployed but not locally validated).
+   ACTION: Spawn sub-agent — download most recent relevant failed build HTML from GCP, apply the unverified fix to the HTML, run diagnostic.js + Playwright locally, report whether fix is verified.
+
+8. Code Review slot: Check if any deploy occurred in the last hour without a code review.
+   IDLE if: `git log --oneline --since='1 hour ago' -- lib/ worker.js server.js` returns commits AND no code review has been reported this session.
+   ACTION: Spawn sub-agent — `git log --oneline -3 -- lib/ worker.js server.js`, pick the most recently modified complex file (prefer pipeline-fix-loop.js, prompts.js, validate-static.js), review for logic errors/edge cases/test gaps, report findings to ROADMAP.md.
+
 INTER-SLOT FEED RULES (always apply, not just when idle):
-- UI/UX (a) finding → R&D: "Add gen rule: <exact rule text>" — R&D implements, tests, deploys
-- UI/UX (d) finding → Test Quality: "Add assertion: <what Playwright check was missing>" — Test Quality adds to test-gen prompts
+- UI/UX (a) finding → Gen Quality: "Add gen rule: <exact rule text>" — Gen Quality implements, tests, deploys
+- UI/UX (d) finding → Test Engineering: "Add assertion: <what Playwright check was missing>" — Test Engineering adds to test-gen prompts
 - UI/UX (b) finding → Education: "Update spec: <visual requirement>" — Education updates games/<game>/spec.md
-- Build diagnosis "HTML bug" verdict → R&D: "New CDN constraint: <rule>" — R&D adds T1 check + gen rule
-- Build diagnosis "test bug" verdict → Test Quality: "Fix test-gen: <category> <rule>" — Test Quality implements immediately
+- Build diagnosis "HTML bug" verdict → Gen Quality: "New CDN constraint: <rule>" — Gen Quality adds T1 check + gen rule
+- Build diagnosis "test bug" verdict → Test Engineering: "Fix test-gen: <category> <rule>" — Test Engineering implements immediately
 - Education approved game → UI/UX: audit immediately after approval to catch visual issues before deployment
+- Gen Quality rule shipped → Local Verification: verify against past failed HTML before queuing build
+- Analytics output → Gen Quality + Test Engineering: use ranked next-action list to assign specific tasks
 
 IMPORTANT CONSTRAINTS:
 - "Waiting for a build to complete" is NOT idle — if a build is running and the slot is actively watching it for a decision, that slot is not idle.
 - Only act if genuinely idle. A slot that produced output in the last 30 min is not idle.
 - Each action must spawn a real sub-agent with a concrete task — not just report.
-- After launching sub-agents, report: one line per slot + handoffs routed. Format: "R&D: ACTIVE — [task]" or "R&D: IDLE → launched [action]"
+- After launching sub-agents, report: one line per slot + handoffs routed. Format: "Gen Quality: ACTIVE — [task]" or "Gen Quality: IDLE → launched [action]"
 
-Output: 4 lines (one per slot) + count of sub-agents launched + "N UI/UX handoffs routed".
+Output: 7 lines (one per slot) + count of sub-agents launched + "N UI/UX handoffs routed".
+```
+
+## Cron 8 — Analytics Cron (every 30 min at :15/:45)
+
+Schedule: `15,45 * * * *`
+
+```
+Analytics cron. Report inline ONLY — do NOT send Slack. This is slot fuel, not a status report.
+
+Run ALL of these DB queries via SSH to server (cd /opt/ralph before each):
+
+1. Category pass rates (Test Engineering priority):
+ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && node -e \"const db=require('./lib/db'); console.log(JSON.stringify(db.db.prepare('SELECT category, ROUND(AVG(CAST(passed AS FLOAT)/NULLIF(total,0)),2) as rate, COUNT(*) as builds FROM test_progress GROUP BY category ORDER BY rate ASC').all()))\""
+
+2. Recent failure patterns (Gen Quality priority):
+ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && node -e \"const db=require('./lib/db'); console.log(JSON.stringify(db.db.prepare('SELECT pattern, COUNT(*) as freq FROM failure_patterns GROUP BY pattern ORDER BY freq DESC LIMIT 10').all()))\""
+
+3. First-attempt rate (last 15 builds):
+ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && node -e \"const db=require('./lib/db'); const builds=db.db.prepare('SELECT id,game_id,status,iterations FROM builds WHERE status IN (?,?) ORDER BY id DESC LIMIT 15').all('approved','failed'); console.log(JSON.stringify(builds))\""
+
+4. Never-approved games (>3 builds, no approval):
+ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && node -e \"const db=require('./lib/db'); console.log(JSON.stringify(db.db.prepare('SELECT game_id, COUNT(*) as build_count FROM builds WHERE status IN (?,?,?) GROUP BY game_id HAVING COUNT(*)>3 AND game_id NOT IN (SELECT game_id FROM builds WHERE status=?)').all('failed','cancelled','running','approved')))\""
+
+Format output as:
+ANALYTICS UPDATE (HH:MM):
+- Test Engineering: [lowest category] at [X]%
+- Gen Quality: [top failure pattern] (freq [N])
+- First-attempt rate (last 15): [N/15 approved at iter=0]
+- Never-approved: [game] ([N] builds)
+- Local Verification queue: [list any fixes deployed this session not yet verified locally]
+
+Output: 6 lines max.
 ```
