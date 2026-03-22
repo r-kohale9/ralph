@@ -424,3 +424,46 @@ describe('orphan-queue-sync logic (requeueOrphanedQueuedBuilds)', () => {
     assert.equal(jobId, 'build-305');
   });
 });
+
+describe('worker pre-flight: skip cancelled builds', () => {
+  // Replicate the terminal-state guard logic from the worker job handler
+  function shouldSkipJob(build) {
+    if (!build) return false;
+    return ['failed', 'approved', 'rejected', 'cancelled'].includes(build.status);
+  }
+
+  it('skips job when DB build status is cancelled', () => {
+    const build = { id: 100, game_id: 'doubles', status: 'cancelled' };
+    assert.ok(shouldSkipJob(build), 'must skip cancelled build');
+  });
+
+  it('skips job when DB build status is failed', () => {
+    const build = { id: 101, game_id: 'doubles', status: 'failed' };
+    assert.ok(shouldSkipJob(build), 'must skip failed build');
+  });
+
+  it('skips job when DB build status is approved', () => {
+    const build = { id: 102, game_id: 'doubles', status: 'approved' };
+    assert.ok(shouldSkipJob(build), 'must skip approved build');
+  });
+
+  it('skips job when DB build status is rejected', () => {
+    const build = { id: 103, game_id: 'doubles', status: 'rejected' };
+    assert.ok(shouldSkipJob(build), 'must skip rejected build');
+  });
+
+  it('does NOT skip job when DB build status is queued', () => {
+    const build = { id: 104, game_id: 'doubles', status: 'queued' };
+    assert.ok(!shouldSkipJob(build), 'must not skip queued build');
+  });
+
+  it('does NOT skip job when DB build status is running', () => {
+    const build = { id: 105, game_id: 'doubles', status: 'running' };
+    assert.ok(!shouldSkipJob(build), 'must not skip running build');
+  });
+
+  it('does NOT skip job when DB build record is missing (no record = proceed)', () => {
+    assert.ok(!shouldSkipJob(null), 'must not skip when build record is null');
+    assert.ok(!shouldSkipJob(undefined), 'must not skip when build record is undefined');
+  });
+});

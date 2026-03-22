@@ -11,6 +11,7 @@ const slack = require('./lib/slack');
 const logger = require('./lib/logger');
 const sentry = require('./lib/sentry');
 const metrics = require('./lib/metrics');
+const { buildSessionPlan } = require('./lib/session-planner');
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 const BULK_THRESHOLD = parseInt(process.env.RALPH_BULK_THRESHOLD || '5', 10);
@@ -260,13 +261,23 @@ function createApp(deps = {}) {
     }
 
     const buildId = db.createBuild(gameId, null, { requestedBy: requestedBy || null });
-    await queue.add('build-game', {
-      gameId,
-      buildId,
-      specPath: specPath || null,
-      specUrl: specUrl || null,
-      requestedBy: requestedBy || null,
-    });
+    try {
+      await queue.add('build-game', {
+        gameId,
+        buildId,
+        specPath: specPath || null,
+        specUrl: specUrl || null,
+        requestedBy: requestedBy || null,
+      });
+    } catch (queueErr) {
+      // BullMQ/Redis failure after DB record was created — cancel the orphaned
+      // queued build immediately so it is not left in 'queued' forever.
+      // requeueOrphanedQueuedBuilds() at worker startup is the recovery path for
+      // jobs that fail to enqueue due to transient Redis issues, but an immediate
+      // cancel avoids confusion (and extra retries) when the queue is truly down.
+      db.cancelBuild(buildId, `queue-enqueue failed: ${queueErr.message}`);
+      throw queueErr; // re-throw so Express 5 returns a 500
+    }
 
     logger.info(`Build queued for ${gameId}`, { gameId, buildId, event: 'manual_build' });
     return res.json({ queued: true, buildId, gameId });
@@ -534,16 +545,25 @@ function createApp(deps = {}) {
     if (!build) {
       return res.status(404).json({ error: 'Build not found' });
     }
-    if (build.status !== 'running') {
-      return res.status(400).json({ error: 'Build is not running' });
+    if (!['queued', 'running'].includes(build.status)) {
+      return res.status(400).json({ error: 'Build is not queued or running' });
     }
-    db.failBuild(id, 'Cancelled by user');
+    db.cancelBuild(id, 'Cancelled by user');
     logger.info(`Build ${id} cancelled`, { buildId: id, event: 'build_cancelled' });
+    // Remove BullMQ job so it is never picked up by the worker
+    if (queue) {
+      try {
+        const existingJob = await queue.getJob(`${id}`);
+        if (existingJob) await existingJob.remove();
+      } catch (jobErr) {
+        logger.warn(`[cancel] Could not remove BullMQ job for build #${id}: ${jobErr.message}`, { buildId: id });
+      }
+    }
     // Fire-and-forget Slack notification (optional)
     if (process.env.SLACK_WEBHOOK_URL) {
       slack.notify(`Build #${id} cancelled by user`).catch(() => {});
     }
-    res.json({ success: true, buildId: id, status: 'FAILED' });
+    res.json({ success: true, buildId: id, status: 'cancelled' });
   });
 
   app.get('/api/games/:gameId/builds', (req, res) => {
@@ -632,6 +652,19 @@ function createApp(deps = {}) {
 
     logger.info(`Targeted fix queued for ${gameId}`, { gameId, buildId: newBuildId, event: 'fix_queued' });
     res.json({ queued: true, buildId: newBuildId, gameId });
+  });
+
+  // ─── Session Planner API (Phase 1: static concept graph) ──────────────────
+  app.post('/api/session-plan', async (req, res) => {
+    const { concept, studentLevel, curriculumHint } = req.body;
+    if (!concept) {
+      return res.status(400).json({ error: 'concept required' });
+    }
+    const plan = buildSessionPlan(concept, { studentLevel, curriculumHint });
+    if (plan.error) {
+      return res.status(404).json(plan);
+    }
+    res.json(plan);
   });
 
   // ─── Slack Events API ──────────────────────────────────────────────────────

@@ -2,6 +2,10 @@
 
 > **Self-contained template.** An LLM reading ONLY this file should produce a working HTML file. No need to re-read the warehouse.
 
+> **CRITICAL — PART-017 is NO (Feedback Integration NOT included).** Do NOT call `FeedbackManager.init()` in this game. Calling it triggers an audio permission popup that causes non-deterministic test failures in Playwright. The game uses `FeedbackManager.sound` and `FeedbackManager.playDynamicFeedback` directly (which do not require init). Omit `FeedbackManager.init()` entirely.
+
+> **CRITICAL — Button IDs required.** The adjuster buttons MUST have IDs `btn-a-minus`, `btn-a-plus`, `btn-b-minus`, `btn-b-plus` in both the initial HTML template and in every `updateAdjusterUI()` innerHTML rebuild. Tests select buttons by these IDs. Missing IDs after a UI update cause all mechanics tests to fail.
+
 ---
 
 ## 1. Game Identity
@@ -34,8 +38,6 @@
 | PART-015 | Validation LLM                | NO              | —                                                                                                                                                     |
 | PART-016 | StoriesComponent              | NO              | —                                                                                                                                                     |
 | PART-017 | Feedback Integration          | NO              | Extension — specific audio URLs used directly                                                                                                         |
-
-> **CRITICAL: Do NOT call FeedbackManager.init(). Use FeedbackManager.sound.play() and FeedbackManager.playDynamicFeedback() directly. Calling FeedbackManager.init() shows a blocking audio permission popup that prevents game initialization and causes ALL tests to fail non-deterministically.**
 | PART-018 | Case Converter                | NO              | —                                                                                                                                                     |
 | PART-019 | Results Screen UI             | YES             | Custom metrics: time, rounds completed, avg time/level, wrong attempts, accuracy                                                                      |
 | PART-020 | CSS Variables & Colors        | YES             | —                                                                                                                                                     |
@@ -227,16 +229,19 @@ const fallbackContent = {
 
     <div class="adjuster-container" id="adjuster-container">
       <!-- Number A adjuster -->
+      <!-- CRITICAL: The minus and plus buttons for each adjuster MUST have the IDs shown below.
+           Tests locate these buttons by ID (#btn-a-minus, #btn-a-plus, #btn-b-minus, #btn-b-plus).
+           These IDs must be present both in the initial HTML template AND re-injected by updateAdjusterUI(). -->
       <div class="number-adjuster" id="adjuster-a">
         <div class="adj-top-area" id="adj-a-top">
-          <button class="adj-btn adj-minus" onclick="adjustNumber('a', -1)">−</button>
+          <button class="adj-btn adj-minus" id="btn-a-minus" onclick="adjustNumber('a', -1)">−</button>
         </div>
         <div class="number-box" id="number-box-a">
           <span class="original-number" id="original-a">0</span>
           <span class="delta-badge hidden" id="delta-badge-a"></span>
         </div>
         <div class="adj-bottom-area" id="adj-a-bottom">
-          <button class="adj-btn adj-plus" onclick="adjustNumber('a', 1)">+</button>
+          <button class="adj-btn adj-plus" id="btn-a-plus" onclick="adjustNumber('a', 1)">+</button>
         </div>
       </div>
 
@@ -246,14 +251,14 @@ const fallbackContent = {
       <!-- Number B adjuster -->
       <div class="number-adjuster" id="adjuster-b">
         <div class="adj-top-area" id="adj-b-top">
-          <button class="adj-btn adj-minus" onclick="adjustNumber('b', -1)">−</button>
+          <button class="adj-btn adj-minus" id="btn-b-minus" onclick="adjustNumber('b', -1)">−</button>
         </div>
         <div class="number-box" id="number-box-b">
           <span class="original-number" id="original-b">0</span>
           <span class="delta-badge hidden" id="delta-badge-b"></span>
         </div>
         <div class="adj-bottom-area" id="adj-b-bottom">
-          <button class="adj-btn adj-plus" onclick="adjustNumber('b', 1)">+</button>
+          <button class="adj-btn adj-plus" id="btn-b-plus" onclick="adjustNumber('b', 1)">+</button>
         </div>
       </div>
     </div>
@@ -627,7 +632,7 @@ body {
 ## 7. Game Flow
 
 1. **Page loads** → DOMContentLoaded fires
-   - waitForPackages() — **DO NOT call FeedbackManager.init()** (PART-015 package auto-inits; calling it shows a blocking audio permission popup that breaks all tests)
+   - waitForPackages(), FeedbackManager.init()
    - Register sounds (correct_tap, wrong_tap)
    - ScreenLayout.inject, clone template
    - TimerComponent (increase, no autoStart)
@@ -692,8 +697,8 @@ body {
 8. **endGame(reason):**
    - isActive = false, timer.pause()
    - Calculate avg time per level from levelTimes
-   - Stars: avg <15s = 3★, <25s = 2★, ≥25s = 1★, game-over = 0★
-   - Dynamic audio, results, postMessage, cleanup
+   - Stars: if reason === 'victory': avg <15s = 3★, <25s = 2★, ≥25s = 1★. If reason === 'game_over': **always 0★, no formula**
+   - Dynamic audio, results, postMessage (MUST include `duration_data` and `attempts` in metrics), cleanup
 
 ---
 
@@ -740,19 +745,37 @@ body {
 
 **updateAdjusterUI(which)**
 
-> **CRITICAL — DO NOT hide or replace the +/− buttons.** The +/− buttons must ALWAYS remain visible and clickable regardless of the current delta value. Only update the delta badge to show the current adjustment. Replacing button elements with `adjusted-value-display` divs removes the onclick handlers and makes adjustments permanently unusable. Keep the buttons in the DOM at all times.
+> **CRITICAL — Button IDs must survive every UI update:**
+> When using `innerHTML` to rebuild the top/bottom areas, you MUST include `id="btn-${which}-minus"` and `id="btn-${which}-plus"` on the reconstructed buttons. Tests locate buttons by ID (`#btn-a-plus`, `#btn-a-minus`, `#btn-b-plus`, `#btn-b-minus`). If `innerHTML` is used without re-injecting these IDs, Playwright will fail to find the buttons after any adjustment because the original DOM node is replaced with a new one lacking the ID.
+>
+> **Preferred pattern:** Use `setAttribute`/`classList.toggle` to update values in-place so button DOM nodes (and their IDs) are preserved. Only use `innerHTML` if you always include `id="btn-${which}-minus"` / `id="btn-${which}-plus"` in the injected markup.
 
 - const delta = which === 'a' ? gameState.deltaA : gameState.deltaB
+- const original = which === 'a' ? gameState.numberA : gameState.numberB
+- const topArea = document.getElementById(`adj-${which}-top`)
+- const bottomArea = document.getElementById(`adj-${which}-bottom`)
 - const badge = document.getElementById(`delta-badge-${which}`)
 -
-- // The +/− buttons (adj-a-top, adj-a-bottom, adj-b-top, adj-b-bottom) are NEVER modified — they stay in the DOM always.
 - If delta === 0:
+  - // Show default buttons (with IDs), hide badge
+  - topArea.innerHTML = `<button class="adj-btn adj-minus" id="btn-${which}-minus" onclick="adjustNumber('${which}', -1)">−</button>`
+  - bottomArea.innerHTML = `<button class="adj-btn adj-plus" id="btn-${which}-plus" onclick="adjustNumber('${which}', 1)">+</button>`
   - badge.className = 'delta-badge hidden'
   - badge.textContent = ''
 - Else if delta < 0:
+  - // Minus area shows adjusted value with "−" prefix
+  - topArea.innerHTML = `<div class="adjusted-value-display"><span class="adj-icon minus">−</span> <strong>${original + delta}</strong></div>`
+  - // Plus area keeps its button (WITH id)
+  - bottomArea.innerHTML = `<button class="adj-btn adj-plus" id="btn-${which}-plus" onclick="adjustNumber('${which}', 1)">+</button>`
+  - // Badge shows red negative delta
   - badge.className = 'delta-badge negative'
   - badge.textContent = `${delta}`
 - Else if delta > 0:
+  - // Minus area keeps its button (WITH id)
+  - topArea.innerHTML = `<button class="adj-btn adj-minus" id="btn-${which}-minus" onclick="adjustNumber('${which}', -1)">−</button>`
+  - // Plus area shows adjusted value with "+" prefix
+  - bottomArea.innerHTML = `<div class="adjusted-value-display"><span class="adj-icon plus">+</span> <strong>${original + delta}</strong></div>`
+  - // Badge shows green positive delta
   - badge.className = 'delta-badge positive'
   - badge.textContent = `+${delta}`
 
@@ -804,6 +827,11 @@ body {
   - try { await FeedbackManager.playDynamicFeedback({ audio_content: getCorrectPhrase(), subtitle: getCorrectPhrase() }); } catch(e) {}
   - trackEvent('correct_answer', 'input', { userAnswer, round: gameState.currentRound + 1 })
   - recordAttempt({ input_of_user: { action: 'check_answer', answer: userAnswer, deltaA: gameState.deltaA, deltaB: gameState.deltaB }, correct: true, metadata: { round: gameState.currentRound + 1, question: `${gameState.numberA} + ${gameState.numberB}`, correctAnswer: gameState.correctAnswer, validationType: 'fixed' } })
+  - // CRITICAL: Reset isProcessing BEFORE scheduling roundComplete.
+  - // If isProcessing stays true across the setTimeout, the next round's loadRound() resets it, but
+  - // any rapid user interaction during the 400ms window gets blocked. Worse: if FeedbackManager
+  - // await throws and isProcessing is never reset, the game permanently locks all input.
+  - gameState.isProcessing = false
   - setTimeout(() => roundComplete(), 400)
 - Else:
   - // WRONG — lose life, retry same round
@@ -853,12 +881,11 @@ body {
 - const correctAttempts = gameState.attempts.filter(a => a.correct).length
 - const totalAttempts = gameState.attempts.length
 - const accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0
-- // CRITICAL: calcStars must return 0 for game_over. The guard below is mandatory.
-- // Do NOT apply the time-based star formula when reason !== 'victory' — it will award unearned stars.
 - let stars = 0
 - if (reason === 'victory'):
   - stars = avgTimePerLevel < 15 ? 3 : avgTimePerLevel < 25 ? 2 : 1
-- // else: stars stays 0 — game_over always gets 0 stars regardless of time
+- else:
+  - stars = 0
 - const metrics = { accuracy, time: totalTime, avgTimePerLevel: Math.round(avgTimePerLevel * 10) / 10, stars, attempts: gameState.attempts, duration_data: { ...gameState.duration_data, currentTime: new Date().toISOString() }, roundsCompleted: gameState.currentRound, wrongAttempts: gameState.wrongAttempts, livesRemaining: gameState.lives, levelTimes: gameState.levelTimes.map(t => Math.round(t / 100) / 10), reason }
 - console.log('Final Metrics:', JSON.stringify(metrics, null, 2))
 - trackEvent('game_end', 'game', { reason, roundsCompleted: gameState.currentRound, accuracy, stars, time: totalTime, avgTimePerLevel })
@@ -867,9 +894,10 @@ body {
 - Else:
   - try { await FeedbackManager.playDynamicFeedback({ audio_content: 'Oh no, you ran out of lives! Better luck next time!', subtitle: 'Out of lives!' }); } catch(e) {}
 - showResults(metrics, reason)
-- // CRITICAL postMessage structure — must use the FULL nested form below.
-- // DO NOT flatten metrics into the top-level data object. The contract requires:
-- //   { type: 'game_complete', data: { metrics: {...}, events: gameState.events, completedAt: Date.now() } }
+- // CRITICAL: postMessage MUST include duration_data and attempts inside metrics.
+- // The contract validator checks: metrics.duration_data (with startTime, attempts, inActiveTime),
+- // metrics.attempts (array of attempt objects). Both must be non-null — never omit them.
+- // metrics already contains duration_data and attempts (see metrics object construction above).
 - window.parent.postMessage({ type: 'game_complete', data: { metrics, events: gameState.events, completedAt: Date.now() } }, '*')
 - if (timer) { timer.destroy(); timer = null; }
 - if (progressBar) { progressBar.destroy(); progressBar = null; }
@@ -924,15 +952,11 @@ body {
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     await waitForPackages();
-    // ⚠️ DO NOT call FeedbackManager.init() here — PART-015 package auto-initialises on load.
-    // Calling FeedbackManager.init() shows a blocking audio permission popup that prevents
-    // game initialisation and causes ALL Playwright tests to fail non-deterministically.
+    await FeedbackManager.init();
 
     try {
-      await FeedbackManager.sound.preload([
-        { id: 'correct_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501597903.mp3' },
-        { id: 'wrong_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501956470.mp3' }
-      ]);
+      await FeedbackManager.sound.register('correct_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740724945201.mp3');
+      await FeedbackManager.sound.register('wrong_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740725080819.mp3');
     } catch(e) { console.error('Sound registration error:', JSON.stringify({ error: e.message }, null, 2)); }
 
     const layout = ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } });
@@ -1023,10 +1047,8 @@ window.testResume = () => { if (timer && gameState.isActive) timer.resume(); };
 ### Sound Registration
 
 ```javascript
-await FeedbackManager.sound.preload([
-  { id: 'correct_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501597903.mp3' },
-  { id: 'wrong_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501956470.mp3' }
-]);
+await FeedbackManager.sound.register('correct_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740724945201.mp3');
+await FeedbackManager.sound.register('wrong_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740725080819.mp3');
 ```
 
 ---
@@ -1262,7 +1284,7 @@ ASSERT: all state reset, level=1, transition screen shows
 - [ ] Wrong answer: lose life, clear input, retry same round (adjustments preserved)
 - [ ] 9 rounds, 3 levels (3 per level), 3 lives
 - [ ] Level transition screens between levels (after rounds 3 and 6)
-- [ ] Stars: avg time per level <15s = 3★, <25s = 2★, ≥25s = 1★, game-over = 0★
+- [ ] Stars: avg time per level <15s = 3★, <25s = 2★, ≥25s = 1★, game-over = 0★ — **CRITICAL: if reason === 'game_over', stars MUST be 0 regardless of levelTimes. Never apply the time formula when reason !== 'victory'.**
 - [ ] Level time tracked from startLevel() to level completion
 - [ ] isProcessing prevents interaction during feedback
 - [ ] All fallback sums verified correct

@@ -25,7 +25,7 @@ Slack Events → /slack/events ────────┤
 ```bash
 npm start              # Start webhook server (port 3000)
 npm run worker         # Start BullMQ worker
-npm test               # Run all 385 tests (19 test files)
+npm test               # Run all 550 tests (19 test files)
 npm run validate       # Run static HTML validator on a file
 npm run validate:contract  # Run contract validator on a file
 npm run lint           # ESLint check
@@ -126,7 +126,7 @@ ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && n
 
 **Kill a build immediately if:** infrastructure issues cause test failures, pipeline code was wrong at build start, iteration 2+ with 0 pass rate and clearly wrong HTML, or same test fails iterations 1 and 2 with same error.
 
-**Parallel work rule (CRITICAL):** Never idle waiting for a build — diagnose failures, fix code, deploy, and queue the next build in parallel.
+**Queue policy (CRITICAL):** Only queue builds to verify a specific fix or change. Never queue speculatively, for measurement, or to fill the queue. All queuing is manual — there is no automated queue.
 
 ## Test Harness Architecture
 
@@ -168,12 +168,63 @@ See `ROADMAP.md` for full tracking across all pillars.
 
 After every build run, pipeline fix, new failure pattern, or architectural decision:
 
-1. **Update `docs/lessons-learned.md`** — add any new failure pattern with the fix and proof
-2. **Update `docs/build-manager-agent.md`** — refine kill criteria and lifecycle rules based on what was observed
-3. **Update `CLAUDE.md`** — keep it accurate as the single source of truth for any new agent starting a session
-4. **Update `ROADMAP.md`** — mark completed items done, add newly discovered improvements as planned
+1. **Update `docs/lessons-learned.md`** — two sections: (a) *Pipeline iteration lessons* (patterns from build logs/DB); (b) *Manual run lessons* (patterns found by running tests locally with screenshots). Tag each entry with its source.
+2. **Update `docs/spec_rca/<game-id>.md`** — per-spec RCA. When a game fails 2+ builds or shows a recurring pattern, create/update its file. Include: symptom, root cause, fix applied, proof, and "why I think it will work in pipeline" rationale.
+3. **Update `docs/build-manager-agent.md`** — refine kill criteria and lifecycle rules based on what was observed
+4. **Update `CLAUDE.md`** — keep it accurate as the single source of truth for any new agent starting a session
+5. **Update `ROADMAP.md`** — mark completed items done, add newly discovered improvements as planned
 
-Goal: any future agent reading these docs should operate without rediscovering known patterns. Reliability, availability, consistency, and efficiency improve only if lessons are captured immediately — not after the fact.
+### Per-spec RCA format (`docs/spec_rca/<game-id>.md`)
+Each file covers one game's full failure history. A full E2E pipeline run costs ~30 min and ~$0.50 — never queue one until you've completed all 5 sections below.
+
+**Required sections (all 5 must be filled before E2E):**
+
+```
+## 1. Root Cause
+One-paragraph explanation of exactly why the game fails. Must be specific and falsifiable.
+
+## 2. Evidence of Root Cause
+Concrete artifacts proving the root cause — NOT reading the HTML alone:
+- Error messages / stack traces from console or journalctl
+- Playwright screenshots showing the actual browser state
+- DB query results (gameStateShape, test_results JSON, error_message)
+- Network tab: which URLs 404'd, which loaded
+- node -p outputs showing exact return values
+
+## 3. POC Fix Verification (REQUIRED before E2E)
+How you verified the fix WITHOUT running the full E2E pipeline:
+- Script that reproduces and then eliminates the failure locally
+- diagnostic.js output before/after the fix
+- node -e snippet that demonstrates the fix works
+- Unit test that proves the fixed behavior
+
+## 4. Reliability Reasoning
+Why this fix will hold across multiple builds — not just the one you tested:
+- Is the fix deterministic or probabilistic?
+- What could cause it to regress?
+- What edge cases remain unhandled?
+
+## 5. Go/No-Go for E2E
+Decision: READY FOR E2E or NOT READY + what's blocking.
+Must show: evidence of root cause (§2) + POC verification (§3) both complete.
+
+## Failure History | Build | Symptom | Root Cause | Status |
+## Manual Run Findings (browser screenshots, console, network)
+## Targeted Fix Summary (what was tried, what failed, what worked)
+```
+
+Goal: any future agent reading these docs should operate without rediscovering known patterns.
+
+## Build Failure Diagnosis (REQUIRED BEFORE ANY FIX)
+
+**Never diagnose a build failure from test output alone.** Always run the game yourself first:
+
+1. `curl -s "https://storage.googleapis.com/mathai-temp-assets/games/<gameId>/builds/<buildId>/index.html" -o /tmp/<gameId>/index.html`
+2. Run `node diagnostic.js` (in repo root) — serves HTML locally, injects harness, screenshots every step
+3. Observe: console errors, network 404s, `data-phase`/`data-lives`, option button visibility, `window.gameState` shape
+4. Run the failing test case step-by-step and screenshot each action
+
+**Why:** Screenshots answer "CDN slow? overlay blocking? wrong phase? wrong selector?" in seconds. Reading test output alone cannot distinguish CDN latency from HTML bugs (Lesson 91 — count-and-tap: both tests pass locally, server failure was 2.5 min CDN cold-start exceeding 50s beforeEach timeout).
 
 ---
 
@@ -207,6 +258,8 @@ While a build runs (~25-35 min), diagnose failures, implement fixes, run tests, 
 ### 4. Deploy to server before re-queuing
 Always deploy the latest `lib/pipeline.js` (and other changed files) to the server before queuing a new build. A build started on old code wastes a full pipeline run. Sequence: fix code → `npm test` → commit → `scp` → `systemctl restart` → queue build.
 
+**Queue policy:** Only queue a build when there is a specific fix or change that requires E2E verification. Never queue speculatively or for general measurement. All queuing is manual.
+
 ### 5. Kill a build immediately if these conditions hold
 - Running on pipeline code that had a known bug (deploy first, then re-queue)
 - Iteration 1 returns 0% game-flow AND the HTML has an obvious init failure (don't wait 5 iterations)
@@ -232,7 +285,8 @@ Every 15 minutes, post a brief status update to channel `C09J341LC2K` tagging `<
 3. New approvals/failures since last update
 4. **Improvements since last update** — point-wise list of what was shipped (R&D tasks completed, bugs fixed, pipeline changes deployed)
 5. Active R&D task + status
-6. One-line flag if anything needs attention
+6. Active Education slot task + status
+7. One-line flag if anything needs attention
 
 Delegate the send to a sub-agent — do not block the main context.
 
@@ -264,17 +318,143 @@ One item must always be present in `ROADMAP.md` under `## R&D` with status `acti
 4. **Measure** — queue 1–2 builds specifically to validate; compare before/after iteration counts
 5. **Ship or kill** — if hypothesis confirmed: commit + deploy + update ROADMAP; if not: document what was learned, pick next
 
+**Build verification requirement:** Every R&D hypothesis that touches generated game quality MUST be verified with at least one real build. The R&D slot is not complete until:
+- At least one build shows the hypothesized improvement
+- The improvement is measured (before/after metric)
+- The Slack update mentions the verification result
+
 **Non-negotiable constraints:**
 - R&D never blocks critical work. If a build needs a kill, a pipeline bug needs a fix, or a deploy is needed — stop R&D immediately, handle it, then resume.
 - R&D runs in a sub-agent so the main context stays free for the user and for monitoring.
 - R&D must produce a measurable result (test count, iteration count, pass rate) — "made it cleaner" is not R&D, it's housekeeping.
 
+### 13. Always maintain one active local test slot — MANDATORY, same as R&D slot
+
+**Local testing is always running. This is not optional.** One sub-agent must ALWAYS be actively running `diagnostic.js` against a recently failed build to find insights that pipeline logs cannot reveal. The moment one local test session completes (producing findings for the RCA doc), immediately pick the next highest-value failed build and launch a new local test sub-agent.
+
+**Purpose:** Server build failures are diagnosed in ~30s with browser screenshots + console output. Pipeline logs only show test failure messages — they cannot show blank screens, overlay blocks, wrong phase, CDN timing, or selector mismatches. Local testing is the only way to see what the browser actually sees.
+
+**How to pick the next build to test locally:**
+1. Query DB for recent failures: `SELECT id, game_id, error_message FROM builds WHERE status='failed' ORDER BY id DESC LIMIT 10`
+2. Skip: cancelled builds, games already approved, games currently queued
+3. Prioritise: (a) games with `docs/spec_rca/<game-id>.md` missing §2 Evidence or §3 POC, (b) games that failed 2+ times with same symptom, (c) smoke-regen failures (blank page / missing #gameContent)
+4. Download HTML from GCP: `curl -s "https://storage.googleapis.com/mathai-temp-assets/games/<gameId>/builds/<buildId>/index.html"`
+5. Run `node diagnostic.js` from repo root — it serves locally, injects harness, screenshots every step
+
+**What to produce:** For each local test session, update `docs/spec_rca/<game-id>.md` with §2 (evidence with screenshots) and §3 (POC verification). Mark the game ready or not ready for E2E.
+
+**Non-negotiable constraints:**
+- Local test slot runs in a sub-agent so main context stays free
+- Must produce a concrete finding: screenshot + console output + hypothesis confirmed/refuted
+- "Reading the HTML" does not count — must actually run the browser
+- If the game passes locally (like count-and-tap), that IS a finding: root cause is server-side infra, not HTML
+
+### 14. Always maintain one active Education Implementation Slot — MANDATORY, same as R&D and local test slots
+
+**Education implementation is always running. This is not optional.** One sub-agent must ALWAYS be actively implementing educational improvements — not just analyzing, but building and verifying with real builds. The moment one education task completes, immediately pick the next and launch a new sub-agent.
+
+**What the Education slot targets:** This slot is distinct from the R&D slot in focus. R&D targets pipeline reliability (iteration counts, test gen quality, fix loop accuracy). The Education slot targets learning science and content quality:
+- Pedagogical quality of generated games (do they actually teach the concept?)
+- Curriculum alignment (do generated games hit the right Bloom's level for the age group?)
+- New game interaction types that reach higher Bloom's levels (apply, analyze, create — not just remember/understand)
+- Curriculum-aligned spec templates (reusable patterns for common learning objectives)
+- The long-term vision: "parent/teacher inputs topic → Ralph generates session plan + games"
+
+**How to pick the Education task:** Read `docs/rnd-educational-interactions.md` for planned work. Prioritize in this order:
+1. New game interaction types that hit higher Bloom's taxonomy levels (apply/analyze/create) — these expand what Ralph can generate
+2. Curriculum-aligned spec templates — reusable starting points that encode pedagogy into the spec itself
+3. Session planner prototype — multi-game session design from a single learning objective
+
+**How to run:** Experiment first, then build:
+1. **Research** — what does the learning objective require? What interaction pattern maps to it?
+2. **Spec draft** — write a spec that uses the new interaction type or pedagogical pattern
+3. **Build verification** — queue at least one build to verify the generated game is educationally correct (not just passing tests)
+4. **Measure learning quality** — check test coverage of concept nodes, not just pass rate; does the game actually require the learner to demonstrate the target skill?
+5. **Ship or iterate** — if the game demonstrates the pattern correctly, commit the spec template and update `docs/rnd-educational-interactions.md`
+
+**Build verification is required:** When implementing a new game type or interaction pattern, always queue at least one build to verify the generated game is pedagogically correct. "It passes tests" is not sufficient — the game must demonstrably require the target cognitive operation.
+
+**Slack reporting:** Every Slack update must include `🎓 Education slot: [current task + status]`. This is mandatory — the education slot is tracked alongside R&D and local testing.
+
+**Non-negotiable constraints:**
+- Education slot runs in a sub-agent so main context stays free
+- Must produce a measurable result per session: new spec template committed, new interaction pattern documented, or build approved with new educational feature
+- "Reading papers about pedagogy" does not count — must produce a concrete artifact (spec, template, or approved game)
+- Education slot never blocks critical pipeline work — if a build needs killing or a pipeline bug needs fixing, stop and handle it first
+
 ### 12. At session start and after every context compaction — restore background task continuity
 
 When starting a new session or resuming after context compaction:
-1. **Check CronList** — verify the 15-minute Slack update cron is running. If missing, recreate it immediately using the prompt from Rule 10.
+1. **Check CronList** — if ANY cron is missing, recreate ALL 4 immediately (see exact prompts below). NOTE: Cron 3 (Queue Strategist) is permanently disabled — do NOT recreate it.
 2. **Check running sub-agents** — review the conversation summary or task notifications to identify any agents that were mid-flight. If their results are pending, relaunch them with the same brief.
 3. **Check build pipeline** — SSH to server and confirm worker is running and no build has been stuck >45 min.
 4. **Check ROADMAP.md R&D slot** — confirm one R&D task is marked `active`. If the slot is empty or passive, pick the next highest-leverage item and launch a sub-agent immediately.
+5. **Check local test slot** — confirm one sub-agent is actively running `diagnostic.js` against a failed build. If not, pick the highest-priority failed build and launch one immediately.
+6. **Check Education slot** — confirm one sub-agent is actively working on an education implementation task. If not, read `docs/rnd-educational-interactions.md` and launch a sub-agent on the highest-priority item immediately.
 
 This rule exists because session compaction silently kills all crons, loses agent context, and can leave background work orphaned. Any future agent starting a session must run this checklist before doing anything else.
+
+#### Required crons — recreate ALL if CronList shows fewer than 4 (Cron 3 / Queue Strategist is permanently disabled):
+
+**Cron 1 — Build Doctor (every 5 min):**
+```
+You are the Build Doctor — expert in Ralph pipeline build health. Your job: monitor the currently running build and intervene if kill criteria are met.
+
+SSH: ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206
+
+1. Check running build: node -p "const Database = require('better-sqlite3'); const db = new Database('data/builds.db'); JSON.stringify(db.prepare('SELECT id,game_id,status,iterations,created_at FROM builds WHERE status=?').get('running') || 'IDLE')"
+2. If running >45min with no Slack thread progress → flag for kill
+3. Check: same test failing iter 1+2 with identical error → kill immediately
+4. Check: iter 1 at 0% game-flow with obvious init failure → kill immediately
+5. Report status in 3 lines: game/build, current state, action taken or "no action".
+```
+Schedule: `*/5 * * * *`
+
+**Cron 2 — Slack update to Mithilesh (every 15 min):**
+```
+Send a Slack progress update to Mithilesh (U0242GULG48) in channel C09J341LC2K using SLACK_TOKEN from /Users/the-hw-app/Projects/slack-helpers/.env
+
+Spawn a sub-agent to:
+1. SSH to server: ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206
+2. Get current running build + queue depth from DB
+3. Get recent approvals/failures (last 3 each)
+4. Post to Slack with format:
+   - Running: Build #X (game) at step Y — Value if completes: <what we learn/gain>. Not killed because: <kill criteria not met>
+   - Queue: N builds
+   - ✅ Approved since last update: [list]
+   - ❌ Failed: [list with 1-line reason]
+   - 🔬 R&D: [current task + status]
+   - 🎓 Education slot: [current task + status]
+   - 🚢 Shipped: [improvements since last update]
+   - 🚨 Needs attention: [any flag or "none"]
+Tag @U0242GULG48
+```
+Schedule: `*/15 * * * *`
+
+**Cron 3 — Queue Strategist: DISABLED**
+Automated queuing is disabled. All builds are queued manually, only to verify a specific fix or change. Do NOT recreate this cron.
+
+**Cron 4 — Roadmap Manager (hourly at :47):**
+```
+You are the Roadmap Manager — expert in Ralph pipeline strategy and prioritization.
+
+Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md and /Users/the-hw-app/Projects/mathai/ralph/docs/lessons-learned.md
+
+1. Check if any planned items are now complete based on recent commits (git log --oneline -10)
+2. Check if the R&D slot has an active task — if not, identify the highest-leverage next R&D task from recent build data
+3. Update ROADMAP.md if needed (mark items done, update R&D slot)
+4. Report: what changed, what's the active R&D task
+```
+Schedule: `47 * * * *`
+
+**Cron 5 — Roadmap task check (hourly at :23):**
+```
+Roadmap task queue check. Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md
+
+Check: is there exactly one R&D task marked 'active'? If not, identify the highest-leverage pending R&D item (look at recent build failure patterns, iteration counts, which failures are most common) and mark it active.
+
+Also check: are there any P8 priority items in the backlog that can be implemented now (no blockers, clear scope)? If yes, report which one should be next.
+
+Report in 3 lines: R&D slot status, active task, recommended next action.
+```
+Schedule: `23 * * * *`

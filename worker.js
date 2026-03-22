@@ -41,8 +41,11 @@ const USE_NODE_PIPELINE = process.env.RALPH_USE_NODE_PIPELINE === '1';
 // Auto-retry: requeue builds that score 0/total tests (gated, max 1 retry per build)
 const AUTO_RETRY = process.env.RALPH_AUTO_RETRY === '1';
 
-// Rate limiter: max 10 builds per hour
-const RATE_LIMIT_MAX = parseInt(process.env.RALPH_RATE_MAX || '10', 10);
+// Rate limiter: max 20 builds per hour
+// Raised from 10 → 20 (2026-03-21): builds 361-370 were manually failed (duplicate/already-approved)
+// but still consumed rate-limiter slots, starving legitimate builds for ~1h.
+// 20/hr gives headroom for manual cancellations without blocking the real queue.
+const RATE_LIMIT_MAX = parseInt(process.env.RALPH_RATE_MAX || '20', 10);
 const RATE_LIMIT_DURATION = parseInt(process.env.RALPH_RATE_DURATION || '3600000', 10);
 
 // Resource gate thresholds
@@ -298,6 +301,15 @@ async function handleFixJob(job) {
 const worker = new Worker(
   'ralph-builds',
   async (job) => {
+    // ─── Top-level pre-pipeline crash guard ───────────────────────────────────
+    // Wraps the ENTIRE processor body so that any crash before the inner pipeline
+    // try/catch (e.g. synchronous require() failure, missing env vars, Slack thread
+    // error, git-pull crash, spec fetch failure) is still written to DB.
+    // The inner pipeline try/catch (further below) handles pipeline-specific crashes
+    // and writes first; this guard is the outermost safety net.
+    const _topLevelBuildId = job.data?.buildId;
+    try {
+
     // Handle targeted fix jobs
     if (job.data.type === 'fix') {
       return handleFixJob(job);
@@ -326,8 +338,15 @@ const worker = new Worker(
     // Start Sentry transaction for this build
     const transaction = sentry.startBuildTransaction(gameId, buildId);
 
-    // Update DB: build started
+    // Update DB: build started — but skip if already in a terminal state.
+    // db.failBuild() on a queued build does NOT remove it from BullMQ; on worker restart
+    // the job is redelivered. Guard here prevents cancelled/duplicate builds from resurrecting.
     if (buildId) {
+      const existingBuild = db.getBuild(buildId);
+      if (existingBuild && ['failed', 'approved', 'rejected', 'cancelled'].includes(existingBuild.status)) {
+        logger.warn(`[worker] Build #${buildId} (${gameId}) already in terminal state '${existingBuild.status}' — skipping stale BullMQ job`);
+        return;
+      }
       db.startBuild(buildId, { workerId: WORKER_ID });
     }
 
@@ -438,10 +457,10 @@ const worker = new Worker(
       if (detail?.iteration != null) _logParts.push(`iter=${detail.iteration}`);
       console.log(`[worker] ${_logParts.join(' | ')}`);
 
-      // Renew BullMQ lock on every progress event to prevent stalled-job failures
-      // during long LLM/Playwright calls that block event loop renewToken().
+      // Update job progress in Redis (for monitoring/UI only — does NOT renew the BullMQ lock;
+      // lock renewal is handled by LockManager timer via lockDuration/lockRenewTime options).
       const progressData = { step, ...(detail || {}) };
-      job.updateProgress(progressData).catch(() => {}); // cosmetic: lock renewal failure must not abort the job
+      job.updateProgress(progressData).catch(() => {});
 
       // ── Track LLM call count and current step (used in parent message updates) ──
       if (detail?.llmCalls != null) llmCallCount = detail.llmCalls;
@@ -872,10 +891,18 @@ const worker = new Worker(
         'contract-static-fix',
         'global-fix-prompt',
         'global-fix-rolled-back',
-        'review-fix',
         'review-fix-applied',
       ]);
       if (silentSteps.has(step)) return;
+
+      // ── review-fix: log rejection reason summary for R&D pattern analysis ───
+      if (step === 'review-fix') {
+        const rejection = detail?.rejection || '';
+        // Log first 200 chars of rejection reason so we can identify patterns without flooding
+        const snippet = rejection.replace(/\s+/g, ' ').slice(0, 200);
+        logger.warn(`[worker] review-rejected | game=${gameId} | attempt=${detail?.attempt || '?'} | reason: ${snippet}`);
+        return;
+      }
 
       if (step === 'static-validation-fix-failed') {
         const bodyText = '❌ *Static validation fix failed* — build may be unstable';
@@ -1023,10 +1050,28 @@ const worker = new Worker(
       }
     }
 
+    // ── Pre-flight: verify game output directory is writable ─────────────────
+    // Catches permission errors early with a clear message rather than a cryptic
+    // EACCES deep inside the pipeline after several minutes of LLM calls.
+    {
+      const preflightDir = USE_NODE_PIPELINE
+        ? path.join(REPO_DIR, 'data', 'games', gameId, 'builds', String(buildId))
+        : path.join(REPO_DIR, 'data', 'games', gameId);
+      try {
+        fs.mkdirSync(preflightDir, { recursive: true });
+        const testFile = path.join(preflightDir, '.preflight');
+        fs.writeFileSync(testFile, '1');
+        fs.unlinkSync(testFile);
+      } catch (preflightErr) {
+        throw new Error(`pre-pipeline preflight: output directory not writable (${preflightDir}): ${preflightErr.message}`);
+      }
+    }
+
     // Run Ralph — E3: choose between bash (ralph.sh) and Node.js (pipeline.js)
     let report;
-    // Heartbeat: renew BullMQ lock every 2 min during long builds (LLM/Playwright calls
-    // can block the event loop long enough for the 30-min lock to expire without renewal).
+    // Heartbeat: update job progress every 2 min for monitoring visibility.
+    // NOTE: updateProgress() does NOT renew the BullMQ lock — lock renewal is handled
+    // automatically by LockManager (lockDuration=5h, renewal timer every 30min).
     const heartbeatInterval = setInterval(
       async () => {
         await job.updateProgress({ heartbeat: true, gameId }).catch(() => {});
@@ -1212,12 +1257,39 @@ const worker = new Worker(
     });
 
     return report;
+
+    } catch (err) {
+      // ── Top-level crash guard catch ─────────────────────────────────────────
+      // Reached only for crashes that escaped the inner pipeline try/catch —
+      // i.e. pre-pipeline setup failures (Slack, git pull, spec fetch, etc).
+      // The inner catch already wrote error_message for pipeline-phase crashes,
+      // so we guard with a check to avoid overwriting a more specific message.
+      if (_topLevelBuildId) {
+        try {
+          const existing = db.getBuild(_topLevelBuildId);
+          if (!existing?.error_message) {
+            const errMsg = (err && (err.message || err.toString())) || 'pre-pipeline crash: no error message';
+            db.failBuild(_topLevelBuildId, `pre-pipeline crash: ${errMsg}`);
+          }
+        } catch (_dbErr) {
+          // DB write itself failed — nothing more we can do; BullMQ will fire worker.on('failed')
+        }
+      }
+      throw err; // rethrow so BullMQ marks the job as failed and fires worker.on('failed')
+    }
   },
   {
     connection,
     concurrency: CONCURRENCY,
-    lockDuration: 30 * 60 * 1000, // 30 minutes — pipeline jobs take up to 25min
-    lockRenewTime: 10 * 60 * 1000, // renew every 10 minutes (lockDuration / 3)
+    lockDuration: 5 * 60 * 60 * 1000, // 5 hours — well above longest realistic build (Opus × 5 iters ≈ 150min)
+    lockRenewTime: 60 * 60 * 1000, // renew every 60 min (timer fires every 30min; lock never near expiry)
+    stalledInterval: 5 * 60 * 1000, // check for stalled jobs every 5 min (default 30s was too aggressive)
+    maxStalledCount: 0, // never declare a job stalled — pipeline has its own timeout handling; prevents
+    // "Missing key for job N. moveToFinished" after worker SIGKILL: stall checker was moving job back to
+    // wait (incrementing stc) after restart, then moveToFinished failed with JobNotExist because the
+    // job had been moved out of active state concurrently. With maxStalledCount=0, the stall checker
+    // only ever moves jobs back to wait once (stc stays at 0, defa is never set), but since lockDuration=5h
+    // the lock check in moveStalledJobsToWait skips active jobs with live locks anyway.
     limiter: {
       max: RATE_LIMIT_MAX,
       duration: RATE_LIMIT_DURATION,
@@ -1255,6 +1327,18 @@ worker.on('failed', async (job, err) => {
 });
 
 worker.on('error', (err) => {
+  // "Missing key for job N. moveToFinished" happens when the worker was SIGKILLed mid-job and
+  // restarted: the new worker picks up the job with a new token, runs it to completion, but
+  // BullMQ's lock/state machinery finds the job hash gone (moved/cleaned by a concurrent stall
+  // check from the prior restart cycle). The pipeline DB write already succeeded at this point —
+  // the build is correctly recorded as failed/approved. This is a BullMQ bookkeeping error only;
+  // log as WARN and skip Sentry noise.
+  if (err.message && err.message.includes('Missing key for job') && err.message.includes('moveToFinished')) {
+    logger.warn(`Worker BullMQ state sync error (DB write already complete): ${err.message}`, {
+      event: 'worker_bullmq_state_sync_error',
+    });
+    return;
+  }
   logger.error(`Worker error: ${err.message}`, { event: 'worker_error' });
   sentry.captureException(err, { step: 'worker_process' });
 });
@@ -1366,8 +1450,21 @@ console.log(`[ralph-worker] Slack Web API: ${slack.isWebApiEnabled() ? 'enabled'
 console.log(`[ralph-worker] GCP uploads: ${gcp.isEnabled() ? 'enabled' : 'disabled'}`);
 
 // ─── Graceful shutdown ──────────────────────────────────────────────────────
+// WARNING: worker.close() waits for the active job processor to finish, which can take up to
+// 45+ min for a long pipeline run. systemd TimeoutStopSec=600 (10min) will SIGKILL before that.
+// A SIGKILL while a build is running corrupts BullMQ lock state (causes "Missing key" errors
+// on the next run). Before restarting the worker, always check for running builds:
+//   node -p "const Database=require('better-sqlite3');const db=new Database('data/builds.db');db.prepare('SELECT id,game_id,status FROM builds WHERE status=?').get('running')||'IDLE'"
 async function shutdown() {
-  logger.info('Worker shutting down...', { event: 'shutdown' });
+  const runningBuilds = db.getRunningBuilds ? db.getRunningBuilds() : [];
+  if (runningBuilds.length > 0) {
+    logger.warn(
+      `[worker] SIGTERM received while ${runningBuilds.length} build(s) are running: ${runningBuilds.map((b) => `#${b.id} ${b.game_id}`).join(', ')} — waiting for completion (this may take up to 45min; TimeoutStopSec=600 may SIGKILL)`,
+      { event: 'shutdown_with_active_builds' },
+    );
+  } else {
+    logger.info('Worker shutting down (no active builds)...', { event: 'shutdown' });
+  }
   await sentry.flush();
   await worker.close();
   await connection.quit();

@@ -2,6 +2,10 @@
 
 > **Self-contained template.** An LLM reading ONLY this file should produce a working HTML file. No need to re-read the warehouse.
 
+> **CRITICAL — PART-017 is NO (Feedback Integration NOT included).** Do NOT call `FeedbackManager.init()` in this game. Calling it triggers an audio permission popup that causes non-deterministic test failures in Playwright. The game uses `FeedbackManager.sound` and `FeedbackManager.playDynamicFeedback` directly (which do not require init). Omit `FeedbackManager.init()` entirely.
+
+> **CRITICAL — Button IDs required.** The adjuster buttons MUST have IDs `btn-a-minus`, `btn-a-plus`, `btn-b-minus`, `btn-b-plus` in both the initial HTML template and in every `updateAdjusterUI()` innerHTML rebuild. Tests select buttons by these IDs. Missing IDs after a UI update cause all mechanics tests to fail.
+
 ---
 
 ## 1. Game Identity
@@ -225,16 +229,19 @@ const fallbackContent = {
 
     <div class="adjuster-container" id="adjuster-container">
       <!-- Number A adjuster -->
+      <!-- CRITICAL: The minus and plus buttons for each adjuster MUST have the IDs shown below.
+           Tests locate these buttons by ID (#btn-a-minus, #btn-a-plus, #btn-b-minus, #btn-b-plus).
+           These IDs must be present both in the initial HTML template AND re-injected by updateAdjusterUI(). -->
       <div class="number-adjuster" id="adjuster-a">
         <div class="adj-top-area" id="adj-a-top">
-          <button class="adj-btn adj-minus" onclick="adjustNumber('a', -1)">−</button>
+          <button class="adj-btn adj-minus" id="btn-a-minus" onclick="adjustNumber('a', -1)">−</button>
         </div>
         <div class="number-box" id="number-box-a">
           <span class="original-number" id="original-a">0</span>
           <span class="delta-badge hidden" id="delta-badge-a"></span>
         </div>
         <div class="adj-bottom-area" id="adj-a-bottom">
-          <button class="adj-btn adj-plus" onclick="adjustNumber('a', 1)">+</button>
+          <button class="adj-btn adj-plus" id="btn-a-plus" onclick="adjustNumber('a', 1)">+</button>
         </div>
       </div>
 
@@ -244,14 +251,14 @@ const fallbackContent = {
       <!-- Number B adjuster -->
       <div class="number-adjuster" id="adjuster-b">
         <div class="adj-top-area" id="adj-b-top">
-          <button class="adj-btn adj-minus" onclick="adjustNumber('b', -1)">−</button>
+          <button class="adj-btn adj-minus" id="btn-b-minus" onclick="adjustNumber('b', -1)">−</button>
         </div>
         <div class="number-box" id="number-box-b">
           <span class="original-number" id="original-b">0</span>
           <span class="delta-badge hidden" id="delta-badge-b"></span>
         </div>
         <div class="adj-bottom-area" id="adj-b-bottom">
-          <button class="adj-btn adj-plus" onclick="adjustNumber('b', 1)">+</button>
+          <button class="adj-btn adj-plus" id="btn-b-plus" onclick="adjustNumber('b', 1)">+</button>
         </div>
       </div>
     </div>
@@ -690,8 +697,8 @@ body {
 8. **endGame(reason):**
    - isActive = false, timer.pause()
    - Calculate avg time per level from levelTimes
-   - Stars: avg <15s = 3★, <25s = 2★, ≥25s = 1★, game-over = 0★
-   - Dynamic audio, results, postMessage, cleanup
+   - Stars: if reason === 'victory': avg <15s = 3★, <25s = 2★, ≥25s = 1★. If reason === 'game_over': **always 0★, no formula**
+   - Dynamic audio, results, postMessage (MUST include `duration_data` and `attempts` in metrics), cleanup
 
 ---
 
@@ -737,6 +744,12 @@ body {
 - updateAdjusterUI('b')
 
 **updateAdjusterUI(which)**
+
+> **CRITICAL — Button IDs must survive every UI update:**
+> When using `innerHTML` to rebuild the top/bottom areas, you MUST include `id="btn-${which}-minus"` and `id="btn-${which}-plus"` on the reconstructed buttons. Tests locate buttons by ID (`#btn-a-plus`, `#btn-a-minus`, `#btn-b-plus`, `#btn-b-minus`). If `innerHTML` is used without re-injecting these IDs, Playwright will fail to find the buttons after any adjustment because the original DOM node is replaced with a new one lacking the ID.
+>
+> **Preferred pattern:** Use `setAttribute`/`classList.toggle` to update values in-place so button DOM nodes (and their IDs) are preserved. Only use `innerHTML` if you always include `id="btn-${which}-minus"` / `id="btn-${which}-plus"` in the injected markup.
+
 - const delta = which === 'a' ? gameState.deltaA : gameState.deltaB
 - const original = which === 'a' ? gameState.numberA : gameState.numberB
 - const topArea = document.getElementById(`adj-${which}-top`)
@@ -744,22 +757,22 @@ body {
 - const badge = document.getElementById(`delta-badge-${which}`)
 -
 - If delta === 0:
-  - // Show default buttons, hide badge
-  - topArea.innerHTML = `<button class="adj-btn adj-minus" onclick="adjustNumber('${which}', -1)">−</button>`
-  - bottomArea.innerHTML = `<button class="adj-btn adj-plus" onclick="adjustNumber('${which}', 1)">+</button>`
+  - // Show default buttons (with IDs), hide badge
+  - topArea.innerHTML = `<button class="adj-btn adj-minus" id="btn-${which}-minus" onclick="adjustNumber('${which}', -1)">−</button>`
+  - bottomArea.innerHTML = `<button class="adj-btn adj-plus" id="btn-${which}-plus" onclick="adjustNumber('${which}', 1)">+</button>`
   - badge.className = 'delta-badge hidden'
   - badge.textContent = ''
 - Else if delta < 0:
   - // Minus area shows adjusted value with "−" prefix
   - topArea.innerHTML = `<div class="adjusted-value-display"><span class="adj-icon minus">−</span> <strong>${original + delta}</strong></div>`
-  - // Plus area keeps its button
-  - bottomArea.innerHTML = `<button class="adj-btn adj-plus" onclick="adjustNumber('${which}', 1)">+</button>`
+  - // Plus area keeps its button (WITH id)
+  - bottomArea.innerHTML = `<button class="adj-btn adj-plus" id="btn-${which}-plus" onclick="adjustNumber('${which}', 1)">+</button>`
   - // Badge shows red negative delta
   - badge.className = 'delta-badge negative'
   - badge.textContent = `${delta}`
 - Else if delta > 0:
-  - // Minus area keeps its button
-  - topArea.innerHTML = `<button class="adj-btn adj-minus" onclick="adjustNumber('${which}', -1)">−</button>`
+  - // Minus area keeps its button (WITH id)
+  - topArea.innerHTML = `<button class="adj-btn adj-minus" id="btn-${which}-minus" onclick="adjustNumber('${which}', -1)">−</button>`
   - // Plus area shows adjusted value with "+" prefix
   - bottomArea.innerHTML = `<div class="adjusted-value-display"><span class="adj-icon plus">+</span> <strong>${original + delta}</strong></div>`
   - // Badge shows green positive delta
@@ -814,6 +827,11 @@ body {
   - try { await FeedbackManager.playDynamicFeedback({ audio_content: getCorrectPhrase(), subtitle: getCorrectPhrase() }); } catch(e) {}
   - trackEvent('correct_answer', 'input', { userAnswer, round: gameState.currentRound + 1 })
   - recordAttempt({ input_of_user: { action: 'check_answer', answer: userAnswer, deltaA: gameState.deltaA, deltaB: gameState.deltaB }, correct: true, metadata: { round: gameState.currentRound + 1, question: `${gameState.numberA} + ${gameState.numberB}`, correctAnswer: gameState.correctAnswer, validationType: 'fixed' } })
+  - // CRITICAL: Reset isProcessing BEFORE scheduling roundComplete.
+  - // If isProcessing stays true across the setTimeout, the next round's loadRound() resets it, but
+  - // any rapid user interaction during the 400ms window gets blocked. Worse: if FeedbackManager
+  - // await throws and isProcessing is never reset, the game permanently locks all input.
+  - gameState.isProcessing = false
   - setTimeout(() => roundComplete(), 400)
 - Else:
   - // WRONG — lose life, retry same round
@@ -876,6 +894,10 @@ body {
 - Else:
   - try { await FeedbackManager.playDynamicFeedback({ audio_content: 'Oh no, you ran out of lives! Better luck next time!', subtitle: 'Out of lives!' }); } catch(e) {}
 - showResults(metrics, reason)
+- // CRITICAL: postMessage MUST include duration_data and attempts inside metrics.
+- // The contract validator checks: metrics.duration_data (with startTime, attempts, inActiveTime),
+- // metrics.attempts (array of attempt objects). Both must be non-null — never omit them.
+- // metrics already contains duration_data and attempts (see metrics object construction above).
 - window.parent.postMessage({ type: 'game_complete', data: { metrics, events: gameState.events, completedAt: Date.now() } }, '*')
 - if (timer) { timer.destroy(); timer = null; }
 - if (progressBar) { progressBar.destroy(); progressBar = null; }
@@ -1262,7 +1284,7 @@ ASSERT: all state reset, level=1, transition screen shows
 - [ ] Wrong answer: lose life, clear input, retry same round (adjustments preserved)
 - [ ] 9 rounds, 3 levels (3 per level), 3 lives
 - [ ] Level transition screens between levels (after rounds 3 and 6)
-- [ ] Stars: avg time per level <15s = 3★, <25s = 2★, ≥25s = 1★, game-over = 0★
+- [ ] Stars: avg time per level <15s = 3★, <25s = 2★, ≥25s = 1★, game-over = 0★ — **CRITICAL: if reason === 'game_over', stars MUST be 0 regardless of levelTimes. Never apply the time formula when reason !== 'victory'.**
 - [ ] Level time tracked from startLevel() to level completion
 - [ ] isProcessing prevents interaction during feedback
 - [ ] All fallback sums verified correct
