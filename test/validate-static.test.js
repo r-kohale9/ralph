@@ -784,6 +784,46 @@ describe('SignalCollector hallucinated API check (5h)', () => {
   });
 });
 
+describe('initSentry() called but not defined check (5f0)', () => {
+  it('fails when initSentry() is called but function initSentry is not defined', () => {
+    // The LLM called initSentry() but never defined the function — ReferenceError at runtime
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+      initSentry();`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('initSentry() is called but never defined'),
+      `Expected initSentry-not-defined error but got: ${output}`,
+    );
+  });
+
+  it('passes when initSentry() is called AND function initSentry() is defined', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+      function initSentry() { try { if (typeof SentryConfig !== 'undefined') SentryConfig.init(); } catch(e) {} }
+      initSentry();`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('initSentry() is called but never defined'),
+      `Unexpected 5f0 error for valid initSentry usage: ${output}`,
+    );
+  });
+
+  it('passes when initSentry() does not appear at all', () => {
+    // No Sentry usage — no error
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('initSentry() is called but never defined'),
+      `Unexpected 5f0 error for HTML with no initSentry: ${output}`,
+    );
+  });
+});
+
 describe('SentryHelper in waitForPackages check (5h2)', () => {
   it('fails when typeof SentryHelper in waitForPackages', () => {
     // Insert a waitForPackages that checks SentryHelper — SentryHelper is NOT a CDN global
