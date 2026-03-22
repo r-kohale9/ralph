@@ -501,6 +501,26 @@ const worker = new Worker(
       // Reset step timer whenever the step label changes
       if (currentBuildStep !== prevBuildStep) {
         stepStartedAt = now;
+        // Update parent message with current step (non-blocking)
+        if (threadInfo) {
+          const pipelineElapsed = Math.round((now - buildStartTime) / 60000);
+          slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId,
+            { status: 'running', buildId, iterations: 0 },
+            {
+              specLink: specLink || null,
+              specGithubUrl: !specLink ? specGithubUrl : null,
+              pipelineDocsLink: pipelineDocsLink || null,
+              pipelineDocsUrl: !pipelineDocsLink ? pipelineDocsGithubUrl : null,
+              requestedBy: requestedBy || null,
+              startedAt: buildStartTime,
+              llmCalls: llmCallCount,
+              currentStep: currentBuildStep,
+              gameTitle: game?.title || null,
+              pipelineElapsedMin: pipelineElapsed < 1 ? '<1m' : `${pipelineElapsed}m`,
+              stepElapsedMin: '<1m',
+            }
+          ).catch(() => {}); // non-blocking — thread replies continue regardless
+        }
       }
 
       if (!threadInfo) return;
@@ -1274,6 +1294,25 @@ const worker = new Worker(
         } catch (_dbErr) {
           // DB write itself failed — nothing more we can do; BullMQ will fire worker.on('failed')
         }
+        // Update parent message to show failed status
+        if (threadInfo) {
+          try {
+            await slack.updateThreadOpener(threadInfo.ts, threadInfo.channel, gameId,
+              { status: 'FAILED', buildId: _topLevelBuildId, iterations: 0 },
+              {
+                specLink: specLink || null,
+                specGithubUrl: !specLink ? specGithubUrl : null,
+                pipelineDocsLink: pipelineDocsLink || null,
+                pipelineDocsUrl: !pipelineDocsLink ? pipelineDocsGithubUrl : null,
+                requestedBy: requestedBy || null,
+                startedAt: buildStartTime,
+                llmCalls: llmCallCount,
+                currentStep: currentBuildStep,
+                gameTitle: game?.title || null,
+              }
+            );
+          } catch (_slackErr) { /* non-critical */ }
+        }
       }
       throw err; // rethrow so BullMQ marks the job as failed and fires worker.on('failed')
     }
@@ -1319,11 +1358,21 @@ worker.on('failed', async (job, err) => {
     }
   }
 
-  await slack.notifyBuildResult(
-    gameId,
-    { status: 'FAILED', iterations: 0, total_time_s: 0, test_results: [], review_result: null, models: {} },
-    commitSha,
-  );
+  // Update parent message in the game's existing Slack thread (if any)
+  const gameRow = gameId ? db.getGame(gameId) : null;
+  if (gameRow?.slack_thread_ts && gameRow?.slack_channel_id) {
+    await slack.updateThreadOpener(
+      gameRow.slack_thread_ts, gameRow.slack_channel_id, gameId,
+      { status: 'FAILED', buildId, iterations: 0 },
+      { startedAt: null, llmCalls: null, currentStep: 'Failed' }
+    ).catch(() => {});
+  } else {
+    await slack.notifyBuildResult(
+      gameId,
+      { status: 'FAILED', iterations: 0, total_time_s: 0, test_results: [], review_result: null, models: {} },
+      commitSha,
+    );
+  }
 });
 
 worker.on('error', (err) => {
