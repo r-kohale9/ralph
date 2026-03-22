@@ -784,6 +784,45 @@ describe('SignalCollector hallucinated API check (5h)', () => {
   });
 });
 
+describe('SentryHelper in waitForPackages check (5h2)', () => {
+  it('fails when typeof SentryHelper in waitForPackages', () => {
+    // Insert a waitForPackages that checks SentryHelper — SentryHelper is NOT a CDN global
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+      async function waitForPackages() {
+        while (typeof ScreenLayout === 'undefined' || typeof SentryHelper === 'undefined') {
+          await new Promise(r => setTimeout(r, 50));
+        }
+      }`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('SentryHelper'),
+      `Expected SentryHelper error but got: ${output}`,
+    );
+  });
+
+  it('passes when typeof SentryConfig used instead of SentryHelper', () => {
+    // SentryConfig IS a valid CDN global — this should not trigger the check
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+      async function waitForPackages() {
+        while (typeof ScreenLayout === 'undefined' || typeof SentryConfig === 'undefined') {
+          await new Promise(r => setTimeout(r, 50));
+        }
+      }`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('SentryHelper'),
+      `Unexpected SentryHelper error for SentryConfig usage: ${output}`,
+    );
+  });
+});
+
 describe('Mobile viewport scrollability checks (7b)', () => {
   it('warns when body has overflow:hidden', () => {
     // Insert body { overflow: hidden } into the style block
