@@ -50,59 +50,110 @@ test('lives check', async ({ page }) => {
   });
 });
 
-describe('lintGeneratedTests — M15: immediate .toHaveClass for state class', () => {
-  it('flags immediate .toHaveClass("correct")', () => {
-    const content = `  expect(btn).toHaveClass('correct');`;
+describe('lintGeneratedTests — M15: immediate .toHaveClass on await page.locator()', () => {
+  it('flags expect(await page.locator(...)).toHaveClass()', () => {
+    const content = `  expect(await page.locator('.answer-btn')).toHaveClass('correct');`;
     const { violations } = lintGeneratedTests({ mechanics: content }, silentLog);
     const m15 = violations.filter((v) => v.rule === 'M15');
-    assert.equal(m15.length, 1, 'Should flag M15 for immediate .toHaveClass("correct")');
+    assert.equal(m15.length, 1, 'Should flag M15 for expect(await page.locator()).toHaveClass()');
   });
 
-  it('flags immediate .toHaveClass("wrong")', () => {
-    const content = `  expect(option).toHaveClass('wrong');`;
+  it('flags expect(await page.locator(...)).toHaveClass() for any class name', () => {
+    const content = `  expect(await page.locator('#option-0')).toHaveClass('active');`;
     const { violations } = lintGeneratedTests({ 'edge-cases': content }, silentLog);
     const m15 = violations.filter((v) => v.rule === 'M15');
-    assert.equal(m15.length, 1, 'Should flag M15 for .toHaveClass("wrong")');
+    assert.equal(m15.length, 1, 'Should flag M15 for .toHaveClass() on awaited locator');
     assert.equal(m15[0].category, 'edge-cases');
   });
 
-  it('does not flag .toHaveClass("game-button") (non-state class)', () => {
-    const content = `  expect(btn).toHaveClass('game-button');`;
+  it('does not flag expect.poll() with class check — already wrapped', () => {
+    const content = `  await expect.poll(() => page.locator('.btn').getAttribute('class')).toContain('active');`;
     const { violations } = lintGeneratedTests({ mechanics: content }, silentLog);
     const m15 = violations.filter((v) => v.rule === 'M15');
-    assert.equal(m15.length, 0, 'Should not flag M15 for non-state class names');
+    assert.equal(m15.length, 0, 'Should not flag M15 when using expect.poll()');
+  });
+
+  it('does not flag expect(locator).toHaveClass() without await — Playwright auto-retries', () => {
+    const content = `  await expect(page.locator('.btn')).toHaveClass('active');`;
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog);
+    const m15 = violations.filter((v) => v.rule === 'M15');
+    assert.equal(m15.length, 0, 'Should not flag M15 when locator is not awaited');
   });
 });
 
-describe('lintGeneratedTests — CT7: wrong postMessage type "gameOver"', () => {
-  it('flags msg.type === "gameOver"', () => {
-    const content = `  expect(msg.type === 'gameOver').toBe(true);`;
+describe('lintGeneratedTests — HARDCODED_TIMEOUT: page.waitForTimeout(N)', () => {
+  it('flags page.waitForTimeout(1000)', () => {
+    const content = `  await page.waitForTimeout(1000);`;
     const { violations } = lintGeneratedTests({ contract: content }, silentLog);
-    const ct7 = violations.filter((v) => v.rule === 'CT7');
-    assert.equal(ct7.length, 1, 'Should flag CT7 for msg.type === "gameOver"');
+    const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
+    assert.equal(ht.length, 1, 'Should flag HARDCODED_TIMEOUT for page.waitForTimeout(1000)');
   });
 
-  it('does not flag msg.type === "game_complete"', () => {
-    const content = `  assert.equal(msg.type, 'game_complete');`;
-    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
-    const ct7 = violations.filter((v) => v.rule === 'CT7');
-    assert.equal(ct7.length, 0, 'Should not flag CT7 for correct "game_complete" type');
-  });
-});
-
-describe('lintGeneratedTests — CT7_GAMEOVER: wrong phase name "game_over"', () => {
-  it('flags waitForPhase(page, "game_over")', () => {
-    const content = `  await waitForPhase(page, 'game_over');`;
-    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
-    const ct7go = violations.filter((v) => v.rule === 'CT7_GAMEOVER');
-    assert.equal(ct7go.length, 1, 'Should flag CT7_GAMEOVER for waitForPhase with "game_over"');
+  it('flags page.waitForTimeout(500) in mechanics', () => {
+    const content = `  await page.waitForTimeout(500);`;
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog);
+    const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
+    assert.equal(ht.length, 1, 'Should flag HARDCODED_TIMEOUT for page.waitForTimeout(500)');
   });
 
-  it('does not flag waitForPhase(page, "gameover")', () => {
+  it('does not flag waitForPhase() — correct approach', () => {
     const content = `  await waitForPhase(page, 'gameover');`;
     const { violations } = lintGeneratedTests({ contract: content }, silentLog);
-    const ct7go = violations.filter((v) => v.rule === 'CT7_GAMEOVER');
-    assert.equal(ct7go.length, 0, 'Should not flag CT7_GAMEOVER for correct "gameover" phase');
+    const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
+    assert.equal(ht.length, 0, 'Should not flag HARDCODED_TIMEOUT for waitForPhase()');
+  });
+});
+
+describe('lintGeneratedTests — RAW_CLICK: page.click() old API', () => {
+  it('flags await page.click("selector")', () => {
+    const content = `  await page.click('#submit-btn');`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const rc = violations.filter((v) => v.rule === 'RAW_CLICK');
+    assert.equal(rc.length, 1, 'Should flag RAW_CLICK for await page.click()');
+  });
+
+  it('flags await page.click() with any selector', () => {
+    const content = `  await page.click('.answer-option');`;
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog);
+    const rc = violations.filter((v) => v.rule === 'RAW_CLICK');
+    assert.equal(rc.length, 1, 'Should flag RAW_CLICK for page.click() with class selector');
+  });
+
+  it('does not flag page.locator().click() — correct modern API', () => {
+    const content = `  await page.locator('#submit-btn').click();`;
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog);
+    const rc = violations.filter((v) => v.rule === 'RAW_CLICK');
+    assert.equal(rc.length, 0, 'Should not flag RAW_CLICK for page.locator().click()');
+  });
+});
+
+describe('lintGeneratedTests — CT6_NULL: getLastPostMessage() direct property access without null-guard', () => {
+  it('flags getLastPostMessage(page).type — direct access without null-guard', () => {
+    const content = `  const type = getLastPostMessage(page).type;`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct6 = violations.filter((v) => v.rule === 'CT6_NULL');
+    assert.equal(ct6.length, 1, 'Should flag CT6_NULL for getLastPostMessage().type without null-guard');
+  });
+
+  it('flags getLastPostMessage(page).payload direct access', () => {
+    const content = `  expect(getLastPostMessage(page).score).toBe(10);`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct6 = violations.filter((v) => v.rule === 'CT6_NULL');
+    assert.equal(ct6.length, 1, 'Should flag CT6_NULL for getLastPostMessage().score without null-guard');
+  });
+
+  it('does not flag getLastPostMessage(page)?.type — optional chaining is safe', () => {
+    const content = `  const type = getLastPostMessage(page)?.type;`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct6 = violations.filter((v) => v.rule === 'CT6_NULL');
+    assert.equal(ct6.length, 0, 'Should not flag CT6_NULL when using optional chaining (?.)');
+  });
+
+  it('does not flag getLastPostMessage(page) assigned to variable — no direct access on same line', () => {
+    const content = `  const msg = getLastPostMessage(page);`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ct6 = violations.filter((v) => v.rule === 'CT6_NULL');
+    assert.equal(ct6.length, 0, 'Should not flag CT6_NULL when result is assigned to variable');
   });
 });
 
