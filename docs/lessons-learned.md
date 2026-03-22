@@ -2293,3 +2293,17 @@ The spec (line 681) contained the explicit prohibition: "Do NOT use drag-and-dro
 **Verified:** Build #557 queued (2026-03-22). Prior builds #550-#556 all failed due to this class of bug (various iterations of the same invisible-gameContent root cause).
 
 **Rule:** After every `transitionScreen.hide()` call that transitions into gameplay, the caller MUST immediately call `document.getElementById('gameContent').style.display = 'block'` (or equivalent class removal). The transition screen hiding and the game content revealing are two independent DOM operations.
+
+## Lesson 180 — GEN-119: fallbackContent Closing Brace Must Be on Its Own Line
+
+**Build:** #558 (which-ratio) | **Date:** 2026-03-22 | **Source:** diagnostic
+
+**Root Cause:** gemini-2.5-pro generated `fallbackContent` with the object's closing `}` squashed inline at the end of the `rounds` array line (no newline separator). This produced `SyntaxError: Unexpected token '}'` in the inline script. The error prevented DOMContentLoaded from firing, so `waitForPackages()` never ran, `ScreenLayout.inject()` never ran, and `#gameContent` was never created in the DOM. Smoke check reported "Blank page: missing #gameContent element".
+
+**Why Smoke-Regen Didn't Fix It:** The CDN smoke-regen prompt (`buildSmokeRegenFixPrompt`) diagnoses CDN URL bugs, `slots:` wrapper bugs, and Sentry order bugs. It does not look for JS syntax errors in `fallbackContent`. The LLM re-examined CDN init (which was correct) and missed the syntax error.
+
+**Why Static Validation Didn't Catch It:** `validate-static.js` had no JavaScript syntax validation — only structural HTML pattern checks. T1 check PART-027-JS-SYNTAX added: runs `new vm.Script()` on each inline script block; any SyntaxError → ERROR.
+
+**Fix:** GEN-119 rule added to `CDN_CONSTRAINTS_BLOCK` in `lib/prompts.js`: the `fallbackContent` closing `}` MUST be on its own line. Never append the closing `}` inline at the end of the last property value. T1 PART-027-JS-SYNTAX check added to `lib/validate-static.js`.
+
+**Rule:** `fallbackContent` must always be formatted with its closing `}` on its own line. Any inline script containing a JavaScript syntax error will be caught at T1 before smoke check.
