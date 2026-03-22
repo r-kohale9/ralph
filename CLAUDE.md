@@ -228,7 +228,7 @@ Never idle. Scope is unbounded: spec review, session planning, pedagogy audit, i
 
 State tracked in `docs/ui-ux/audit-log.md` (Current task / Waiting on / Blocked by).
 
-Always auditing. Pick most-recently-approved game without a `ui-ux.md`. Run `diagnostic.js` to screenshot all phases. Categorize issues: (a) gen rule → Gen Quality, (b) spec → Education, (c) CDN constraint → document, (d) test gap → Test Engineering. Never leave findings unrouted. **Context7** for CSS/MDN; WebFetch for WCAG. See `docs/areas/slots.md` for full procedure.
+Always auditing. Pick most-recently-approved game without a `ui-ux.md`. **Always a full browser playthrough using `diagnostic.js`** — static HTML analysis is not an audit. Must complete the game end-to-end: if the end screen is unreachable or a button click does nothing, that is a P0 issue → re-queue immediately. Screenshot every phase. Categorize: (a) gen rule → Gen Quality, (b) spec → Education, (c) CDN constraint → document, (d) test gap → Test Engineering, (P0) flow bug → build queue. See `docs/areas/slots.md` for full procedure including flow checklist.
 
 ### 17. Session restore — run this checklist at every session start or after context compaction
 

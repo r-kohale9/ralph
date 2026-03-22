@@ -144,14 +144,32 @@ Every Education sub-agent planning a new session or game must fetch at least 2 e
 
 **UI/UX review is always running.** One sub-agent must ALWAYS be actively auditing the visual and interaction quality of approved games.
 
-**What UI/UX covers:** visual layout and spacing, mobile responsiveness (480px), colour contrast and accessibility, feedback clarity (correct/incorrect states), animation and transition quality, progress indicators, button affordance, error states, loading states, and consistency across games in a session.
+**What UI/UX covers:** visual layout and spacing, mobile responsiveness (480px), colour contrast and accessibility, feedback clarity (correct/incorrect states), animation and transition quality, progress indicators, button affordance, error states, loading states, consistency across games in a session — **and full interactive flow from start to end screen.**
 
 **How to pick the target game:** Start with the most recently approved game that has not had a UI/UX audit. Work backwards through the approved game library. Record audit status in `docs/ui-ux/audit-log.md`.
 
+**Audit is always a full browser playthrough — not static HTML analysis.** Static analysis is insufficient and cannot detect the most critical class of issues.
+
+**Required audit procedure (every game, no exceptions):**
+1. Download the approved HTML: `curl -s "https://storage.googleapis.com/mathai-temp-assets/games/<gameId>/builds/<buildId>/index.html" -o /tmp/<gameId>/index.html`
+2. Run `node diagnostic.js` from the repo root — this serves the HTML locally, injects the Playwright harness, and drives the game through every phase with screenshots
+3. **Complete the full intended experience from start to end screen** — play at least one round correctly, one incorrectly, advance through all phases, reach the results/completion screen. If the game does not reach the end screen, that is a Critical P0 issue.
+4. At every step, verify: buttons respond when clicked, phases advance correctly, feedback appears, progress updates, no phase gets stuck, no silent failures
+5. Capture screenshots at: start screen, first interaction, correct feedback, incorrect feedback, phase transition, results screen
+
+**Flow issues to explicitly check (these are P0 — game-breaking):**
+- Button clicked → nothing happens (no feedback, no phase change, no visual response)
+- Game stuck in a phase (cannot advance, no timeout, no exit)
+- Results/end screen never reachable from normal play
+- Correct answer doesn't register as correct
+- Progress bar or lives counter doesn't update
+- Game ends prematurely (exits before all rounds complete)
+
 **Required output per session:**
-1. Screenshot audit — run `diagnostic.js` against the approved HTML, capture screenshots at every phase
-2. Issue list — categorise as: (a) gen prompt rule, (b) spec addition, (c) CDN constraint, (d) test coverage gap
-3. Update `games/<game>/ui-ux.md` with game, date, issues found, and resolution path
+1. Full playthrough verdict: "Completed end-to-end: yes/no" — if no, P0 issue with exact step where it broke
+2. Screenshot evidence for every phase transition
+3. Issue list — categorise as: (a) gen prompt rule, (b) spec addition, (c) CDN constraint, (d) test coverage gap, **(P0) game-breaking flow bug → re-queue immediately**
+4. Update `games/<game>/ui-ux.md` with game, date, playthrough verdict, issues found, and resolution path
 
 **Context7 + WebFetch mandate:**
 - WCAG 2.1 quickref: `https://www.w3.org/WAI/WCAG21/quickref/` via WebFetch — for any contrast, focus, ARIA, or keyboard finding
