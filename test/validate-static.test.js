@@ -160,6 +160,15 @@ describe('validate-static.js', () => {
     assert.ok(output.includes('endGame'));
   });
 
+  it('passes when endGame is declared as arrow function (const endGame = async)', () => {
+    // LLM sometimes writes `const endGame = async (reason) => { ... }` instead of
+    // `function endGame(...)` — both are valid; the game still assigns window.endGame = endGame.
+    // Bug 1 fix: regex must match both function declaration and arrow/expression form.
+    const html = VALID_HTML.replace('function endGame()', 'const endGame = async (reason) =>');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass for arrow-function endGame but got: ${output}`);
+  });
+
   it('fails when missing postMessage', () => {
     const html = VALID_HTML.replace('postMessage', 'sendMessage');
     const { exitCode, output } = runValidator(html);
@@ -1074,6 +1083,51 @@ describe('require() / ES import in CDN game script checks (5l)', () => {
     assert.ok(
       !output.includes("require()"),
       `Unexpected require() error for comment usage: ${output}`,
+    );
+  });
+
+  it('passes when initSentry() text appears in HTML comment before waitForPackages call', () => {
+    // Bug 2 fix: initSentry() mentioned in an HTML comment must not trigger the
+    // "initSentry() called before waitForPackages()" error. The validator must strip
+    // HTML comments before running the position comparison.
+    const cdnBase = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><style>body{} #gameContent{max-width:480px;}</style></head>
+<body>
+<div id="gameContent"></div>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/bundle.js"></script>
+<script>
+  window.gameState = { phase: 'start', score: 0, lives: 3 };
+  <!-- STEP 2: initSentry() function definition (from PART-030) -->
+  function initSentry() { if (typeof Sentry !== 'undefined') Sentry.init({ dsn: 'x' }); }
+  function waitForPackages() {
+    return new Promise((resolve, reject) => {
+      const timeout = 120000;
+      const start = Date.now();
+      const check = () => {
+        if (typeof ScreenLayout !== 'undefined') { resolve(); return; }
+        if (Date.now() - start > timeout) { throw new Error('Packages failed to load within 120s'); }
+        setTimeout(check, 100);
+      };
+      check();
+    });
+  }
+  function initGame() {}
+  function checkAnswer(v) {}
+  window.addEventListener('DOMContentLoaded', async () => {
+    await waitForPackages();
+    initSentry();
+    initGame();
+  });
+  window.parent.postMessage({ type: 'gameOver', score: 0, stars: 1, total: 10 }, '*');
+  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;
+</script>
+</body>
+</html>`;
+    const { exitCode, output } = runValidator(cdnBase);
+    assert.ok(
+      !output.includes('initSentry() called before waitForPackages()'),
+      `False-positive initSentry order error triggered by HTML comment: ${output}`
     );
   });
 });
