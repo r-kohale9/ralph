@@ -1756,3 +1756,23 @@ RCA initially said this was missing from syncDOMState. It was already present in
 **Fix:** GEN-110 CORRECT/WRONG examples updated to use `'gameover'` (no underscore) for `gameState.phase`. Added explicit clarifying comment: "Note: reason='game_over' (underscore) but gameState.phase='gameover' (no underscore)." Same clarification added to CDN_CONSTRAINTS_BLOCK rule 100.
 
 **Impact:** Any generated game with `gameState.phase = 'game_over'` would have syncDOMState() set `data-phase='game_over'` instead of `data-phase='gameover'` — all `waitForPhase('gameover')` calls would timeout. This was a silent bug in every build using GEN-110.
+
+## Lesson 141 — Fix prompt audit: 5 contradictions — LESSON_PATTERNS taught wrong CDN domain, onComplete impossibility loop
+**Source:** Pipeline iteration lesson (2026-03-22, commit 21d1479)
+
+**CRITICAL — LESSON_PATTERNS wrong CDN domain (lib/pipeline-fix-loop.js:207):**
+`LESSON_PATTERNS` entry for CDN domain failures said `"CDN domain MUST be cdn.homeworkapp.ai"` — the exact banned domain. When test failures mentioned CDN issues, the fix prompt injected this instruction, actively teaching the fix LLM to swap to another banned domain. Fixed: corrected to `storage.googleapis.com/test-dynamic-assets`.
+
+**HIGH — onComplete impossibility loop:**
+`REVIEW_SHARED_GUIDANCE` RULE-008 required `onComplete` callback to be wired, but `CDN_CONSTRAINTS_BLOCK` explicitly banned `onComplete` (it doesn't exist in TransitionScreenComponent API). Review would reject correct games for missing `onComplete`; fix prompt would tell LLM not to use it. Fixed: RULE-008 updated to reference the correct `buttons[].action callback` pattern.
+
+**HIGH — Gen prompt Rule 25 showed onComplete in CORRECT example:**
+Rule 25 (TransitionScreen await) had `onComplete` in the RIGHT example — high-priority positive signal overriding the prohibition two paragraphs later. Fixed to use `buttons: [{ text, type, action }]` pattern.
+
+**HIGH — CDN_CONSTRAINTS_BLOCK internal contradiction:**
+Line 109: "TransitionScreen ROUTING rule: onComplete MUST set gameState.phase". Line 111: "NEVER use onComplete". Two lines apart, directly contradicting each other. Fixed: line 109 updated to reference `buttons[].action callback`.
+
+**MEDIUM — syncDOMState terminology:**
+Multiple places described syncDOMState call-sites as "transitionScreen onComplete" — updated to "buttons[].action callback".
+
+**General rule:** Audit `LESSON_PATTERNS` entries whenever CDN rules change — stale patterns actively inject wrong instructions into fix prompts. Lesson patterns can become the most trusted (and most dangerous) positive instructions.
