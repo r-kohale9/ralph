@@ -1723,3 +1723,16 @@ RCA initially said this was missing from syncDOMState. It was already present in
 
 **Expected outcome:** TRANSITION_SLOT violations drop from 100% → <20% on next builds.
 
+## Lesson 138 — GF8 + M13 root causes: teaching examples were verbatim violations; lint had a bypass
+**Source:** Pipeline iteration lesson (2026-03-22, commit 74eab2e)
+
+**M13 pattern:** The "Helper usage" prompt section showed `expect(await getLives(page)).toBe(2)` as the canonical usage example — the exact pattern the M13 lint rule prohibits. LLM treated the positive example as ground truth and generated violations on every test. Fix: replaced all three helper examples with `expect.poll()` wrappers.
+
+**GF8 pattern — two root causes:**
+1. The R1/R4 "RIGHT" examples showed `await expect(locator).toBeVisible()` without a preceding `waitForPhase()` call — direct GF8 violations used as teaching examples.
+2. The GF8 lint regex `/\.toBeVisible\(\)(?!.*waitForPhase)/` only matched bare `.toBeVisible()` — adding `{ timeout: 10000 }` bypassed the check. LLM was learning this escape from the R6 CDN example. Lint pattern widened to `/\.toBeVisible\(\s*(?:\{[^}]*\}\s*)?\)/`.
+
+**General rule:** When a lint rule fires at >40% rate despite a prohibition, check THREE things: (1) Is there a positive example that teaches the wrong pattern? (2) Is the lint regex narrow enough that adding an argument bypasses it? (3) Is the positive example in a higher-priority section than the prohibition?
+
+**Expected outcome:** M13 violations drop from 45% → <15%; GF8 violations drop from 64% → <25% on next builds.
+
