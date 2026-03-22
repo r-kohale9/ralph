@@ -1868,3 +1868,33 @@ The `startGame()` helper in the CDN test boilerplate template (`pipeline-test-ge
 3. **GF8 (25 violations/build):** Add `waitForPhase()` requirement before ANY `toBeVisible()` assertion as a mandatory rule, not just advisory.
 
 **Key insight:** The linter is firing on its own generated boilerplate, making violation metrics noisy. Fix the linter first before using violation count as a quality signal.
+
+## Lesson 147 — T1 validator false-positive on window.components?.X causes blank-page cascade
+
+**Source:** Static analysis of right-triangle-area builds #527 and #530. 2026-03-22.
+
+**Root cause:** T1 static validator (`lib/validate-static.js` lines 378–392) checked for CDN component guards via bare-global pattern `/typeof TimerComponent/.test(html)`. CDN games correctly use `typeof window.components?.TimerComponent === 'undefined'` (optional chaining under `window.components`). The bare-global check did NOT match the namespace form, causing the validator to fire a false-positive error.
+
+**Cascade of failures this caused:**
+1. T1 fires false-positive → "TimerComponent used but not in waitForPackages"
+2. Static-fix LLM reads error → adds bare global check `typeof TimerComponent === 'undefined'`
+3. Bare global check is ALWAYS true (`TimerComponent` is undefined as a bare global in CDN games using `window.components`)
+4. `waitForPackages()` loop spins for 120 seconds → throws timeout → `#gameContent` never created → blank page → smoke check fails
+5. Smoke-regen also fails for same reason → build fails permanently at Step 1d
+
+**Games affected:** right-triangle-area builds #527 and #530 — both failed at Step 1d smoke check despite valid HTML generation.
+
+**Fix (commit 65aed12):** Updated all 3 component checks (TimerComponent, TransitionScreenComponent, ProgressBarComponent) in `lib/validate-static.js` to accept EITHER bare-global OR `window.components?.X` form:
+```js
+// Accepts EITHER:
+typeof TimerComponent === 'undefined'                    // bare global (older pattern)
+typeof window.components?.TimerComponent === 'undefined' // window.components (CDN namespace pattern)
+```
+Updated error messages to show both Option A and Option B so static-fix LLMs produce the correct output when a true positive is detected. Added 3 new test cases. Tests: 644 → 647 passing.
+
+**How the RCA agent detected this:**
+1. Read the final smoke-regen HTML and noticed `typeof ProgressBarComponent === 'undefined'` (bare global) placed next to `window.components?.ProgressBarComponent` usage (namespace form)
+2. The two forms are contradictory — if components live under `window.components`, bare global checks never resolve
+3. Traced back to the T1 error message telling the static-fix LLM to add the bare global form
+
+**What to do from now on:** Whenever T1 validator fires a false-positive on a CDN game that correctly uses `window.components?.X`, the static-fix LLM introduces WORSE code, not better. The root issue is that T1 checks must be aware of both CDN usage patterns (bare globals vs. `window.components`). Always accept both forms when writing T1 validator component guard checks. If a CDN game fails the smoke check with "blank page" and the generated HTML had correct `window.components?.X` guards, check whether T1 fired on those guards and triggered a bad static fix.
