@@ -534,8 +534,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Verified GEN-PHASE-001 (data-phase all game types) against math-cross-grid spec + find-triangle-side #549 — 2026-03-23 |
-| Waiting on | Next approved non-MCQ build to confirm GEN-PHASE-001 propagates into generated HTML |
+| Current task | GEN-STEP-001 + CR-013/008/009/012 deployed (188bbaa) + CR-015 worker.js deployed (3154415) — waiting on next build to verify GEN-STEP-001 prevents step-panel state leak in step-based games |
+| Waiting on | Next approved step-based OR MCQ build under new gen rules |
 | Blocked by | none |
 
 **Verification log:**
