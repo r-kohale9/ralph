@@ -943,3 +943,76 @@ The pedagogical claims in this document draw on the following well-established r
 - **Cognitive Load Theory:** Sweller, J. (1988). "Cognitive load during problem solving." *Cognitive Science*, 12(2), 257–285.
 - **NCERT Class 10 Mathematics:** NCERT (2019). *Mathematics — Textbook for Class X.* National Council of Educational Research and Training, India. Chapters 8–9.
 - **Common Core State Standards — Mathematics:** NGA & CCSSO (2010). *Common Core State Standards for Mathematics.* Washington DC. Standards HSG-SRT.C.6–8.
+
+---
+
+## 10. Session 1 Implementation — Worked Example Spec Template
+
+**Date:** March 22, 2026
+**Status:** Spec authored, awaiting first E2E pipeline build (manual queue required)
+
+### What Was Built
+
+Spec file created: `specs/soh-cah-toa-worked-example.md`
+
+This is the first Ralph game spec to implement the **Worked Example → Faded Example → Independent Practice** pedagogical flow (Sweller & Cooper, 1985). It introduces a new interaction type: `worked-example-mcq`.
+
+**Game design summary:**
+- 3 rounds, each covering one trig ratio: sin (SOH), cos (CAH), tan (TOA)
+- Each round has 3 sub-phases, each implemented using existing CDN parts:
+  1. **Example phase** — Full worked example shown step-by-step (PART-027 play area, `#btn-example-next` reveal). Learner reads; no answer required. Background: blue-tinted (`#eff6ff`) to signal "learning mode."
+  2. **Faded phase** — Same problem structure, one step blanked out, 3-option MCQ (PART-013 fixed validation, PART-022 buttons). Wrong answers shown correct formula but no life deducted. Background: green-tinted (`#f0fdf4`) to signal "almost there."
+  3. **Practice phase** — New similar problem, no scaffolding, 3-option MCQ. Wrong answers show elaborated misconception-specific feedback (`explanationOnWrong`). Lives deducted here only. Background: yellow-tinted (`#fefce8`) to signal "on your own."
+
+**Key design choices — why existing parts suffice (no PART-036 required):**
+
+| Design need | Solution using existing parts |
+|------------|-------------------------------|
+| Step-by-step worked example | `#example-steps-container` with progressive `.step-card` reveal via `advanceExampleStep()`. No CDN component needed — pure DOM manipulation. |
+| Scaffolded MCQ (faded blank) | Same PART-013 fixed validation + PART-022 button pattern used by all MCQ games. The "blank" is just a highlighted `div.faded-blank` with a prompt. |
+| Sub-phase transitions | CSS class toggle (`hidden`) between `#example-panel`, `#faded-panel`, `#practice-panel`. PART-024 TransitionScreen handles round boundaries. |
+| Per-misconception feedback | `explanationOnWrong` and `explanationOnCorrect` fields in `practiceQuestion` inputSchema. Displayed in `#practice-feedback` div. Same pattern as elaborated feedback (Section 6.2). |
+| Phase visual distinction | Three distinct background tints (blue / green / yellow) for the three panels — no component needed, just CSS. |
+
+The decision NOT to implement PART-036 as a reusable CDN component was deliberate: a spec-inline worked example panel (custom HTML in PART-027 play area) generates faster, costs less engineering effort, and can be tested by the existing pipeline without any warehouse changes. PART-036 remains on the roadmap for when multiple games need the same component — at that point the inline pattern can be extracted.
+
+### Fallback Content Verification
+
+All 9 computed answers (3 rounds × 3 sub-phases) verified with exact arithmetic:
+
+| Round | Phase    | Problem                      | Answer  |
+|-------|----------|------------------------------|---------|
+| 1 sin | Example  | sin(30°) × 10                | 5       |
+| 1 sin | Faded    | sin(60°) × 8                 | 6.93    |
+| 1 sin | Practice | sin(45°) × 14.14             | 10      |
+| 2 cos | Example  | cos(60°) × 10                | 5       |
+| 2 cos | Faded    | cos(30°) × 12                | 10.39   |
+| 2 cos | Practice | cos(45°) × 20                | 14.14   |
+| 3 tan | Example  | tan(45°) × 6                 | 6       |
+| 3 tan | Faded    | tan(60°) × 5                 | 8.66    |
+| 3 tan | Practice | tan(30°) × 10                | 5.77    |
+
+Distractors in each practice MCQ are chosen to probe the specific misconception documented in `misconceptionTargeted` — not random wrong values.
+
+### What to Verify in First Build
+
+Before running E2E, the build should be checked for:
+
+1. **Sub-phase visibility toggle** — only one of `#example-panel`, `#faded-panel`, `#practice-panel` visible at any time. A common LLM mistake is forgetting `hidden` on the other panels during `renderRound()`.
+2. **`window.gameState` assignment** — if missing, `waitForPhase()` in tests will timeout immediately. The spec includes a CRITICAL note at the top.
+3. **`FeedbackManager.init()` absence** — if LLM adds it, tests will fail from audio permission popup. The spec includes a CRITICAL note at the top.
+4. **`window.endGame/restartGame/nextRound` assignment** — test harness calls these directly. The spec includes a CRITICAL note and the DOMContentLoaded code explicitly sets them.
+5. **MCQ shuffle** — options must be shuffled per render, or tests that click by text content will be brittle (they should find buttons by text, not index — test scenarios in the spec use text-based selectors).
+6. **`isProcessing` guard** — prevents double-submit from fast taps. The spec documents this explicitly in `handleFadedAnswer` and `handlePracticeAnswer`.
+
+### Hypothesis to Test
+
+**Hypothesis:** The worked-example → faded → practice flow, with misconception-specific feedback, will produce a round 1 wrong-attempt rate below 30% in player testing — compared to the estimated 60% baseline for a direct MCQ game on the same content.
+
+**Measurement plan:** After the game is approved, compare `wrongInPractice` distribution in session data against `doubles` and `associations` wrong-attempt rates from the same Bloom level cohort. A 30%+ reduction confirms the worked-example hypothesis.
+
+### Next Steps After First Build
+
+1. If the game passes the pipeline, queue a second build for `which-ratio` (Game 2 from Section 3.3) — this game also uses the worked-example-mcq pattern but adds it as an on-demand panel after wrong answers rather than as a mandatory intro phase.
+2. Update `ROADMAP.md` to mark the worked-example spec template as shipped.
+3. If the faded-phase interaction is too complex for the LLM to generate reliably in one pass, consider splitting the spec into two simpler games: (a) worked-example-only (read-only, no interaction), (b) standard MCQ with post-error worked example reveal.
