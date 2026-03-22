@@ -2126,6 +2126,24 @@ Source: Build #538 RCA (right-triangle-area, 2026-03-22)
 
 ---
 
+## Lesson 167 — §5fa: waitForPackages truthy-check anti-pattern (2026-03-22)
+- Source: soh-cah-toa-worked-example build #544 review rejection + fix
+- Pattern: LLMs sometimes generate `while (!FeedbackManager)` or `while (!window.FeedbackManager)` instead of `while (typeof FeedbackManager === 'undefined')`. The truthy check is unreliable — CDN packages are class constructors, not plain objects, and `!FeedbackManager` may evaluate unexpectedly.
+- Root cause for soh-cah-toa review rejection: the truthy check caused a hang when waitForPackages resolved prematurely, preventing the game from initializing.
+- Fix: T1 §5fa added — rejects `while (!X)` or `while (!window.X)` pattern for any known CDN package. Gen prompt rule added in PART-003 waitForPackages section. Both commits: f38bc2a + 2304570.
+- Evidence: review-fix-1 corrected the pattern, game was approved on same build after fix.
+
+---
+
+## Lesson 168 — quadratic-formula-worked-example spec created (2026-03-22): Education Slot build #2
+- Source: Education Slot work 2026-03-22
+- Pattern: PART-036 algebra worked example (quadratic formula) — extends the soh-cah-toa-worked-example pedagogical pattern to algebra.
+- Design: 3 rounds, each with 3 sub-phases (example → faded → practice). Round 1: x²−5x+6=0 (a=1), Round 2: 2x²+3x−2=0 (a≠1), Round 3: x²−4x+4=0 (double root Δ=0). Targets specific student misconceptions: sign traps when rewriting ax²+bx+c=0, forgetting ±√ in the ±branch, denominator errors (2a not 2).
+- Spec: 1,841 lines, stored at specs/quadratic-formula-worked-example.md and warehouse/templates/quadratic-formula-worked-example/spec.md.
+- Build #545 queued to verify PART-036 pattern holds for algebra (algebra-specific CDN interactions may differ from soh-cah-toa trig game).
+
+---
+
 ## Lesson 166 — Contract test 0/2 persistent across 3 iterations but build still approved (2026-03-22)
 - Source: Pipeline log 2026-03-22, build #544
 - Pattern: contract tests can fail across all 3 fix iterations and the build still gets approved at final review if the reviewer determines the game logic is functionally correct.
