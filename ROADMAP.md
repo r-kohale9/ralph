@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Extend M16 to cover .option-btn touch target (11th confirmed instance, mcq-addition-blitz F9 → Test Engineering). Add `min-height: 44px` assertion for .option-btn elements alongside existing .choice-btn assertion. |
-| Status | 982/982 pass. Build #565 done, worker restarted with GEN-STEP-001 + CR-013 active. |
-| Waiting on | analytics pass rates to confirm lowest category |
+| Current task | Investigating `unknown` category (33.0%, 466 tests) — analytics #1 priority. Root cause: tests not receiving batch label. Trace which test-gen path produces unbatched tests. Separately: M16 .option-btn extension in progress (agent a44708e0d7934a362). |
+| Status | Analytics: unknown 33% > game-flow 62.6% > level-progression 66.8% > mechanics 67.9% > contract 69% > edge-cases 69.6%. First-attempt rate: 47.9%. |
+| Waiting on | M16 agent result |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
@@ -210,8 +210,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-STEP-001 SHIPPED (c7a59c2) + CR-013/008/009/012 all fixed (188bbaa) — step-panel reset, CLI path gap, ARIA assertive AND→OR, short-form diff branch, renderRound alias. GEN-CR-004 next (add GEN-MCQ-PHASE + GEN-MCQ-TIMER to buildCliGenPrompt). |
-| Status | Deployed to server 2026-03-23 — worker restarted with all gen rules active. Next: GEN-CR-004 (Medium — MCQ/timed CLI path gap). |
+| Current task | Investigating game-flow 62.6% pass rate (analytics priority #1 real category). Target: trace lowest-passing game-flow tests to HTML bugs vs test-gen bugs. Analytics: unknown 33% (466 tests) → Test Engineering for categorization fix. |
+| Status | All shipped: GEN-STEP-001 (c7a59c2), CR-013/008/009/012 (188bbaa), CR-015 (3154415). GEN-CR-004 confirmed already done (ae3c2ad). Next: game-flow root cause analysis. |
 | Waiting on | none |
 | Blocked by | none |
 
@@ -220,7 +220,7 @@
 | **GEN-CR-001: Tighten GEN-120 — default aria-live to polite** | **DONE — 2026-03-23** | Code Review 2026-03-23: GEN-120 now mandates `aria-live="polite"` as the only default. `assertive` demoted to parenthetical sub-note. Commit d64f2f2. 827 tests pass. Deployed. | n/a |
 | **GEN-CR-002: Narrow `expect\(` branch in categorizeFailure()** | **DONE — 2026-03-23 (commit d60ccc9)** | Code Review 2026-03-23 (334b4c3): Narrowed to `expect\(received\)` only (Playwright's own assertion diff format). `categorizeFailure('Expected round counter to increment')` → `interaction` (not rendering) — false-positive eliminated. Verified in worker.test.js line 600–607. Note: short-form Playwright diff (`Expected: N, Received: N`) still falls to unknown (CR-009 in code review log — separate backlog item). | Low |
 | **GEN-CR-003: Define "error alert" precisely in GEN-120 assertive sub-note** | **DONE — 2026-03-23 (commit d60ccc9)** | Code Review 2026-03-23 (d64f2f2): Sub-note now reads "assertive is ONLY correct for a div with `role='alert'` AND id or class containing 'error' — NEVER use assertive for correct/incorrect answer feedback." Both CDN_CONSTRAINTS_BLOCK (~L122) and buildGenerationPrompt rule 30 (~L553) updated in sync. Note: AND is more restrictive than WCAG (OR would be correct) — CR-008 in code review log tracks this as a follow-up. | Low |
-| **GEN-CR-004: Add GEN-MCQ-PHASE + GEN-MCQ-TIMER to buildCliGenPrompt** | **pending** | Code Review 2026-03-23: CR-002 — buildCliGenPrompt ends at GEN-UX-005 with no MCQ-PHASE or MCQ-TIMER rules. Games generated via `claude -p` CLI path miss these two rules, leading to syncDOMState() omissions and timer.start()-in-setupGame() bugs on MCQ/timed games. Add both rules to buildCliGenPrompt numbered list (match buildGenerationPrompt rules 33–34). | Medium: prevents MCQ game-flow failures on CLI-generated games |
+| **GEN-CR-004: Add GEN-MCQ-PHASE + GEN-MCQ-TIMER to buildCliGenPrompt** | **DONE — pre-existing (commit ae3c2ad)** | Already implemented in ae3c2ad. Rules 33 (GEN-MCQ-PHASE) and 34 (GEN-MCQ-TIMER) at prompts.js lines 814 and 823 in buildCliGenPrompt(). Confirmed via agent inspection 2026-03-23. | Medium: prevents MCQ game-flow failures on CLI-generated games |
 | **GEN-CR-005: generateSpec() — warn/guard when templateSpecId is null** | **pending** | Code Review 2026-03-23: CR-004 — generateSpec() proceeds with empty templateContent when regex fails to extract templateSpecId (e.g. `_(no template spec)_` placeholder). LLM invents CDN structure from scratch, causing validate-static failures. Add: log a WARN when templateSpecId is null; optionally throw if dryRun=false and no template is available. | Medium: prevents silent LLM spec hallucination on no-template games |
 | **GEN-CR-006: Fix planSession() bloomTarget default — 6 → 3** | **pending** | Code Review 2026-03-23: CR-005 — planSession() uses bloomTarget=6 as fallback when parsedGoal.bloomTarget is not a number, but parseGoal() clamps to 3. Callers that bypass parseGoal() get a full 5-game session instead of the expected 3-game Apply-level plan. Change planSession() default to 3. | Medium: session length consistency |
 | **CR-008: GEN-CR-003 assertive condition AND → OR** | **DONE — 2026-03-23 (commit 188bbaa)** | Fixed in prompts.js CDN_CONSTRAINTS_BLOCK + buildGenerationPrompt() rule 30: "role=alert OR id/class containing 'error'". Deployed 2026-03-23. | Medium |
