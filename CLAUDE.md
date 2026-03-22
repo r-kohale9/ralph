@@ -305,11 +305,18 @@ Delegate ALL implementation, research, and long-running tasks to sub-agents. The
 
 One item must always be present in `ROADMAP.md` under `## R&D` with status `active`. Never leave the slot empty.
 
-**How to pick the R&D task:** Target the single highest-leverage pain point visible in live build data. The best R&D starts with observation:
+**Inputs to R&D — two channels feed the slot:**
+1. **Local test slot handoffs** — every local test session ends with a classified verdict (HTML bug or test bug) and a specific hypothesis. R&D receives these and routes them:
+   - HTML bug → prototype a new rule in `CDN_CONSTRAINTS_BLOCK` (`lib/prompts.js`) + T1 check in `lib/validate-static.js`
+   - Test bug → prototype a fix in the test-gen category prompts in `lib/prompts.js` (mechanics, game-flow, contract, edge-cases, level-progression sections)
+2. **Live build data** — iteration counts, failure patterns, which test categories fail most, how long each step takes
+
+**How to pick the R&D task:** Target the single highest-leverage pain point visible in live build data or the most recent local test slot handoff. The best R&D starts with observation:
 - Pull recent build traces: iteration counts, failure patterns, which test categories fail most, how long each step takes
+- Check for pending local test slot handoffs — a classified HTML bug or test bug verdict waiting to be prototyped
 - Read `docs/lessons-learned.md` for open hypotheses
 - Ask: "If this one thing were fixed, how many of the last 10 builds would have gone differently?"
-- Prioritise: test gen quality > fix loop accuracy > review false positives > infra reliability
+- Prioritise: local test slot handoffs (already classified + scoped) > test gen quality > fix loop accuracy > review false positives > infra reliability
 
 **How to run R&D:** Don't just implement — experiment first:
 1. **Trace** — gather real data from recent builds (DB queries, log analysis, GCP HTML inspection)
@@ -366,7 +373,7 @@ A finding without a classification is incomplete. "Game passes locally" is a val
 
 **Education implementation is always running. This is not optional.** One sub-agent must ALWAYS be actively implementing educational improvements — not just analyzing, but building and verifying with real builds. The moment one education task completes, immediately pick the next and launch a new sub-agent.
 
-**What the Education slot targets:** This slot is distinct from the R&D slot in focus. R&D targets pipeline reliability (iteration counts, test gen quality, fix loop accuracy). The Education slot targets learning science and content quality:
+**What the Education slot targets:** This slot is distinct from the R&D slot in focus. R&D targets pipeline reliability — including gen prompt rules (from HTML bug classifications), test-gen prompt accuracy (from test bug classifications), fix loop accuracy, and iteration counts. The Education slot targets learning science and content quality:
 - Pedagogical quality of generated games (do they actually teach the concept?)
 - Curriculum alignment (do generated games hit the right Bloom's level for the age group?)
 - New game interaction types that reach higher Bloom's levels (apply, analyze, create — not just remember/understand)
@@ -413,7 +420,7 @@ When starting a new session or resuming after context compaction:
 2. **Check running sub-agents** — review the conversation summary or task notifications to identify any agents that were mid-flight. If their results are pending, relaunch them with the same brief.
 3. **Check build pipeline** — SSH to server and confirm worker is running and no build has been stuck >45 min.
 4. **Check ROADMAP.md R&D slot** — confirm one R&D task is marked `active`. If the slot is empty or passive, pick the next highest-leverage item and launch a sub-agent immediately.
-5. **Check local test slot** — confirm one sub-agent is actively running `diagnostic.js` against a failed build. If not, pick the highest-priority failed build and launch one immediately.
+5. **Check local test slot** — confirm one sub-agent is actively running `diagnostic.js` against a failed build. If not, pick the highest-priority failed build and launch one immediately. Verify the previous session produced a classification verdict (HTML bug or test bug) and handed it off to the R&D slot — if not, that handoff is the first task.
 6. **Check Education slot** — confirm one sub-agent is actively working on an education implementation task. If not, read `docs/education/README.md` and `docs/education/trig-session.md` and launch a sub-agent on the highest-priority item immediately.
 
 This rule exists because session compaction silently kills all crons, loses agent context, and can leave background work orphaned. Any future agent starting a session must run this checklist before doing anything else.
@@ -476,6 +483,8 @@ Schedule: `47 * * * *`
 Roadmap task queue check. Read /Users/the-hw-app/Projects/mathai/ralph/ROADMAP.md
 
 Check: is there exactly one R&D task marked 'active'? If not, identify the highest-leverage pending R&D item (look at recent build failure patterns, iteration counts, which failures are most common) and mark it active.
+
+Check: is there a pending local test slot handoff (HTML bug or test bug classification) that has not yet been routed to R&D? If yes, that handoff becomes the R&D task immediately — HTML bugs go to CDN_CONSTRAINTS_BLOCK + T1 checks, test bugs go to test-gen category prompts.
 
 Also check: are there any P8 priority items in the backlog that can be implemented now (no blockers, clear scope)? If yes, report which one should be next.
 
