@@ -1677,3 +1677,22 @@ All 5 are prompt-level fixes in `lib/prompts.js`. None requires pipeline archite
 
 **Strategic note:** 70% of remaining failures in builds 505-516 were in approved builds below the 70% pass threshold — pipeline was approving games despite residual failures. The bottleneck is LLM compliance with existing rules, not missing rules. These 5 cover the genuine gaps; all others are compliance/repetition issues.
 
+## Lesson 135 — endGame() phase order (GEN-110) + T1 post-fix validation (2026-03-22)
+
+**Source:** Pipeline iteration (consistent-failure RCA, docs/rnd-consistent-failures-rca.md, builds 400-515)
+
+**Pattern 1 — gameState.phase stays 'playing' at game-over (11 occurrences, 7 builds, 5 games):**
+`endGame()` called postMessage before setting `gameState.phase = 'game_over'`. syncDOMState() 500ms poll ran between the two calls — `data-phase` never updated, `waitForPhase('gameover')` timed out. Gen prompt rule 8 was too vague.
+Fix: GEN-110 added to lib/prompts.js — mandates `gameState.phase = 'game_over'; syncDOMState()` as FIRST two lines of endGame(), before postMessage. Includes CORRECT/WRONG code examples.
+
+**Pattern 2 — Fix loop introduces CDN init regression (15 occurrences, 8 builds, 5 games):**
+Fix LLM modified CDN initialization (ScreenLayout.inject, waitForPackages) as collateral damage while fixing an unrelated bug. T1 static validation only ran on the initial generated HTML, not after fix iterations. A fix that broke CDN init would produce `#gameContent missing` at next test run — 2 wasted iterations before the build failed.
+Fix: `runStaticValidationLocal()` added to lib/pipeline-fix-loop.js — runs T1 after every LLM fix, computes new error checks vs original. If new T1 errors appear, fix is discarded and bestHtmlSnapshot restored immediately. Saves 2 LLM calls per affected build.
+
+**Pattern 3 — `game_complete` → `results` normalization (RCA finding):**
+RCA initially said this was missing from syncDOMState. It was already present in lib/pipeline-utils.js line 722 (`.replace('game_complete', 'results')`). Documentation gap only — no code change needed. The actual root cause of results-screen failures in those 6 builds was Pattern 1 (phase not set before postMessage, so phase never reached 'game_complete').
+
+**Rules added:** GEN-110 in lib/prompts.js. T1 post-fix guard in lib/pipeline-fix-loop.js. Commit 5d0cdb7. 629 tests pass.
+
+**Strategic note:** Fix loop only rescued 3 of 9 builds with 3+ iterations. Pattern 1 + Pattern 2 together explain why: broken phase state + CDN regression from fix. Gen prompt is the primary reliability lever; fix loop is a safety net, not a repair tool.
+
