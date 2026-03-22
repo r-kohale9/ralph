@@ -1016,3 +1016,69 @@ Before running E2E, the build should be checked for:
 1. If the game passes the pipeline, queue a second build for `which-ratio` (Game 2 from Section 3.3) — this game also uses the worked-example-mcq pattern but adds it as an on-demand panel after wrong answers rather than as a mandatory intro phase.
 2. Update `ROADMAP.md` to mark the worked-example spec template as shipped.
 3. If the faded-phase interaction is too complex for the LLM to generate reliably in one pass, consider splitting the spec into two simpler games: (a) worked-example-only (read-only, no interaction), (b) standard MCQ with post-error worked example reveal.
+
+---
+
+## 11. Session 2 Implementation — Find the Missing Side Spec Template
+
+**Date:** March 22, 2026
+**Status:** Spec authored. Awaiting Build #535 (soh-cah-toa-worked-example) result before queuing. Do NOT queue until #535 has a result.
+
+### What Was Built
+
+Spec file created: `warehouse/templates/find-triangle-side/spec.md`
+
+This is the second game in the SOH-CAH-TOA session progression. It targets `find-side` (Bloom's L3 Apply, bordering L4) — the next concept node after `compute-ratio` in `lib/session-planner.js`. The `find-side` node already existed in CONCEPT_GRAPH with `suggestedGameIds: ['find-triangle-side']` — no session-planner code change was required.
+
+**Game design summary:**
+- 5 rounds, each with a distinct triangle configuration (different angle, given side, target side).
+- Two-step interaction per round: `two-step-ratio-plus-typed`
+  1. **Step 1 — Ratio selection** (MCQ, 3 options: sin / cos / tan): Learner identifies which ratio relates the given angle to the given side and the target side. Wrong answers show an elaborated explanation (`explanationOnWrongRatio`) but do NOT deduct a life — the feedback is instructional. The learner then continues to step 2 regardless.
+  2. **Step 2 — Computation** (typed numeric, PART-014 function validation, tolerance ±0.15): Learner calculates the unknown side length. Wrong answers deduct a life and show `explanationOnWrongAnswer` with the full substitution shown.
+- SVG right triangle rendered inline, dynamically updated each round from `svgConfig` fields.
+- No timer (PART-006 excluded) — ratio selection requires deliberate reasoning, not speed.
+- 3 lives apply only to step 2 errors.
+
+**Round progression (difficulty gradient):**
+
+| Round | θ  | Given          | Target        | Ratio | Answer | Difficulty Note |
+|-------|-----|----------------|---------------|-------|--------|-----------------|
+| 1     | 30° | hypotenuse=10  | opposite      | sin   | 5      | Direct multiply — standard |
+| 2     | 60° | hypotenuse=8   | adjacent      | cos   | 4      | Direct multiply — standard |
+| 3     | 45° | adjacent=7     | opposite      | tan   | 7      | tan introduced; answer = given value |
+| 4     | 30° | opposite=6     | hypotenuse    | sin   | 12     | Rearranged: divide not multiply |
+| 5     | 45° | adjacent=5     | hypotenuse    | cos   | 7.07   | Rearranged + non-integer answer |
+
+**Key design decisions:**
+
+| Decision | Rationale |
+|----------|-----------|
+| No life deduction on wrong ratio (step 1) | Step 1 is a teaching moment, not a test. Penalising it would contradict the pedagogical goal. |
+| Lives deducted only on step 2 | Computation errors are the primary skill being assessed. |
+| Two-step decomposition | Prevents "right answer for wrong reason" — a learner who guesses the number cannot bypass ratio selection. |
+| Elaborated wrong-ratio feedback | Names the correct ratio AND explains which sides it connects — targets the most common misconception: right formula applied to wrong pair of sides. |
+| Rearranged formula in rounds 4–5 | Genuine Apply-level demand: learner must recognise that hypotenuse = given ÷ ratio, not given × ratio. |
+| SVG diagram | Geometric representation (absent from soh-cah-toa-worked-example) adds a third representation mode: symbolic + numeric + geometric. |
+
+### Pedagogical Progression: soh-cah-toa → find-triangle-side
+
+**soh-cah-toa-worked-example** gives the learner the ratio name and says "here is the procedure; follow it." Cognitive demand: execute.
+
+**find-triangle-side** shows a triangle and says "figure out which procedure applies, then execute it." Cognitive demand: select + execute.
+
+This is the difference between Bloom's L3 procedural (given procedure → apply) and genuine L3 Apply (novel situation → choose procedure → apply). Rounds 4–5 add the additional step of rearranging the formula, which edges into L4 territory.
+
+### What to Verify in First Build
+
+1. **Exactly one panel visible**: `#step1-panel` XOR `#step2-panel` must be visible. Never both; never neither.
+2. **SVG labels update each round**: `renderRound()` must update SVG text nodes, not just innerHTML of surrounding divs.
+3. **No life deducted on wrong ratio**: `gameState.lives` must not change after a step-1 wrong answer.
+4. **`isProcessing` guard on both handlers**: prevents double-submit on fast taps.
+5. **`parseFloat` not `parseInt`**: rounds 4–5 answers are decimals.
+6. **Tolerance applied correctly**: `Math.abs(userAnswer - correctAnswer) <= tolerance`, not strict equality.
+
+### Next Steps After First Build
+
+1. If approved: queue `which-ratio` (Game 2 from Section 3.3) — the ratio-recognition game that sits between soh-cah-toa-worked-example and find-triangle-side in the conceptual progression.
+2. If the SVG rendering is unreliable across builds, fall back to a text-based triangle description in a styled `div` — same information, simpler DOM manipulation.
+3. Update ROADMAP.md to mark find-triangle-side spec template as shipped once the first build approves.
