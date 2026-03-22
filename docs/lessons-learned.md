@@ -1710,3 +1710,16 @@ RCA initially said this was missing from syncDOMState. It was already present in
 
 **Strategic note:** Fix loop only rescued 3 of 9 builds with 3+ iterations. Pattern 1 + Pattern 2 together explain why: broken phase state + CDN regression from fix. Gen prompt is the primary reliability lever; fix loop is a safety net, not a repair tool.
 
+## Lesson 137 — TRANSITION_SLOT root cause: global template actively advertised wrong selector
+**Source:** Pipeline iteration lesson (2026-03-22, commit e87d8c9)
+
+**Pattern:** The test-gen prompt's global "Transition slot selectors" section listed `#mathai-transition-slot button` as the canonical correct selector with no caveats — while per-category rules (GF5, LP4, CT3) buried in their own blocks said "never use it here." LLM followed the global positive instruction, ignoring the category-specific negatives. Result: 100% of 11 recent approved builds violated the TRANSITION_SLOT lint rule.
+
+**Root cause:** Contradictory instructions at different priority levels. Global section said USE IT. Category sections said DON'T. Global wins in LLM attention.
+
+**Fix:** (1) Added CRITICAL note to global section — use for clickNextLevel() only, never in assertions; (2) Added explicit GF9 rule to game-flow block with WRONG/RIGHT examples and the linter evidence ("11/11 builds violated this"). Now both global and category-specific instructions are aligned.
+
+**Rule:** When a lint rule fires at 100% rate despite existing prohibitions, look for a contradictory POSITIVE instruction elsewhere in the prompt — not just missing prohibitions. Positive instructions outweigh negative ones in LLM attention.
+
+**Expected outcome:** TRANSITION_SLOT violations drop from 100% → <20% on next builds.
+
