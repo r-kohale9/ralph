@@ -2277,3 +2277,19 @@ The spec (line 681) contained the explicit prohibition: "Do NOT use drag-and-dro
 - T1 check PART-025-HIDE in `lib/validate-static.js` line 209: if `transitionScreen.show(` present but `transitionScreen.hide(` absent → ERROR
 
 **Lesson:** CDN component auto-hide/show behavior cannot be assumed. Every component that visually hides an element must be explicitly revealed by the caller. Document the FULL sequence in gen prompt rules.
+
+## Lesson 179 — GEN-118: transitionScreen.hide() Does NOT Auto-Show #gameContent
+
+**Build:** #556 (name-the-sides) | **Date:** 2026-03-22 | **Source:** diagnostic + build failure
+
+**Root Cause:** `startGame()` called `transitionScreen.hide()` but never called `document.getElementById('gameContent').style.display = 'block'`. ScreenLayout.inject() sets `#gameContent` to `display:none` on init. `transitionScreen.hide()` dismisses the overlay UI but has no effect on the visibility of `#gameContent`. Without the explicit show call, the game renders invisibly — Playwright sees 0/3 game-flow passes because all interaction elements are hidden.
+
+**Why GEN-117 Alone Was Insufficient:** GEN-117 mandated `transitionScreen.hide()` in `startGame()` — correct. But the WRONG example in the prompt showed `startGame()` without any #gameContent show call, which the model interpreted as: "call hide(), then nextRound() is enough." GEN-118 makes the explicit show call mandatory by adding it to both the ROUTING rule and the startGame() CORRECT PATTERN.
+
+**Fix:** In `lib/prompts.js`, updated the TransitionScreen ROUTING rule and the startGame() CORRECT PATTERN to require the full 4-step sequence: `transitionScreen.hide()` → `document.getElementById('gameContent').style.display = 'block'` → `gameState.phase = 'playing'` → `nextRound()`. Added note: "transitionScreen.hide() does NOT auto-show #gameContent (GEN-118)".
+
+**T1 Check:** `lib/validate-static.js` PART-026-GAMECONTENT (WARNING) — if transitionScreen.show() is present but no #gameContent visibility restore pattern found.
+
+**Verified:** Build #557 queued (2026-03-22). Prior builds #550-#556 all failed due to this class of bug (various iterations of the same invisible-gameContent root cause).
+
+**Rule:** After every `transitionScreen.hide()` call that transitions into gameplay, the caller MUST immediately call `document.getElementById('gameContent').style.display = 'block'` (or equivalent class removal). The transition screen hiding and the game content revealing are two independent DOM operations.
