@@ -8,6 +8,7 @@ const crypto = require('crypto');
 // server.js now exports createApp, extractChangedSpecs, getNextMidnight
 // without starting Express or connecting to Redis.
 const { extractChangedSpecs, getNextMidnight } = require('../server');
+const { buildSessionPlan, normalizeConcept, CONCEPT_GRAPH } = require('../lib/session-planner');
 
 function verifySignature(body, secret) {
   return 'sha256=' + crypto.createHmac('sha256', secret).update(body).digest('hex');
@@ -174,5 +175,150 @@ describe('bulk scheduling threshold', () => {
   it('1 game does not exceed threshold', () => {
     const games = new Set(['a']);
     assert.ok(!(games.size > BULK_THRESHOLD));
+  });
+});
+
+// ─── Session Planner tests ────────────────────────────────────────────────────
+
+describe('buildSessionPlan — trigonometry', () => {
+  it('returns a plan with 5 skills for "trigonometry"', () => {
+    const plan = buildSessionPlan('trigonometry');
+    assert.equal(plan.error, undefined);
+    assert.equal(plan.concept, 'trigonometry');
+    assert.equal(plan.skills.length, 5);
+  });
+
+  it('includes required top-level fields', () => {
+    const plan = buildSessionPlan('trigonometry');
+    assert.ok(plan.planId, 'planId must be present');
+    assert.ok(Array.isArray(plan.skills), 'skills must be an array');
+    assert.ok(Array.isArray(plan.gameIds), 'gameIds must be an array');
+    assert.equal(typeof plan.estimatedMinutes, 'number');
+    assert.ok(Array.isArray(plan.bloomRange) && plan.bloomRange.length === 2, 'bloomRange must be [min, max]');
+  });
+
+  it('estimatedMinutes is 5 per skill (5 skills → 25 min)', () => {
+    const plan = buildSessionPlan('trigonometry');
+    assert.equal(plan.estimatedMinutes, 25);
+  });
+
+  it('bloomRange spans level 1 to 4 for trigonometry', () => {
+    const plan = buildSessionPlan('trigonometry');
+    assert.equal(plan.bloomRange[0], 1);
+    assert.equal(plan.bloomRange[1], 4);
+  });
+
+  it('gameIds includes all 5 game IDs in order', () => {
+    const plan = buildSessionPlan('trigonometry');
+    assert.deepEqual(plan.gameIds, [
+      'label-triangle-sides',
+      'which-trig-ratio',
+      'soh-cah-toa-worked-example',
+      'find-triangle-side',
+      'trig-real-world',
+    ]);
+  });
+
+  it('first skill has no prerequisites', () => {
+    const plan = buildSessionPlan('trigonometry');
+    assert.deepEqual(plan.skills[0].prerequisiteSkillIds, []);
+  });
+
+  it('each skill node has required shape', () => {
+    const plan = buildSessionPlan('trigonometry');
+    for (const skill of plan.skills) {
+      assert.ok(skill.skillId, 'skillId required');
+      assert.ok(skill.skillName, 'skillName required');
+      assert.ok(typeof skill.bloomLevel === 'number', 'bloomLevel must be a number');
+      assert.ok(Array.isArray(skill.prerequisiteSkillIds), 'prerequisiteSkillIds must be an array');
+      assert.ok(Array.isArray(skill.suggestedGameIds), 'suggestedGameIds must be an array');
+    }
+  });
+});
+
+describe('buildSessionPlan — alias resolution', () => {
+  it('"trig" resolves to trigonometry plan', () => {
+    const plan = buildSessionPlan('trig');
+    assert.equal(plan.concept, 'trigonometry');
+    assert.equal(plan.skills.length, 5);
+  });
+
+  it('"soh-cah-toa" resolves to trigonometry plan', () => {
+    const plan = buildSessionPlan('soh-cah-toa');
+    assert.equal(plan.concept, 'trigonometry');
+  });
+
+  it('concept is case-insensitive ("Trig" → trigonometry)', () => {
+    const plan = buildSessionPlan('Trig');
+    assert.equal(plan.concept, 'trigonometry');
+  });
+
+  it('leading/trailing whitespace is trimmed', () => {
+    const plan = buildSessionPlan('  trigonometry  ');
+    assert.equal(plan.concept, 'trigonometry');
+  });
+});
+
+describe('buildSessionPlan — multiplication', () => {
+  it('returns a plan with 2 skills for "multiplication"', () => {
+    const plan = buildSessionPlan('multiplication');
+    assert.equal(plan.error, undefined);
+    assert.equal(plan.concept, 'multiplication');
+    assert.equal(plan.skills.length, 2);
+  });
+
+  it('estimatedMinutes is 10 for 2-skill plan', () => {
+    const plan = buildSessionPlan('multiplication');
+    assert.equal(plan.estimatedMinutes, 10);
+  });
+
+  it('gameIds includes both multiplication game IDs', () => {
+    const plan = buildSessionPlan('multiplication');
+    assert.deepEqual(plan.gameIds, ['multiplication-tables', 'multiplication-word-problems']);
+  });
+});
+
+describe('buildSessionPlan — unknown concept', () => {
+  it('returns error: concept_not_found for unknown concept', () => {
+    const result = buildSessionPlan('calculus');
+    assert.equal(result.error, 'concept_not_found');
+  });
+
+  it('returns availableConcepts list for unknown concept', () => {
+    const result = buildSessionPlan('calculus');
+    assert.ok(Array.isArray(result.availableConcepts));
+    assert.ok(result.availableConcepts.includes('trigonometry'));
+    assert.ok(result.availableConcepts.includes('multiplication'));
+  });
+
+  it('returns error for empty-ish string that has no alias', () => {
+    const result = buildSessionPlan('zzz-unknown-xyz');
+    assert.equal(result.error, 'concept_not_found');
+  });
+});
+
+describe('normalizeConcept', () => {
+  it('lowercases and trims input', () => {
+    assert.equal(normalizeConcept('  Trig  '), 'trigonometry');
+  });
+
+  it('returns canonical key for known aliases', () => {
+    assert.equal(normalizeConcept('soh-cah-toa'), 'trigonometry');
+    assert.equal(normalizeConcept('times tables'), 'multiplication');
+  });
+
+  it('passes through unknown concepts unchanged', () => {
+    assert.equal(normalizeConcept('fractions'), 'fractions');
+  });
+});
+
+describe('CONCEPT_GRAPH structure', () => {
+  it('exports CONCEPT_GRAPH as an object', () => {
+    assert.ok(CONCEPT_GRAPH && typeof CONCEPT_GRAPH === 'object');
+  });
+
+  it('has trigonometry and multiplication keys', () => {
+    assert.ok('trigonometry' in CONCEPT_GRAPH);
+    assert.ok('multiplication' in CONCEPT_GRAPH);
   });
 });

@@ -128,30 +128,77 @@ node lib/validate-static.js /tmp/test-true-positive.html
 npm test → # pass 644 # fail 0
 ```
 
+## 2b. Evidence of Root Cause — Build #532 (signalCollector.trackEvent hallucination)
+
+**Source:** Build #532 Step 1d smoke-check log. 2026-03-22.
+
+**Evidence A — Step 1d smoke check error message (build #532):**
+```
+Init error: signalCollector.trackEvent is not a function
+```
+This error appeared after the T1 fix (commit 65aed12) allowed the HTML to pass Step 1b. The game reached the browser but immediately threw at runtime because `signalCollector.trackEvent` does not exist.
+
+**Evidence B — Same error across all three builds:**
+- Build #527: failed — also contained `signalCollector.trackEvent` calls (masked by other failures)
+- Build #530: failed at Step 1d with blank page (T1 cascade obscured the trackEvent error)
+- Build #532: T1 fix removed the cascade; `signalCollector.trackEvent` is now the sole failure mode
+
+**Evidence C — PART-011 signalCollector API:**
+The CDN `signalCollector` object from PART-011 exposes lifecycle methods (`.signalCorrect()`, `.signalWrong()`, `.seal()`, `.getPayload()`). It has no generic `.trackEvent()` method. The LLM generates it because it resembles common analytics patterns (Google Analytics, Mixpanel, etc.).
+
+**Evidence D — Hallucination recurrence:**
+The same `.trackEvent()` call appeared in 3 consecutive independently-generated HTML files. Without a constraint in the gen prompt or a T1 gate, every subsequent build of this game (and other PART-011 games) will produce the same hallucination.
+
+## 3b. POC Fix Verification — signalCollector.trackEvent (PENDING)
+
+**Fix location 1 — `lib/validate-static.js`:** Add a T1 check that fires if `signalCollector.trackEvent` appears in the HTML:
+```js
+if (/signalCollector\.trackEvent\b/.test(html)) {
+  errors.push('ERROR: signalCollector.trackEvent() does not exist in PART-011 CDN API — use .signalCorrect(), .signalWrong(), .seal(), .getPayload() instead');
+}
+```
+
+**Fix location 2 — Gen prompt `CDN_CONSTRAINTS_BLOCK`:** Add:
+```
+- signalCollector does NOT have .trackEvent() — NEVER call signalCollector.trackEvent(). Use the PART-011 lifecycle API: .signalCorrect(), .signalWrong(), .seal(), .getPayload()
+```
+
+**Fix location 3 — `lib/pipeline.js` `classifySmokeErrors()`:** Add:
+```js
+{ pattern: /signalCollector\.trackEvent is not a function/, label: 'SIGNAL_COLLECTOR_TRACKEVENT_HALLUCINATION', fatal: true }
+```
+
+**POC verification status:** NOT COMPLETE. Implementation pending. Once T1 check is added and tested, re-run `npm test` to confirm no regressions, then deploy and queue build #533.
+
 ## 4. Reliability Reasoning
 
-**Fix determinism:** The regex change is deterministic — it either accepts or rejects the `window.components?.X` pattern. No LLM involvement. Once deployed, any HTML that correctly uses `window.components?.ProgressBarComponent` in `waitForPackages()` will pass T1 without triggering the static-fix LLM.
+**Fix 1 (T1 false-positive, commit 65aed12) — determinism:** The regex change is deterministic — it either accepts or rejects the `window.components?.X` pattern. No LLM involvement. Once deployed, any HTML that correctly uses `window.components?.ProgressBarComponent` in `waitForPackages()` will pass T1 without triggering the static-fix LLM. Confirmed working: build #532 passed Step 1b.
 
-**Regression risk:** The true-positive case must still be caught — games that use `new ProgressBarComponent()` but have NO `typeof` check at all (neither bare nor `window.components?.X`) should still fail T1. The updated regex must only suppress the false positive for the correct CDN form.
+**Regression risk (Fix 1):** The true-positive case must still be caught — games that use `new ProgressBarComponent()` but have NO `typeof` check at all (neither bare nor `window.components?.X`) should still fail T1. The updated regex only suppresses the false positive for the correct CDN form.
 
-**Edge cases remaining:**
+**Edge cases remaining (Fix 1):**
 - LLMs could generate `window.components.ProgressBarComponent` (no `?.`) — the regex should accept both `?.` and `.` access forms.
 - If a game uses both bare `ProgressBarComponent` AND `window.components?.ProgressBarComponent`, either form should satisfy T1.
 - The gen prompt should explicitly document both acceptable forms to prevent future regressions.
 
-**What caused the same game to fail twice:** Build #527's fix (gen prompt + T1 bug for E8 CDN stripping) was unrelated to this T1 false-positive bug. The T1 regex bug existed for both builds but only triggered when the LLM used `window.components?.X` correctly. This is a pipeline-level bug, not game-specific.
+**Fix 2 (signalCollector.trackEvent, pending) — determinism:** Adding `.trackEvent` to T1 as a hard error is fully deterministic. The LLM cannot generate this call without T1 catching it at Step 1b. Gen prompt prohibition reduces the likelihood of generation at source. `classifySmokeErrors()` addition provides a targeted smoke-regen in case the T1 check is bypassed.
+
+**Regression risk (Fix 2):** Low. The PART-011 `signalCollector` API is stable and `.trackEvent()` is definitively not part of it. Adding a blanket ban carries no false-positive risk.
+
+**Why the same game failed three times:** Three independent pipeline-level bugs cascaded sequentially. Each build revealed the next hidden failure once the preceding bug was fixed. The game's own HTML logic is sound — all failures have been pipeline or hallucination bugs, not game design issues.
 
 ## 5. Go/No-Go for E2E
 
-**READY FOR E2E — T1 fix deployed (commit 65aed12). Build #532 queued.**
+**NOT READY FOR E2E — signalCollector.trackEvent hallucination must be fixed first.**
 
-Root cause was the T1 validator itself (not game logic). The fix corrects the validator. When right-triangle-area is next built:
-- The LLM will generate correct `window.components?.TimerComponent` checks in `waitForPackages()`
-- T1 will correctly accept this form and NOT trigger the static-fix LLM
-- `waitForPackages()` will resolve normally, `ScreenLayout.inject()` will run, `#gameContent` will be created
-- Smoke check should pass
+Build #532 confirmed the T1 false-positive fix worked (smoke check advanced past Step 1b), but revealed a second independent failure: `Init error: signalCollector.trackEvent is not a function` at Step 1d. This hallucination appeared in all three builds (#527, #530, #532) and will recur until fixed at the source.
 
-**Value if completed:** right-triangle-area HTML is structurally sound — correct CDN init sequence, correct TimerComponent null-slot pattern (`new TimerComponent(null, {...})`), correct canvas-based triangle rendering, correct area formula validation logic. The only failure mode across both builds was pipeline-level bugs (T1 validator false-positive), not game design issues.
+**Blocking items before next E2E:**
+1. Add `signalCollector.trackEvent` as a T1 static-validation error in `lib/validate-static.js`
+2. Add prohibition to gen prompt `CDN_CONSTRAINTS_BLOCK`: `signalCollector` has no `.trackEvent()` — use PART-011 lifecycle API (`.signalCorrect()`, `.signalWrong()`, `.seal()`, `.getPayload()`)
+3. Add `signalCollector.trackEvent is not a function` to `classifySmokeErrors()` fatal patterns in `lib/pipeline.js`
+
+Once these three fixes are deployed, re-queue right-triangle-area. The game's HTML structure is sound (correct canvas triangle rendering, correct area formula logic, correct CDN init pattern). Pipeline-level bugs have been the only failure mode across all three builds.
 
 ## Failure History
 
@@ -159,7 +206,7 @@ Root cause was the T1 validator itself (not game logic). The fix corrects the va
 |-------|---------|------------|--------|
 | #527 | game-flow all fail; E8 iteration blank page | TimerComponent('headless-timer') throws (slot not in DOM); E8 merge stripped CDN scripts | Fixed in gen prompt + T1 E8 CDN check |
 | #530 | Blank page: missing #gameContent element (Step 1d, both initial + smoke-regen) | T1 validator false-positive for `window.components?.TimerComponent` → static-fix LLM adds broken bare-global checks → waitForPackages spins 120s → #gameContent never created | Fixed: commit 65aed12 corrects T1 validator to accept window.components?.X form |
-| #532 | — | — | Queued: verifying T1 fix resolves smoke check |
+| #532 | Init error: signalCollector.trackEvent is not a function (Step 1d) | LLM hallucinates `.trackEvent()` on signalCollector (PART-011); method does not exist in CDN API | NOT FIXED — T1 check + gen prompt prohibition needed before next build |
 
 ## Manual Run Findings
 
@@ -178,3 +225,10 @@ For build #530 specifically: the original `index-generated.html` (49KB, from GCP
 - Root cause found: T1 validator false-positive at validate-static.js lines 378/388 — regex `/typeof TimerComponent/.test(html)` does not accept `window.components?.TimerComponent` as a valid form.
 - Fix applied (commit 65aed12): Updated all 3 component checks (TimerComponent, TransitionScreenComponent, ProgressBarComponent) to accept EITHER bare-global OR `window.components?.X` form. Error messages updated to show both options. 3 new test cases; 644→647 passing.
 - Build #532 queued to verify fix.
+
+**Build #532:**
+- What was tried: Queued to verify T1 fix from commit 65aed12.
+- Partial success: T1 fix worked — HTML passed Step 1b. Build advanced further than #527 or #530.
+- New failure: Step 1d smoke check threw `Init error: signalCollector.trackEvent is not a function` — a second independent hallucination bug not visible in earlier builds because the T1 cascade hid it.
+- Root cause: LLM hallucinates `signalCollector.trackEvent(event)` on the PART-011 CDN object which has no such method.
+- Status: T1 check + gen prompt prohibition + classifySmokeErrors() entry needed. Build #533 blocked until fixes deployed.

@@ -11,6 +11,7 @@ const slack = require('./lib/slack');
 const logger = require('./lib/logger');
 const sentry = require('./lib/sentry');
 const metrics = require('./lib/metrics');
+const { buildSessionPlan } = require('./lib/session-planner');
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 const BULK_THRESHOLD = parseInt(process.env.RALPH_BULK_THRESHOLD || '5', 10);
@@ -651,6 +652,19 @@ function createApp(deps = {}) {
 
     logger.info(`Targeted fix queued for ${gameId}`, { gameId, buildId: newBuildId, event: 'fix_queued' });
     res.json({ queued: true, buildId: newBuildId, gameId });
+  });
+
+  // ─── Session Planner API (Phase 1: static concept graph) ──────────────────
+  app.post('/api/session-plan', async (req, res) => {
+    const { concept, studentLevel, curriculumHint } = req.body;
+    if (!concept) {
+      return res.status(400).json({ error: 'concept required' });
+    }
+    const plan = buildSessionPlan(concept, { studentLevel, curriculumHint });
+    if (plan.error) {
+      return res.status(404).json(plan);
+    }
+    res.json(plan);
   });
 
   // ─── Slack Events API ──────────────────────────────────────────────────────

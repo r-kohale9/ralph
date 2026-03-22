@@ -83,14 +83,22 @@ describe('lintGeneratedTests — M15: immediate .toHaveClass on await page.locat
 
 describe('lintGeneratedTests — HARDCODED_TIMEOUT: page.waitForTimeout(N)', () => {
   it('flags page.waitForTimeout(1000)', () => {
-    const content = `  await page.waitForTimeout(1000);`;
+    const content = `test.describe('Contract', () => {
+  test('waits with hardcoded timeout', async ({ page }) => {
+    await page.waitForTimeout(1000);
+  });
+});`;
     const { violations } = lintGeneratedTests({ contract: content }, silentLog);
     const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
     assert.equal(ht.length, 1, 'Should flag HARDCODED_TIMEOUT for page.waitForTimeout(1000)');
   });
 
   it('flags page.waitForTimeout(500) in mechanics', () => {
-    const content = `  await page.waitForTimeout(500);`;
+    const content = `test.describe('Mechanics', () => {
+  test('waits with hardcoded timeout', async ({ page }) => {
+    await page.waitForTimeout(500);
+  });
+});`;
     const { violations } = lintGeneratedTests({ mechanics: content }, silentLog);
     const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
     assert.equal(ht.length, 1, 'Should flag HARDCODED_TIMEOUT for page.waitForTimeout(500)');
@@ -159,7 +167,11 @@ describe('lintGeneratedTests — CT6_NULL: getLastPostMessage() direct property 
 
 describe('lintGeneratedTests — TRANSITION_SLOT: #mathai-transition-slot button selector in non-CDN context', () => {
   it('flags #mathai-transition-slot button selector', () => {
-    const content = `  await page.locator('#mathai-transition-slot button').click();`;
+    const content = `test.describe('Level progression', () => {
+  test('clicks transition slot', async ({ page }) => {
+    await page.locator('#mathai-transition-slot button').click();
+  });
+});`;
     const { violations } = lintGeneratedTests({ 'level-progression': content }, silentLog);
     const ts = violations.filter((v) => v.rule === 'TRANSITION_SLOT');
     assert.equal(ts.length, 1, 'Should flag TRANSITION_SLOT rule');
@@ -199,8 +211,10 @@ describe('lintGeneratedTests — TRANSITION_SLOT: #mathai-transition-slot button
   await page.locator('#mathai-transition-slot button').first().click();
 }
 
-test('some test', async ({ page }) => {
-  await page.locator('#mathai-transition-slot button').click();
+test.describe('Game flow', () => {
+  test('some test', async ({ page }) => {
+    await page.locator('#mathai-transition-slot button').click();
+  });
 });`;
     const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
     const ts = violations.filter((v) => v.rule === 'TRANSITION_SLOT');
@@ -234,8 +248,10 @@ describe('lintGeneratedTests — helper context suppresses HARDCODED_TIMEOUT', (
   await page.waitForTimeout(400);
 }
 
-test('some test', async ({ page }) => {
-  await page.waitForTimeout(1000);
+test.describe('Game flow', () => {
+  test('some test', async ({ page }) => {
+    await page.waitForTimeout(1000);
+  });
 });`;
     const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
     const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
@@ -329,5 +345,144 @@ test.describe('Clean mechanics', () => {
     const { violations, warningCount } = lintGeneratedTests({ mechanics: null, contract: undefined }, silentLog);
     assert.equal(warningCount, 0);
     assert.deepEqual(violations, []);
+  });
+});
+
+describe('lintGeneratedTests — boilerplate suppression: dismissPopupIfPresent', () => {
+  it('does not flag HARDCODED_TIMEOUT inside dismissPopupIfPresent(page) helper body', () => {
+    const content = `async function dismissPopupIfPresent(page) {
+  try {
+    await page.locator('.popup-close').click({ timeout: 500 });
+    await page.waitForTimeout(300);
+  } catch (e) {}
+  await page.waitForTimeout(300);
+}
+
+test.describe('Game flow', () => {
+  test('answers correctly', async ({ page }) => {
+    await startGame(page);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
+    assert.equal(ht.length, 0, 'HARDCODED_TIMEOUT inside dismissPopupIfPresent() should be suppressed');
+  });
+
+  it('still flags HARDCODED_TIMEOUT inside test body after test.describe(', () => {
+    const content = `async function dismissPopupIfPresent(page) {
+  await page.waitForTimeout(300);
+}
+
+test.describe('Game flow', () => {
+  test('answers correctly', async ({ page }) => {
+    await page.waitForTimeout(2000);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ contract: content }, silentLog);
+    const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
+    assert.equal(ht.length, 1, 'HARDCODED_TIMEOUT inside test body after test.describe must still be flagged');
+  });
+});
+
+describe('lintGeneratedTests — boilerplate suppression: GF8 inside helper functions', () => {
+  it('does not flag GF8 (toBeVisible) inside startGame(page) helper body', () => {
+    const content = `async function startGame(page) {
+  await expect(page.locator('#start-btn')).toBeVisible();
+  await page.locator('#start-btn').click();
+}
+
+test.describe('Game flow', () => {
+  test('starts game', async ({ page }) => {
+    await startGame(page);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const gf8 = violations.filter((v) => v.rule === 'GF8');
+    assert.equal(gf8.length, 0, 'GF8 inside startGame() boilerplate should be suppressed');
+  });
+
+  it('does not flag GF8 (toBeVisible) inside clickNextLevel(page) helper body', () => {
+    const content = `async function clickNextLevel(page) {
+  await expect(page.locator('#next-btn')).toBeVisible();
+  await page.locator('#next-btn').click();
+}
+
+test.describe('Level progression', () => {
+  test('advances level', async ({ page }) => {
+    await clickNextLevel(page);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'level-progression': content }, silentLog);
+    const gf8 = violations.filter((v) => v.rule === 'GF8');
+    assert.equal(gf8.length, 0, 'GF8 inside clickNextLevel() boilerplate should be suppressed');
+  });
+
+  it('still flags GF8 inside LLM-generated test body after test.describe(', () => {
+    const content = `async function startGame(page) {
+  await page.locator('#start-btn').click();
+}
+
+test.describe('Game flow', () => {
+  test('checks visibility without waitForPhase', async ({ page }) => {
+    await expect(page.locator('#score')).toBeVisible();
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const gf8 = violations.filter((v) => v.rule === 'GF8');
+    assert.equal(gf8.length, 1, 'GF8 inside test body after test.describe must still be flagged');
+  });
+});
+
+describe('lintGeneratedTests — boilerplate suppression: beforeEach block', () => {
+  it('does not flag TRANSITION_SLOT inside beforeEach block (before test.describe)', () => {
+    const content = `async function startGame(page) {
+  await page.locator('#start-btn').click();
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.locator('#mathai-transition-slot button').first().click();
+});
+
+test.describe('Game flow', () => {
+  test('runs correctly', async ({ page }) => {
+    await startGame(page);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const ts = violations.filter((v) => v.rule === 'TRANSITION_SLOT');
+    assert.equal(ts.length, 0, 'TRANSITION_SLOT inside beforeEach (before test.describe) should be suppressed');
+  });
+
+  it('does not flag HARDCODED_TIMEOUT inside beforeEach block (before test.describe)', () => {
+    const content = `test.beforeEach(async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.waitForTimeout(500);
+});
+
+test.describe('Game flow', () => {
+  test('runs correctly', async ({ page }) => {
+    await startGame(page);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
+    assert.equal(ht.length, 0, 'HARDCODED_TIMEOUT inside beforeEach (before test.describe) should be suppressed');
+  });
+
+  it('still flags violations inside test.describe even when beforeEach appears before it', () => {
+    const content = `test.beforeEach(async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.waitForTimeout(500);
+});
+
+test.describe('Game flow', () => {
+  test('uses hardcoded timeout', async ({ page }) => {
+    await page.waitForTimeout(2000);
+  });
+});`;
+    const { violations } = lintGeneratedTests({ 'game-flow': content }, silentLog);
+    const ht = violations.filter((v) => v.rule === 'HARDCODED_TIMEOUT');
+    assert.equal(ht.length, 1, 'HARDCODED_TIMEOUT inside test body after test.describe must still be flagged');
   });
 });

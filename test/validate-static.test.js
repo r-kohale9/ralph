@@ -746,6 +746,35 @@ describe('validate-static.js', () => {
   });
 });
 
+describe('SignalCollector hallucinated API check (5h)', () => {
+  it('fails when signalCollector.trackEvent() is used — hallucinated method', () => {
+    // Insert signalCollector.trackEvent call — this method does not exist in CDN API
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); if (signalCollector) signalCollector.trackEvent(event);',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('signalCollector.trackEvent'),
+      `Expected signalCollector.trackEvent error but got: ${output}`,
+    );
+  });
+
+  it('passes when signalCollector uses correct API methods', () => {
+    // recordViewEvent and recordCustomEvent are the correct CDN API methods — no error expected
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); if (signalCollector) { signalCollector.recordViewEvent("screen_view", {}); signalCollector.recordCustomEvent("answer", { correct: true }); }',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('signalCollector.trackEvent'),
+      `Unexpected signalCollector.trackEvent error for correct API usage: ${output}`,
+    );
+  });
+});
+
 describe('Mobile viewport scrollability checks (7b)', () => {
   it('warns when body has overflow:hidden', () => {
     // Insert body { overflow: hidden } into the style block

@@ -1898,3 +1898,45 @@ Updated error messages to show both Option A and Option B so static-fix LLMs pro
 3. Traced back to the T1 error message telling the static-fix LLM to add the bare global form
 
 **What to do from now on:** Whenever T1 validator fires a false-positive on a CDN game that correctly uses `window.components?.X`, the static-fix LLM introduces WORSE code, not better. The root issue is that T1 checks must be aware of both CDN usage patterns (bare globals vs. `window.components`). Always accept both forms when writing T1 validator component guard checks. If a CDN game fails the smoke check with "blank page" and the generated HTML had correct `window.components?.X` guards, check whether T1 fired on those guards and triggered a bad static fix.
+
+## Lesson 148 — Worked-example game-flow start mechanic: transition slot stays visible after startGame() (source: soh-cah-toa build #531)
+
+**Source:** Build #531 pipeline logs and per-batch test results. 2026-03-22.
+
+**Game type:** New `worked-example-mcq` game using PART-036 WorkedExampleComponent — first game of this type in Ralph.
+
+**What happened:** Per-batch test loops passed 6/7 categories: mechanics 3/3, level-progression 1/1, edge-cases 2/2. But game-flow went 0/5 with a pre-triage `toBeVisible` pattern detected on the `#mathai-transition-slot button` — the transition button remained visible after `startGame()`. The global fix loop (Step 3c) then attempted a cross-category fix; this fix regressed ALL previously passing batches to 0 in the Step 3b final re-test. Final score: 0/11 total. Build FAILED after 1 iteration.
+
+**Root cause (game-flow):** Worked-example games have sub-phases within each round (example phase → faded phase → practice phase). The `startGame()` flow may not correctly dismiss the transition slot when sub-phases are involved — the transition slot button may remain for a sub-phase boundary rather than being dismissed by the game-flow test's `startGame()` helper. This is a novel interaction pattern not seen in simpler single-phase games.
+
+**Root cause (global fix regression):** The global fix loop's "best HTML" (from mid-batch with 7 passing) was not actually the cleanest HTML — it was a partial mid-iteration state. When Step 3b re-tested it cleanly, ALL categories failed. The global fix loop's intermediate pass counts did not match the final deterministic re-test.
+
+**What this means:**
+- The spec quality for soh-cah-toa is good — 6/7 categories passed before the global fix touched anything
+- The game mostly works; the gap is transition slot handling for worked-example sub-phase flows
+- The global fix loop can actively WORSEN an otherwise-passing build when the "best" intermediate HTML is not actually stable
+
+**Next steps:**
+1. Queue a second build with learnings injected — learnings should include the transition slot behavior for sub-phase games
+2. Add spec-level guidance on worked-example sub-phase transitions: `startGame()` must advance past ALL sub-phase transitions before the game-flow test proceeds
+3. Consider suppressing the global fix loop for games where per-batch pass rate is ≥80% — the risk of regression outweighs the benefit
+4. Investigate whether the Step 3b re-test failure (all 0) is a regression introduced by the global fix or a pre-existing issue in the "best" HTML
+
+## Lesson 149 — signalCollector.trackEvent hallucination causes Step 1d smoke-check init failure (source: right-triangle-area builds #527, #530, #532)
+
+**Source:** Build #532 Step 1d smoke-check log. Also present in #527, #530. 2026-03-22.
+
+**What happened:** After the T1 validator false-positive was fixed (Lesson 147, commit 65aed12), build #532 made it past Step 1b to Step 1d — but then failed with a new error: `Init error: signalCollector.trackEvent is not a function`. This is a separate, independent bug from the T1 issue.
+
+**Root cause:** The LLM generates code that calls `signalCollector.trackEvent(event)` — a generic event-tracking API that does NOT exist on the `signalCollector` CDN object (PART-011). The correct PART-011 API uses `.seal()`, `.getPayload()`, `.signalCorrect()`, `.signalWrong()` (or similar lifecycle methods). The LLM hallucinates a generic `.trackEvent()` method because it resembles common analytics/telemetry libraries.
+
+**Why it's deterministic:** The same hallucination appeared across 3 consecutive builds (#527, #530, #532). Without an explicit prohibition in the gen prompt or a T1 check, the LLM will generate `.trackEvent()` every time for games that use signalCollector.
+
+**Three-layer fix needed:**
+1. **`classifySmokeErrors()` in `lib/pipeline.js`** — Add `signalCollector.trackEvent is not a function` as a fatal pattern with label `SIGNAL_COLLECTOR_TRACKEVENT_HALLUCINATION`. This allows smoke-regen to target the correct bug rather than treating it as a generic blank-page failure.
+2. **Gen prompt `CDN_CONSTRAINTS_BLOCK`** — Add explicit prohibition: "`signalCollector` does NOT have a `.trackEvent()` method — never call it. Use the PART-011 lifecycle API: `.signalCorrect()`, `.signalWrong()`, `.seal()`, `.getPayload()`.'"
+3. **T1 static validator (`lib/validate-static.js`)** — Add a check: if HTML contains `signalCollector.trackEvent`, emit ERROR. This catches the hallucination at Step 1b before any test runs.
+
+**Priority:** High — affects every game using PART-011 signalCollector. All three builds of right-triangle-area failed at smoke check due to cascading issues that included this hallucination. Once T1 catches it, smoke-regen can fix it in Step 1d with a targeted prompt.
+
+**What to do immediately before re-queuing right-triangle-area:** Implement the T1 check and gen prompt prohibition. Without these, build #533+ will fail at Step 1d for the same reason.
