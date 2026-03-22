@@ -1940,3 +1940,26 @@ Updated error messages to show both Option A and Option B so static-fix LLMs pro
 **Priority:** High — affects every game using PART-011 signalCollector. All three builds of right-triangle-area failed at smoke check due to cascading issues that included this hallucination. Once T1 catches it, smoke-regen can fix it in Step 1d with a targeted prompt.
 
 **What to do immediately before re-queuing right-triangle-area:** Implement the T1 check and gen prompt prohibition. Without these, build #533+ will fail at Step 1d for the same reason.
+
+## Lesson 150 — startGame() must be synchronous: setTimeout(0) breaks CDN TransitionScreen auto-dismiss
+
+**Source:** Pipeline build failure analysis (build #531, soh-cah-toa-worked-example). 2026-03-22.
+
+**Symptom:** ALL game-flow tests (5/5) and most mechanics tests (3/3) fail at iteration 1 with `#mathai-transition-slot button` still visible after `startGame()` is called. The transition slot never dismisses, so every test that begins with the `startGame()` helper immediately fails the assertion that the slot is not visible.
+
+**Root cause (detailed):** The LLM wraps the entire body of `startGame()` in `setTimeout(() => { ... }, 0)` as a defensive "safety" measure — it believes deferring execution to the next event loop tick avoids blocking the browser. However, the CDN `TransitionScreen` component auto-dismisses `#mathai-transition-slot` ONLY when the action callback (e.g. `action: () => startGame()`) returns a truthy synchronous value or completes synchronously. When `startGame()` wraps its body in `setTimeout`, the callback returns `undefined` immediately — the CDN interprets this as "nothing happened" and keeps the transition slot rendered. The slot button remains visible indefinitely. This is not a spec authoring error — it is a gen prompt failure: the LLM adds `setTimeout` thinking it is good practice, unaware of the CDN synchrony constraint.
+
+**Cascade:**
+1. LLM generates `startGame() { setTimeout(() => { /* all init code */ }, 0); }`
+2. CDN `TransitionScreen` action callback returns `undefined` (synchronously) → slot stays rendered
+3. `#mathai-transition-slot button` remains visible after `startGame()` call
+4. Every game-flow test asserts slot is not visible → fails immediately (5/5 game-flow tests)
+5. Mechanics tests that also call `startGame()` as setup → fail for same reason (3/3 mechanics)
+6. Only categories that do not call `startGame()` (level-progression, edge-cases, contract) survive
+7. Global fix loop fires → rewrites HTML → regresses all previously passing categories to 0 → build fails with 0/11
+
+**Fix:**
+- **Gen prompt (RULE-SYNC-1):** Added explicit rule: "`startGame()` MUST be synchronous. NEVER wrap its body or any part of it in `setTimeout`, `Promise`, or any async construct. The CDN `TransitionScreen` requires the action callback to complete synchronously to auto-dismiss the slot."
+- **T1 static validator (`lib/validate-static.js`):** Added check — scan HTML for `setTimeout(` appearing inside the `startGame()` function body. If found, emit ERROR: `RULE-SYNC-1 violation: startGame() body wrapped in setTimeout — CDN TransitionScreen will not dismiss`.
+
+**Prevention rule (RULE-SYNC-1):** `startGame()` must execute its full init logic synchronously. Any `setTimeout`, `setInterval`, `Promise`, or `async/await` wrapping the top-level function body is a T1 error. Games affected: any CDN game with `TransitionScreen` where the LLM added `setTimeout` in `startGame()`. Detection is reliable at T1 — fire before test generation so smoke-regen can fix it immediately.

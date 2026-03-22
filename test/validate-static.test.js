@@ -809,3 +809,79 @@ describe('Mobile viewport scrollability checks (7b)', () => {
     assert.ok(!output.includes('MOBILE-SCROLL'), `Unexpected MOBILE-SCROLL warning: ${output}`);
   });
 });
+
+describe('startGame() synchronous check (5i) — RULE-SYNC-1', () => {
+  it('fails when startGame() wraps body in setTimeout (soh-cah-toa-worked-example #531 pattern)', () => {
+    // LLM adds setTimeout "for safety" — breaks CDN TransitionScreen auto-dismiss
+    const html = VALID_HTML.replace(
+      '</script>',
+      `function startGame() {
+    setTimeout(() => {
+      gameState.phase = 'game';
+      document.getElementById('gameArea').style.display = 'block';
+    }, 0);
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('startGame() must be synchronous'),
+      `Expected startGame synchronous error but got: ${output}`,
+    );
+  });
+
+  it('passes when startGame() is fully synchronous — no setTimeout wrapper', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `function startGame() {
+    gameState.phase = 'game';
+    document.getElementById('gameArea').style.display = 'block';
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('startGame() must be synchronous'),
+      `Unexpected startGame synchronous error: ${output}`,
+    );
+  });
+
+  it('fails when arrow-function startGame uses setTimeout in its body', () => {
+    // Arrow-function form: startGame = () => { setTimeout(...) }
+    const html = VALID_HTML.replace(
+      'function initGame()',
+      `const startGame = () => {
+    setTimeout(() => { gameState.phase = 'game'; }, 0);
+  }
+  function initGame()`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('startGame() must be synchronous'),
+      `Expected startGame synchronous error but got: ${output}`,
+    );
+  });
+
+  it('does not flag setTimeout inside other functions when startGame is synchronous', () => {
+    // setTimeout in nextRound() is fine — only startGame() is checked
+    const html = VALID_HTML.replace(
+      '</script>',
+      `function startGame() {
+    gameState.phase = 'game';
+  }
+  function nextRound() {
+    setTimeout(() => { showQuestion(); }, 500);
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('startGame() must be synchronous'),
+      `Unexpected startGame synchronous error: ${output}`,
+    );
+  });
+});
