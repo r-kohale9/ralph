@@ -218,7 +218,7 @@ All 7 slots are never passive. Every slot has unbounded work available without a
 
 State tracked in `ROADMAP.md` R&D section (Current task / Waiting on / Blocked by).
 
-One sub-agent always active. Inputs: Test Engineering handoffs > Analytics top pattern > test gen quality > fix loop accuracy. Process: Trace → Hypothesize → Prototype → Local Verify → Measure → Ship. **Context7** (`mcp__context7__resolve-library-id` → `mcp__context7__query-docs`) for library docs. WebFetch for standards (WCAG, MDN). See `docs/areas/slots.md` for full procedure.
+One sub-agent always active. Inputs: Test Engineering handoffs > Analytics top pattern > test gen quality > fix loop accuracy. Process: Trace → Hypothesize → Prototype → Local Verify → Measure → Ship. **Context7** for library docs; **Exa** (`web_search_exa`, `get_code_context_exa`) for standards research + code search. See `docs/areas/slots.md` for full procedure.
 
 ### 14. Always maintain one active Test Engineering Slot — MANDATORY
 
@@ -230,7 +230,7 @@ Three phases always running: **A** = Diagnosis (run `diagnostic.js`, classify HT
 
 State tracked in `ROADMAP.md` Education section (Current task / Waiting on / Blocked by).
 
-Never idle. Scope is unbounded: spec review, session planning, pedagogy audit, interaction patterns, curriculum alignment, Session Planner architecture — all available without a running build. **Context7** for CDN component docs; WebFetch for NCERT/CC standards/research papers. Must fetch ≥2 external sources before writing any spec or session plan. See `docs/areas/slots.md` for full procedure.
+Never idle. Scope is unbounded: spec review, session planning, pedagogy audit, interaction patterns, curriculum alignment, Session Planner architecture — all available without a running build. **Context7** for CDN component docs; **Exa** (`web_search_exa`) for NCERT/CC standards, misconception research, Khan Academy patterns. Must fetch ≥2 external sources before writing any spec or session plan. See `docs/areas/slots.md` for full procedure.
 
 ### 16. Always maintain one active UI/UX Slot — MANDATORY
 

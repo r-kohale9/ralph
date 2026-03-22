@@ -2,7 +2,11 @@
 
 Full operating instructions for all 7 mandatory slots. Referenced from CLAUDE.md Rules 13–20.
 
-**Context7 is the preferred source for all library docs.** Use `mcp__context7__resolve-library-id` to find the library, then `mcp__context7__query-docs` to fetch current docs. Fall back to WebFetch for standards (WCAG, MDN, HIG, NCERT) not in Context7.
+**Two MCP tools always available — use them before WebFetch:**
+- **Context7** (`mcp__context7__resolve-library-id` → `mcp__context7__query-docs`) — library docs: Playwright, BullMQ, better-sqlite3, Node.js, Express, etc.
+- **Exa** (`web_search_exa`, `get_code_context_exa`, `crawling_exa`) — semantic web search, code-specific search (GitHub/Stack Overflow/docs), and content extraction from any URL. Use for standards research (WCAG, NCERT, HIG, MDN), misconception databases, curriculum sources, and any search that requires finding a page rather than fetching a known URL.
+
+Fall back to WebFetch only when both Context7 and Exa don't cover the source.
 
 ---
 

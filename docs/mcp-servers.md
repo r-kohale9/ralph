@@ -9,7 +9,13 @@ Audit date: 2026-03-23. Source: https://github.com/punkpeye/awesome-mcp-servers 
 ### Context7
 - **What it is:** Fetches up-to-date documentation and code examples for any library (Playwright, BullMQ, better-sqlite3, Node.js built-ins, etc.) by resolving a library ID then querying its docs.
 - **Slots that use it:** Gen Quality, Test Engineering, Code Review — any agent that needs to verify API behavior before writing rules or tests.
-- **Install:** Already active. Tools: `resolve-library-id`, `query-docs`.
+- **Install:** Already active. Tools: `mcp__context7__resolve-library-id`, `mcp__context7__query-docs`.
+
+### Exa
+- **What it is:** Neural + keyword web search with deep content extraction. Tools: `web_search_exa` (semantic search), `get_code_context_exa` (code-specific search across GitHub/docs), `crawling_exa` (extract content from a known URL), `company_research_exa`, `deep_researcher_start/check` (multi-step research). Faster and more semantically accurate than WebFetch for research tasks.
+- **Slots that use it:** Education (curriculum research), Gen Quality (CDN behavior evidence, WCAG grounding), Test Engineering (Playwright patterns), UI/UX (standards lookup), Code Review (API behavior verification).
+- **Install:** Already active (installed 2026-03-23). API key: `a30be16a-17c1-45a0-9a48-506d64291dc5`.
+- **Tools:** `web_search_exa`, `get_code_context_exa`, `crawling_exa`, `deep_researcher_start`, `deep_researcher_check`.
 
 ---
 
