@@ -1836,3 +1836,35 @@ Multiple places described syncDOMState call-sites as "transitionScreen onComplet
 **Fix:** Added T1 error check: if `waitForPackages()` is present (function definition OR call site) but no CDN `<script src>` tags found → CDN_SCRIPTS_MISSING error. T1 post-fix validation (Lesson 135) then discards this HTML before it reaches the test runner.
 
 **Signal:** All tests fail simultaneously in a batch after an E8 fix was applied → suspect E8 stripped CDN scripts. Check GCP index-fixN.html for presence of CDN script tags.
+
+## Lesson 146 — 100+ lint violations per build are partly FALSE POSITIVES from test boilerplate (source: builds #525-528 violation rate R&D)
+
+**Source:** R&D — Post-Lesson-142 violation rate measurement, builds #525 (sequence-builder), #526 (rapid-challenge), #528 (visual-memory), #529 (word-pairs). 2026-03-22.
+
+**Measurement:** All 4 approved builds had ~100-108 lint violations at Step 2c. Breakdown per build:
+- HARDCODED_TIMEOUT: 40 violations
+- TRANSITION_SLOT: 40 violations
+- GF8 (toBeVisible without waitForPhase): 25 violations
+- Total: ~105 violations per build
+
+**Root cause — false positives from template (30-40 violations per build):**
+
+The `startGame()` helper in the CDN test boilerplate template (`pipeline-test-gen.js` lines 270-290) legitimately uses `#mathai-transition-slot button` and `page.waitForTimeout(400/500)` to navigate CDN screens. The linter's TRANSITION_SLOT and HARDCODED_TIMEOUT rules flag these as violations in EVERY spec file because the linter has no function-context awareness — it fires on any match regardless of where it appears.
+
+`clickNextLevel()` helper similarly has 1 TRANSITION_SLOT + 1 HARDCODED_TIMEOUT. With 5 spec files per build, the template alone contributes ~30 TRANSITION_SLOT + ~10 HARDCODED_TIMEOUT = ~40 false positive violations per build.
+
+**Root cause — LLM-generated violations (~65 per build):**
+- HARDCODED_TIMEOUT (30 LLM-generated): LLM defaults to `await page.waitForTimeout(300-500)` when it needs to wait for any state change, especially in contract.spec.js and edge-cases.spec.js
+- TRANSITION_SLOT (10 LLM-generated): LLM sometimes copies the startGame/clickNextLevel pattern into test-case-level code
+- GF8 (25): `toBeVisible()` assertions without prior `waitForPhase()`
+
+**Lesson 142 fix impact:** The `beforeAll waitForTimeout` fix eliminated ~5 violations per spec file. But LLM-generated in-test violations remained unchanged.
+
+**Build impact:** All 4 builds APPROVED despite 100+ violations. Violations are warn-only and do not block builds. The `builds_approved_with_violations: true` pattern suggests violations correlate with fragile test code (higher retry rate) rather than outright failures.
+
+**Fix plan (in priority order):**
+1. **Linter function-context exemption (highest leverage, eliminates ~40 false positives/build):** Track whether linter is inside a `startGame()` or `clickNextLevel()` function body. Suppress TRANSITION_SLOT and HARDCODED_TIMEOUT there — these are pre-approved uses. Implementation: track `insideHelper = true` when current line starts a function with those names.
+2. **LLM HARDCODED_TIMEOUT (30 violations/build):** Per-category prompts need a stronger negative example: "NEVER `page.waitForTimeout(N)` in test cases — use `expect.poll()` with a timeout parameter instead." Current rules say this but positive examples don't consistently model it.
+3. **GF8 (25 violations/build):** Add `waitForPhase()` requirement before ANY `toBeVisible()` assertion as a mandatory rule, not just advisory.
+
+**Key insight:** The linter is firing on its own generated boilerplate, making violation metrics noisy. Fix the linter first before using violation count as a quality signal.
