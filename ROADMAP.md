@@ -399,6 +399,8 @@
 
 ## Education — Pedagogical Quality (active)
 
+> See [docs/education/README.md](docs/education/README.md) for full Education slot R&D intuition and approach.
+
 > Goal: move generated games from Bloom L1 recall (67% of current games) toward higher-order learning interactions. Tracked separately from pipeline reliability R&D.
 
 | Task | Status | Notes |
