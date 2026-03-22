@@ -1745,3 +1745,14 @@ RCA initially said this was missing from syncDOMState. It was already present in
 **Root cause 2 — lint threshold:** RULE-DUP fired when a testid appeared in any 2 categories. `answer-input` in game-flow + mechanics = legitimate (both categories interact with the answer input). Threshold raised to 3+ distinct category files to catch real invented-generic-testid contamination while allowing legitimate 2-category cross-references.
 
 **Expected outcome:** RULE-DUP violations drop from 27% → near-0% false positives; true violations (testids invented by test LLM, not from DOM) now correctly caught at 3+ threshold.
+
+## Lesson 140 — Gen prompt contradiction: GEN-110 CORRECT example taught 'game_over' phase (underscore) vs canonical 'gameover'
+**Source:** Pipeline iteration lesson (2026-03-22, commit 0bc9b8d)
+
+**Pattern:** The GEN-110 "CORRECT" endGame() example block showed `gameState.phase = reason === 'victory' ? 'results' : 'game_over'` — the `'game_over'` string (with underscore) being assigned to gameState.phase. But the canonical gameState.phase value for game-over is `'gameover'` (no underscore). Rules in CDN_CONSTRAINTS_BLOCK and Rule 21 correctly said `'gameover'`, but the positive CORRECT example in GEN-110 had higher LLM attention priority and taught the wrong string.
+
+**Confusion source:** `'game_over'` (underscore) is legitimately correct in TWO contexts: (1) as the `reason` argument to `endGame('game_over')`, and (2) as the `outcome` argument to `calcStars('game_over')`. It is wrong only as the `gameState.phase` value. The CORRECT example conflated these — it used `game_over` in the phase assignment, which is the one place it should be `gameover`.
+
+**Fix:** GEN-110 CORRECT/WRONG examples updated to use `'gameover'` (no underscore) for `gameState.phase`. Added explicit clarifying comment: "Note: reason='game_over' (underscore) but gameState.phase='gameover' (no underscore)." Same clarification added to CDN_CONSTRAINTS_BLOCK rule 100.
+
+**Impact:** Any generated game with `gameState.phase = 'game_over'` would have syncDOMState() set `data-phase='game_over'` instead of `data-phase='gameover'` — all `waitForPhase('gameover')` calls would timeout. This was a silent bug in every build using GEN-110.
