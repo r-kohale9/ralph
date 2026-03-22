@@ -597,12 +597,14 @@ describe('E7: categorizeFailure — all 22 branches (TE-CR-002)', () => {
     assert.equal(categorizeFailure('expect(locator).toBeVisible()'), 'rendering');
   });
 
-  // ── Branch 15 (NEW): expect(received) / expect( → 'rendering' ───────────
-  it('branch 15 (new) — expect(received) Playwright format → rendering', () => {
+  // ── Branch 15 (GEN-CR-002): expect(received) only → 'rendering' ───────────
+  // Only Playwright's own assertion diff format string "expect(received)" maps to rendering.
+  // Generic "expect(" in natural English (e.g. "Expected round counter to increment") must NOT match.
+  it('branch 15 — expect(received) Playwright format → rendering', () => {
     assert.equal(categorizeFailure('expect(received).toBe(expected)'), 'rendering');
   });
-  it('branch 15 (new) — generic expect( → rendering', () => {
-    assert.equal(categorizeFailure('expect(value).toEqual(0)'), 'rendering');
+  it('branch 15 — generic expect( without "received" → unknown (GEN-CR-002 narrowed)', () => {
+    assert.equal(categorizeFailure('expect(value).toEqual(0)'), 'unknown');
   });
 
   // ── Branch 16 (NEW): page.evaluate / evaluate: → 'state' ────────────────

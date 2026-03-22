@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** math-cross-grid (next in stub inventory)
-**Last completed:** associations — 2026-03-23 (build #513 approved; static analysis; 5 findings — 4a, 0b, 0c, 1d)
+**Current task:** math-mcq-quiz (next in stub inventory)
+**Last completed:** math-cross-grid — 2026-03-23 (spec-only; no approved build; 8 findings — 5a, 1b, 0c, 2d)
 **Waiting on:** unblocked
 **Blocked by:** none
 
@@ -41,6 +41,7 @@ addition-mcq, adjustment-strategy, associations, math-cross-grid, math-mcq-quiz,
 
 | Date | Game | Build | Issues Found | Actions Taken |
 |------|------|-------|-------------|---------------|
+| 2026-03-23 | math-cross-grid | spec-only | 8 issues (5a, 1b, 0c, 2d) | No P0 flow bugs; both end conditions route through endGame(); FeedbackManager.init() called (FAIL — pre-build must fix); results-screen not position:fixed (10th GEN-UX-001 instance); ARIA live region absent (13th ARIA-001 instance); data-phase/syncDOMState absent (4th non-MCQ instance); window.endGame not assigned (4th instance); gameState.gameId absent (4th instance — ship rule now); data-lives not on DOM (3rd instance — test gap); TimerComponent wait unnecessary for no-timer game (low) |
 | 2026-03-23 | associations | #513 (approved) | 5 issues (4a, 0b, 0c, 1d) | No P0 flow bugs; CSS intact; ProgressBarComponent no slotId (7th GEN-UX-003 instance); ARIA-001 absent (12th instance — rule shipped); results screen not fixed (9th GEN-UX-001 instance — rule shipped); gameState.gameId absent (3rd instance — escalate to ship); choice-btn no min-height (9th GEN-UX-002 instance — extend rule to non-.game-btn buttons); test gap: no Playwright assertion for choice-btn min-height |
 | 2026-03-23 | adjustment-strategy | #385 (approved) | 7 issues (5a, 0b, 0c, 2d) | No P0 flow bugs; all phases reachable; adj-btn 36px (8th GEN-UX-002 gap); ARIA-001 absent (11th instance); results static (8th GEN-UX-001); gameState.gameId absent (2nd); no Enter key on answer-input (2nd — ship now); window.nextRound missing (test gap); reset-btn 30.5px (secondary button gap, overlaps F1) |
 | 2026-03-23 | addition-mcq | spec-only | 9 issues (6a, 2b, 1d) | No P0 blockers; ProgressBar slotId missing (6th instance); data-phase/syncDOMState absent (3rd MCQ spec); ARIA-001 (10th instance); window.endGame unassigned; data-lives not on DOM (2nd MCQ spec test gap); gameState.gameId missing; SignalCollector no constructor args (3rd); timer destroy/recreate ambiguity; initSentry absent from spec |
@@ -125,6 +126,14 @@ See [games/adjustment-strategy/ui-ux.md](../../games/adjustment-strategy/ui-ux.m
 
 ---
 
+## math-cross-grid Audit (2026-03-23)
+
+See [games/math-cross-grid/ui-ux.md](../../games/math-cross-grid/ui-ux.md)
+
+**Spec-only audit — no approved build exists (0 builds in DB).** 8 actionable issues (5a, 1b, 0c, 2d). No P0 flow bugs: both end conditions route through `endGame()` which sends `game_complete`; drag-and-drop interaction well-specified; touch targets adequate (64px tiles, 58px cells). Key issues: (1) F1 — FeedbackManager.init() explicitly called in init sequence (banned API — must be removed before first build; T1 should catch); (2) F2 — results-screen not position:fixed (10th GEN-UX-001 instance — rule shipped 2026-03-23); (3) F3 — no aria-live region for drag-and-drop feedback (13th ARIA-001 instance — rule shipped); (4) F4 — no data-phase / syncDOMState at phase transitions (4th non-MCQ instance); (5) F5 — window.endGame not assigned (4th instance); (6) F6 — gameState.gameId absent from initial declaration (4th instance — ship rule now); (7) F7 — data-lives not on DOM for lives=2 game (3rd test gap instance); (8) F8 — TimerComponent wait in waitForPackages for no-timer game (low). ProgressBar slotId correct. SignalCollector constructor args correct.
+
+---
+
 ## associations Audit #513 (2026-03-23)
 
 See [games/associations/ui-ux.md](../../games/associations/ui-ux.md)
@@ -173,13 +182,16 @@ See [games/addition-mcq-lives/ui-ux.md](../../games/addition-mcq-lives/ui-ux.md)
 | Typed numeric input has no Enter-key submission handler | real-world-problem #564 | — | (a) gen prompt rule | New — input fields must bind keydown Enter → submit handler |
 | data-lives hardcoded to 0 for non-lives games | word-pairs #529 | — | (d) test gap | New — test assertions on data-lives must handle games with totalLives: 0 |
 | Custom widget buttons (adj-btn, reset-btn) bypass min-height: 44px rule | adjustment-strategy #385 | — | (a) gen prompt rule | New — GEN-UX-002 only covers .game-btn; secondary/custom buttons need min-height: 44px too; adj-btn=36px, reset-btn=30.5px |
-| gameState.gameId absent from gameState object | adjustment-strategy #385 | addition-mcq spec, associations #513 | (a) gen prompt rule | **3rd confirmed instance (associations #513 = first approved live build)** — mandatory gameId field not in gen prompt or spec Section 3; SignalCollector templateId always null; ship rule now |
+| gameState.gameId absent from gameState object | adjustment-strategy #385 | addition-mcq spec, associations #513, math-cross-grid spec | (a) gen prompt rule | **4th confirmed instance (math-cross-grid spec)** — mandatory gameId field not in initial gameState declaration; set only conditionally via postMessage; ship rule now |
 | Typed numeric input has no Enter key submission | adjustment-strategy #385 | real-world-problem #564 | (a) gen prompt rule | 2nd confirmed instance — ship now per ROADMAP line 430 |
 | window.nextRound not exposed; harness warns MISSING | adjustment-strategy #385 | — | (d) test gap | Game uses loadRound() internally; window.nextRound alias never assigned; harness fallback may cover via window.loadRound |
-| Lives games missing data-lives attribute on DOM element | addition-mcq-lives spec | addition-mcq spec | (d) test gap | 2 confirmed MCQ spec instances — lives games must sync data-lives via syncDOMState(); getLives() harness helper needs a DOM attribute to read |
+| Lives games missing data-lives attribute on DOM element | addition-mcq-lives spec | addition-mcq spec, math-cross-grid spec | (d) test gap | 3 confirmed instances — lives games must sync data-lives via syncDOMState(); getLives() harness helper needs a DOM attribute to read |
 | No syncDOMState() / data-phase state machine in MCQ spec | addition-mcq-blitz spec | addition-mcq-lives spec, addition-mcq spec | (a) gen prompt rule | 3 confirmed MCQ spec instances — already in ROADMAP (line 237); 3rd instance confirmed 2026-03-23 |
+| No data-phase / syncDOMState in drag-and-drop spec | math-cross-grid spec | — | (a) gen prompt rule | 1st confirmed non-MCQ drag-and-drop instance — game has two phases (gameplay → results) with no data-phase or syncDOMState; pattern extends beyond MCQ games |
 | endGame() dual-path not specified: game-over vs victory TransitionScreen calls differ | addition-mcq-lives spec | — | (b) spec addition | New — lives games need explicit if/else branching in endGame() for two different TransitionScreen templates; ROADMAP entry added |
 | restartGame() unspecified for timer games — destroy+recreate required | addition-mcq-lives spec | — | (b) spec addition | New — timer games must destroy and recreate TimerComponent in restartGame() to clear stale onEnd callbacks; ROADMAP entry added |
+| waitForPackages() awaits packages not used by the game | math-cross-grid spec | — | (a) gen prompt rule | Low — waitForPackages polls for TimerComponent but spec says Timer: None; unnecessary CDN wait that could cause timeout if component is unavailable |
+| window.endGame not assigned to window | math-cross-grid spec | — | (a) gen prompt rule | 4th confirmed instance — endGame() defined as local function never exposed on window; harness calls window.endGame() to force end-game in tests |
 
 ---
 
