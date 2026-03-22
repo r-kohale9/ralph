@@ -876,6 +876,43 @@ describe('progressBar.timer property access check (5f7)', () => {
   });
 });
 
+describe('TimerComponent slot not created by ScreenLayout (5f8)', () => {
+  const cdnHtmlWithTimer = (slotsConfig) => `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>T</title><style>body{}</style></head>
+<body><div id="app"></div>
+<script>
+window.gameState = { phase: 'start', score: 0 };
+window.endGame = function() {};
+window.restartGame = function() {};
+document.addEventListener('DOMContentLoaded', async () => {
+  ScreenLayout.inject('app', { slots: ${slotsConfig} });
+  if (!document.getElementById('gameContent')) throw new Error('ScreenLayout.inject() did not create #gameContent');
+  const timer = new TimerComponent('mathai-timer-slot', { timerType: 'decrease', startTime: 30, endTime: 0 });
+  timer.start();
+  window.parent.postMessage({ type: 'gameOver', score: 0, stars: 1, total: 1 }, '*');
+});
+</script></body></html>`;
+
+  it('fails when mathai-timer-slot is used but timer not in ScreenLayout slots', () => {
+    const html = cdnHtmlWithTimer('{ progressBar: true }');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('mathai-timer-slot'),
+      `Expected timer-slot error but got: ${output}`,
+    );
+  });
+
+  it('passes when timer: true is included in ScreenLayout slots', () => {
+    const html = cdnHtmlWithTimer('{ progressBar: true, timer: true }');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('mathai-timer-slot'),
+      `Unexpected 5f8 error when timer slot included: ${output}`,
+    );
+  });
+});
+
 describe('Canvas API CSS variable check (5f6)', () => {
   it('fails when addColorStop uses a CSS variable', () => {
     const html = VALID_HTML.replace('initGame();', "initGame(); ctx.addColorStop(0, 'var(--color-sky)');");
