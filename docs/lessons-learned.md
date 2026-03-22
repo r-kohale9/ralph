@@ -2186,3 +2186,15 @@ Source: Build #538 RCA (right-triangle-area, 2026-03-22)
 - Evidence: Build #547 mechanics.spec.js beforeEach looped for 8s clicking the button, final assertion still `Received: visible`. HTML line 191: `new ProgressBarComponent('mathai-progress-bar-slot', {...})`. HTML line 321: `progressBar.update(gameState.currentRound, gameState.totalRounds, gameState.lives)` — 3 args, no null guard. Correct API from expression-completer build #511: `new ProgressBarComponent({ autoInject: true, slotId: 'mathai-progress-slot', ... })` and `if (progressBar) progressBar.update(currentRound, lives)`.
 - Fix: GEN-112 rule added to CDN_CONSTRAINTS_BLOCK in prompts.js: WRONG/RIGHT examples for constructor API and update() call. T1 static checks added to validate-static.js: `PART-023-API` (rejects positional string arg) + `PART-023-UPDATE` (rejects 3-arg update call).
 - Take: any CDN component init error in a try/catch that leaves the component null will cause silent failure at the NEXT call site. The pattern `if (component) component.method(...)` null guard is MANDATORY for all CDN components. T1 checks are the only reliable backstop since the error doesn't surface until `renderRound()` tries to use the component.
+
+## Lesson 173 — T1 PART-023-API + static-fix is reliable defense-in-depth (2026-03-22, build #549)
+
+**Source:** Pipeline iteration (build #549 find-triangle-side)
+
+**Observation:** GEN-112 prompt rule (ProgressBarComponent options-object API) was in the gen prompt but LLM still generated wrong API on first pass. T1 §5f11 (PART-023-API check) correctly fired → static-fix LLM correctly patched to options-object form → pipeline continued to test gen → game tested and approved.
+
+**Lesson:** T1 checks + static-fix LLM form a reliable defense-in-depth for CDN API mismatches. Even if the gen prompt rule is violated (as GEN-112 was in build #549), the T1 check catches it and the static-fix LLM reliably corrects it. This pattern (T1 check + static-fix) is more reliable than relying on gen prompt compliance alone for complex CDN API rules.
+
+**Evidence:** Build #549 logs show `static-validation-failed` → `static-fix` → `static-validation-passed` sequence. Final HTML (line 508): `new ProgressBarComponent({ slotId: 'mathai-progress-bar-slot', ... })` — correct options-object form.
+
+**Action:** Continue adding T1 checks for all CDN API misuse patterns. Each T1 check + static-fix is more reliable than prompt compliance alone.

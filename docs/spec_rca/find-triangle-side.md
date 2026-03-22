@@ -8,6 +8,7 @@ Two-step trig game (Bloom L3 Apply): Step 1 MCQ ratio selection (sin/cos/tan), S
 |-------|---------|------------|--------|
 | #547 | 100% test failure: `#mathai-transition-slot button` visible after click | ProgressBarComponent wrong API (positional arg + 3-arg update + no null guard) → renderRound() throws → startGame() throws → transitionScreen never dismisses | Failed (orphaned — Rule 1 violation during deploy) |
 | #548 | Rejected at early review (iter=0, never reached tests) | `new date()` lowercase typo in endGame → silent ReferenceError → endGame never sends postMessage, early review detected it | Rejected |
+| #549 | APPROVED (1 review-fix: RULE-003 try/catch in restartGame) | CSS visibility + GEN-112 ProgressBarComponent API (T1 caught + static-fix corrected) | APPROVED |
 
 ---
 
@@ -74,12 +75,15 @@ No separate fix needed — this is a random generation error. GEN-112 + T1 stati
 
 ## 5. Go/No-Go for E2E
 
-**READY FOR E2E** — GEN-112 rule + T1 check shipped and deployed. Re-queue find-triangle-side as build #549.
+**APPROVED — Build #549 approved on 2026-03-22.**
 
-Expected results:
-- T1 static check catches any future ProgressBarComponent API mismatch at Step 1a (not at test time)
-- MCQ correctAnswer set correctly via GEN-111 (shipped in build #548)
-- CT8 ban on `expect.poll()` value capture (shipped for build #548 but untested — will verify in build #549)
+Results:
+- T1 PART-023-API fired on first gen → static-fix corrected ProgressBarComponent API ✅
+- GEN-111 (MCQ correctAnswer): verified working ✅
+- CT8 (no expect.poll() deletion): contract 1/1 passing ✅
+- CSS visibility bug fixed in mechanics iter 2; game-flow corrected in Step 3b re-test
+- RULE-003 review rejection → review-fix-1 applied → APPROVED
+- Final: 9/10 tests passing (90%), 1382s, 3 iterations
 
 ---
 
