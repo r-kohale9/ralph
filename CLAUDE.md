@@ -43,66 +43,11 @@ node --test test/db.test.js   # Single file
 
 **Test files:** db, games-learnings, gcp, llm, logger, mcp, metrics, sentry, server, slack, validate-static, validate-contract, worker, ralph-sh, e2e, proxy-contract, load, pipeline, failure-patterns.
 
-## Key Files
+## Pipeline Reference
 
-| File | Purpose |
-|------|---------|
-| server.js | Express app: webhook + API + MCP + Slack Events routes |
-| worker.js | BullMQ worker: job processing, Slack threading, GCP upload, learnings |
-| ralph.sh | Bash pipeline: LLM generation + validation + deploy |
-| lib/db.js | SQLite: builds, games, learnings, failure_patterns tables + CRUD |
-| lib/validate-static.js | T1 static HTML checks (CLI tool, 10 error checks + 2 warnings) |
-| lib/validate-contract.js | T2 contract validation (gameState, postMessage, scoring contracts) |
-| lib/slack.js | Dual-mode Slack (Web API threading + webhook fallback), Events API handler |
-| lib/pipeline.js | Node.js pipeline (E3) + targeted fix: full pipeline + feedback-driven fix |
-| lib/llm.js | Node.js LLM client (used by pipeline.js and tests) |
-| nginx.conf | Nginx reverse proxy: TLS, rate limiting, security headers |
-| Dockerfile | Multi-stage build: node:20-slim, non-root user, healthcheck |
+See `docs/areas/pipeline.md` for: API routes, DB schema, key files, environment variables, code style, known constraints, test harness architecture, DOM snapshot context, CDN components, failure taxonomy, and build artifacts.
 
-## Environment
-
-Requires Node.js >=20, Redis for BullMQ. See `.env.example` for all config vars. **Critical:** `GITHUB_WEBHOOK_SECRET` required when `NODE_ENV=production`.
-
-Key env vars: `RALPH_ENABLE_CACHE=1`, `RALPH_USE_NODE_PIPELINE=1`, `RALPH_DEPLOY_ENABLED=1`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_CHANNEL_ID`, `RALPH_GCP_BUCKET`, `RALPH_WAREHOUSE_DIR`, `RALPH_DEPLOY_DIR`.
-
-Optional deps (install failures won't block): `@sentry/node`, `@google-cloud/logging`, `@slack/web-api`, `@google-cloud/storage`.
-
-## Database Tables
-
-| Table | Purpose |
-|-------|---------|
-| builds | Build records: id, game_id, status, iterations, test_results, feedback_prompt, gcp_url |
-| games | Game registry: game_id (PK), title, spec_content, spec_hash, status, slack_thread_ts, gcp_url |
-| learnings | Accumulated insights: game_id, build_id, level, category, content, source, resolved |
-| failure_patterns | E7 failure tracking: game_id, pattern, category, occurrences |
-
-## API Routes
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | /webhook/github | GitHub push webhook |
-| POST | /api/build | Manual build trigger |
-| GET | /api/builds | Build list + stats |
-| GET/POST | /api/games | List/create games |
-| GET/POST | /api/learnings | List/create learnings |
-| POST | /api/fix | Trigger targeted fix |
-| POST/GET/DELETE | /mcp | MCP Streamable HTTP transport |
-| POST | /slack/events | Slack Events API handler |
-| GET | /metrics | Prometheus metrics |
-| GET | /health | Health check |
-
-## Code Style
-
-- `'use strict'` in all modules, CommonJS (`require`/`module.exports`), no TypeScript
-- ESLint + Prettier configured (see `.eslintrc.js`, `.prettierrc.json`)
-- Express 5.x — async errors caught automatically; SQLite via better-sqlite3 (synchronous)
-- `lastInsertRowid` must be wrapped in `Number()` (BigInt issue)
-
-## Known Constraints
-
-- `llm.js` used by `pipeline.js` (E3) and tests; `ralph.sh` still calls CLIProxyAPI via curl.
-- Worker supports dual-mode: bash (`ralph.sh`, default) or Node.js (`pipeline.js`, opt-in via `RALPH_USE_NODE_PIPELINE=1`).
-- `validate-static.js` checks `id="gameContent"` via regex.
+See `docs/areas/build-management.md` for kill criteria, lifecycle commands, and monitoring rules. Kill builds the moment they've served their purpose.
 
 ## Server Operations (GCP: 34.93.153.206)
 
@@ -124,45 +69,25 @@ ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "sudo systemctl kil
 ssh -i ~/.ssh/google_compute_engine the-hw-app@34.93.153.206 "cd /opt/ralph && node -e \"require('./lib/db').failBuild(199, 'reason')\""
 ```
 
-**Kill a build immediately if:** infrastructure issues cause test failures, pipeline code was wrong at build start, iteration 2+ with 0 pass rate and clearly wrong HTML, or same test fails iterations 1 and 2 with same error.
-
 **Queue policy (CRITICAL):** Only queue builds to verify a specific fix or change. Never queue speculatively, for measurement, or to fill the queue. All queuing is manual — there is no automated queue.
 
-## Test Harness Architecture
+## Documentation Index
 
-Every generated HTML gets `<script id="ralph-test-harness">` injected by pipeline (not LLM). Key APIs:
-- `window.__ralph` — `.answer()`, `.endGame()`, `.jumpToRound()`, `.setLives()`, `.getState()`, `.getLastPostMessage()`
-- `syncDOMState()` — syncs `data-phase`/`data-lives`/`data-round`/`data-score` on `#app` every 500ms
-- Shared test helpers: `waitForPhase(page, phase)`, `getLives/getScore/getRound(page)`, `skipToEnd(page, reason)`, `answer(page, correct)`
-- Phase normalization: `game_over` → `gameover`, `game_complete` → `results`, `start_screen` → `start`
-- `extractSpecMetadata(specContent)` and `injectTestHarness(html, specMeta)` exported from `lib/pipeline.js`
+See `docs/README.md` for navigation across all docs. Key locations:
 
-CDN games must expose:
-- `window.endGame = endGame`, `window.restartGame = restartGame`, `window.nextRound = nextRound` — local functions defined in DOMContentLoaded are not on window
-- `window.gameState = gameState` — syncDOMState() reads `window.gameState`; if not on window, `data-phase` is NEVER set and ALL `waitForPhase()` calls timeout
-
-These are now checked by T1 static validator (sections 5b3, 5d) and enforced as rules 20/21 in the gen prompts.
-
-## DOM Snapshot & Test Generation Context
-
-`captureGameDomSnapshot()` (lib/pipeline.js Step 2.5) runs headless Playwright against the generated game and captures:
-- Element IDs/classes/visibility from start screen and game screen — injected into test-gen prompts as "ACTUAL RUNTIME DOM"
-- `window.gameState` shape — property names and value types (e.g. `pattern: Array(4) of number`, `lives: number 3`) injected as "WINDOW.GAMESTATE SHAPE" section, preventing test generators from guessing wrong data structures (Lesson 42)
-- `window.gameState?.content` saved to `tests/game-content.json` for fallbackContent when DOM snapshot rounds are empty
-
-If snapshot fails (timeout on CDN transition slot), falls back to static HTML element extraction (no runtime state shape).
-
-## Pipeline Lessons
-
-See `docs/lessons-learned.md` for accumulated build lessons and proof log. Read before diagnosing failures or modifying pipeline code.
-
-## Build Management
-
-See `docs/build-manager-agent.md` for kill criteria, lifecycle commands, and monitoring rules. Kill builds the moment they've served their purpose — never wait for a build running on old pipeline code or stuck at 0% pass rate.
-
-## Roadmap
-
-See `ROADMAP.md` for full tracking across all pillars.
+| Type | Path | Contents |
+|------|------|----------|
+| Pipeline reference | `docs/areas/pipeline.md` | Architecture, API routes, DB schema, env vars, code style |
+| Build management | `docs/areas/build-management.md` | Kill criteria, lifecycle commands |
+| Lessons learned | `docs/lessons-learned.md` | Accumulated build lessons + proof log |
+| Per-spec RCAs | `docs/spec_rca/` | Per-game failure history and root cause analysis |
+| Failure patterns | `docs/resources/failure-patterns-tracker.md` | Ranked active failure patterns (R&D input) |
+| Spec creation | `docs/resources/spec-creation-workflow.md` | MCP-based spec creation with Claude Desktop |
+| Testing reference | `docs/resources/testing-architecture.md` | Test harness design, CORE tests, supplementary tests |
+| Deployment | `docs/resources/deployment.md` | First-deploy runbook, troubleshooting |
+| Education slot | `docs/education/README.md` | Session planner vision, trig session, interaction patterns |
+| R&D archive | `docs/archive/rnd/` | Completed analyses |
+| Roadmap | `ROADMAP.md` | Full tracking across all pillars |
 
 ## Agent Self-Improvement (REQUIRED)
 
@@ -170,7 +95,7 @@ After every build run, pipeline fix, new failure pattern, or architectural decis
 
 1. **Update `docs/lessons-learned.md`** — two sections: (a) *Pipeline iteration lessons* (patterns from build logs/DB); (b) *Manual run lessons* (patterns found by running tests locally with screenshots). Tag each entry with its source.
 2. **Update `docs/spec_rca/<game-id>.md`** — per-spec RCA. When a game fails 2+ builds or shows a recurring pattern, create/update its file. Include: symptom, root cause, fix applied, proof, and "why I think it will work in pipeline" rationale.
-3. **Update `docs/build-manager-agent.md`** — refine kill criteria and lifecycle rules based on what was observed
+3. **Update `docs/areas/build-management.md`** — refine kill criteria and lifecycle rules based on what was observed
 4. **Update `CLAUDE.md`** — keep it accurate as the single source of truth for any new agent starting a session
 5. **Update `ROADMAP.md`** — mark completed items done, add newly discovered improvements as planned
 
