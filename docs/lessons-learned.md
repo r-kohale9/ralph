@@ -2170,3 +2170,12 @@ Source: Build #538 RCA (right-triangle-area, 2026-03-22)
 - Fix needed: contract test gen must be updated with a rule: "never use `await expect.poll(...)` inline to capture a value — assign to const first: `const msg = await page.evaluate(...)`, then assert on `msg`." Add this as a validation rule in the CT (contract test) gen prompt.
 - Secondary finding: review-fix-1 successfully fixed both MCQ shuffle (correct answer was always first) and trackEvent firing at wrong points in 160s — review model correctly identified both issues and the fix loop resolved them in one pass.
 - Take: when contract tests are deleted by triage on 0/2 evidence, always check if the deletion was for test logic errors (not HTML bugs). If so, the gen prompt needs a new rule. The game can still be approved without contract tests if review passes.
+
+## Lesson 171 — MCQ games must set gameState.correctAnswer each round (GEN-111) (2026-03-22, build #546)
+- Source: Pipeline log 2026-03-22, build #546 (quadratic-formula-worked-example) + review rejection analysis
+- Pattern: MCQ games that shuffle answer options caused review rejection "correct answer not always first button". Root cause: test harness `answer()` uses `window.gameState.correctAnswer` for value-based lookup first; if not set, falls back to index 0. When options are shuffled, index 0 is wrong ~75% of the time → harness clicks wrong button → game-flow tests fail + review model sees incorrect interaction.
+- Fix: GEN-111 rule added to gen prompt — MCQ games MUST assign `gameState.correctAnswer = <correct-value>` in the `loadRound()` (or equivalent) function each time a new round loads, BEFORE rendering the shuffled options. The value must be the actual answer string, matching exactly one of the shuffled option values.
+- Secondary fix: REVIEW_SHARED_GUIDANCE updated — MCQ option shuffling is correct expected behavior. Review model must NOT reject a game solely because the correct answer is not always in the first button position.
+- Mechanism: review-fix-1 (build #546) fixed both the shuffle (MCQ options now shuffled correctly) and a trackEvent firing issue in one pass. Build approved on review attempt 2.
+- Evidence: build #546 failed review attempt 1 with "correct answer not always first button" — review-fix-1 added correctAnswer tracking + fixed shuffle, review attempt 2 approved.
+- Take: any MCQ game that shuffles options without exposing `gameState.correctAnswer` will fail the harness. The GEN-111 rule is a prerequisite for any shuffle-enabled MCQ game.
