@@ -855,6 +855,27 @@ describe('TimerComponent(null) containerId check (5f5)', () => {
   });
 });
 
+describe('progressBar.timer property access check (5f7)', () => {
+  it('fails when progressBar.timer is accessed', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); const timer = progressBar.timer; timer.start();');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('progressBar.timer'),
+      `Expected progressBar.timer error but got: ${output}`,
+    );
+  });
+
+  it('passes when TimerComponent is created separately', () => {
+    const html = VALID_HTML.replace('initGame();', "initGame(); const timer = new TimerComponent('timer-container', { timerType: 'decrease' }); timer.start();");
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('progressBar.timer'),
+      `Unexpected 5f7 error for valid timer usage: ${output}`,
+    );
+  });
+});
+
 describe('Canvas API CSS variable check (5f6)', () => {
   it('fails when addColorStop uses a CSS variable', () => {
     const html = VALID_HTML.replace('initGame();', "initGame(); ctx.addColorStop(0, 'var(--color-sky)');");
