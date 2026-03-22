@@ -44,7 +44,7 @@
 | PART-010 | Event Tracking                | YES             | Custom events: measure_correct_first, measure_correct_second, measure_skipped, worked_example_shown, round_complete                                                           |
 | PART-011 | End Game & Metrics            | YES             | Star logic: ≥7/9 first-attempt correct = 3★; ≥5/9 = 2★; <5 = 1★. No game-over state (no lives system).                                                                     |
 | PART-012 | Debug Functions               | YES             | —                                                                                                                                                                             |
-| PART-013 | Validation Fixed              | YES             | MCQ: string equality check (selected measure === correctMeasure)                                                                                                              |
+| PART-013 | Validation Fixed              | YES             | MCQ: string equality check (selectedOption === round.correctOption)                                                                                                           |
 | PART-014 | Validation Function           | NO              | —                                                                                                                                                                             |
 | PART-015 | Validation LLM                | NO              | —                                                                                                                                                                             |
 | PART-016 | StoriesComponent              | NO              | —                                                                                                                                                                             |
@@ -54,12 +54,12 @@
 | PART-020 | CSS Variables & Colors        | YES             | —                                                                                                                                                                             |
 | PART-021 | Screen Layout CSS             | YES             | —                                                                                                                                                                             |
 | PART-022 | Game Buttons                  | YES             | —                                                                                                                                                                             |
-| PART-023 | ProgressBar Component         | YES             | totalRounds: 9, totalLives: 0 (no lives — progress bar shows rounds only, no hearts)                                                                                         |
+| PART-023 | ProgressBar Component         | YES             | `new ProgressBarComponent({ slotId: 'mathai-progress-slot', totalRounds: 10, totalLives: 3 })`                                                                               |
 | PART-024 | TransitionScreen Component    | YES             | Screens: start, victory only (no game-over — the game cannot end in failure)                                                                                                  |
 | PART-025 | ScreenLayout Component        | YES             | slots: progressBar=true, transitionScreen=true                                                                                                                                |
 | PART-026 | Anti-Patterns                 | YES (REFERENCE) | Verification checklist                                                                                                                                                        |
 | PART-027 | Play Area Construction        | YES             | Layout: dataset display panel (table or list) above context sentence above MCQ buttons; worked-example panel hidden by default, slides in below question on first wrong attempt |
-| PART-028 | InputSchema Patterns          | YES             | Schema type: rounds with datasetDisplay, contextText, correctMeasure, options, workedExampleHtml, feedbackOnSkip, misconceptionTag                                            |
+| PART-028 | InputSchema Patterns          | YES             | Schema type: rounds with context, data (array), question, options, correctOption, explanationHtml, feedbackOnSkip, misconceptionTag                                            |
 | PART-029 | Story-Only Game               | NO              | —                                                                                                                                                                             |
 | PART-030 | Sentry Error Tracking         | YES             | —                                                                                                                                                                             |
 | PART-031 | API Helper                    | NO              | —                                                                                                                                                                             |
@@ -216,287 +216,231 @@ const fallbackContent = {
     },
 
     // ============================================================
-    // ROUND 2: MEDIAN
-    // Context: Monthly salaries — one very high outlier (CEO salary)
-    // Misconception targeted: "mean-ignores-outlier"
-    // Source B: "For skewed distributions the median is better — it isn't influenced by extremely large values" (Scribbr)
-    // Source D: Cazorla et al. 2023 — "not considering outliers" is documented student difficulty #2
+    // ROUND 2: MEDIAN — M1 (mean distorted by outlier)
+    // Context: Monthly salaries — one very high outlier (owner salary)
+    // NCERT-aligned: Ch 14 factory wages context (Ex 14.1 Q2)
+    // Misconception M1: students pick Mean because "mean = average"
     // ============================================================
     {
-      datasetDisplay: `<div class="dataset-box">₹8,000 &nbsp; ₹9,500 &nbsp; ₹10,000 &nbsp; ₹9,000 &nbsp; ₹8,500 &nbsp; ₹9,200 &nbsp; ₹75,000</div>`,
-      contextText: 'Monthly salaries (in ₹) of 7 employees at a small shop are listed above. One employee is the owner. Which measure best represents what a typical employee earns?',
-      correctMeasure: 'Median',
+      context: 'Monthly salaries (in ₹) of 7 people at a small shop. One person is the owner who earns much more. The accountant wants to report the typical employee salary.',
+      data: ['₹8,000', '₹8,500', '₹9,000', '₹9,200', '₹9,500', '₹10,000', '₹75,000'],
+      question: 'Which measure best represents the typical salary in this shop?',
       options: ['Mean', 'Median', 'Mode'],
-      workedExampleHtml: `
-        <div class="worked-example-card">
-          <p class="we-title">Measure Selector</p>
-          <div class="we-row we-muted">
-            <span class="we-label">Mean</span>
-            <span class="we-rule">→ Best when data is balanced with no extreme outliers. Uses every value.</span>
-          </div>
-          <div class="we-row we-highlighted">
-            <span class="we-label"><strong>Median</strong></span>
-            <span class="we-rule">→ Best when data has outliers or is skewed. Ignores extreme values.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Mode</span>
-            <span class="we-rule">→ Best for categorical data or finding the most common value.</span>
-          </div>
-          <p class="we-explanation">The owner's salary (₹75,000) is an <strong>outlier</strong> — it pulls the mean far above what any regular employee earns. The <strong>Median</strong> (middle value when sorted) is unaffected by this outlier and better represents a "typical" salary.</p>
+      correctOption: 'Median',
+      // M1: Mean = (8000+8500+9000+9200+9500+10000+75000)/7 = 129200/7 ≈ ₹18,457 (above 6 of 7 people).
+      // Median = 4th value (ordered) = ₹9,200. Unaffected by the ₹75,000 outlier.
+      explanationHtml: \`
+        <div class="exp-card">
+          <p class="exp-title">Answer: <strong>Median</strong></p>
+          <div class="exp-definition"><strong>Median</strong> = the 4th (middle) value when sorted: <strong>₹9,200</strong>.</div>
+          <div class="exp-reason"><strong>Why Median?</strong> The owner\'s ₹75,000 salary is an <em>outlier</em>. It pulls the Mean up to ~₹18,457 — higher than what 6 out of 7 employees actually earn. Median (₹9,200) is unaffected by the outlier and truly represents a typical employee.</div>
+          <div class="exp-wrong"><strong>Why not Mean?</strong> Mean (₹18,457) is inflated by the owner\'s salary. It gives a figure that none of the regular employees actually earns.</div>
         </div>
-      `,
-      feedbackOnSkip: 'The ₹75,000 owner salary is an outlier — it drags the mean up to ~₹19,900, far above what 6 of the 7 employees earn. Median is the fairer summary.',
-      misconceptionTag: 'mean-ignores-outlier'
+      \`,
+      feedbackOnSkip: 'The ₹75,000 outlier pulls Mean to ~₹18,457. Median (₹9,200, the 4th value) is the honest typical salary.',
+      misconceptionTag: 'M1'
     },
 
     // ============================================================
-    // ROUND 3: MODE
-    // Context: Shoe sizes sold at a shop — categorical/discrete, need most popular
-    // Misconception targeted: "always-use-mean" (mean of shoe sizes is meaningless for stocking decisions)
-    // Source A: Lumen Learning — "Mode is preferred when data are measured on a nominal (or ordinal) scale"
-    // Source B: Scribbr — "mode is most meaningful for nominal and ordinal levels"
+    // ROUND 3: MODE — M2 (categorical data — shoe sizes, inventory)
+    // Context: Shoe shop needs to stock most popular size
+    // Misconception M2: students pick Mean (6.8 is not a real shoe size)
     // ============================================================
     {
-      datasetDisplay: `<div class="dataset-box">5, 6, 7, 7, 8, 7, 6, 8, 7, 9, 6, 7</div>`,
-      contextText: 'A shoe shop recorded the sizes sold in one day (listed above). The owner wants to know which size to stock the most. Which measure of central tendency should she use?',
-      correctMeasure: 'Mode',
+      context: 'A shoe shop recorded the sizes sold in one day. The owner wants to know which size to order the most from the supplier.',
+      data: ['5', '6', '6', '6', '7', '7', '7', '7', '7', '8', '8', '9'],
+      question: 'Which measure best helps the owner decide which size to restock most?',
       options: ['Mean', 'Median', 'Mode'],
-      workedExampleHtml: `
-        <div class="worked-example-card">
-          <p class="we-title">Measure Selector</p>
-          <div class="we-row we-muted">
-            <span class="we-label">Mean</span>
-            <span class="we-rule">→ Best when data is balanced with no extreme outliers. Uses every value.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Median</span>
-            <span class="we-rule">→ Best when data has outliers or is skewed. Ignores extreme values.</span>
-          </div>
-          <div class="we-row we-highlighted">
-            <span class="we-label"><strong>Mode</strong></span>
-            <span class="we-rule">→ Best for finding the most frequently occurring value — especially useful for discrete/categorical data.</span>
-          </div>
-          <p class="we-explanation">The owner needs to know which size sells <em>most often</em> to decide what to stock. Size 7 appears 5 times — it is the <strong>Mode</strong>. The mean (≈6.8) is not a real shoe size and does not help with stocking decisions.</p>
+      correctOption: 'Mode',
+      // M2: Mode = 7 (appears 5 times). Mean ≈ 6.8 (not a real shoe size). Median = 7.
+      // The question is "which size is sold most often" = Mode.
+      explanationHtml: \`
+        <div class="exp-card">
+          <p class="exp-title">Answer: <strong>Mode</strong></p>
+          <div class="exp-definition"><strong>Mode</strong> = the most frequently occurring value. Size 7 appears 5 times → Mode = <strong>7</strong>.</div>
+          <div class="exp-reason"><strong>Why Mode?</strong> The owner wants to stock the size sold <em>most often</em>. Mode (size 7) directly answers this. Ordering more size 7 maximises sales potential.</div>
+          <div class="exp-wrong"><strong>Why not Mean?</strong> Mean ≈ 6.8 — not a real shoe size. You cannot order "size 6.8" from a supplier. Mode gives an actual, actionable size.</div>
         </div>
-      `,
-      feedbackOnSkip: 'The owner needs the most popular size to stock. Size 7 appears 5 times — that is the Mode. Mean (≈6.8) is not even a real shoe size.',
-      misconceptionTag: 'always-use-mean'
+      \`,
+      feedbackOnSkip: 'Mode = size 7 (appears 5 times) is the size to restock most. Mean gives 6.8 — not a real shoe size.',
+      misconceptionTag: 'M2'
     },
 
     // ============================================================
-    // ROUND 4: MEDIAN
-    // Context: Land area of districts — highly skewed distribution (NCERT-style grouped data context)
-    // Misconception targeted: "mean-ignores-outlier"
-    // Source E: NCERT Ch 14 Exercise 14.3 Q1 — electricity consumption data, comparing mean/median/mode on skewed data
+    // ROUND 4: MEDIAN — M3 (right-skewed: land areas with one huge district)
+    // Context: District areas in a state — one large district creates skew
+    // Misconception M3: students apply Mean to all numeric data
+    // NCERT-aligned: Ch 14 grouped data concept with skewed distributions
     // ============================================================
     {
-      datasetDisplay: `
-        <table class="dataset-table">
-          <tr><th>District</th><th>Area (km²)</th></tr>
-          <tr><td>A</td><td>120</td></tr>
-          <tr><td>B</td><td>145</td></tr>
-          <tr><td>C</td><td>130</td></tr>
-          <tr><td>D</td><td>3,800</td></tr>
-          <tr><td>E</td><td>118</td></tr>
-        </table>`,
-      contextText: 'The areas of 5 districts in a state are shown above. Which measure best represents the "typical" district area?',
-      correctMeasure: 'Median',
+      context: 'A geographer recorded the areas (in km²) of 5 districts in a state. One district is a large desert region. She wants the "typical" district area.',
+      data: ['118', '120', '130', '145', '3800'],
+      question: 'Which measure best represents the typical district area?',
       options: ['Mean', 'Median', 'Mode'],
-      workedExampleHtml: `
-        <div class="worked-example-card">
-          <p class="we-title">Measure Selector</p>
-          <div class="we-row we-muted">
-            <span class="we-label">Mean</span>
-            <span class="we-rule">→ Best when data is balanced with no extreme outliers. Uses every value.</span>
-          </div>
-          <div class="we-row we-highlighted">
-            <span class="we-label"><strong>Median</strong></span>
-            <span class="we-rule">→ Best when data has outliers or is skewed. Ignores extreme values.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Mode</span>
-            <span class="we-rule">→ Best for categorical data or finding the most common value.</span>
-          </div>
-          <p class="we-explanation">District D (3,800 km²) is an <strong>outlier</strong> — it pulls the mean to ~861 km², far larger than the other 4 districts (118–145 km²). Sorted: 118, 120, 130, 145, 3800. The <strong>Median</strong> is 130 km² — a much more representative "typical" district size.</p>
+      correctOption: 'Median',
+      // M3: Ordered: 118, 120, 130, 145, 3800. Median = 3rd value = 130 km².
+      // Mean = (118+120+130+145+3800)/5 = 4313/5 = 862.6 km² — far above 4 of 5 districts.
+      explanationHtml: \`
+        <div class="exp-card">
+          <p class="exp-title">Answer: <strong>Median</strong></p>
+          <div class="exp-definition"><strong>Median</strong> = the 3rd value in ordered data (5 values): <strong>130 km²</strong>.</div>
+          <div class="exp-reason"><strong>Why Median?</strong> The 3,800 km² desert district is an outlier. It pulls Mean to 862.6 km² — far above all other districts. Median (130 km²) reflects what a typical district actually looks like.</div>
+          <div class="exp-wrong"><strong>Why not Mean?</strong> Mean (862.6 km²) is inflated by the large desert district. It gives a "typical" size that 4 out of 5 districts are nowhere near.</div>
         </div>
-      `,
-      feedbackOnSkip: 'District D (3,800 km²) is an extreme outlier — mean becomes ~861 km², unrepresentative. Median (130 km²) is the middle value after sorting and is unaffected by the outlier.',
-      misconceptionTag: 'mean-ignores-outlier'
+      \`,
+      feedbackOnSkip: 'The 3,800 km² outlier inflates Mean to 862.6. Median (130 km², the 3rd value) is the honest centre.',
+      misconceptionTag: 'M3'
     },
 
     // ============================================================
-    // ROUND 5: MEAN
-    // Context: Daily temperature in a city — stable readings, arithmetic average needed
-    // Misconception targeted: "always-use-mean" (confirming mean when data is well-behaved)
-    // Source A: "In a symmetric distribution the mean is robust and reliable" (Lumen Learning)
+    // ROUND 5: MEAN — M-none (daily temperature, symmetric, no outliers)
+    // Context: 7-day temperatures tightly clustered 33-36°C
+    // Misconception: students over-apply "real-world = median"
     // ============================================================
     {
-      datasetDisplay: `<div class="dataset-box">28°C &nbsp; 30°C &nbsp; 29°C &nbsp; 31°C &nbsp; 28°C &nbsp; 30°C &nbsp; 29°C</div>`,
-      contextText: 'A weather station recorded the maximum temperature each day for a week (above). A student wants to report the average temperature for the week. Which measure is most appropriate?',
-      correctMeasure: 'Mean',
+      context: "A city recorded the daily maximum temperature (°C) for one week. A student wants to report the week's typical temperature for a geography project.",
+      data: ['33', '33', '34', '34', '35', '35', '36'],
+      question: "Which measure best summarises the week's typical temperature?",
       options: ['Mean', 'Median', 'Mode'],
-      workedExampleHtml: `
-        <div class="worked-example-card">
-          <p class="we-title">Measure Selector</p>
-          <div class="we-row we-highlighted">
-            <span class="we-label"><strong>Mean</strong></span>
-            <span class="we-rule">→ Best when data is balanced with no extreme outliers. Uses every value.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Median</span>
-            <span class="we-rule">→ Best when data has outliers or is skewed. Ignores extreme values.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Mode</span>
-            <span class="we-rule">→ Best for categorical data or finding the most common value.</span>
-          </div>
-          <p class="we-explanation">All temperatures are close together (28–31°C) — no outliers, no skew. This is exactly when <strong>Mean</strong> works best: it uses every reading to give a single "balance point" for the week. Meteorologists use the mean temperature for this reason.</p>
+      correctOption: 'Mean',
+      // M-none: Values range 33-36. Symmetric. Mean = 240/7 ≈ 34.3°C. Median = 34°C.
+      explanationHtml: \`
+        <div class="exp-card">
+          <p class="exp-title">Answer: <strong>Mean</strong></p>
+          <div class="exp-definition"><strong>Mean</strong> = (33+33+34+34+35+35+36) ÷ 7 = 240 ÷ 7 ≈ <strong>34.3°C</strong>.</div>
+          <div class="exp-reason"><strong>Why Mean?</strong> Temperatures cluster between 33°C and 36°C with no outliers — a <em>symmetric</em> spread. Mean (34.3°C) uses every day\'s reading and is the universally accepted "average temperature" metric.</div>
+          <div class="exp-wrong"><strong>Why not Median?</strong> Median (34°C) is close but the Mean is preferred for symmetric data without outliers — it accounts for every value equally.</div>
         </div>
-      `,
-      feedbackOnSkip: 'Temperatures range from 28–31°C — tight and symmetric, no outliers. Mean uses all 7 readings to give the fairest single summary: (28+30+29+31+28+30+29)/7 = 29.3°C.',
-      misconceptionTag: 'always-use-mean'
+      \`,
+      feedbackOnSkip: 'Symmetric temperatures 33-36°C, no outliers → Mean (≈34.3°C) is the standard weekly average.',
+      misconceptionTag: 'M-none'
     },
 
     // ============================================================
-    // ROUND 6: MODE
-    // Context: Favourite fruit survey — categorical/nominal data, no numeric meaning
-    // Misconception targeted: "mean-for-categorical"
-    // Source B: Scribbr — "The mean can only be used on interval and ratio levels of measurement"; "mode can be used for any level of measurement"
-    // Source D: Cazorla et al. 2023 — "mechanical algorithm use without conceptual understanding" — students try to compute mean on non-numeric data
+    // ROUND 6: MODE — M2 (favourite colour survey — nominal categorical)
+    // Context: Most popular uniform colour — purely categorical data
+    // Misconception M2: students apply mean/median to colour names
+    // Research: AAMT — "students believe it is possible to find the median of categorical data"
     // ============================================================
     {
-      datasetDisplay: `<div class="dataset-box">Mango, Apple, Mango, Banana, Mango, Apple, Banana, Mango, Apple, Mango</div>`,
-      contextText: 'A class of 10 students was asked to name their favourite fruit. The responses are listed above. The teacher wants to know which fruit is most popular. Which measure of central tendency is appropriate here?',
-      correctMeasure: 'Mode',
+      context: 'A school surveyed 50 students about their preferred sports team colour. Responses: Blue (22), Red (15), Green (9), Yellow (4). The principal wants the most popular colour for the new uniform.',
+      data: ['Blue', 'Blue', 'Red', 'Red', 'Green', 'Yellow', '...22 Blue total out of 50'],
+      question: 'Which measure identifies the most popular colour choice?',
       options: ['Mean', 'Median', 'Mode'],
-      workedExampleHtml: `
-        <div class="worked-example-card">
-          <p class="we-title">Measure Selector</p>
-          <div class="we-row we-muted">
-            <span class="we-label">Mean</span>
-            <span class="we-rule">→ Requires numeric data. Cannot be calculated for categories like fruit names.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Median</span>
-            <span class="we-rule">→ Requires data that can be ordered numerically. Fruit names have no numeric order.</span>
-          </div>
-          <div class="we-row we-highlighted">
-            <span class="we-label"><strong>Mode</strong></span>
-            <span class="we-rule">→ The ONLY measure that works for categorical (nominal) data. Simply count which value appears most often.</span>
-          </div>
-          <p class="we-explanation">Fruit names are <strong>categorical data</strong> — you cannot add or order them numerically. Mean and Median both need numbers. Only <strong>Mode</strong> applies: Mango appears 5 times (most frequent), so Mango is the mode and the most popular fruit.</p>
+      correctOption: 'Mode',
+      // M2: Colour names are nominal (categorical). Mean/Median require numbers. Mode = Blue (22 students).
+      explanationHtml: \`
+        <div class="exp-card">
+          <p class="exp-title">Answer: <strong>Mode</strong></p>
+          <div class="exp-definition"><strong>Mode</strong> = the most frequently occurring value. Blue (22 students) is chosen most → Mode = <strong>Blue</strong>.</div>
+          <div class="exp-reason"><strong>Why Mode?</strong> Colour names are <em>categorical</em> — not numbers. Mode is the <strong>only</strong> measure of central tendency that applies to non-numeric data. It directly answers "which colour do most students prefer?"</div>
+          <div class="exp-wrong"><strong>Why not Mean or Median?</strong> You cannot add or order colour names. "Blue + Red ÷ 2" is meaningless. Both Mean and Median require numbers to work.</div>
         </div>
-      `,
-      feedbackOnSkip: 'Fruit names are categorical — you cannot calculate a mean or median of words. Only Mode works: Mango appears 5 times, making it the most popular choice.',
-      misconceptionTag: 'mean-for-categorical'
+      \`,
+      feedbackOnSkip: 'Colour names are categorical — Mode is the only valid measure. Mode = Blue (chosen by 22 of 50 students).',
+      misconceptionTag: 'M2'
     },
 
     // ============================================================
-    // ROUND 7: MEDIAN
-    // Context: House prices — severely right-skewed, one luxury property
-    // Misconception targeted: "mean-ignores-outlier"
-    // Source C: LibreTexts — "in a skewed distribution the bulk of scores are bunched at one end; the tail throws off the mean"
+    // ROUND 7: MEDIAN — M1 (income data with extreme outlier)
+    // Context: Monthly income of workers, one CEO earns vastly more
+    // NCERT-aligned: Ex 14.1 Q2 (factory wages, appropriate method)
+    // Misconception M1: students default to Mean for all income data
     // ============================================================
     {
-      datasetDisplay: `<div class="dataset-box">₹25L &nbsp; ₹28L &nbsp; ₹30L &nbsp; ₹27L &nbsp; ₹29L &nbsp; ₹2.5Cr</div>`,
-      contextText: 'Six houses in a colony were sold at the prices listed above (L = lakhs, Cr = crore). A journalist wants to report the "typical" house price in the colony. Which measure should she use?',
-      correctMeasure: 'Median',
+      context: 'A company recorded monthly income (in ₹) of 6 staff members. Five staff earn ₹20,000-₹30,000. The CEO earns ₹8,00,000. HR wants to report the "typical" staff income.',
+      data: ['20000', '22000', '25000', '27000', '30000', '800000'],
+      question: 'Which measure best describes the typical monthly income?',
       options: ['Mean', 'Median', 'Mode'],
-      workedExampleHtml: `
-        <div class="worked-example-card">
-          <p class="we-title">Measure Selector</p>
-          <div class="we-row we-muted">
-            <span class="we-label">Mean</span>
-            <span class="we-rule">→ Best when data is balanced with no extreme outliers. Uses every value.</span>
-          </div>
-          <div class="we-row we-highlighted">
-            <span class="we-label"><strong>Median</strong></span>
-            <span class="we-rule">→ Best when data has outliers or is skewed. Ignores extreme values.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Mode</span>
-            <span class="we-rule">→ Best for categorical data or finding the most common value.</span>
-          </div>
-          <p class="we-explanation">The ₹2.5 Cr luxury house is an extreme <strong>outlier</strong>. Sorted: ₹25L, ₹27L, ₹28L, ₹29L, ₹30L, ₹2.5Cr. The median (average of 3rd and 4th values) = ₹28.5L — representative of the five affordable houses. The mean would be ~₹69L, misleadingly high.</p>
+      correctOption: 'Median',
+      // M1: Mean = (20000+22000+25000+27000+30000+800000)/6 = 924000/6 = ₹1,54,000.
+      // Ordered: 20000, 22000, 25000, 27000, 30000, 800000. Median = (25000+27000)/2 = ₹26,000.
+      explanationHtml: \`
+        <div class="exp-card">
+          <p class="exp-title">Answer: <strong>Median</strong></p>
+          <div class="exp-definition"><strong>Median</strong> = average of 3rd and 4th values: (25,000 + 27,000) ÷ 2 = <strong>₹26,000</strong>.</div>
+          <div class="exp-reason"><strong>Why Median?</strong> The CEO\'s ₹8,00,000 salary is a massive outlier. It pulls Mean to ₹1,54,000 — five times what most staff earn. Median (₹26,000) correctly represents what a typical staff member earns.</div>
+          <div class="exp-wrong"><strong>Why not Mean?</strong> Mean (₹1,54,000) is dominated by one CEO salary. It is completely unrepresentative of the five regular employees.</div>
         </div>
-      `,
-      feedbackOnSkip: 'The ₹2.5 Cr property is an outlier — the mean becomes ~₹69L, far above five of the six actual prices. Median (₹28.5L) gives the fairer picture of a "typical" house.',
-      misconceptionTag: 'mean-ignores-outlier'
+      \`,
+      feedbackOnSkip: 'CEO salary (₹8,00,000) is an outlier — Median (₹26,000) is the honest typical staff income.',
+      misconceptionTag: 'M1'
     },
 
     // ============================================================
-    // ROUND 8: MODE
-    // Context: Blood groups of students — nominal categorical data, medical relevance
-    // Misconception targeted: "mode-means-most-frequent-always"
-    // Note: This round IS correctly Mode — reinforcing when mode is appropriate with a health context
-    // Source B: Scribbr — "mode can be used for any level of measurement, but it's most meaningful for nominal"
+    // ROUND 8: MEAN — M-none (symmetric plant count data)
+    // Context: Number of plants per house — NCERT Ex 14.1 Q1 directly
+    // No outliers, symmetric spread. Mean = 8.1.
+    // Misconception: students over-apply Median to all survey data
     // ============================================================
     {
-      datasetDisplay: `
-        <table class="dataset-table">
-          <tr><th>Blood Group</th><th>Number of Students</th></tr>
-          <tr><td>A</td><td>8</td></tr>
-          <tr><td>B</td><td>12</td></tr>
-          <tr><td>O</td><td>15</td></tr>
-          <tr><td>AB</td><td>5</td></tr>
-        </table>`,
-      contextText: 'A school nurse recorded the blood groups of 40 students (above). The school hospital wants to stock the most needed blood type. Which measure of central tendency should guide the decision?',
-      correctMeasure: 'Mode',
+      context: 'A survey recorded the number of plants in 20 houses in a locality. Values range from 0 to 14 with no extreme outliers — the data is roughly symmetric.',
+      data: ['0', '2', '2', '4', '5', '5', '6', '7', '8', '8', '8', '9', '10', '10', '11', '12', '12', '12', '14', '14'],
+      question: 'Which measure best summarises the typical number of plants per house?',
       options: ['Mean', 'Median', 'Mode'],
-      workedExampleHtml: `
-        <div class="worked-example-card">
-          <p class="we-title">Measure Selector</p>
-          <div class="we-row we-muted">
-            <span class="we-label">Mean</span>
-            <span class="we-rule">→ Requires numeric data. Blood groups (A, B, O, AB) are categories — no arithmetic possible.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Median</span>
-            <span class="we-rule">→ Requires ordered numeric data. Blood groups cannot be meaningfully ordered.</span>
-          </div>
-          <div class="we-row we-highlighted">
-            <span class="we-label"><strong>Mode</strong></span>
-            <span class="we-rule">→ The only measure for categorical data. Identifies the most frequent category.</span>
-          </div>
-          <p class="we-explanation">Blood groups are <strong>categorical data</strong> — labels, not numbers. Mean and Median are undefined here. <strong>Mode</strong> is the most frequent blood group: O (15 students). The hospital should stock blood type O most — the modal category.</p>
+      correctOption: 'Mean',
+      // M-none: Sum = 162, n = 20. Mean = 8.1. Median = 8.5. Mode = 8 and 12 (bimodal — not helpful).
+      // Source: NCERT Ex 14.1 Q1 — direct exercise context.
+      explanationHtml: \`
+        <div class="exp-card">
+          <p class="exp-title">Answer: <strong>Mean</strong></p>
+          <div class="exp-definition"><strong>Mean</strong> = 162 ÷ 20 = <strong>8.1 plants per house</strong>.</div>
+          <div class="exp-reason"><strong>Why Mean?</strong> The data is <em>symmetric</em> — spread evenly from 0 to 14 with no extreme outliers. Mean (8.1) uses every data point and accurately captures the typical number of plants. Source: NCERT Ex 14.1 Q1.</div>
+          <div class="exp-wrong"><strong>Why not Median?</strong> Median is preferred for skewed/outlier data. Here data is symmetric, so Mean is equally valid and more precise than Median (8.5).</div>
         </div>
-      `,
-      feedbackOnSkip: 'Blood groups are categories — Mean and Median do not apply. Mode identifies the most common: O (15 students). The hospital stocks Type O most.',
-      misconceptionTag: 'mean-for-categorical'
+      \`,
+      feedbackOnSkip: 'Symmetric plant data, no outliers → Mean (8.1) is the standard average. Direct from NCERT Ex 14.1 Q1.',
+      misconceptionTag: 'M-none'
     },
 
     // ============================================================
-    // ROUND 9: MEAN
-    // Context: Runs scored by a cricketer — balanced performance data, mean = batting average
-    // Misconception targeted: "mode-vs-median-ordered" (students sometimes default to median for any numeric data)
-    // Source A: Lumen Learning — "Use mean... when you want the most informative measure and data is interval/ratio without outliers"
-    // Note: Cricket batting average is explicitly computed as mean — reinforces real-world use of mean
+    // ROUND 9: MODE — M2 (blood group survey — categorical, medical context)
+    // Context: Hospital needs to stock most common blood type
+    // Misconception M2: students try to find Mean/Median of blood group letters
     // ============================================================
     {
-      datasetDisplay: `<div class="dataset-box">45 &nbsp; 62 &nbsp; 38 &nbsp; 71 &nbsp; 55 &nbsp; 48 &nbsp; 60 &nbsp; 52</div>`,
-      contextText: 'A cricketer scored the runs listed above in 8 innings. A sports journalist wants to report the player\'s "batting average." Which measure of central tendency should be used?',
-      correctMeasure: 'Mean',
+      context: 'A hospital recorded the blood groups of 30 patients admitted in one week: O+ (12), A+ (9), B+ (6), AB+ (3). The blood bank wants to know which type to stock the most.',
+      data: ['O+', 'O+', 'A+', 'A+', 'B+', 'AB+', '...12 O+ total out of 30'],
+      question: 'Which measure tells the blood bank which blood type to stock most?',
       options: ['Mean', 'Median', 'Mode'],
-      workedExampleHtml: `
-        <div class="worked-example-card">
-          <p class="we-title">Measure Selector</p>
-          <div class="we-row we-highlighted">
-            <span class="we-label"><strong>Mean</strong></span>
-            <span class="we-rule">→ Best when data is balanced with no extreme outliers. Uses every value. This is what "average" means in sports.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Median</span>
-            <span class="we-rule">→ Best when data has outliers or is skewed. Ignores extreme values.</span>
-          </div>
-          <div class="we-row we-muted">
-            <span class="we-label">Mode</span>
-            <span class="we-rule">→ Best for categorical data or finding the most common value.</span>
-          </div>
-          <p class="we-explanation">Scores range from 38–71 — no extreme outliers, no skew. A "batting average" is defined as total runs ÷ innings = (45+62+38+71+55+48+60+52)/8 = 431/8 = <strong>53.9</strong>. The <strong>Mean</strong> is the correct measure — it accounts for every innings played.</p>
+      correctOption: 'Mode',
+      // M2: Blood groups are categorical (nominal). Mean/Median require numbers. Mode = O+ (12 patients, most frequent).
+      explanationHtml: \`
+        <div class="exp-card">
+          <p class="exp-title">Answer: <strong>Mode</strong></p>
+          <div class="exp-definition"><strong>Mode</strong> = the most frequently occurring value. O+ appears 12 times → Mode = <strong>O+</strong>.</div>
+          <div class="exp-reason"><strong>Why Mode?</strong> Blood groups are <em>categorical labels</em>, not numbers. Mode is the only measure that applies to categorical data. It directly answers "which type appears most often?" so the blood bank knows what to stock.</div>
+          <div class="exp-wrong"><strong>Why not Mean or Median?</strong> Blood groups are letters — you cannot add or order O+, A+, B+, AB+. Mean and Median are undefined for non-numeric data.</div>
         </div>
-      `,
-      feedbackOnSkip: 'Batting average is always the Mean: total runs ÷ number of innings = 431÷8 = 53.9. All scores are balanced (38–71), so Mean is the right and standard choice.',
-      misconceptionTag: 'mode-vs-median-ordered'
+      \`,
+      feedbackOnSkip: 'Blood groups are categorical — Mode = O+ (most frequent, 12 patients) is the only valid measure.',
+      misconceptionTag: 'M2'
+    },
+
+    // ============================================================
+    // ROUND 10: MEDIAN — M3 (family size survey, right-skewed)
+    // Context: Family sizes in 9 families, two large joint families create skew
+    // NCERT-aligned: Ch 14 household survey data
+    // Misconception M3: students use Mean without checking for skew
+    // ============================================================
+    {
+      context: 'A survey recorded the number of members in 9 families in a village: two are large joint families. A government researcher wants to report the "typical" family size.',
+      data: ['2', '3', '3', '4', '4', '4', '5', '8', '12'],
+      question: 'Which measure best represents the typical family size in this village?',
+      options: ['Mean', 'Median', 'Mode'],
+      correctOption: 'Median',
+      // M3: Mean = 45/9 = 5 members. But 6 of 9 families have ≤4 members. Median = 5th value = 4.
+      // Mode = 4 (appears 3 times) — but Median preferred for skewed distributions.
+      explanationHtml: \`
+        <div class="exp-card">
+          <p class="exp-title">Answer: <strong>Median</strong></p>
+          <div class="exp-definition"><strong>Median</strong> = the 5th value in ordered data (9 values): <strong>4 members</strong>.</div>
+          <div class="exp-reason"><strong>Why Median?</strong> The two joint families (8 and 12 members) create a <em>right-skewed</em> distribution. Mean (5) is pulled above the size of 6 out of 9 families. Median (4) correctly shows what most village families actually look like.</div>
+          <div class="exp-wrong"><strong>Why not Mode?</strong> Mode = 4 (appears 3 times) is close, but Mode only reflects frequency. For skewed distributions, Median is the standard preferred measure of central tendency.</div>
+        </div>
+      \`,
+      feedbackOnSkip: 'Joint families (8, 12 members) skew Mean to 5. Median (4, the 5th value) is the true centre of this right-skewed data.',
+      misconceptionTag: 'M3'
     }
   ]
 };
@@ -510,37 +454,32 @@ The play area (`#gameContent`) has three layers; visibility is toggled via the `
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  #dataset-display  (always visible per round)        │
-│  Renders round.datasetDisplay (HTML) — a styled box  │
-│  for list data or a compact table for frequency data │
+│  #context-card  (always visible per round)           │
+│  #context-text: round.context (scenario description) │
+│  #data-display: round.data.join(', ') in styled box  │
 ├──────────────────────────────────────────────────────┤
 │  #question-panel  (always visible per round)         │
-│  Paragraph: round.contextText                        │
+│  Heading: round.question                             │
 │                                                      │
-│  Three MCQ buttons (data-option attribute):          │
-│  [ Mean ]   [ Median ]   [ Mode ]                   │
-│  (always the same three options, every round)        │
+│  Three MCQ buttons (.option-btn):                    │
+│  [ Mean ]    [ Median ]    [ Mode ]                  │
+│  data-testid="option-0/1/2", data-value="Mean" etc.  │
+│  min-height: 44px; min-width: 44px (accessibility)   │
 │                                                      │
-│  #correct-feedback  data-testid="correct-feedback"   │
-│  (hidden by default)                                 │
-│  Brief green confirmation: "Correct! [Measure] is    │
-│  the right choice here."                             │
-│  Auto-advances after 1200ms                          │
-│                                                      │
-│  #answer-feedback  aria-live="polite" role="status"  │
-│  (MANDATORY ARIA — GEN-120 / ARIA-001)               │
-│  Screen-reader announcement for correct/incorrect.   │
-│  Never visible to sighted users (visually hidden).   │
+│  #feedback-text                                      │
+│  aria-live="polite" role="status"                    │
+│  data-testid="feedback-text"                         │
+│  (hidden by default — brief correct/skip message)    │
 ├──────────────────────────────────────────────────────┤
-│  #worked-example-panel  (hidden by default)          │
-│  data-testid="worked-example-panel"                  │
+│  #explanation-panel  (hidden by default)              │
+│  data-testid="explanation-panel"                     │
 │  Appears after FIRST wrong attempt only.             │
-│  Contains round.workedExampleHtml (injected via      │
-│  innerHTML). Two buttons:                            │
+│  Contains round.explanationHtml injected via         │
+│  innerHTML. Two buttons:                             │
 │    [Got it — try again]  data-testid="got-it-btn"   │
-│      → allows second attempt                        │
-│    [Skip this round]     data-testid="skip-round-btn"│
-│      → advances immediately                         │
+│      → re-enables buttons for second attempt        │
+│    [Skip this round]  data-testid="skip-round-btn"  │
+│      → deducts 1 life, advances round               │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -621,15 +560,21 @@ function startGame() {
 2. gameState.currentRound = roundNumber
 3. gameState.attemptsThisRound = 0
 4. gameState.isProcessing = false
-5. Render dataset: document.getElementById('dataset-display').innerHTML = round.datasetDisplay
-6. Set context text: document.getElementById('context-text').textContent = round.contextText
+5. Update context card:
+     document.getElementById('context-text').textContent = round.context
+     document.getElementById('data-display').textContent = round.data.join(', ')
+6. Set question heading: document.getElementById('question-text').textContent = round.question
 7. Render option buttons: clear #option-buttons, create 3 buttons from round.options[]
-   Each button: data-option="<option string>", textContent = option string
-   Each button MUST ALSO have: data-testid="option-N" (N=0,1,2, positional index) AND data-value="<option string>" (exact option text).
-   Tests use data-testid as the stable selector.
-8. Show #dataset-display and #question-panel, hide #correct-feedback, hide #worked-example-panel
+   Each button MUST have ALL of:
+     class="option-btn"
+     data-testid="option-N"    (N = 0, 1, 2 — positional index)
+     data-value="<option>"     (exact string: "Mean", "Median", or "Mode")
+     textContent = option string
+   CSS: min-height: 44px; min-width: 44px
+8. Hide #feedback-text, hide #explanation-panel
 9. Enable all option buttons (remove disabled attribute)
-10. Update progress bar: progressBar.setRound(roundNumber)
+10. progressBar.setRound(roundNumber)
+11. syncDOMState()
 ```
 
 ### 6.3 handleOptionClick(selectedOption)
@@ -639,26 +584,29 @@ function startGame() {
 2. Disable all option buttons immediately (prevent double-click)
 3. gameState.attemptsThisRound++
 4. const round = gameState.content.rounds[gameState.currentRound - 1]
-5. const isCorrect = (selectedOption === round.correctMeasure)
+5. const isCorrect = (selectedOption === round.correctOption)
 
 6. if (isCorrect):
    - Track event: attemptsThisRound === 1 ? 'measure_correct_first' : 'measure_correct_second'
    - if (attemptsThisRound === 1): gameState.totalFirstAttemptCorrect++; gameState.score += 20
    - else: gameState.score += 10  (partial credit for correct on second attempt)
    - FeedbackManager.sound('correct')
-   - Show #correct-feedback with text "Correct! [round.correctMeasure] is the right choice here."
-   - After 1200ms: hide #correct-feedback; advance round
+   - FeedbackManager.playDynamicFeedback('correct', gameState.score)
+   - syncDOMState()
+   - Show #feedback-text: "Correct! " + round.correctOption + " is the right measure here."
+     (aria-live="polite" ensures screen-reader announcement)
+   - After 1200ms: hide #feedback-text; advanceRound()
    - gameState.isProcessing = false
 
 7. else (wrong):
    - Track event: 'measure_incorrect'
    - FeedbackManager.sound('incorrect')
    - if (attemptsThisRound === 1):
-       — Show worked example: inject round.workedExampleHtml into #worked-example-panel via innerHTML
-       — Show #worked-example-panel (add 'visible' class for CSS animation)
-       — Enable "Got it — try again" and "Skip this round" buttons
+       — inject round.explanationHtml into #explanation-panel via innerHTML
+       — show #explanation-panel (fade in or slide down)
+       — enable got-it-btn and skip-round-btn
        — gameState.isProcessing = false
-       — (wait for user action on worked example panel)
+       — (wait for user action — do NOT auto-advance)
    - else (attemptsThisRound === 2):
        — Track event: 'measure_skipped'
        — gameState.wrongFirstAttempt++
@@ -673,7 +621,7 @@ function startGame() {
 ### 6.4 handleWorkedExampleGotIt()
 
 ```
-1. Hide #worked-example-panel (remove 'visible' class)
+1. Hide #explanation-panel
 2. Re-enable option buttons (remove disabled attribute)
 3. gameState.isProcessing = false
    (attemptsThisRound remains at 1, so next click is the second attempt)
@@ -683,13 +631,13 @@ function startGame() {
 
 ```
 1. Track event: 'measure_skipped'
-2. Hide #worked-example-panel (remove 'visible' class)
+2. Hide #explanation-panel
 3. gameState.wrongFirstAttempt++
 4. gameState.lives--
 5. progressBar.loseLife()
 6. syncDOMState()
 7. if (gameState.lives <= 0): endGame(false)   [game_over — stop here]
-8. else: Show #skip-note / #feedback-text with round.feedbackOnSkip for 1500ms, then advanceRound()
+8. else: show #feedback-text with round.feedbackOnSkip for 1500ms, then advanceRound()
 ```
 
 ### 6.7 Advance Round
@@ -863,7 +811,7 @@ The LLM generating this game must check each item before finalising the HTML:
 1. **Do NOT call `FeedbackManager.init()`** — audio permission popup breaks tests. Use `.sound()` and `.playDynamicFeedback()` only.
 2. **Do NOT assign `window.gameState` inside DOMContentLoaded** — it must be at module scope, immediately after the `gameState` object declaration.
 3. **Do NOT forget `window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound`** — assign in DOMContentLoaded after function definitions. Also add `window.loadRound = function(n) { ... }` — required for test harness `__ralph.jumpToRound()`.
-4. **Do NOT hardcode the dataset display** — render `round.datasetDisplay` via `innerHTML` (not `textContent`) each round, because rounds mix plain-text boxes and HTML tables.
+4. **Do NOT use static HTML for context or data** — `#context-text` and `#data-display` MUST be updated dynamically in `renderRound()` from `round.context` and `round.data.join(', ')`. Hard-coded text that does not change between rounds is a bug.
 5. **Do NOT deduct lives** — this game has no lives system. Never call `progressBar.loseLife()` or decrement any lives variable. The game always ends in victory after 9 rounds.
 6. **Do NOT show a game-over screen** — there is no game-over in this game. `endGame()` always calls `transitionScreen.show('victory')`.
 7. **Do NOT skip the `isProcessing` guard** — fast taps can fire `handleOptionClick` twice. Set `isProcessing = true` at the start and `false` after each async completion.
@@ -871,8 +819,8 @@ The LLM generating this game must check each item before finalising the HTML:
 9. **Do NOT forget to re-enable option buttons when "Got it — try again" is clicked** — if buttons stay disabled the learner cannot make their second attempt.
 10. **Do NOT render option buttons as hardcoded HTML** — they must be generated dynamically from `round.options[]` each round (even though options are always ['Mean', 'Median', 'Mode'] — the generation must be data-driven, not hardcoded, so future content changes work without HTML edits).
 11. **Do NOT omit `data-testid` on option buttons** — each button must have `data-testid="option-0"`, `data-testid="option-1"`, `data-testid="option-2"` (positional) AND `data-value="<option string>"`. Tests use `data-testid` as the stable selector.
-12. **Do NOT omit `data-testid` on worked-example panel elements** — the panel container must have `data-testid="worked-example-panel"`, the got-it button must have `data-testid="got-it-btn"`, the skip button must have `data-testid="skip-round-btn"`, and the correct-feedback element must have `data-testid="correct-feedback"`. Tests cannot click these elements without stable selectors.
-13. **Do NOT inject `workedExampleHtml` or `datasetDisplay` as textContent** — use `innerHTML` to preserve HTML structure.
+12. **Do NOT omit `data-testid` on explanation panel elements** — the panel container must have `data-testid="explanation-panel"`, the got-it button `data-testid="got-it-btn"`, the skip button `data-testid="skip-round-btn"`, and the feedback text `data-testid="feedback-text"`. Tests cannot click these elements without stable selectors.
+13. **Do NOT inject `explanationHtml` as textContent** — use `innerHTML` to preserve the HTML structure of the explanation card.
 14. **Do NOT skip `gameState.attemptsThisRound` reset in `renderRound()`** — stale attempt counts from the previous round will cause the worked-example panel to not appear on first wrong attempt.
 15. **Do NOT use `style.display` to toggle the worked-example panel** — use `panel.classList.add('visible')` / `panel.classList.remove('visible')` so the CSS `slideDown` animation fires on each appearance.
 
@@ -884,11 +832,11 @@ The LLM generating this game must check each item before finalising the HTML:
 
 - **start-screen**: Page loads, start button is visible, `data-phase="start"`.
 - **game-start**: Clicking play transitions to `data-phase="playing"`; round 1 renders with dataset display, context text, and 3 option buttons.
-- **correct-first-attempt-advances**: Selecting the correct measure on first attempt shows `#correct-feedback` then auto-advances to round 2 after 1200ms.
-- **wrong-first-attempt-shows-worked-example**: Selecting a wrong measure on first attempt shows `#worked-example-panel` with the Measure Selector reference card. Option buttons are disabled.
-- **got-it-enables-second-attempt**: Clicking "Got it — try again" hides `#worked-example-panel` and re-enables option buttons for a second attempt.
+- **correct-first-attempt-advances**: Selecting the correct option on first attempt shows `#feedback-text` then auto-advances to round 2 after 1200ms.
+- **wrong-first-attempt-shows-explanation**: Selecting a wrong option on first attempt shows `#explanation-panel`. Option buttons are disabled while panel is visible.
+- **got-it-enables-second-attempt**: Clicking "Got it — try again" hides `#explanation-panel` and re-enables option buttons for a second attempt.
 - **skip-advances-round**: Clicking "Skip this round" hides the worked-example panel and advances to the next round after the skip note.
-- **correct-second-attempt-advances**: Selecting the correct measure on second attempt (after worked example shown) shows `#correct-feedback` then advances.
+- **correct-second-attempt-advances**: Selecting the correct option on second attempt (after explanation shown) shows `#feedback-text` then advances.
 - **wrong-second-attempt-skips**: Selecting wrong measure on second attempt advances the round with `feedbackOnSkip` note.
 - **complete-9-rounds**: Completing all 9 rounds (any combination of correct/skip) transitions to `data-phase="results"` (victory).
 - **no-game-over**: Confirm that no game-over transition screen ever appears, regardless of answer choices.
@@ -912,7 +860,7 @@ The LLM generating this game must check each item before finalising the HTML:
 
 - **option-buttons-have-data-testid**: All three option buttons have `data-testid="option-0"`, `data-testid="option-1"`, `data-testid="option-2"`.
 - **option-buttons-have-data-value**: All three buttons have `data-value` matching exactly `"Mean"`, `"Median"`, `"Mode"`.
-- **worked-example-panel-testid**: Element with `data-testid="worked-example-panel"` exists in the DOM (may be hidden).
+- **explanation-panel-testid**: Element with `data-testid="explanation-panel"` exists in the DOM (may be hidden).
 - **got-it-btn-testid**: Element with `data-testid="got-it-btn"` exists in the DOM.
 - **skip-round-btn-testid**: Element with `data-testid="skip-round-btn"` exists in the DOM.
 - **correct-feedback-testid**: Element with `data-testid="correct-feedback"` exists in the DOM.
@@ -970,7 +918,7 @@ The LLM generating this game must check each item before finalising the HTML:
 
 ## 12. Worked-Example Panel CSS (MANDATORY)
 
-The `workedExampleHtml` content uses class names that must be styled in the game's CSS. Include these styles:
+The `explanationHtml` content uses class names that must be styled in the game's CSS. The worked-example panel itself must be styled:
 
 ```css
 .worked-example-card {
@@ -1043,16 +991,16 @@ The `workedExampleHtml` content uses class names that must be styled in the game
 }
 ```
 
-The worked-example panel (`#worked-example-panel`) itself must have:
+The explanation panel (`#explanation-panel`) itself must have:
 
 ```css
-#worked-example-panel {
+#explanation-panel {
   display: none;             /* hidden by default */
   margin-top: 16px;
   animation: slideDown 0.25s ease-out;
 }
 
-#worked-example-panel.visible {
+#explanation-panel.visible {
   display: block;
 }
 
@@ -1076,7 +1024,7 @@ window.parent.postMessage({
     event: eventName,           // 'measure_correct_first' | 'measure_correct_second' | 'measure_incorrect' | 'measure_skipped'
     roundNumber: gameState.currentRound,
     selectedMeasure: selectedOption,
-    correctMeasure: round.correctMeasure,
+    correctOption: round.correctOption,
     misconceptionTag: round.misconceptionTag,
     score: gameState.score,
     timestamp: Date.now()
@@ -1115,18 +1063,18 @@ These are the canonical test cases the test generator must produce. Each case ma
 
 ### TC-003: game-flow / correct-first-attempt-advances
 **Description:** Correct first attempt shows feedback and advances to round 2.
-**Steps:** Start game. On round 1 (marks data, correctMeasure = 'Mean'), click `[data-testid="option-0"]` (Mean).
+**Steps:** Start game. On round 1 (marks data, correctOption = 'Mean'), click `[data-testid="option-0"]` (Mean button).
 **Assert:** Element `[data-testid="correct-feedback"]` becomes visible. After 1200ms, `window.gameState.currentRound === 2`.
 
 ### TC-004: game-flow / wrong-first-attempt-shows-worked-example
 **Description:** Wrong first attempt reveals worked-example panel with buttons disabled.
 **Steps:** Start game. On round 1, click `[data-testid="option-1"]` (Median — wrong).
-**Assert:** `[data-testid="worked-example-panel"]` is visible. All `[data-testid^="option-"]` buttons are disabled.
+**Assert:** `[data-testid="explanation-panel"]` is visible. All `[data-testid^="option-"]` buttons are disabled.
 
 ### TC-005: game-flow / got-it-enables-second-attempt
 **Description:** Clicking "Got it — try again" hides worked-example panel and re-enables buttons.
 **Steps:** Round 1, wrong answer. Then click `[data-testid="got-it-btn"]`.
-**Assert:** `[data-testid="worked-example-panel"]` is hidden. All option buttons are enabled. `window.gameState.attemptsThisRound === 1`.
+**Assert:** `[data-testid="explanation-panel"]` is hidden. All option buttons are enabled. `window.gameState.attemptsThisRound === 1`.
 
 ### TC-006: game-flow / skip-advances-round
 **Description:** "Skip this round" from worked-example panel advances to next round.
