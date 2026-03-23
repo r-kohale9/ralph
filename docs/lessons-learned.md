@@ -2599,3 +2599,13 @@ Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug
 **Problem:** The LP-2 substitution regex correctly handles `page.locator('#mathai-transition-slot button').click()` and `page.locator('#mathai-transition-slot button').first().toBeVisible()` — but NOT `page.locator('#mathai-transition-slot button').first().click()`. The `.first()` group is present in the `.toBeVisible()` regex but not in the `.click()` regex. The banned selector escapes post-processing and appears in emitted contract/game-flow tests → test timeouts.
 
 **Rule:** LP-2 regex for click substitution must handle both `button.click()` AND `button.first().click()`. Asymmetric regex coverage is a common bug when adding `.first()` support — always check BOTH the click and the visibility assertion variants.
+
+## Lesson 200 — progressBar.destroy() + null assignment inside setTimeout crashes restartGame() (2026-03-23)
+
+**Source:** right-triangle-area #543 browser audit P0 | **Build:** #543
+
+**Problem:** endGame() ran `setTimeout(() => { progressBar.destroy(); progressBar = null; }, 10000)` (10s after game ends). restartGame() called `progressBar.update(...)` unconditionally. User clicks Play Again after 10s → crash: TypeError: Cannot read properties of null (reading 'update').
+
+**Root cause:** CDN components don't need to be destroyed. The game treated ProgressBarComponent like a DOM element (remove after use), but it's a CDN wrapper that persists in the slot. The setTimeout destroy serves no purpose and creates a null-trap.
+
+**Rule:** Never use setTimeout to destroy ProgressBarComponent (or any CDN component). In endGame(), call .update() to show "Game Over" state — never .destroy() or null-assignment. restartGame() can safely call .update() to reset. (GEN-PROGRESSBAR-DESTROY)
