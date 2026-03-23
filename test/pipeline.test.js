@@ -2116,3 +2116,89 @@ describe('buildTestGenCategoryPrompt — LP-NEW-3: not.toBeVisible transition sl
     );
   });
 });
+
+
+// ─── CT-NEW rules: contract prompt content ────────────────────────────────────
+// Verifies CT-NEW-3 and CT-NEW-4 rule text appears in
+// buildTestGenCategoryPrompt() for the contract category.
+// Root cause evidence from 100-build analysis:
+//   CT-NEW-3: 1x #results-screen selector (associations #513)
+//   CT-NEW-4: 2x exact star count (memory-flip #453, kakuro #391, match-the-cards #514)
+// Note: CT-NEW-1 (closure capture) and CT-NEW-2 (terminal phase match) were added in a prior session.
+
+const ctBaseOpts = {
+  category: 'contract',
+  categoryDescription: 'postMessage contract tests',
+  testCaseCount: 2,
+  testCasesText: '1. Victory postMessage contract\n2. Game over postMessage contract',
+  learningsBlock: '',
+  testHintsBlock: '',
+  gameFeaturesBlock: '',
+  htmlContent: '<html><body></body></html>',
+  domSnapshot: '<div id="app" data-phase="playing"></div>',
+  specScenarios: [],
+};
+
+describe('buildTestGenCategoryPrompt — CT-NEW-3: no internal results-screen selector as proxy', () => {
+  it('includes CT-NEW-3 rule text in contract prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(ctBaseOpts);
+    assert.ok(
+      prompt.includes('CT-NEW-3'),
+      'CT-NEW-3 rule must appear in contract prompt',
+    );
+  });
+
+  it('CT-NEW-3 warns against #results-screen selector', () => {
+    const prompt = buildTestGenCategoryPrompt(ctBaseOpts);
+    assert.ok(
+      prompt.includes('#results-screen'),
+      'CT-NEW-3 must reference #results-screen as a banned selector proxy',
+    );
+  });
+
+  it('CT-NEW-3 recommends waitForPhase(results) as the correct approach', () => {
+    const prompt = buildTestGenCategoryPrompt(ctBaseOpts);
+    assert.ok(
+      prompt.includes("waitForPhase(page, 'results'") || prompt.includes("waitForPhase"),
+      'CT-NEW-3 must recommend waitForPhase() as the reliable completion signal',
+    );
+  });
+
+  it('CT-NEW-3 is NOT emitted for mechanics category', () => {
+    const prompt = buildTestGenCategoryPrompt({ ...ctBaseOpts, category: 'mechanics' });
+    assert.ok(
+      !prompt.includes('CT-NEW-3'),
+      'CT-NEW-3 rule must NOT appear in mechanics prompts',
+    );
+  });
+});
+
+describe('buildTestGenCategoryPrompt — CT-NEW-4: no exact star count assertion in contract', () => {
+  it('includes CT-NEW-4 rule text in contract prompt', () => {
+    const prompt = buildTestGenCategoryPrompt(ctBaseOpts);
+    assert.ok(
+      prompt.includes('CT-NEW-4'),
+      'CT-NEW-4 rule must appear in contract prompt',
+    );
+  });
+
+  it('CT-NEW-4 warns against toBe(3) and recommends toBeGreaterThanOrEqual', () => {
+    const prompt = buildTestGenCategoryPrompt(ctBaseOpts);
+    assert.ok(
+      prompt.includes('toBe(3)'),
+      'CT-NEW-4 must call out toBe(3) as the wrong pattern',
+    );
+    assert.ok(
+      prompt.includes('toBeGreaterThanOrEqual'),
+      'CT-NEW-4 must recommend toBeGreaterThanOrEqual() as the correct assertion',
+    );
+  });
+
+  it('CT-NEW-4 is NOT emitted for edge-cases category', () => {
+    const prompt = buildTestGenCategoryPrompt({ ...ctBaseOpts, category: 'edge-cases' });
+    assert.ok(
+      !prompt.includes('CT-NEW-4'),
+      'CT-NEW-4 rule must NOT appear in edge-cases prompts',
+    );
+  });
+});

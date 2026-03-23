@@ -607,6 +607,14 @@ describe('E7: categorizeFailure — all 22 branches (TE-CR-002)', () => {
     assert.equal(categorizeFailure('expect(value).toEqual(0)'), 'unknown');
   });
 
+  // ── Branch 15b (CR-058): multi-line Playwright numeric diff → 'rendering' ─
+  it('branch 15b (CR-058) — multi-line Expected:/Received: numeric diff → rendering', () => {
+    assert.equal(categorizeFailure('Expected: 2\nReceived: 1'), 'rendering');
+  });
+  it('branch 15b (CR-058) — multi-line with extra context lines → rendering', () => {
+    assert.equal(categorizeFailure('AssertionError\nExpected: 5\nReceived: 3\n    at ...'), 'rendering');
+  });
+
   // ── Branch 16 (NEW): page.evaluate / evaluate: → 'state' ────────────────
   it('branch 16 (new) — page.evaluate error → state', () => {
     assert.equal(categorizeFailure('page.evaluate threw an error'), 'state');
