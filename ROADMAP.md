@@ -610,8 +610,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-084 (8b45ab4) deployed — early-review CSS strip fix. stats-identify-class #569 queued to verify. CT-NEW-1/2/3 + LP-NEW-1/2/3 verification agent running (addf2b4b). GEN-TS-ONEARG verified via keep-track #568 re-queue. |
-| Waiting on | stats-identify-class #569 approval to verify CR-084 |
+| Current task | GEN-TS-ONEARG VERIFIED — keep-track #571 APPROVED. GEN-ROUND-INDEX deployed (escalated to ERROR). GEN-PHASE-SEQUENCE deployed (T1 WARNING). CR-087 deployed. Verifying GEN-ROUND-INDEX via stats-identify-class #573 (running). |
+| Waiting on | stats-identify-class #573 result |
 | Blocked by | none |
 
 **Verification log:**
