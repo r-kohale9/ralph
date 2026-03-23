@@ -1247,24 +1247,28 @@ const worker = new Worker(
             ? new Queue('ralph-builds', { connection: worker.opts.connection })
             : null;
           if (buildQueue) {
-            const newJob = await buildQueue.add('build', { gameId, retryOf: buildId });
-            logger.info(
-              `[worker] Auto-retry queued for ${gameId} (build #${buildId} scored 0/${total}) → new job ${newJob.id}`,
-            );
-            db.getDb().prepare('UPDATE builds SET retry_count = 1 WHERE id = ?').run(buildId);
-            const retryThread =
-              threadInfo ||
-              (db.getGame(gameId)?.slack_thread_ts
-                ? { ts: db.getGame(gameId).slack_thread_ts, channel: db.getGame(gameId).slack_channel_id }
-                : null);
-            if (retryThread) {
-              await slack.postThreadUpdate(
-                retryThread.ts,
-                retryThread.channel,
-                `🔄 Auto-retry queued — build #${buildId} scored 0/${total} tests. Starting fresh build...`,
+            // CR-059: ensure buildQueue.close() runs on all code paths (add() throw or Slack throw)
+            try {
+              const newJob = await buildQueue.add('build', { gameId, retryOf: buildId });
+              logger.info(
+                `[worker] Auto-retry queued for ${gameId} (build #${buildId} scored 0/${total}) → new job ${newJob.id}`,
               );
+              db.getDb().prepare('UPDATE builds SET retry_count = 1 WHERE id = ?').run(buildId);
+              const retryThread =
+                threadInfo ||
+                (db.getGame(gameId)?.slack_thread_ts
+                  ? { ts: db.getGame(gameId).slack_thread_ts, channel: db.getGame(gameId).slack_channel_id }
+                  : null);
+              if (retryThread) {
+                await slack.postThreadUpdate(
+                  retryThread.ts,
+                  retryThread.channel,
+                  `🔄 Auto-retry queued — build #${buildId} scored 0/${total} tests. Starting fresh build...`,
+                );
+              }
+            } finally {
+              await buildQueue.close();
             }
-            await buildQueue.close();
           }
         } else {
           logger.warn(`[worker] Auto-retry skipped for ${gameId} — already retried once (build #${buildId})`);
