@@ -2476,3 +2476,17 @@ This is the first complete Bloom L2→L4 learning session produced by the Ralph 
 **Finding:** Several "pending" ROADMAP entries (GEN-GAMEID, GEN-INPUT-001/Enter-key, GEN-UX-002-EXT/.choice-btn/.option-btn, GEN-WINDOW-EXPOSE) were already shipped in prior commits but not marked done in ROADMAP. Before implementing a gen rule, grep CDN_CONSTRAINTS_BLOCK and buildGenerationPrompt() for the key concept. Running the grep takes 10 seconds; re-implementing a shipped rule wastes agent budget.
 
 **Process:** Always check prompts.js before adding a new rule. Check for: the rule concept (e.g., "Enter" for keyboard input, "gameId" for gameState field, "choice-btn" for touch target), not just the exact rule name (names evolve between commits).
+
+## Lesson 191 — Browser audit reveals issues invisible to static analysis (quadratic-formula #546, 2026-03-23)
+
+**Source:** UI/UX slot 2026-03-23, full Playwright browser playthrough | **Build:** #546
+
+**Why static analysis misses these:**
+
+1. **P0 — results screen off-screen via flex layout:** `#results-screen { position: static }` + body's CDN-injected `display: flex; flex-direction: row` renders results as a horizontal flex sibling to `#app`, pushed to the right edge at 208px computed width. Static analysis sees valid CSS on the element; browser sees the stacking context created by ScreenLayout CDN component. No static check can detect this — only a live render confirms the overlap/overflow.
+
+2. **P1 — restartGame() doesn't reset all gameState fields:** Static analysis checks for function presence. Browser confirms that after game 1, `data-lives="2"` and `data-round="3"` remain set at game 2 start — gameState.lives and gameState.currentRound were never reset. The omission is not detectable from HTML structure.
+
+**Rule added:** GEN-RESTART-RESET — restartGame() must reset ALL gameState fields. Two existing confirmed patterns also missed by static: ARIA live regions (ariaLive:null only visible in computed style) and ProgressBar slotId errors (slot-injection failure visible only in rendered DOM).
+
+**Process implication:** Every approved game needs a browser playthrough. "Static analysis only" audits miss the class of bugs that require a live DOM/CSS interaction. Prioritize browser audits over static-only audits when choosing audit targets.
