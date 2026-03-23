@@ -513,7 +513,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-080 DONE — lib/mcp.js register_spec security review: gameId regex `/^[a-zA-Z0-9-]+$/` correctly blocks all traversal vectors (dots, slashes, backslashes, percent-encoded chars). Path construction uses `path.join()` but NO `path.resolve()` confinement check on the write path (WARN — see CR-080). No specContent size limit (WARN — CR-081). Slack failure non-fatal (PASS). plan_session has no objective length limit (WARN — CR-082). Next: review deterministicTriage() for exact-value skip_test shortcut. |
+| Current task | CR-080/081/082 hardening applied (commit 447baf6) — path.resolve() confinement on register_spec write path, spec_content 500KB size guard, plan_session objective max(2000). 1138 tests pass. Next: review deterministicTriage() for exact-value skip_test shortcut. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
@@ -791,6 +791,33 @@ NOTE: Prior sessions measured approved-only builds (contract=38% lowest). Includ
 - Code Review: "unknown" noise bucket (11 occurrences) — investigate categorizeFailure() catch-all path
 
 **Last updated:** 2026-03-23 session-4 refresh — primary target: contract (42%)
+
+---
+
+**ANALYTICS UPDATE (2026-03-23 session-5):**
+
+- Total builds: 565 | Approved: 94 (16.6%) | Failed: 421 (74.5%) | Running: 0 | Queued: 0
+- Avg iterations on approved builds: 0.96 (nearly always requires fix-loop iterations)
+- First-attempt rate: 0/56 approved games (0.0%) — no game was approved on its very first build; every game required prior failed attempts before first approval
+- Recent 20 builds: 9 approved, 9 failed, 2 rejected — 45% recent approval rate
+- Unresolved failure patterns by category (15 total):
+  - rendering: 6 patterns across 6 games — highest priority (init/visibility failures)
+  - messaging: 4 patterns across 3 games (postMessage payload issues)
+  - scoring: 4 patterns across 3 games (score reset / display failures)
+  - timing: 1 pattern across 1 game (game-flow playthrough timeout)
+- Never-approved real games: 0 (only artifact `template-schema.md` in DB — ignore)
+- Most recently approved: #565 real-world-problem (2026-03-22)
+
+Slot priority ranking (based on data):
+  1. Gen Quality: rendering (6 unresolved patterns, 6 games) — audit init/visibility gen rules; rendering failures dominate unresolved patterns post-CODE-001; trace common root cause across 6 affected games
+  2. Test Engineering: messaging (4 patterns, 3 games) + scoring (4 patterns, 3 games) — diagnose whether postMessage payload and score-reset failures are HTML bugs or test-gen assertion gaps
+  3. Code Review: verify resolveFailurePattern() marks patterns resolved on approval — 15 unresolved patterns remain post-CODE-001 fix; check if fix is fully propagating
+  4. Education: real-world-problem #564/#565 approved — session 2 spec alignment review ready; no blocking build activity
+  5. UI/UX: find next approved game without ui-ux.md audit; real-world-problem likely candidate post dual-approval
+  6. Local Verification: queue any gen rule fix only after local verify against GCP HTML from #565
+  7. Analytics: next run at :15/:45 — monitor if rendering unresolved count drops as CODE-001 propagates through new builds
+
+**Last updated:** 2026-03-23 session-5
 
 ---
 
