@@ -160,6 +160,15 @@ describe('validate-static.js', () => {
     assert.ok(output.includes('endGame'));
   });
 
+  it('passes when endGame is declared as arrow function (const endGame = async)', () => {
+    // LLM sometimes writes `const endGame = async (reason) => { ... }` instead of
+    // `function endGame(...)` — both are valid; the game still assigns window.endGame = endGame.
+    // Bug 1 fix: regex must match both function declaration and arrow/expression form.
+    const html = VALID_HTML.replace('function endGame()', 'const endGame = async (reason) =>');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass for arrow-function endGame but got: ${output}`);
+  });
+
   it('fails when missing postMessage', () => {
     const html = VALID_HTML.replace('postMessage', 'sendMessage');
     const { exitCode, output } = runValidator(html);
@@ -526,15 +535,19 @@ describe('validate-static.js', () => {
     assert.equal(exitCode, 0);
   });
 
-  it('passes when waitForPackages has correct 10000ms timeout and throw', () => {
+  it('passes when waitForPackages has correct 120000ms timeout and throw', () => {
+    // Lesson 117: 120000ms is now the required timeout (CDN cold-start takes 30–120s)
     const html = VALID_HTML.replace(
+      '<script>',
+      '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n<script>'
+    ).replace(
       'function initGame()',
       `async function waitForPackages() {
-    const timeout = 10000;
+    const timeout = 120000;
     const interval = 50;
     let elapsed = 0;
     while (typeof FeedbackManager === 'undefined') {
-      if (elapsed >= timeout) { throw new Error('Packages failed to load within 10s'); }
+      if (elapsed >= timeout) { throw new Error('Packages failed to load within 120s'); }
       await new Promise(resolve => setTimeout(resolve, interval));
       elapsed += interval;
     }
@@ -545,11 +558,15 @@ describe('validate-static.js', () => {
     assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
   });
 
-  it('fails when waitForPackages has wrong timeout (>10s)', () => {
+  it('fails when waitForPackages has short timeout (10000ms) with CDN scripts', () => {
+    // Lesson 117: 10000ms is now WRONG — CDN cold-start takes 30–120s in fresh test browsers
     const html = VALID_HTML.replace(
+      '<script>',
+      '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>\n<script>'
+    ).replace(
       'function initGame()',
       `async function waitForPackages() {
-    const timeout = 15000;
+    const timeout = 10000;
     const interval = 50;
     let elapsed = 0;
     while (typeof FeedbackManager === 'undefined') {
@@ -562,7 +579,7 @@ describe('validate-static.js', () => {
     );
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 1);
-    assert.ok(output.includes('timeout=10000'));
+    assert.ok(output.includes('120000ms'), `Expected error about 120000ms but got: ${output}`);
   });
 
   it('fails when waitForPackages does not throw on timeout', () => {
@@ -583,5 +600,1066 @@ describe('validate-static.js', () => {
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 1);
     assert.ok(output.includes('throw new Error'));
+  });
+
+  it('fails when transitionScreen.show() is called without await', () => {
+    // CDN game calls transitionScreen.show() without await — now an ERROR (upgraded from WARNING in Lesson 101)
+    const html = VALID_HTML.replace(
+      '</script>',
+      `let transitionScreen = { show: async function(opts) {} };
+  function startTransition() {
+    transitionScreen.show({ title: 'Level 1', onComplete: () => {} });
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected failure (ERROR) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('transitionScreen.show()') && output.includes('not awaited'),
+      `Expected TransitionScreen await ERROR but got: ${output}`,
+    );
+  });
+
+  it('does not warn when all transitionScreen.show() calls are awaited', () => {
+    // All show() calls have await — no warning expected; hide() present satisfies PART-025-HIDE
+    const html = VALID_HTML.replace(
+      '</script>',
+      `let transitionScreen = { show: async function(opts) {}, hide: async function() {} };
+  async function startTransition() {
+    await transitionScreen.show({ title: 'Level 1', onComplete: () => {} });
+    await transitionScreen.show({ title: 'Level 2', onComplete: () => {} });
+    await transitionScreen.hide();
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(
+      !output.includes('transitionScreen.show()') || !output.includes('not awaited'),
+      `Unexpected TransitionScreen await warning: ${output}`,
+    );
+  });
+
+  it('warns when gameState.isActive used in handlers but not initialized in gameState', () => {
+    // Handler checks gameState.isActive but it is not in the init object
+    const html = VALID_HTML.replace(
+      '</script>',
+      `window.endGame = endGame;
+  window.addEventListener('DOMContentLoaded', async () => {
+    window.gameState = { score: 0, lives: 3, phase: 'start', gameEnded: false };
+    document.getElementById('answers').addEventListener('click', function(e) {
+      if (!gameState.isActive) return;
+      gameState.isActive = false;
+      checkAnswer(e.target.value);
+      gameState.isActive = true;
+    });
+  });
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('WARNING') && output.includes('isActive'),
+      `Expected isActive init warning but got: ${output}`,
+    );
+  });
+
+  it('does not warn when gameState.isActive is both used in handlers and initialized in gameState', () => {
+    // Handler checks gameState.isActive AND it is in the init object — no warning
+    const html = VALID_HTML.replace(
+      '</script>',
+      `window.endGame = endGame;
+  window.addEventListener('DOMContentLoaded', async () => {
+    window.gameState = { score: 0, lives: 3, phase: 'start', isActive: true, gameEnded: false };
+    document.getElementById('answers').addEventListener('click', function(e) {
+      if (!gameState.isActive) return;
+      gameState.isActive = false;
+      checkAnswer(e.target.value);
+      gameState.isActive = true;
+    });
+  });
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+  });
+
+  it('warns when CDN game has totalRounds but no window.loadRound exposed (PART-021-LOADROUND)', () => {
+    // Multi-round game missing window.loadRound → __ralph.jumpToRound() is a no-op
+    const html = VALID_HTML.replace(
+      '</script>',
+      `window.endGame = endGame;
+window.gameState = gameState;
+window.nextRound = nextRound;
+window.addEventListener('DOMContentLoaded', async () => {
+  window.gameState.totalRounds = 5;
+  window.gameState.currentRound = 0;
+  nextRound();
+});
+</script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('PART-021-LOADROUND'),
+      `Expected PART-021-LOADROUND warning but got: ${output}`,
+    );
+  });
+
+  it('does not warn PART-021-LOADROUND when window.loadRound is exposed', () => {
+    // Multi-round game that correctly exposes window.loadRound
+    const html = VALID_HTML.replace(
+      '</script>',
+      `window.endGame = endGame;
+window.gameState = gameState;
+window.nextRound = nextRound;
+window.loadRound = function(n) { gameState.currentRound = n - 1; nextRound(); };
+window.addEventListener('DOMContentLoaded', async () => {
+  window.gameState.totalRounds = 5;
+  window.gameState.currentRound = 0;
+  nextRound();
+});
+</script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got: ${output}`);
+    assert.ok(
+      !output.includes('PART-021-LOADROUND'),
+      `Unexpected PART-021-LOADROUND warning: ${output}`,
+    );
+  });
+
+  it('fails when TimerComponent used without typeof check in waitForPackages', () => {
+    // Append TimerComponent usage to VALID_HTML without a typeof guard
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); var timer = new TimerComponent("timer-id", { timerType: "decrease" });',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('ERROR') && output.includes('TimerComponent'), `Expected TimerComponent error but got: ${output}`);
+  });
+
+  it('passes when TimerComponent has typeof check present in script', () => {
+    // Append both TimerComponent usage AND typeof guard — T1 should not flag it
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'if (typeof TimerComponent === "undefined") return; var timer = new TimerComponent("timer-id", { timerType: "decrease" }); initGame();',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(!output.includes('TimerComponent') || !output.includes('ERROR'), `Unexpected TimerComponent error: ${output}`);
+  });
+
+  it('passes when TimerComponent is guarded via window.components?.TimerComponent form', () => {
+    // CDN games using window.components?.TimerComponent are valid — T1 must not flag them
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'if (typeof window.components?.TimerComponent === "undefined") return; var timer = new window.components.TimerComponent("timer-id", { timerType: "decrease" }); initGame();',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(!output.includes('TimerComponent') || !output.includes('ERROR'), `Unexpected TimerComponent error for window.components form: ${output}`);
+  });
+
+  it('passes when TransitionScreenComponent is guarded via window.components?.TransitionScreenComponent form', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'if (typeof window.components?.TransitionScreenComponent === "undefined") return; var ts = new window.components.TransitionScreenComponent({ autoInject: true }); initGame();',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(!output.includes('TransitionScreenComponent') || !output.includes('ERROR'), `Unexpected TransitionScreenComponent error for window.components form: ${output}`);
+  });
+
+  it('passes when ProgressBarComponent is guarded via window.components?.ProgressBarComponent form', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'if (typeof window.components?.ProgressBarComponent === "undefined") return; var pb = new window.components.ProgressBarComponent({ containerId: "progress" }); initGame();',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(!output.includes('ProgressBarComponent') || !output.includes('ERROR'), `Unexpected ProgressBarComponent error for window.components form: ${output}`);
+  });
+
+  it('fails when TransitionScreenComponent used without typeof check', () => {
+    // Append TransitionScreenComponent usage without a typeof guard
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); var ts = new TransitionScreenComponent({ autoInject: true });',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('ERROR') && output.includes('TransitionScreenComponent'), `Expected TransitionScreenComponent error but got: ${output}`);
+  });
+
+  it('fails when ProgressBarComponent used without typeof check', () => {
+    // Append ProgressBarComponent usage without a typeof guard
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); var pb = new ProgressBarComponent({ containerId: "progress" });',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('ERROR') && output.includes('ProgressBarComponent'), `Expected ProgressBarComponent error but got: ${output}`);
+  });
+});
+
+describe('SignalCollector hallucinated API check (5h)', () => {
+  it('fails when signalCollector.trackEvent() is used — hallucinated method', () => {
+    // Insert signalCollector.trackEvent call — this method does not exist in CDN API
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); if (signalCollector) signalCollector.trackEvent(event);',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('signalCollector.trackEvent'),
+      `Expected signalCollector.trackEvent error but got: ${output}`,
+    );
+  });
+
+  it('passes when signalCollector uses correct API methods', () => {
+    // recordViewEvent and recordCustomEvent are the correct CDN API methods — no error expected
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); if (signalCollector) { signalCollector.recordViewEvent("screen_view", {}); signalCollector.recordCustomEvent("answer", { correct: true }); }',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('signalCollector.trackEvent'),
+      `Unexpected signalCollector.trackEvent error for correct API usage: ${output}`,
+    );
+  });
+});
+
+describe('initSentry() called but not defined check (5f0)', () => {
+  it('fails when initSentry() is called but function initSentry is not defined', () => {
+    // The LLM called initSentry() but never defined the function — ReferenceError at runtime
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+      initSentry();`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('initSentry() is called but never defined'),
+      `Expected initSentry-not-defined error but got: ${output}`,
+    );
+  });
+
+  it('passes when initSentry() is called AND function initSentry() is defined', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+      function initSentry() { try { if (typeof SentryConfig !== 'undefined') SentryConfig.init(); } catch(e) {} }
+      initSentry();`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('initSentry() is called but never defined'),
+      `Unexpected 5f0 error for valid initSentry usage: ${output}`,
+    );
+  });
+
+  it('passes when initSentry() does not appear at all', () => {
+    // No Sentry usage — no error
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('initSentry() is called but never defined'),
+      `Unexpected 5f0 error for HTML with no initSentry: ${output}`,
+    );
+  });
+});
+
+describe('TimerComponent(null) containerId check (5f5)', () => {
+  it('fails when new TimerComponent(null, ...) is used', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); new TimerComponent(null, { timerType: "decrease" });');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('new TimerComponent(null'),
+      `Expected TimerComponent-null error but got: ${output}`,
+    );
+  });
+
+  it('fails when new TimerComponent(undefined, ...) is used', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); new TimerComponent(undefined, { timerType: "decrease" });');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('new TimerComponent(null'),
+      `Expected TimerComponent-null error but got: ${output}`,
+    );
+  });
+
+  it('passes when TimerComponent is used with a valid string container ID', () => {
+    const html = VALID_HTML.replace('initGame();', "initGame(); new TimerComponent('timer-container', { timerType: 'decrease' });");
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('new TimerComponent(null'),
+      `Unexpected 5f5 error for valid TimerComponent usage: ${output}`,
+    );
+  });
+});
+
+describe('progressBar.timer property access check (5f7)', () => {
+  it('fails when progressBar.timer is accessed', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); const timer = progressBar.timer; timer.start();');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('progressBar.timer'),
+      `Expected progressBar.timer error but got: ${output}`,
+    );
+  });
+
+  it('passes when TimerComponent is created separately', () => {
+    const html = VALID_HTML.replace('initGame();', "initGame(); const timer = new TimerComponent('timer-container', { timerType: 'decrease' }); timer.start();");
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('progressBar.timer'),
+      `Unexpected 5f7 error for valid timer usage: ${output}`,
+    );
+  });
+});
+
+describe('progressBar.init() method does not exist check (5f9)', () => {
+  it('fails when progressBar.init() is called', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.init();');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('progressBar.init'),
+      `Expected progressBar.init error but got: ${output}`,
+    );
+  });
+
+  it('passes when progressBar.update() is used instead', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(0, 10);');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('progressBar.init'),
+      `Unexpected 5f9 error for valid progressBar.update usage: ${output}`,
+    );
+  });
+});
+
+describe('progressBar hallucinated methods check (5f10)', () => {
+  const HALLUCINATED_METHODS = ['start', 'reset', 'setLives', 'pause', 'resume'];
+
+  for (const method of HALLUCINATED_METHODS) {
+    it(`fails when progressBar.${method}() is called`, () => {
+      const html = VALID_HTML.replace('initGame();', `initGame(); progressBar.${method}();`);
+      const { exitCode, output } = runValidator(html);
+      assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+      assert.ok(
+        output.includes('ERROR') && output.includes(`progressBar.${method}`),
+        `Expected progressBar.${method} error but got: ${output}`,
+      );
+    });
+  }
+
+  it('passes when only valid progressBar methods are used (update, destroy)', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(0, 3); progressBar.destroy();');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('5f10'),
+      `Unexpected 5f10 error for valid progressBar usage: ${output}`,
+    );
+  });
+
+  it('does not flag progressBar.update() as a hallucinated method', () => {
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(1, 3);');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('progressBar.update') || !output.includes('ERROR'),
+      `Unexpected error for progressBar.update(): ${output}`,
+    );
+  });
+});
+
+describe('TimerComponent slot not created by ScreenLayout (5f8)', () => {
+  const cdnHtmlWithTimer = (slotsConfig) => `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>T</title><style>body{}</style></head>
+<body><div id="app"></div>
+<script>
+window.gameState = { phase: 'start', score: 0 };
+window.endGame = function() {};
+window.restartGame = function() {};
+document.addEventListener('DOMContentLoaded', async () => {
+  ScreenLayout.inject('app', { slots: ${slotsConfig} });
+  if (!document.getElementById('gameContent')) throw new Error('ScreenLayout.inject() did not create #gameContent');
+  const timer = new TimerComponent('mathai-timer-slot', { timerType: 'decrease', startTime: 30, endTime: 0 });
+  timer.start();
+  window.parent.postMessage({ type: 'gameOver', score: 0, stars: 1, total: 1 }, '*');
+});
+</script></body></html>`;
+
+  it('fails when mathai-timer-slot is used but timer not in ScreenLayout slots', () => {
+    const html = cdnHtmlWithTimer('{ progressBar: true }');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('mathai-timer-slot'),
+      `Expected timer-slot error but got: ${output}`,
+    );
+  });
+
+  it('passes when timer: true is included in ScreenLayout slots', () => {
+    const html = cdnHtmlWithTimer('{ progressBar: true, timer: true }');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('mathai-timer-slot'),
+      `Unexpected 5f8 error when timer slot included: ${output}`,
+    );
+  });
+});
+
+describe('Canvas API CSS variable check (5f6)', () => {
+  it('fails when addColorStop uses a CSS variable', () => {
+    const html = VALID_HTML.replace('initGame();', "initGame(); ctx.addColorStop(0, 'var(--color-sky)');");
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Canvas API call with CSS variable'),
+      `Expected canvas-css-var error but got: ${output}`,
+    );
+  });
+
+  it('fails when fillStyle uses a CSS variable', () => {
+    const html = VALID_HTML.replace('initGame();', "initGame(); ctx.fillStyle = 'var(--color-bg)';");
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Canvas API call with CSS variable'),
+      `Expected canvas-css-var error but got: ${output}`,
+    );
+  });
+
+  it('passes when Canvas API uses literal color values', () => {
+    const html = VALID_HTML.replace('initGame();', "initGame(); ctx.addColorStop(0, '#87CEEB');");
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('Canvas API call with CSS variable'),
+      `Unexpected 5f6 error for literal color: ${output}`,
+    );
+  });
+});
+
+describe('SentryHelper in waitForPackages check (5h2)', () => {
+  it('fails when typeof SentryHelper in waitForPackages', () => {
+    // Insert a waitForPackages that checks SentryHelper — SentryHelper is NOT a CDN global
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+      async function waitForPackages() {
+        while (typeof ScreenLayout === 'undefined' || typeof SentryHelper === 'undefined') {
+          await new Promise(r => setTimeout(r, 50));
+        }
+      }`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('SentryHelper'),
+      `Expected SentryHelper error but got: ${output}`,
+    );
+  });
+
+  it('passes when typeof SentryConfig used instead of SentryHelper', () => {
+    // SentryConfig IS a valid CDN global — this should not trigger the check
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+      async function waitForPackages() {
+        while (typeof ScreenLayout === 'undefined' || typeof SentryConfig === 'undefined') {
+          await new Promise(r => setTimeout(r, 50));
+        }
+      }`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('SentryHelper'),
+      `Unexpected SentryHelper error for SentryConfig usage: ${output}`,
+    );
+  });
+});
+
+describe('Mobile viewport scrollability checks (7b)', () => {
+  it('warns when body has overflow:hidden', () => {
+    // Insert body { overflow: hidden } into the style block
+    const html = VALID_HTML.replace(
+      'body { font-family: Arial, sans-serif; background: #f0f0f0; }',
+      'body { font-family: Arial, sans-serif; background: #f0f0f0; overflow: hidden; }',
+    );
+    const { exitCode, output } = runValidator(html);
+    // Should pass (warning only, not error) but emit MOBILE-SCROLL warning
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('MOBILE-SCROLL'), `Expected MOBILE-SCROLL warning but got: ${output}`);
+  });
+
+  it('warns when viewport meta uses user-scalable=no', () => {
+    const html = VALID_HTML.replace(
+      'content="width=device-width, initial-scale=1.0, maximum-scale=1.0"',
+      'content="width=device-width, initial-scale=1.0, user-scalable=no"',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('MOBILE-VIEWPORT'), `Expected MOBILE-VIEWPORT warning but got: ${output}`);
+  });
+
+  it('does not warn when body uses overflow-y:auto', () => {
+    // body with overflow-y: auto should not trigger MOBILE-SCROLL
+    const html = VALID_HTML.replace(
+      'body { font-family: Arial, sans-serif; background: #f0f0f0; }',
+      'body { font-family: Arial, sans-serif; background: #f0f0f0; overflow-y: auto; }',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(!output.includes('MOBILE-SCROLL'), `Unexpected MOBILE-SCROLL warning: ${output}`);
+  });
+});
+
+describe('startGame() synchronous check (5i) — RULE-SYNC-1', () => {
+  it('fails when startGame() wraps body in setTimeout (soh-cah-toa-worked-example #531 pattern)', () => {
+    // LLM adds setTimeout "for safety" — breaks CDN TransitionScreen auto-dismiss
+    const html = VALID_HTML.replace(
+      '</script>',
+      `function startGame() {
+    setTimeout(() => {
+      gameState.phase = 'game';
+      document.getElementById('gameArea').style.display = 'block';
+    }, 0);
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('startGame() must be synchronous'),
+      `Expected startGame synchronous error but got: ${output}`,
+    );
+  });
+
+  it('passes when startGame() is fully synchronous — no setTimeout wrapper', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `function startGame() {
+    gameState.phase = 'game';
+    document.getElementById('gameArea').style.display = 'block';
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('startGame() must be synchronous'),
+      `Unexpected startGame synchronous error: ${output}`,
+    );
+  });
+
+  it('fails when arrow-function startGame uses setTimeout in its body', () => {
+    // Arrow-function form: startGame = () => { setTimeout(...) }
+    const html = VALID_HTML.replace(
+      'function initGame()',
+      `const startGame = () => {
+    setTimeout(() => { gameState.phase = 'game'; }, 0);
+  }
+  function initGame()`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('startGame() must be synchronous'),
+      `Expected startGame synchronous error but got: ${output}`,
+    );
+  });
+
+  it('does not flag setTimeout inside other functions when startGame is synchronous', () => {
+    // setTimeout in nextRound() is fine — only startGame() is checked
+    const html = VALID_HTML.replace(
+      '</script>',
+      `function startGame() {
+    gameState.phase = 'game';
+  }
+  function nextRound() {
+    setTimeout(() => { showQuestion(); }, 500);
+  }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('startGame() must be synchronous'),
+      `Unexpected startGame synchronous error: ${output}`,
+    );
+  });
+
+  it('fails when HTML uses window.mira.components namespace (hallucination)', () => {
+    // window.mira does not exist in CDN — destructuring from it assigns undefined to all consts
+    // causing waitForPackages() to spin forever and #gameContent to never be created
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const { ScreenLayout, ProgressBarComponent, TransitionScreenComponent, TimerComponent, VisibilityTracker } = window.mira.components;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('window.mira.components does not exist'),
+      `Expected window.mira.components error but got: ${output}`,
+    );
+  });
+
+  it('does not flag window.mira.components when bare window.ScreenLayout globals are used (correct CDN pattern)', () => {
+    // CDN components are bare window globals — this is the correct pattern.
+    // Note: adding ScreenLayout/ProgressBarComponent to VALID_HTML (which has no ScreenLayout.inject()
+    // or typeof guard) will trigger other checks (5e, 5f3) — that's fine and expected.
+    // This test only verifies that window.mira.components is NOT flagged for correct bare-global usage.
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const sl = window.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('window.mira.components does not exist'),
+      `Unexpected window.mira.components error for correct bare-global usage: ${output}`,
+    );
+  });
+});
+
+describe('Hallucinated CDN namespace checks (5k)', () => {
+  it('fails when window.cdn.ScreenLayout namespace is used', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const sl = window.cdn.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Hallucinated CDN namespace'),
+      `Expected hallucinated namespace error but got: ${output}`,
+    );
+  });
+
+  it('fails when window.mathai.ScreenLayout namespace is used', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const sl = window.mathai.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Hallucinated CDN namespace'),
+      `Expected hallucinated namespace error but got: ${output}`,
+    );
+  });
+
+  it('fails when window.Ralph.ScreenLayout namespace is used', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const sl = window.Ralph.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Hallucinated CDN namespace'),
+      `Expected hallucinated namespace error but got: ${output}`,
+    );
+  });
+
+  it('fails when window.homeworkapp.ScreenLayout namespace is used', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const sl = window.homeworkapp.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Hallucinated CDN namespace'),
+      `Expected hallucinated namespace error but got: ${output}`,
+    );
+  });
+
+  it('fails when window.homeworkapp.TimerComponent namespace is used (case-insensitive)', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const timer = new window.homeworkapp.TimerComponent('timer-slot', {});
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('Hallucinated CDN namespace'),
+      `Expected hallucinated namespace error but got: ${output}`,
+    );
+  });
+
+  it('passes when window.cdn is used for a non-CDN purpose (no CDN component names present)', () => {
+    // window.cdn.someOtherThing — not a CDN component name, so no error
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const cfg = window.cdn.config;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    // Should NOT flag — no CDN component names (ScreenLayout, ProgressBarComponent, etc.) present
+    assert.ok(
+      !output.includes('Hallucinated CDN namespace'),
+      `Unexpected hallucinated namespace error for non-component cdn usage: ${output}`,
+    );
+  });
+
+  it('passes when window.components is used — this IS a valid CDN access pattern', () => {
+    // window.components?.TimerComponent is explicitly allowed (used in 5f3 typeof checks)
+    const html = VALID_HTML.replace(
+      '</script>',
+      `while (typeof window.components?.TimerComponent === 'undefined') { await new Promise(r => setTimeout(r, 50)); }
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('Hallucinated CDN namespace'),
+      `window.components should be allowed as valid CDN access pattern but got error: ${output}`,
+    );
+  });
+
+  it('passes when using bare window.ScreenLayout (no namespace)', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `while (typeof ScreenLayout === 'undefined') { await new Promise(r => setTimeout(r, 50)); }
+  const sl = window.ScreenLayout;
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('Hallucinated CDN namespace'),
+      `Bare window.ScreenLayout should be valid but got error: ${output}`,
+    );
+  });
+});
+
+describe('require() / ES import in CDN game script checks (5l)', () => {
+  it('fails when require() is used to load a CDN package by name', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const FeedbackManager = require('feedback-manager');
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('require()'),
+      `Expected require() error but got: ${output}`,
+    );
+  });
+
+  it('fails when require() references @mathai scoped package', () => {
+    const html = VALID_HTML.replace(
+      '</script>',
+      `const { ScreenLayout } = require('@mathai/components');
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('require()'),
+      `Expected require() error but got: ${output}`,
+    );
+  });
+
+  it('passes when require() appears without a CDN package name — unrelated usage', () => {
+    // require() in a comment, or referencing a non-CDN string
+    const html = VALID_HTML.replace(
+      '</script>',
+      `// This game does not require additional libraries
+  </script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes("require()"),
+      `Unexpected require() error for comment usage: ${output}`,
+    );
+  });
+
+  it('passes when initSentry() text appears in HTML comment before waitForPackages call', () => {
+    // Bug 2 fix: initSentry() mentioned in an HTML comment must not trigger the
+    // "initSentry() called before waitForPackages()" error. The validator must strip
+    // HTML comments before running the position comparison.
+    const cdnBase = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><style>body{} #gameContent{max-width:480px;}</style></head>
+<body>
+<div id="gameContent"></div>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/bundle.js"></script>
+<script>
+  window.gameState = { phase: 'start', score: 0, lives: 3 };
+  <!-- STEP 2: initSentry() function definition (from PART-030) -->
+  function initSentry() { if (typeof Sentry !== 'undefined') Sentry.init({ dsn: 'x' }); }
+  function waitForPackages() {
+    return new Promise((resolve, reject) => {
+      const timeout = 120000;
+      const start = Date.now();
+      const check = () => {
+        if (typeof ScreenLayout !== 'undefined') { resolve(); return; }
+        if (Date.now() - start > timeout) { throw new Error('Packages failed to load within 120s'); }
+        setTimeout(check, 100);
+      };
+      check();
+    });
+  }
+  function initGame() {}
+  function checkAnswer(v) {}
+  window.addEventListener('DOMContentLoaded', async () => {
+    await waitForPackages();
+    initSentry();
+    initGame();
+  });
+  window.parent.postMessage({ type: 'gameOver', score: 0, stars: 1, total: 10 }, '*');
+  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;
+</script>
+</body>
+</html>`;
+    const { exitCode, output } = runValidator(cdnBase);
+    assert.ok(
+      !output.includes('initSentry() called before waitForPackages()'),
+      `False-positive initSentry order error triggered by HTML comment: ${output}`
+    );
+  });
+});
+
+describe('waitForPackages() wrong CDN check pattern (5fa)', () => {
+  // Minimal CDN HTML with waitForPackages — whileCondition replaces the while loop predicate
+  const cdnHtmlWithWrongCheck = (whileCondition) =>
+    '<!DOCTYPE html>\n' +
+    '<html lang="en"><head><meta charset="UTF-8"><title>T</title>\n' +
+    '<style>body{} #gameContent{max-width:480px;}</style></head>\n' +
+    '<body><div id="app"></div>\n' +
+    '<script src="https://storage.googleapis.com/test-dynamic-assets/packages/bundle.js"></script>\n' +
+    '<script>\n' +
+    '  window.gameState = { phase: \'start\', score: 0, lives: 3 };\n' +
+    '  window.endGame = function endGame() {};\n' +
+    '  window.restartGame = function restartGame() {};\n' +
+    '  window.nextRound = function nextRound() {};\n' +
+    '  async function waitForPackages() {\n' +
+    '    const timeout = 180000; const interval = 50; let elapsed = 0;\n' +
+    '    while (' + whileCondition + ') {\n' +
+    '      if (elapsed >= timeout) { throw new Error(\'Packages failed to load within 180s\'); }\n' +
+    '      await new Promise(resolve => setTimeout(resolve, interval));\n' +
+    '      elapsed += interval;\n' +
+    '    }\n' +
+    '  }\n' +
+    '  document.addEventListener(\'DOMContentLoaded\', async () => {\n' +
+    '    await waitForPackages();\n' +
+    '    window.parent.postMessage({ type: \'gameOver\', score: 0, stars: 1, total: 1 }, \'*\');\n' +
+    '  });\n' +
+    '  const stars = 0 >= 0.8 ? 3 : 0 >= 0.5 ? 2 : 1;\n' +
+    '</script></body></html>';
+
+  it('fails when waitForPackages uses while (!window.FeedbackManager) truthy check', () => {
+    const html = cdnHtmlWithWrongCheck('!window.FeedbackManager');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR') && output.includes('wrong CDN check pattern'),
+      `Expected 5fa error but got: ${output}`,
+    );
+  });
+
+  it('passes when waitForPackages uses the correct typeof FeedbackManager === "undefined" pattern', () => {
+    const html = cdnHtmlWithWrongCheck('typeof FeedbackManager === \'undefined\'');
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('wrong CDN check pattern'),
+      `Unexpected 5fa error for correct typeof pattern: ${output}`,
+    );
+  });
+});
+
+describe('FeedbackManager.init() forbidden check (5b2 GEN-113)', () => {
+  it('fails when FeedbackManager.init({}) is called — produces PART-011-INIT error', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); FeedbackManager.init({ popupProps: { title: "Test" } });',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.strictEqual(exitCode, 1, `Expected exit code 1 but got ${exitCode}. Output: ${output}`);
+    assert.ok(
+      output.includes('PART-011-INIT'),
+      `Expected PART-011-INIT error in output: ${output}`,
+    );
+  });
+
+  it('passes when FeedbackManager.playDynamicFeedback is used without init() call', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); FeedbackManager.playDynamicFeedback({ event: 'success' }).catch(e => console.error(e.message));",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('PART-011-INIT'),
+      `Unexpected PART-011-INIT error when no init() is called: ${output}`,
+    );
+  });
+});
+
+describe('FeedbackManager.sound.playDynamicFeedback wrong namespace check (5b2 GEN-113B)', () => {
+  it('fails when FeedbackManager.sound.playDynamicFeedback() is called — produces PART-011-SOUND error', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); FeedbackManager.sound.playDynamicFeedback({ event: 'success' });",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.strictEqual(exitCode, 1, `Expected exit code 1 but got ${exitCode}. Output: ${output}`);
+    assert.ok(
+      output.includes('PART-011-SOUND'),
+      `Expected PART-011-SOUND error in output: ${output}`,
+    );
+  });
+
+  it('passes when FeedbackManager.playDynamicFeedback() is called at top level', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); FeedbackManager.playDynamicFeedback({ event: 'success' });",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('PART-011-SOUND'),
+      `Unexpected PART-011-SOUND error when correct namespace is used: ${output}`,
+    );
+  });
+});
+
+describe('PART-028: CSS stylesheet integrity check', () => {
+  it('fails with PART-028-CSS-STRIPPED when <style> block contains only comments', () => {
+    // Simulate a targeted fix LLM that replaces the stylesheet with a comment placeholder
+    const html = VALID_HTML.replace(
+      /<style[^>]*>[\s\S]*?<\/style>/i,
+      '<style>\n/* CSS preserved */\n</style>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.strictEqual(exitCode, 1, `Expected exit code 1 but got ${exitCode}. Output: ${output}`);
+    assert.ok(
+      output.includes('PART-028-CSS-STRIPPED'),
+      `Expected PART-028-CSS-STRIPPED error in output: ${output}`,
+    );
+  });
+
+  it('fails with PART-028-CSS-STRIPPED when <style> block contains multiple comments but no real CSS', () => {
+    const html = VALID_HTML.replace(
+      /<style[^>]*>[\s\S]*?<\/style>/i,
+      '<style>\n/* layout styles */\n/* button styles */\n/* All styles preserved as-is */\n</style>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.strictEqual(exitCode, 1, `Expected exit code 1 but got ${exitCode}. Output: ${output}`);
+    assert.ok(
+      output.includes('PART-028-CSS-STRIPPED'),
+      `Expected PART-028-CSS-STRIPPED error in output: ${output}`,
+    );
+  });
+
+  it('fails with PART-028-CSS-STRIPPED when <style> block is completely empty', () => {
+    const html = VALID_HTML.replace(/<style[^>]*>[\s\S]*?<\/style>/i, '<style></style>');
+    const { exitCode, output } = runValidator(html);
+    assert.strictEqual(exitCode, 1, `Expected exit code 1 but got ${exitCode}. Output: ${output}`);
+    assert.ok(
+      output.includes('PART-028-CSS-STRIPPED'),
+      `Expected PART-028-CSS-STRIPPED error in output: ${output}`,
+    );
+  });
+
+  it('emits PART-028-NO-CSS warning when no <style> block exists', () => {
+    const html = VALID_HTML.replace(/<style[^>]*>[\s\S]*?<\/style>/i, '');
+    const { exitCode, output } = runValidator(html);
+    // PART-028-NO-CSS is a warning but other checks (e.g. CSS style block required) also fire errors —
+    // so exit code may be 1. Assert only that the warning text appears.
+    assert.ok(
+      output.includes('PART-028-NO-CSS'),
+      `Expected PART-028-NO-CSS warning in output: ${output}`,
+    );
+  });
+
+  it('passes without PART-028 errors when <style> block contains real CSS rules', () => {
+    // VALID_HTML already has a proper <style> block
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('PART-028-CSS-STRIPPED'),
+      `Unexpected PART-028-CSS-STRIPPED error on valid HTML: ${output}`,
+    );
+  });
+
+  it('passes without PART-028-CSS-STRIPPED when <style> block has CSS mixed with comments', () => {
+    const html = VALID_HTML.replace(
+      /<style[^>]*>[\s\S]*?<\/style>/i,
+      '<style>\n/* layout */\nbody { margin: 0; }\n/* buttons */\n.btn { padding: 8px; }\n</style>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('PART-028-CSS-STRIPPED'),
+      `Unexpected PART-028-CSS-STRIPPED error when style has real CSS mixed with comments: ${output}`,
+    );
+  });
+});
+
+describe('ARIA-001: feedback div aria-live warning (W5)', () => {
+  it('emits ARIA-001 warning when a div with id containing "feedback" lacks aria-live', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="correct-feedback" class="feedback hidden">Correct!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning when feedback div lacks aria-live. Output: ${output}`,
+    );
+  });
+
+  it('emits ARIA-001 warning when a div with class containing "feedback" lacks aria-live', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div class="feedback-message hidden">Incorrect!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('ARIA-001'),
+      `Expected ARIA-001 warning when feedback-message div lacks aria-live. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-001 warning when feedback div has aria-live="polite"', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="correct-feedback" aria-live="polite" class="feedback hidden">Correct!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 warning when feedback div has aria-live. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-001 warning when feedback div has aria-live="assertive"', () => {
+    const html = VALID_HTML.replace(
+      '<div id="answers"></div>',
+      '<div id="answers"></div>\n<div id="feedback" aria-live="assertive" class="feedback">Wrong!</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 warning when feedback div has aria-live=assertive. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit ARIA-001 warning when HTML has no feedback divs at all', () => {
+    // VALID_HTML has no feedback divs
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('ARIA-001'),
+      `Unexpected ARIA-001 warning on HTML with no feedback divs. Output: ${output}`,
+    );
   });
 });

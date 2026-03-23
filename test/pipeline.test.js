@@ -8,7 +8,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords, getCategoryBoost, deriveRelevantCategories, fixCdnDomainsInFile } = require('../lib/pipeline');
+const { extractHtml, extractTests, getRelevantLearnings, jaccardSimilarity, extractSpecKeywords, getCategoryBoost, deriveRelevantCategories, fixCdnDomainsInFile, fixCdnPathsInFile } = require('../lib/pipeline');
 
 describe('pipeline.js extractHtml', () => {
   it('extracts HTML from ```html code block', () => {
@@ -873,6 +873,168 @@ describe('pipeline-fix-loop.js global fix loop — 0/0 false-pass guard', () => 
     }
     assert.equal(globalFailingBatches.length, 0, 'with all genuinely passing batches, loop should exit');
   });
+
+  // ── Approval gate: zeroCoverageCats >= 1 (not >= 2) ────────────────────────
+  // A build with exactly one non-game-flow category showing 0/0 must NOT be approved.
+  // Previously the guard was >= 2 categories; this tests the stricter >= 1 threshold.
+
+  function simulateApprovalGate(categoryResults, triageDeletedCategories = new Set()) {
+    // Mirrors pipeline.js Step 4 logic for zeroCoverageCats (R&D #57: triage-deleted awareness)
+    const gameFlowResult = categoryResults['game-flow'];
+    if (gameFlowResult && gameFlowResult.passed === 0 && gameFlowResult.failed === 0) {
+      if (triageDeletedCategories.has('game-flow')) {
+        // triage-deleted: proceed, don't block approval
+      } else {
+        return 'FAILED:game-flow-0/0';
+      }
+    }
+    const zeroCoverageCats = Object.entries(categoryResults)
+      .filter(([cat, r]) => r.passed === 0 && r.failed === 0 && !triageDeletedCategories.has(cat))
+      .map(([cat]) => cat);
+    const skippedCats = Object.entries(categoryResults)
+      .filter(([cat, r]) => r.passed === 0 && r.failed === 0 && triageDeletedCategories.has(cat))
+      .map(([cat]) => cat);
+    if (zeroCoverageCats.length >= 1) {
+      return `FAILED:zero-coverage:${zeroCoverageCats.join(',')}`;
+    }
+    if (skippedCats.length > 0) {
+      return `PROCEED_TO_REVIEW:skipped:${skippedCats.join(',')}`;
+    }
+    return 'PROCEED_TO_REVIEW';
+  }
+
+  it('approval gate: single 0/0 non-game-flow category fails the build', () => {
+    const result = simulateApprovalGate({
+      'game-flow': { passed: 2, failed: 0 },
+      'mechanics':  { passed: 0, failed: 0 }, // 0/0 — page broken
+      'edge-cases': { passed: 3, failed: 0 },
+    });
+    assert.ok(result.startsWith('FAILED'), `expected FAILED, got ${result}`);
+    assert.ok(result.includes('mechanics'), `expected mechanics in failure reason, got ${result}`);
+  });
+
+  it('approval gate: all categories passing proceeds to review', () => {
+    const result = simulateApprovalGate({
+      'game-flow': { passed: 2, failed: 0 },
+      'mechanics':  { passed: 4, failed: 0 },
+      'edge-cases': { passed: 3, failed: 0 },
+    });
+    assert.equal(result, 'PROCEED_TO_REVIEW');
+  });
+
+  it('approval gate: game-flow 0/0 fails the build (guard fires first)', () => {
+    const result = simulateApprovalGate({
+      'game-flow': { passed: 0, failed: 0 }, // 0/0
+      'mechanics':  { passed: 4, failed: 0 },
+    });
+    assert.ok(result.startsWith('FAILED:game-flow'), `expected FAILED:game-flow, got ${result}`);
+  });
+
+  it('approval gate: two non-game-flow 0/0 categories fails the build', () => {
+    const result = simulateApprovalGate({
+      'game-flow': { passed: 2, failed: 0 },
+      'mechanics':  { passed: 0, failed: 0 },
+      'edge-cases': { passed: 0, failed: 0 },
+    });
+    assert.ok(result.startsWith('FAILED'), `expected FAILED, got ${result}`);
+  });
+
+  // ── R&D #57: triage-deleted categories should not block approval ─────────────
+  // When all spec files in a category are deleted by triage (test logic issues, not HTML bugs),
+  // the approval gate must treat the category as SKIPPED rather than failing the build.
+
+  it('approval gate: triage-deleted non-game-flow 0/0 category proceeds to review (R&D #57)', () => {
+    // Mirrors disappearing-numbers #479: level-progression triage-deleted, other cats passed
+    const result = simulateApprovalGate(
+      {
+        'game-flow':          { passed: 3, failed: 0 },
+        'mechanics':          { passed: 2, failed: 0 },
+        'edge-cases':         { passed: 2, failed: 0 },
+        'contract':           { passed: 1, failed: 0 },
+        'level-progression':  { passed: 0, failed: 0 }, // triage-deleted
+      },
+      new Set(['level-progression']),
+    );
+    assert.ok(result.startsWith('PROCEED_TO_REVIEW'), `expected PROCEED_TO_REVIEW, got ${result}`);
+    assert.ok(result.includes('level-progression'), `expected skipped category in result, got ${result}`);
+  });
+
+  it('approval gate: non-triage-deleted 0/0 category still fails the build (R&D #57)', () => {
+    // level-progression is 0/0 but NOT in triageDeletedCategories — page was broken, must fail
+    const result = simulateApprovalGate(
+      {
+        'game-flow':          { passed: 3, failed: 0 },
+        'mechanics':          { passed: 2, failed: 0 },
+        'level-progression':  { passed: 0, failed: 0 }, // not triage-deleted
+      },
+      new Set(), // empty — no triage-deleted categories
+    );
+    assert.ok(result.startsWith('FAILED'), `expected FAILED, got ${result}`);
+    assert.ok(result.includes('level-progression'), `expected level-progression in reason, got ${result}`);
+  });
+
+  it('approval gate: triage-deleted game-flow proceeds to review (R&D #57)', () => {
+    // game-flow triage-deleted should not block approval (test gen issue, not HTML issue)
+    const result = simulateApprovalGate(
+      {
+        'game-flow':  { passed: 0, failed: 0 }, // triage-deleted
+        'mechanics':  { passed: 3, failed: 0 },
+        'edge-cases': { passed: 2, failed: 0 },
+      },
+      new Set(['game-flow']),
+    );
+    assert.ok(result.startsWith('PROCEED_TO_REVIEW'), `expected PROCEED_TO_REVIEW, got ${result}`);
+  });
+
+  it('approval gate: non-triage-deleted game-flow 0/0 still fails (R&D #57)', () => {
+    // game-flow 0/0 with no triage deletion must still block approval
+    const result = simulateApprovalGate(
+      {
+        'game-flow':  { passed: 0, failed: 0 }, // NOT triage-deleted
+        'mechanics':  { passed: 3, failed: 0 },
+      },
+      new Set(),
+    );
+    assert.ok(result.startsWith('FAILED:game-flow'), `expected FAILED:game-flow, got ${result}`);
+  });
+
+  it('approval gate: multiple triage-deleted categories all proceed to review (R&D #57)', () => {
+    const result = simulateApprovalGate(
+      {
+        'game-flow':         { passed: 2, failed: 0 },
+        'mechanics':         { passed: 0, failed: 0 }, // triage-deleted
+        'level-progression': { passed: 0, failed: 0 }, // triage-deleted
+        'edge-cases':        { passed: 1, failed: 0 },
+      },
+      new Set(['mechanics', 'level-progression']),
+    );
+    assert.ok(result.startsWith('PROCEED_TO_REVIEW'), `expected PROCEED_TO_REVIEW, got ${result}`);
+    assert.ok(result.includes('mechanics'), `expected mechanics in skipped list, got ${result}`);
+    assert.ok(result.includes('level-progression'), `expected level-progression in skipped list, got ${result}`);
+  });
+
+  it('hasCrossFailures includes 0/0 batches so global fix loop is triggered', () => {
+    // Mirrors pipeline-fix-loop.js hasCrossFailures logic after the fix
+    const categoryResults = {
+      'game-flow': { passed: 2, failed: 0 },
+      'mechanics':  { passed: 0, failed: 0 }, // 0/0 — should trigger global fix loop
+    };
+    const hasCrossFailures = Object.values(categoryResults).some(
+      (r) => r.failed > 0 || (r.passed === 0 && r.failed === 0),
+    );
+    assert.ok(hasCrossFailures, '0/0 category must trigger global fix loop');
+  });
+
+  it('hasCrossFailures is false when all categories pass with > 0 tests', () => {
+    const categoryResults = {
+      'game-flow': { passed: 2, failed: 0 },
+      'mechanics':  { passed: 4, failed: 0 },
+    };
+    const hasCrossFailures = Object.values(categoryResults).some(
+      (r) => r.failed > 0 || (r.passed === 0 && r.failed === 0),
+    );
+    assert.ok(!hasCrossFailures, 'no 0/0 and no failures — global fix loop should not trigger');
+  });
 });
 
 // ─── runPageSmokeDiagnostic / classifySmokeErrors tests ──────────────────────
@@ -917,10 +1079,10 @@ describe('runPageSmokeDiagnostic classifySmokeErrors — fatal pattern detection
     assert.ok(result[0].includes('Package failed to load'));
   });
 
-  it('detects "failed to load resource" (CDN 404) as fatal', () => {
+  it('does not treat "failed to load resource" 404 as fatal (audio/media 404s are non-blocking)', () => {
     const errors = ['Failed to load resource: the server responded with a status of 404'];
     const result = classifySmokeErrors(errors);
-    assert.equal(result.length, 1);
+    assert.equal(result.length, 0);
   });
 
   it('detects "is not a constructor" as fatal', () => {
@@ -1292,7 +1454,7 @@ describe('pipeline.js fixCdnDomainsInFile', () => {
     return f;
   }
 
-  it('replaces cdn.mathai.ai with cdn.homeworkapp.ai then replaces with canonical storage.googleapis.com scripts', () => {
+  it('replaces cdn.mathai.ai directly with canonical storage.googleapis.com/test-dynamic-assets', () => {
     const html = `<!DOCTYPE html><html><head>
 <script src="https://cdn.mathai.ai/game-packages/feedback-manager/v1/feedback-manager.umd.js"></script>
 </head><body><div id="gameContent"></div></body></html>`;
@@ -1360,6 +1522,102 @@ describe('pipeline.js fixCdnDomainsInFile', () => {
     const f = writeTmp(html);
     const result = fixCdnDomainsInFile(f, null);
     assert.equal(result, false);
+    fs.unlinkSync(f);
+  });
+});
+
+// ─── fixCdnPathsInFile ────────────────────────────────────────────────────────
+// Tests for the wrong-path CDN URL fixer. Handles unpkg.com/@mathai/ and
+// cdn.homeworkapp.ai/cdn/components/web/ patterns that checkCdnScriptUrls()
+// previously missed (causing silent 404s in smoke check with no cdnUrlContext hint).
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pipeline.js fixCdnPathsInFile', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+
+  function writeTmp(content) {
+    const f = path.join(os.tmpdir(), `test-cdn-paths-${Date.now()}-${Math.random().toString(36).slice(2)}.html`);
+    fs.writeFileSync(f, content);
+    return f;
+  }
+
+  it('removes unpkg.com/@mathai script tags and injects canonical block', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://unpkg.com/@mathai/feedback@1.2.6/dist/feedback.min.js"></script>
+<script src="https://unpkg.com/@mathai/ui-components@1.1.4/dist/ui-components.min.js"></script>
+<script src="https://unpkg.com/@mathai/signal-collector@1.0.9/dist/signal-collector.min.js"></script>
+</head><body><div id="app"></div></body></html>`;
+    const f = writeTmp(html);
+    const result = fixCdnPathsInFile(f, null);
+    const out = fs.readFileSync(f, 'utf-8');
+    assert.equal(result.fixed, true);
+    assert.ok(!out.includes('unpkg.com/@mathai'), 'unpkg.com/@mathai scripts should be removed');
+    assert.ok(out.includes('storage.googleapis.com/test-dynamic-assets/packages/feedback-manager'), 'canonical feedback-manager should be injected');
+    assert.ok(out.includes('storage.googleapis.com/test-dynamic-assets/packages/components'), 'canonical components should be injected');
+    assert.ok(out.includes('storage.googleapis.com/test-dynamic-assets/packages/helpers'), 'canonical helpers should be injected');
+    fs.unlinkSync(f);
+  });
+
+  it('removes cdn.homeworkapp.ai/cdn/components/web script tags and injects canonical block', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://cdn.homeworkapp.ai/cdn/components/web/feedback-manager/v2.4/feedback-manager.min.js"></script>
+<script src="https://cdn.homeworkapp.ai/cdn/components/web/screen-layout/v1.4/screen-layout.min.js"></script>
+</head><body><div id="app"></div></body></html>`;
+    const f = writeTmp(html);
+    const result = fixCdnPathsInFile(f, null);
+    const out = fs.readFileSync(f, 'utf-8');
+    assert.equal(result.fixed, true);
+    assert.ok(!out.includes('cdn.homeworkapp.ai/cdn/components/web'), 'cdn.homeworkapp.ai/cdn/components/web scripts should be removed');
+    assert.ok(out.includes('storage.googleapis.com/test-dynamic-assets/packages/feedback-manager'), 'canonical block should be injected');
+    fs.unlinkSync(f);
+  });
+
+  it('does not re-inject canonical block if already present', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://unpkg.com/@mathai/feedback@1.2.6/dist/feedback.min.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+</head><body><div id="app"></div></body></html>`;
+    const f = writeTmp(html);
+    fixCdnPathsInFile(f, null);
+    const out = fs.readFileSync(f, 'utf-8');
+    const count = (out.match(/packages\/feedback-manager/g) || []).length;
+    assert.equal(count, 1, 'feedback-manager should appear exactly once (no duplicate injection)');
+    fs.unlinkSync(f);
+  });
+
+  it('returns fixed: false for HTML with no wrong CDN paths', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+</head><body><div id="gameContent"></div></body></html>`;
+    const f = writeTmp(html);
+    const result = fixCdnPathsInFile(f, null);
+    assert.equal(result.fixed, false);
+    assert.equal(result.changes.length, 0);
+    fs.unlinkSync(f);
+  });
+
+  it('returns changes array describing what was fixed', () => {
+    const html = `<!DOCTYPE html><html><head>
+<script src="https://unpkg.com/@mathai/feedback@1.2.6/dist/feedback.min.js"></script>
+</head><body></body></html>`;
+    const f = writeTmp(html);
+    const result = fixCdnPathsInFile(f, null);
+    assert.equal(result.fixed, true);
+    assert.ok(result.changes.some((c) => c.includes('unpkg.com/@mathai')), 'changes should mention unpkg.com/@mathai');
+    fs.unlinkSync(f);
+  });
+
+  it('is a no-op for HTML with no CDN script tags at all', () => {
+    const html = `<!DOCTYPE html><html><head><title>Test</title></head><body><div id="gameContent">hi</div></body></html>`;
+    const f = writeTmp(html);
+    const before = fs.statSync(f).mtimeMs;
+    fixCdnPathsInFile(f, null);
+    const after = fs.statSync(f).mtimeMs;
+    assert.equal(before, after, 'file should not be modified if no wrong CDN paths found');
     fs.unlinkSync(f);
   });
 });
@@ -1436,5 +1694,210 @@ WINDOW.GAMESTATE SHAPE (actual runtime values — use THESE property names/types
   it('handles null htmlContent and null domSnapshot gracefully', () => {
     const phases = extractPhaseNamesFromGame(null, null);
     assert.deepEqual(phases, []);
+  });
+});
+
+// ─── detectCorruptFallbackContent ─────────────────────────────────────────────
+
+const { detectCorruptFallbackContent } = require('../lib/pipeline-test-gen');
+
+describe('pipeline-test-gen.js detectCorruptFallbackContent', () => {
+  it('detects all CDN API names as corrupt', () => {
+    const input = {
+      rounds: [
+        { question: 'Event', answer: 'Target' },
+        { question: 'Input', answer: 'Action' },
+        { question: 'Source', answer: 'Destination' },
+      ],
+    };
+    const result = detectCorruptFallbackContent(input);
+    assert.equal(result.corrupt, true);
+    assert.deepEqual(result.rounds, []);
+  });
+
+  it('detects mixed CDN names + real content as corrupt when >50%', () => {
+    // 4 out of 6 values are CDN names = 67% → corrupt
+    const input = {
+      rounds: [
+        { question: 'Event', answer: 'Target' },
+        { question: 'Input', answer: 'Action' },
+        { question: 'What is 3+4?', answer: '7' },
+      ],
+    };
+    const result = detectCorruptFallbackContent(input);
+    assert.equal(result.corrupt, true);
+    assert.deepEqual(result.rounds, []);
+  });
+
+  it('does not flag real game content as corrupt', () => {
+    const input = {
+      rounds: [
+        { question: 'What is the capital of France?', answer: 'Paris' },
+        { question: 'What is 3+4?', answer: '7' },
+        { question: 'Which planet is largest?', answer: 'Jupiter' },
+      ],
+    };
+    const result = detectCorruptFallbackContent(input);
+    assert.equal(result.corrupt, undefined);
+    assert.equal(result.rounds.length, 3);
+  });
+
+  it('does not flag empty rounds as corrupt', () => {
+    const input = { rounds: [] };
+    const result = detectCorruptFallbackContent(input);
+    assert.equal(result.corrupt, undefined);
+    assert.deepEqual(result.rounds, []);
+  });
+});
+
+describe('pipeline.js checkCdnScriptUrls — URL parsing', () => {
+  const { checkCdnScriptUrls } = require('../lib/pipeline');
+
+  it('returns ok:true and empty failedUrls when HTML has no script tags', async () => {
+    const html = '<html><head></head><body><p>No scripts here</p></body></html>';
+    const result = await checkCdnScriptUrls(html);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.failedUrls, []);
+  });
+
+  it('returns ok:true and empty failedUrls when scripts have no CDN URLs', async () => {
+    const html = `<html><head>
+      <script src="/local/app.js"></script>
+      <script src="https://example.com/lib.js"></script>
+    </head></html>`;
+    const result = await checkCdnScriptUrls(html);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.failedUrls, []);
+  });
+
+  it('extracts storage.googleapis.com script URLs (network-agnostic parse check)', async () => {
+    // We cannot mock https in this test runner without complex Module cache hacks,
+    // so we verify the function returns the expected shape.
+    // The actual HTTP check will time out or error for a made-up URL; we check failedUrls is populated.
+    const fakeUrl = 'https://storage.googleapis.com/test-dynamic-assets/packages/nonexistent-xyz-123456.js';
+    const html = `<html><head><script src="${fakeUrl}"></script></head></html>`;
+    const result = await checkCdnScriptUrls(html);
+    // result.ok must be boolean
+    assert.equal(typeof result.ok, 'boolean');
+    // result.failedUrls must be an array
+    assert.ok(Array.isArray(result.failedUrls));
+    // If the URL failed (expected for a fake path), it must appear in failedUrls with the right shape
+    if (!result.ok) {
+      assert.ok(result.failedUrls.length > 0);
+      assert.equal(typeof result.failedUrls[0].url, 'string');
+      assert.ok(result.failedUrls[0].url.includes('storage.googleapis.com'));
+      assert.equal(typeof result.failedUrls[0].status, 'number');
+    }
+  });
+
+  it('extracts cdn.homeworkapp.ai script URLs for checking', async () => {
+    const fakeUrl = 'https://cdn.homeworkapp.ai/packages/components/index.js';
+    const html = `<html><head><script src="${fakeUrl}"></script></head></html>`;
+    const result = await checkCdnScriptUrls(html);
+    assert.equal(typeof result.ok, 'boolean');
+    assert.ok(Array.isArray(result.failedUrls));
+    // cdn.homeworkapp.ai is known to return 403, so it should appear in failedUrls
+    if (!result.ok) {
+      const matched = result.failedUrls.find((f) => f.url === fakeUrl);
+      assert.ok(matched, 'cdn.homeworkapp.ai URL should be in failedUrls when non-200');
+    }
+  });
+
+  it('does not check non-CDN script URLs', async () => {
+    // Only /local/, https://example.com — neither matches CDN pattern
+    const html = `<html><head>
+      <script src="/local/main.js"></script>
+      <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    </head></html>`;
+    const result = await checkCdnScriptUrls(html);
+    // No CDN URLs → no HTTP requests → always ok
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.failedUrls, []);
+  });
+
+  it('checks unpkg.com/@mathai script URLs (known 404)', async () => {
+    // unpkg.com/@mathai/* returns 404 — these should be detected and flagged
+    const fakeUrl = 'https://unpkg.com/@mathai/feedback@1.2.6/dist/feedback.min.js';
+    const html = `<html><head><script src="${fakeUrl}"></script></head></html>`;
+    const result = await checkCdnScriptUrls(html);
+    assert.equal(typeof result.ok, 'boolean');
+    assert.ok(Array.isArray(result.failedUrls));
+    // unpkg.com/@mathai packages don't exist → should be in failedUrls when non-200
+    if (!result.ok) {
+      const matched = result.failedUrls.find((f) => f.url === fakeUrl);
+      assert.ok(matched, 'unpkg.com/@mathai URL should be in failedUrls when non-200');
+    }
+  });
+});
+
+describe('pipeline-fix-loop.js getMatchingLessons (R&D #56)', () => {
+  const { getMatchingLessons, LESSON_PATTERNS } = require('../lib/pipeline-fix-loop');
+
+  it('exports getMatchingLessons as a function', () => {
+    assert.equal(typeof getMatchingLessons, 'function');
+  });
+
+  it('exports LESSON_PATTERNS as a non-empty array', () => {
+    assert.ok(Array.isArray(LESSON_PATTERNS));
+    assert.ok(LESSON_PATTERNS.length > 0);
+    // Each entry must have pattern (RegExp) and lesson (string)
+    for (const entry of LESSON_PATTERNS) {
+      assert.ok(entry.pattern instanceof RegExp, 'pattern must be a RegExp');
+      assert.equal(typeof entry.lesson, 'string', 'lesson must be a string');
+      assert.ok(entry.lesson.length > 0, 'lesson must not be empty');
+    }
+  });
+
+  it('matches Packages failed to load → lesson about 120s timeout', () => {
+    const results = getMatchingLessons('Packages failed to load within 10s — timeout exceeded');
+    assert.ok(results.length > 0);
+    assert.ok(results[0].includes('120'), 'should mention 120s timeout');
+    assert.ok(results[0].includes('Lesson 117') || results[0].includes('waitForPackages'), 'should reference waitForPackages lesson');
+  });
+
+  it('matches FeedbackManager.sound.playDynamicFeedback → namespace lesson', () => {
+    const results = getMatchingLessons('FeedbackManager.sound.playDynamicFeedback is not a function');
+    assert.ok(results.length > 0);
+    assert.ok(results[0].includes('FeedbackManager.playDynamicFeedback'), 'should show correct namespace');
+    assert.ok(results[0].includes('isProcessing') || results[0].includes('Lesson 115'), 'should reference isProcessing deadlock');
+  });
+
+  it('returns empty array for completely unrelated error', () => {
+    const results = getMatchingLessons('completely unrelated error that matches nothing');
+    assert.deepEqual(results, []);
+  });
+
+  it('returns empty array for empty string input', () => {
+    assert.deepEqual(getMatchingLessons(''), []);
+  });
+
+  it('returns empty array for null/undefined input', () => {
+    assert.deepEqual(getMatchingLessons(null), []);
+    assert.deepEqual(getMatchingLessons(undefined), []);
+  });
+
+  it('caps results at 3 even when many patterns match', () => {
+    // Construct a string that matches many patterns at once
+    const text = 'Packages failed to load FeedbackManager.sound.playDynamicFeedback isProcessing window.gameState waitForPhase timeout ScreenLayout.inject slots: #gameContent missing TimerComponent window.endGame undefined';
+    const results = getMatchingLessons(text);
+    assert.ok(results.length <= 3, `should return at most 3 lessons, got ${results.length}`);
+  });
+
+  it('matches waitForPhase timeout → syncDOMState lesson', () => {
+    const results = getMatchingLessons('waitForPhase timeout: waiting for data-phase=playing');
+    assert.ok(results.length > 0);
+    assert.ok(
+      results.some((r) => r.includes('syncDOMState') || r.includes('data-phase') || r.includes('Lesson 50')),
+      'should reference syncDOMState lesson',
+    );
+  });
+
+  it('matches missing #gameContent → ScreenLayout slots lesson', () => {
+    const results = getMatchingLessons('gameContent missing from DOM — ScreenLayout.inject was called');
+    assert.ok(results.length > 0);
+    assert.ok(
+      results.some((r) => r.includes('slots') || r.includes('Lesson 69') || r.includes('#gameContent')),
+      'should reference slots wrapper lesson',
+    );
   });
 });

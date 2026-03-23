@@ -1,0 +1,1 @@
+../../../games/name-the-sides/spec.md

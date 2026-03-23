@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Adjustment Strategy</title>
 
+  <!-- PART-002: Package Scripts — order is critical -->
   <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
   <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
   <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
 
   <style>
+    /* === PART-020: CSS Variables === */
     :root {
       --mathai-green: #219653;
       --mathai-light-green: #EAFBF1;
@@ -29,6 +31,7 @@
       --mathai-border-radius-card: 12px;
     }
 
+    /* === Reset === */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: var(--mathai-font-family);
@@ -37,32 +40,19 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* === PART-021: Screen Layout CSS === */
     #app {
       width: 100%;
       max-width: 480px;
-      height: 100dvh;
+      min-height: 100dvh;
       margin: 0 auto;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
       position: relative;
+      overflow: hidden;
     }
 
-    #gameContent {
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-    }
-
-    #gameArea {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex: 1;
-    }
-
+    /* === Game Block === */
     .game-block {
       width: 100%;
       display: flex;
@@ -72,6 +62,7 @@
       gap: 16px;
     }
 
+    /* === Instruction Area === */
     .instruction-area {
       width: 100%;
       max-width: 340px;
@@ -96,6 +87,7 @@
 
     .instruction-text-sub strong { font-weight: 700; color: var(--mathai-black); }
 
+    /* === Reset Row === */
     .reset-row {
       width: 100%;
       max-width: 340px;
@@ -118,6 +110,7 @@
 
     .reset-btn:hover { background: #E8E8E8; }
 
+    /* === Adjuster Container === */
     .adjuster-container {
       display: flex;
       align-items: center;
@@ -134,6 +127,7 @@
       margin-top: -8px;
     }
 
+    /* === Number Adjuster === */
     .number-adjuster {
       display: flex;
       flex-direction: column;
@@ -142,6 +136,7 @@
       width: 80px;
     }
 
+    /* === Adj Top/Bottom Areas === */
     .adj-top-area, .adj-bottom-area {
       width: 80px;
       height: 36px;
@@ -160,6 +155,7 @@
     .adj-top-area.has-value { color: var(--mathai-black); }
     .adj-bottom-area.has-value { color: var(--mathai-black); }
 
+    /* Adjusted value display */
     .adjusted-value-display {
       font-size: 18px;
       font-weight: 700;
@@ -177,6 +173,7 @@
     .adjusted-value-display .adj-icon.minus { color: var(--mathai-red); }
     .adjusted-value-display .adj-icon.plus { color: var(--mathai-green); }
 
+    /* === Adj Buttons === */
     .adj-btn {
       width: 80px;
       height: 36px;
@@ -210,6 +207,7 @@
 
     .adj-plus:hover { background: var(--mathai-light-green); border-color: var(--mathai-green); }
 
+    /* === Number Box === */
     .number-box {
       width: 80px;
       height: 60px;
@@ -228,6 +226,7 @@
       color: var(--mathai-black);
     }
 
+    /* === Delta Badge === */
     .delta-badge {
       position: absolute;
       top: -8px;
@@ -253,6 +252,7 @@
       color: var(--mathai-white);
     }
 
+    /* === Answer Area === */
     .answer-area {
       display: flex;
       flex-direction: column;
@@ -292,6 +292,7 @@
       font-weight: 400;
     }
 
+    /* === Check Button === */
     .check-btn {
       max-width: 200px;
       padding: 10px 32px;
@@ -302,6 +303,7 @@
 
     .check-btn:hover { filter: brightness(0.9); }
 
+    /* === PART-022: Game Buttons === */
     .game-btn {
       padding: 12px 32px;
       border: none;
@@ -319,6 +321,7 @@
     .btn-primary { background: var(--mathai-green); color: var(--mathai-white); }
     .btn-primary:hover { filter: brightness(0.9); }
 
+    /* === PART-019: Results Screen === */
     .results-card {
       background: var(--mathai-white);
       border-radius: 16px;
@@ -336,127 +339,102 @@
     .metric-label { color: var(--mathai-gray); font-size: var(--mathai-font-size-label); }
     .metric-value { font-weight: 700; font-size: var(--mathai-font-size-body); color: var(--mathai-black); }
 
+    /* === Utility === */
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
   <div id="app"></div>
+
   <template id="game-template">
-      <div id="gameArea">
-        <div id="game-screen" class="game-block">
-          <div id="timer-container"></div>
+    <div id="game-screen" class="game-block">
+      <div id="timer-container"></div>
 
-          <div class="instruction-area">
-            <p class="instruction-text">Check the list, think smart, and adjust wisely.</p>
-            <p class="instruction-text-sub">Remember — this is a timed game!</p>
-            <p class="instruction-text-sub">Clear all <strong>3 levels</strong> with an average speed of less than <strong>15 seconds</strong> per level to earn 3 stars.</p>
+      <div class="instruction-area">
+        <p class="instruction-text">Check the list, think smart, and adjust wisely.</p>
+        <p class="instruction-text-sub">Remember — this is a timed game!</p>
+        <p class="instruction-text-sub">Clear all <strong>3 levels</strong> with an average speed of less than <strong>15 seconds</strong> per level to earn 3 stars.</p>
+      </div>
+
+      <div class="reset-row">
+        <button class="reset-btn" id="btn-reset" onclick="resetAdjustments()">&#8635; Reset</button>
+      </div>
+
+      <div class="adjuster-container" id="adjuster-container">
+        <!-- Number A adjuster -->
+        <div class="number-adjuster" id="adjuster-a">
+          <div class="adj-top-area" id="adj-a-top">
+            <button class="adj-btn adj-minus" onclick="adjustNumber('a', -1)">&#8722;</button>
           </div>
-
-          <div class="reset-row">
-            <button class="reset-btn" id="btn-reset">↻ Reset</button>
+          <div class="number-box" id="number-box-a">
+            <span class="original-number" id="original-a">0</span>
+            <span class="delta-badge hidden" id="delta-badge-a"></span>
           </div>
-
-          <div class="adjuster-container" id="adjuster-container">
-            <!-- Number A adjuster -->
-            <div class="number-adjuster" id="adjuster-a">
-              <div class="adj-top-area" id="adj-a-top">
-                <button class="adj-btn adj-minus" id="btn-a-minus" data-which="a" data-dir="-1">−</button>
-              </div>
-              <div class="number-box" id="number-box-a">
-                <span class="original-number" id="original-a">0</span>
-                <span class="delta-badge hidden" id="delta-badge-a"></span>
-              </div>
-              <div class="adj-bottom-area" id="adj-a-bottom">
-                <button class="adj-btn adj-plus" id="btn-a-plus" data-which="a" data-dir="1">+</button>
-              </div>
-            </div>
-
-            <!-- Operator -->
-            <span class="operator-sign">+</span>
-
-            <!-- Number B adjuster -->
-            <div class="number-adjuster" id="adjuster-b">
-              <div class="adj-top-area" id="adj-b-top">
-                <button class="adj-btn adj-minus" id="btn-b-minus" data-which="b" data-dir="-1">−</button>
-              </div>
-              <div class="number-box" id="number-box-b">
-                <span class="original-number" id="original-b">0</span>
-                <span class="delta-badge hidden" id="delta-badge-b"></span>
-              </div>
-              <div class="adj-bottom-area" id="adj-b-bottom">
-                <button class="adj-btn adj-plus" id="btn-b-plus" data-which="b" data-dir="1">+</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="answer-area" id="answer-area">
-            <input type="number" class="answer-input" id="answer-input" placeholder="?" />
-            <button class="game-btn btn-primary check-btn" id="btn-check">✓ Check</button>
+          <div class="adj-bottom-area" id="adj-a-bottom">
+            <button class="adj-btn adj-plus" onclick="adjustNumber('a', 1)">+</button>
           </div>
         </div>
 
-        <div id="results-screen" class="game-block" style="display: none;">
-          <div class="results-card">
-            <div id="stars-display" class="stars-display"></div>
-            <h2 class="results-title" id="results-title">Great Job!</h2>
-            <div class="results-metrics">
-              <div class="metric-row">
-                <span class="metric-label">Time</span>
-                <span class="metric-value" id="result-time">0:00</span>
-              </div>
-              <div class="metric-row">
-                <span class="metric-label">Avg Time/Level</span>
-                <span class="metric-value" id="result-avg-time">0.0s</span>
-              </div>
-              <div class="metric-row">
-                <span class="metric-label">Rounds Completed</span>
-                <span class="metric-value" id="result-rounds">0/9</span>
-              </div>
-              <div class="metric-row">
-                <span class="metric-label">Wrong Attempts</span>
-                <span class="metric-value" id="result-wrong">0</span>
-              </div>
-              <div class="metric-row">
-                <span class="metric-label">Accuracy</span>
-                <span class="metric-value" id="result-accuracy">0%</span>
-              </div>
-            </div>
-            <button class="game-btn btn-primary" id="btn-restart">Play Again</button>
+        <!-- Operator -->
+        <span class="operator-sign">+</span>
+
+        <!-- Number B adjuster -->
+        <div class="number-adjuster" id="adjuster-b">
+          <div class="adj-top-area" id="adj-b-top">
+            <button class="adj-btn adj-minus" onclick="adjustNumber('b', -1)">&#8722;</button>
+          </div>
+          <div class="number-box" id="number-box-b">
+            <span class="original-number" id="original-b">0</span>
+            <span class="delta-badge hidden" id="delta-badge-b"></span>
+          </div>
+          <div class="adj-bottom-area" id="adj-b-bottom">
+            <button class="adj-btn adj-plus" onclick="adjustNumber('b', 1)">+</button>
           </div>
         </div>
       </div>
+
+      <div class="answer-area" id="answer-area">
+        <input type="number" class="answer-input" id="answer-input" placeholder="?" oninput="onInputChange()" />
+        <button class="game-btn btn-primary check-btn hidden" id="btn-check" onclick="checkAnswer()">&#10003; Check</button>
+      </div>
+    </div>
+
+    <div id="results-screen" class="game-block" style="display: none;">
+      <div class="results-card">
+        <div id="stars-display" class="stars-display"></div>
+        <h2 class="results-title" id="results-title">Great Job!</h2>
+        <div class="results-metrics">
+          <div class="metric-row">
+            <span class="metric-label">Time</span>
+            <span class="metric-value" id="result-time">0:00</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Avg Time/Level</span>
+            <span class="metric-value" id="result-avg-time">0.0s</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Rounds Completed</span>
+            <span class="metric-value" id="result-rounds">0/9</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Wrong Attempts</span>
+            <span class="metric-value" id="result-wrong">0</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Accuracy</span>
+            <span class="metric-value" id="result-accuracy">0%</span>
+          </div>
+        </div>
+        <button class="game-btn btn-primary" id="btn-restart" onclick="restartGame()">Play Again</button>
+      </div>
+    </div>
   </template>
 
   <script>
-    // === PART-003: waitForPackages (10s timeout) ===
-    async function waitForPackages() {
-      const timeout = 10000;
-      const interval = 50;
-      let elapsed = 0;
-
-      while (typeof FeedbackManager === 'undefined') {
-        if (elapsed >= timeout) throw new Error('Timeout waiting for FeedbackManager');
-        await new Promise(resolve => setTimeout(resolve, interval));
-        elapsed += interval;
-      }
-      elapsed = 0;
-      while (typeof TimerComponent === 'undefined') {
-        if (elapsed >= timeout) throw new Error('Timeout waiting for TimerComponent');
-        await new Promise(resolve => setTimeout(resolve, interval));
-        elapsed += interval;
-      }
-      elapsed = 0;
-      while (typeof VisibilityTracker === 'undefined') {
-        if (elapsed >= timeout) throw new Error('Timeout waiting for VisibilityTracker');
-        await new Promise(resolve => setTimeout(resolve, interval));
-        elapsed += interval;
-      }
-      console.log('✅ All packages loaded');
-    }
-
-    // === PART-007: Game State Object ===
+    // PART-007: Game State Object
     window.gameState = {
+      // MANDATORY
       currentRound: 0,
       totalRounds: 9,
       score: 0,
@@ -475,6 +453,7 @@
         currentTime: null
       },
 
+      // GAME-SPECIFIC
       lives: 3,
       totalLives: 3,
       numberA: 0,
@@ -490,16 +469,12 @@
       isProcessing: false
     };
 
-    const STAR_THRESHOLD_3 = 0.8;
-    const STAR_THRESHOLD_2 = 0.5;
-    const AVG_TIME_3_STARS = 15;
-    const AVG_TIME_2_STARS = 25;
-
     let timer = null;
     let visibilityTracker = null;
     let progressBar = null;
     let transitionScreen = null;
 
+    // Fallback test content
     const fallbackContent = {
       rounds: [
         { numberA: 47, numberB: 33, correctAnswer: 80 },
@@ -514,7 +489,26 @@
       ]
     };
 
-    // === PART-009: recordAttempt ===
+    // PART-003: waitForPackages with 10s timeout
+    async function waitForPackages() {
+      const timeout = 10000;
+      const start = Date.now();
+      while (typeof FeedbackManager === 'undefined') {
+        if (Date.now() - start > timeout) throw new Error('Timeout waiting for FeedbackManager');
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      while (typeof TimerComponent === 'undefined') {
+        if (Date.now() - start > timeout) throw new Error('Timeout waiting for TimerComponent');
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      while (typeof VisibilityTracker === 'undefined') {
+        if (Date.now() - start > timeout) throw new Error('Timeout waiting for VisibilityTracker');
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      console.log('All packages loaded');
+    }
+
+    // PART-009: recordAttempt
     function recordAttempt(data) {
       gameState.attempts.push({
         ...data,
@@ -528,8 +522,9 @@
       });
     }
 
-    // === PART-010: trackEvent ===
-    function trackEvent(type, target, data = {}) {
+    // PART-010: trackEvent
+    function trackEvent(type, target, data) {
+      if (data === undefined) data = {};
       gameState.events.push({
         type,
         target,
@@ -539,19 +534,17 @@
       });
     }
 
-    // === PART-004: initGame ===
-    function initGame() {
-      if (!gameState.content) gameState.content = fallbackContent;
-      window.addEventListener('message', handlePostMessage);
-
-      transitionScreen.show({
-        icons: ['🧮'],
-        iconSize: 'large',
-        title: 'Adjustment Strategy',
-        subtitle: 'Adjust numbers to add faster!',
-        buttons: [{ text: "Let's go!", type: 'primary', action: () => startGame() }]
-      });
+    // PART-008: PostMessage handler
+    function handlePostMessage(event) {
+      if (!event.data || event.data.type !== 'game_init') return;
+      try {
+        gameState.content = event.data.data.content;
+      } catch (e) {
+        console.error('PostMessage error:', JSON.stringify({ error: e.message }, null, 2));
+      }
     }
+
+    // Game functions — RULE-001: all in global scope
 
     function startGame() {
       gameState.startTime = Date.now();
@@ -565,8 +558,8 @@
 
     function showLevelTransition(level) {
       gameState.level = level;
-      const levelNames = ['Level 1', 'Level 2', 'Level 3'];
-      const levelSubtitles = ['Easy — Small numbers', 'Medium — Bigger sums', 'Hard — Challenge mode'];
+      var levelNames = ['Level 1', 'Level 2', 'Level 3'];
+      var levelSubtitles = ['Easy -- Small numbers', 'Medium -- Bigger sums', 'Hard -- Challenge mode'];
       transitionScreen.show({
         icons: ['🧮'],
         iconSize: 'large',
@@ -575,7 +568,7 @@
         buttons: [{
           text: level === 1 ? "Let's go!" : 'Next Level',
           type: 'primary',
-          action: () => startLevel()
+          action: function() { startLevel(); }
         }]
       });
     }
@@ -586,7 +579,7 @@
     }
 
     function loadRound() {
-      const round = gameState.content.rounds[gameState.currentRound];
+      var round = gameState.content.rounds[gameState.currentRound];
       gameState.numberA = round.numberA;
       gameState.numberB = round.numberB;
       gameState.correctAnswer = round.correctAnswer;
@@ -606,34 +599,28 @@
     }
 
     function updateAdjusterUI(which) {
-      const delta = which === 'a' ? gameState.deltaA : gameState.deltaB;
-      const original = which === 'a' ? gameState.numberA : gameState.numberB;
-      const topArea = document.getElementById(`adj-${which}-top`);
-      const bottomArea = document.getElementById(`adj-${which}-bottom`);
-      const badge = document.getElementById(`delta-badge-${which}`);
+      var delta = which === 'a' ? gameState.deltaA : gameState.deltaB;
+      var original = which === 'a' ? gameState.numberA : gameState.numberB;
+      var topArea = document.getElementById('adj-' + which + '-top');
+      var bottomArea = document.getElementById('adj-' + which + '-bottom');
+      var badge = document.getElementById('delta-badge-' + which);
 
       if (delta === 0) {
-        topArea.innerHTML = `<button class="adj-btn adj-minus" id="btn-${which}-minus" data-which="${which}" data-dir="-1">−</button>`;
-        bottomArea.innerHTML = `<button class="adj-btn adj-plus" id="btn-${which}-plus" data-which="${which}" data-dir="1">+</button>`;
+        topArea.innerHTML = '<button class="adj-btn adj-minus" onclick="adjustNumber(\'' + which + '\', -1)">&#8722;</button>';
+        bottomArea.innerHTML = '<button class="adj-btn adj-plus" onclick="adjustNumber(\'' + which + '\', 1)">+</button>';
         badge.className = 'delta-badge hidden';
         badge.textContent = '';
       } else if (delta < 0) {
-        // Top area (− area / above): shows adjusted value with "−" prefix; minus button kept for further adjustment
-        topArea.innerHTML = `<button class="adj-btn adj-minus" id="btn-${which}-minus" data-which="${which}" data-dir="-1">−</button><div class="adjusted-value-display"><span class="adj-icon minus">−</span> <strong>${original + delta}</strong></div>`;
-        // Bottom area (+ area / below): keeps its plus button
-        bottomArea.innerHTML = `<button class="adj-btn adj-plus" id="btn-${which}-plus" data-which="${which}" data-dir="1">+</button>`;
+        topArea.innerHTML = '<div class="adjusted-value-display"><span class="adj-icon minus">&#8722;</span> <strong>' + (original + delta) + '</strong></div>';
+        bottomArea.innerHTML = '<button class="adj-btn adj-plus" onclick="adjustNumber(\'' + which + '\', 1)">+</button>';
         badge.className = 'delta-badge negative';
-        badge.textContent = `${delta}`;
+        badge.textContent = '' + delta;
       } else {
-        // Top area (− area / above): keeps its minus button
-        topArea.innerHTML = `<button class="adj-btn adj-minus" id="btn-${which}-minus" data-which="${which}" data-dir="-1">−</button>`;
-        // Bottom area (+ area / below): shows adjusted value with "+" prefix; plus button kept for further adjustment
-        bottomArea.innerHTML = `<div class="adjusted-value-display"><span class="adj-icon plus">+</span> <strong>${original + delta}</strong></div><button class="adj-btn adj-plus" id="btn-${which}-plus" data-which="${which}" data-dir="1">+</button>`;
+        topArea.innerHTML = '<button class="adj-btn adj-minus" onclick="adjustNumber(\'' + which + '\', -1)">&#8722;</button>';
+        bottomArea.innerHTML = '<div class="adjusted-value-display"><span class="adj-icon plus">+</span> <strong>' + (original + delta) + '</strong></div>';
         badge.className = 'delta-badge positive';
-        badge.textContent = `+${delta}`;
+        badge.textContent = '+' + delta;
       }
-
-      // Event listeners handled by delegation on #adjuster-container
     }
 
     function adjustNumber(which, direction) {
@@ -645,8 +632,8 @@
       }
       updateAdjusterUI(which);
       trackEvent('adjust_number', 'adjuster', {
-        which,
-        direction,
+        which: which,
+        direction: direction,
         deltaA: gameState.deltaA,
         deltaB: gameState.deltaB,
         adjustedA: gameState.numberA + gameState.deltaA,
@@ -665,14 +652,14 @@
     }
 
     function clearAnswerArea() {
-      const input = document.getElementById('answer-input');
+      var input = document.getElementById('answer-input');
       input.value = '';
       document.getElementById('btn-check').classList.add('hidden');
     }
 
     function onInputChange() {
-      const input = document.getElementById('answer-input');
-      const checkBtn = document.getElementById('btn-check');
+      var input = document.getElementById('answer-input');
+      var checkBtn = document.getElementById('btn-check');
       if (input.value.trim() !== '') {
         checkBtn.classList.remove('hidden');
       } else {
@@ -681,59 +668,56 @@
     }
 
     function getCorrectPhrase() {
-      const phrases = ['Correct! Try to be faster next time.', 'Well done!', 'Great job!', 'Nice work!', 'Excellent!', 'Perfect!'];
+      var phrases = ['Correct! Try to be faster next time.', 'Well done!', 'Great job!', 'Nice work!', 'Excellent!', 'Perfect!'];
       return phrases[Math.floor(Math.random() * phrases.length)];
     }
 
     async function checkAnswer() {
       if (!gameState.isActive || gameState.isProcessing) return;
       gameState.isProcessing = true;
-      const input = document.getElementById('answer-input');
-      const userAnswer = parseInt(input.value.trim(), 10);
-
+      var input = document.getElementById('answer-input');
+      var userAnswer = parseInt(input.value.trim(), 10);
       if (isNaN(userAnswer)) {
         gameState.isProcessing = false;
         return;
       }
 
       trackEvent('check_answer', 'input', {
-        userAnswer,
+        userAnswer: userAnswer,
         correctAnswer: gameState.correctAnswer,
         round: gameState.currentRound + 1
       });
 
       if (userAnswer === gameState.correctAnswer) {
-        // Fire-and-forget audio (do not await — TTS may be slow or unavailable)
-        FeedbackManager.sound.play('correct_tap').catch(() => {});
-        const phrase = getCorrectPhrase();
-        FeedbackManager.playDynamicFeedback({ audio_content: phrase, subtitle: phrase }).catch(() => {});
-        trackEvent('correct_answer', 'input', { userAnswer, round: gameState.currentRound + 1 });
+        try { await FeedbackManager.sound.play('correct_tap'); } catch (e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+        var phrase = getCorrectPhrase();
+        try { await FeedbackManager.playDynamicFeedback({ audio_content: phrase, subtitle: phrase }); } catch (e) {}
+        trackEvent('correct_answer', 'input', { userAnswer: userAnswer, round: gameState.currentRound + 1 });
         recordAttempt({
           input_of_user: { action: 'check_answer', answer: userAnswer, deltaA: gameState.deltaA, deltaB: gameState.deltaB },
           correct: true,
           metadata: {
             round: gameState.currentRound + 1,
-            question: `${gameState.numberA} + ${gameState.numberB}`,
+            question: gameState.numberA + ' + ' + gameState.numberB,
             correctAnswer: gameState.correctAnswer,
             validationType: 'fixed'
           }
         });
-        setTimeout(() => roundComplete(), 400);
+        setTimeout(function() { roundComplete(); }, 400);
       } else {
         gameState.lives--;
         gameState.wrongAttempts++;
         progressBar.update(gameState.currentRound, gameState.lives);
-        // Fire-and-forget audio
-        FeedbackManager.sound.play('wrong_tap').catch(() => {});
-        FeedbackManager.playDynamicFeedback({ audio_content: 'Not quite. Check your calculations and try again!', subtitle: 'Not quite. Try again!' }).catch(() => {});
-        trackEvent('wrong_answer', 'input', { userAnswer, correctAnswer: gameState.correctAnswer, round: gameState.currentRound + 1 });
+        try { await FeedbackManager.sound.play('wrong_tap'); } catch (e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+        try { await FeedbackManager.playDynamicFeedback({ audio_content: 'Not quite. Check your calculations and try again!', subtitle: 'Not quite. Try again!' }); } catch (e) {}
+        trackEvent('wrong_answer', 'input', { userAnswer: userAnswer, correctAnswer: gameState.correctAnswer, round: gameState.currentRound + 1 });
         trackEvent('life_lost', 'game', { livesRemaining: gameState.lives });
         recordAttempt({
           input_of_user: { action: 'check_answer', answer: userAnswer, deltaA: gameState.deltaA, deltaB: gameState.deltaB },
           correct: false,
           metadata: {
             round: gameState.currentRound + 1,
-            question: `${gameState.numberA} + ${gameState.numberB}`,
+            question: gameState.numberA + ' + ' + gameState.numberB,
             correctAnswer: gameState.correctAnswer,
             validationType: 'fixed'
           }
@@ -741,7 +725,7 @@
         input.value = '';
         document.getElementById('btn-check').classList.add('hidden');
         if (gameState.lives <= 0) {
-          setTimeout(() => endGame('game_over'), 800);
+          setTimeout(function() { endGame('game_over'); }, 800);
         } else {
           gameState.isProcessing = false;
         }
@@ -758,12 +742,10 @@
         gameState.levelTimes.push(Date.now() - gameState.levelStartTime);
         gameState.level++;
         trackEvent('level_complete', 'game', { level: gameState.level - 1, levelTime: gameState.levelTimes[gameState.levelTimes.length - 1] });
-        gameState.isProcessing = false;
         showLevelTransition(gameState.level);
       } else if (gameState.currentRound >= gameState.totalRounds) {
         gameState.levelTimes.push(Date.now() - gameState.levelStartTime);
         trackEvent('level_complete', 'game', { level: gameState.level, levelTime: gameState.levelTimes[gameState.levelTimes.length - 1] });
-        gameState.isProcessing = false;
         endGame('victory');
       } else {
         loadRound();
@@ -772,69 +754,64 @@
 
     async function endGame(reason) {
       gameState.isActive = false;
-      gameState.isProcessing = false;
       if (timer) timer.pause();
 
-      const totalTime = Math.round((Date.now() - gameState.startTime) / 1000);
-      const avgTimePerLevel = gameState.levelTimes.length > 0
-        ? gameState.levelTimes.reduce((a, b) => a + b, 0) / gameState.levelTimes.length / 1000
+      var totalTime = Math.round((Date.now() - gameState.startTime) / 1000);
+      var avgTimePerLevel = gameState.levelTimes.length > 0
+        ? gameState.levelTimes.reduce(function(a, b) { return a + b; }, 0) / gameState.levelTimes.length / 1000
         : 0;
-      const correctAttempts = gameState.attempts.filter(a => a.correct).length;
-      const totalAttempts = gameState.attempts.length;
-      const accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
+      var correctAttempts = gameState.attempts.filter(function(a) { return a.correct; }).length;
+      var totalAttempts = gameState.attempts.length;
+      var accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
 
-      let stars = 0;
+      var stars = 0;
       if (reason === 'victory') {
-        if (avgTimePerLevel < AVG_TIME_3_STARS) {
-          stars = 3;
-        } else if (avgTimePerLevel < AVG_TIME_2_STARS) {
-          stars = 2;
-        } else {
-          stars = 1;
-        }
-      } else {
-        stars = 0;
+        stars = avgTimePerLevel < 15 ? 3 : avgTimePerLevel < 25 ? 2 : 1;
       }
 
-      const metrics = {
-        accuracy,
+      var metrics = {
+        accuracy: accuracy,
         time: totalTime,
         avgTimePerLevel: Math.round(avgTimePerLevel * 10) / 10,
-        stars,
-        starThreshold3: STAR_THRESHOLD_3,
-        starThreshold2: STAR_THRESHOLD_2,
+        stars: stars,
         attempts: gameState.attempts,
-        duration_data: { ...gameState.duration_data, currentTime: new Date().toISOString() },
+        duration_data: Object.assign({}, gameState.duration_data, { currentTime: new Date().toISOString() }),
         roundsCompleted: gameState.currentRound,
         wrongAttempts: gameState.wrongAttempts,
         livesRemaining: gameState.lives,
-        levelTimes: gameState.levelTimes.map(t => Math.round(t / 100) / 10),
-        reason
+        levelTimes: gameState.levelTimes.map(function(t) { return Math.round(t / 100) / 10; }),
+        reason: reason
       };
 
       console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
-      trackEvent('game_end', 'game', { reason, roundsCompleted: gameState.currentRound, accuracy, stars, time: totalTime, avgTimePerLevel });
+      trackEvent('game_end', 'game', { reason: reason, roundsCompleted: gameState.currentRound, accuracy: accuracy, stars: stars, time: totalTime, avgTimePerLevel: avgTimePerLevel });
 
-      // Fire-and-forget end-game audio
       if (reason === 'victory') {
-        FeedbackManager.playDynamicFeedback({
-          audio_content: `Amazing! You completed all levels with an average of ${Math.round(avgTimePerLevel * 10) / 10} seconds per level!`,
-          subtitle: 'All levels done!'
-        }).catch(() => {});
+        try {
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: 'Amazing! You completed all levels with an average of ' + (Math.round(avgTimePerLevel * 10) / 10) + ' seconds per level!',
+            subtitle: 'All levels done!'
+          });
+        } catch (e) {}
       } else {
-        FeedbackManager.playDynamicFeedback({
-          audio_content: 'Oh no, you ran out of lives! Better luck next time!',
-          subtitle: 'Out of lives!'
-        }).catch(() => {});
+        try {
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: 'Oh no, you ran out of lives! Better luck next time!',
+            subtitle: 'Out of lives!'
+          });
+        } catch (e) {}
       }
 
       showResults(metrics, reason);
-      window.parent.postMessage({ type: 'game_complete', data: { metrics, events: gameState.events, completedAt: Date.now() } }, '*');
+      window.parent.postMessage({
+        type: 'game_complete',
+        data: { metrics: metrics, events: gameState.events, completedAt: Date.now() }
+      }, '*');
 
       if (timer) { timer.destroy(); timer = null; }
       if (progressBar) { progressBar.destroy(); progressBar = null; }
       if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
-      try { FeedbackManager.sound.stopAll(); FeedbackManager.stream.stopAll(); } catch(e) {}
+      try { FeedbackManager.sound.stopAll(); FeedbackManager.stream.stopAll(); } catch (e) {}
     }
 
     function showResults(metrics, reason) {
@@ -842,21 +819,22 @@
       document.getElementById('results-screen').style.display = 'flex';
       document.getElementById('results-title').textContent = reason === 'victory' ? 'Great Job!' : 'Game Over';
       document.getElementById('result-time').textContent = formatTime(metrics.time);
-      document.getElementById('result-avg-time').textContent = `${metrics.avgTimePerLevel}s`;
-      document.getElementById('result-rounds').textContent = `${gameState.currentRound}/${gameState.totalRounds}`;
+      document.getElementById('result-avg-time').textContent = metrics.avgTimePerLevel + 's';
+      document.getElementById('result-rounds').textContent = gameState.currentRound + '/' + gameState.totalRounds;
       document.getElementById('result-wrong').textContent = gameState.wrongAttempts;
-      document.getElementById('result-accuracy').textContent = `${metrics.accuracy}%`;
-      const starsDisplay = document.getElementById('stars-display');
+      document.getElementById('result-accuracy').textContent = metrics.accuracy + '%';
+
+      var starsDisplay = document.getElementById('stars-display');
       starsDisplay.innerHTML = '';
-      for (let i = 0; i < 3; i++) {
+      for (var i = 0; i < 3; i++) {
         starsDisplay.innerHTML += i < metrics.stars ? '⭐' : '☆';
       }
     }
 
     function formatTime(seconds) {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
+      var mins = Math.floor(seconds / 60);
+      var secs = seconds % 60;
+      return mins + ':' + (secs < 10 ? '0' : '') + secs;
     }
 
     function restartGame() {
@@ -885,29 +863,17 @@
         currentTime: null
       };
 
-      timer = new TimerComponent('timer-container', {
-        timerType: 'increase',
-        format: 'min',
-        startTime: 0,
-        autoStart: false
-      });
-
-      progressBar = new ProgressBarComponent({
-        autoInject: true,
-        totalRounds: 9,
-        totalLives: 3,
-        slotId: 'mathai-progress-slot'
-      });
-
+      timer = new TimerComponent('timer-container', { timerType: 'increase', format: 'min', startTime: 0, autoStart: false });
+      progressBar = new ProgressBarComponent({ autoInject: true, totalRounds: 9, totalLives: 3, slotId: 'mathai-progress-slot' });
       visibilityTracker = new VisibilityTracker({
-        onInactive: () => {
+        onInactive: function() {
           if (timer && timer.isRunning) timer.pause();
-          try { FeedbackManager.sound.stopAll(); } catch(e) {}
+          try { FeedbackManager.sound.stopAll(); } catch (e) {}
           gameState.duration_data.inActiveTime.push({ start: Date.now() });
         },
-        onResume: () => {
+        onResume: function() {
           if (timer && timer.isPaused && gameState.isActive) timer.resume();
-          const last = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+          var last = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
           if (last && !last.end) {
             last.end = Date.now();
             gameState.duration_data.totalInactiveTime += (last.end - last.start);
@@ -923,22 +889,12 @@
         iconSize: 'large',
         title: 'Adjustment Strategy',
         subtitle: 'Adjust numbers to add faster!',
-        buttons: [{ text: "Let's go!", type: 'primary', action: () => startGame() }]
+        buttons: [{ text: "Let's go!", type: 'primary', action: function() { startGame(); } }]
       });
     }
 
-    // === PART-008: PostMessage Protocol ===
-    function handlePostMessage(event) {
-      if (!event.data || event.data.type !== 'game_init') return;
-      try {
-        gameState.content = event.data.data.content;
-      } catch(e) {
-        console.error('PostMessage error:', JSON.stringify({ error: e.message }, null, 2));
-      }
-    }
-
-    // === PART-012: Debug Functions ===
-    window.debugGame = () => {
+    // PART-012: Debug Functions
+    window.debugGame = function() {
       console.log('Game State:', JSON.stringify({
         currentRound: gameState.currentRound,
         totalRounds: gameState.totalRounds,
@@ -955,13 +911,13 @@
         levelTimes: gameState.levelTimes
       }, null, 2));
     };
-    window.debugAudio = () => { console.log('FeedbackManager available:', typeof FeedbackManager !== 'undefined'); };
-    window.testAudio = async (id) => { try { await FeedbackManager.sound.play(id || 'correct_tap'); } catch(e) { console.error(JSON.stringify({ error: e.message }, null, 2)); } };
-    window.testPause = () => { if (timer) timer.pause(); };
-    window.testResume = () => { if (timer && gameState.isActive) timer.resume(); };
+    window.debugAudio = function() { console.log('FeedbackManager available:', typeof FeedbackManager !== 'undefined'); };
+    window.testAudio = async function(id) { try { await FeedbackManager.sound.play(id || 'correct_tap'); } catch (e) { console.error(JSON.stringify({ error: e.message }, null, 2)); } };
+    window.testPause = function() { if (timer) timer.pause(); };
+    window.testResume = function() { if (timer && gameState.isActive) timer.resume(); };
 
-    // === PART-004: Initialization Block ===
-    window.addEventListener('DOMContentLoaded', async () => {
+    // PART-004: Initialization Block
+    window.addEventListener('DOMContentLoaded', async function() {
       try {
         await waitForPackages();
         await FeedbackManager.init();
@@ -969,40 +925,33 @@
         try {
           await FeedbackManager.sound.register('correct_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740724945201.mp3');
           await FeedbackManager.sound.register('wrong_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740725080819.mp3');
-        } catch(e) { console.error('Sound registration error:', JSON.stringify({ error: e.message }, null, 2)); }
+        } catch (e) { console.error('Sound registration error:', JSON.stringify({ error: e.message }, null, 2)); }
 
-        // PART-025: ScreenLayout.inject to set up progress bar slot and transition screen slot
-        const layout = ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } });
-        const gameContent = document.getElementById('gameContent');
-        const gameTemplate = document.getElementById('game-template');
-        if (gameTemplate) gameContent.appendChild(gameTemplate.content.cloneNode(true));
+        // PART-025: ScreenLayout
+        ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } });
+        var gameContent = document.getElementById('gameContent');
+        var template = document.getElementById('game-template');
+        gameContent.appendChild(template.content.cloneNode(true));
 
-        timer = new TimerComponent('timer-container', {
-          timerType: 'increase',
-          format: 'min',
-          startTime: 0,
-          autoStart: false
-        });
+        // PART-006: TimerComponent
+        timer = new TimerComponent('timer-container', { timerType: 'increase', format: 'min', startTime: 0, autoStart: false });
 
-        progressBar = new ProgressBarComponent({
-          autoInject: true,
-          totalRounds: 9,
-          totalLives: 3,
-          slotId: 'mathai-progress-slot'
-        });
+        // PART-023: ProgressBarComponent
+        progressBar = new ProgressBarComponent({ autoInject: true, totalRounds: 9, totalLives: 3, slotId: 'mathai-progress-slot' });
 
+        // PART-024: TransitionScreenComponent
         transitionScreen = new TransitionScreenComponent({ autoInject: true });
 
         // PART-005: VisibilityTracker
         visibilityTracker = new VisibilityTracker({
-          onInactive: () => {
+          onInactive: function() {
             if (timer && timer.isRunning) timer.pause();
-            try { FeedbackManager.sound.stopAll(); } catch(e) {}
+            try { FeedbackManager.sound.stopAll(); } catch (e) {}
             gameState.duration_data.inActiveTime.push({ start: Date.now() });
           },
-          onResume: () => {
+          onResume: function() {
             if (timer && timer.isPaused && gameState.isActive) timer.resume();
-            const last = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+            var last = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
             if (last && !last.end) {
               last.end = Date.now();
               gameState.duration_data.totalInactiveTime += (last.end - last.start);
@@ -1010,26 +959,18 @@
           }
         });
 
-        // Attach static event listeners
-        document.getElementById('btn-reset').addEventListener('click', resetAdjustments);
-        document.getElementById('answer-input').addEventListener('input', onInputChange);
-        document.getElementById('btn-check').addEventListener('click', checkAnswer);
-        document.getElementById('btn-restart').addEventListener('click', restartGame);
+        // PART-008: Fallback + postMessage
+        if (!gameState.content) gameState.content = fallbackContent;
+        window.addEventListener('message', handlePostMessage);
 
-        // Use event delegation on adjuster-container for dynamically recreated buttons
-        document.getElementById('adjuster-container').addEventListener('click', function(e) {
-          const btn = e.target.closest('.adj-btn');
-          if (btn && btn.dataset.which && btn.dataset.dir) {
-            adjustNumber(btn.dataset.which, parseInt(btn.dataset.dir, 10));
-          }
+        transitionScreen.show({
+          icons: ['🧮'],
+          iconSize: 'large',
+          title: 'Adjustment Strategy',
+          subtitle: 'Adjust numbers to add faster!',
+          buttons: [{ text: "Let's go!", type: 'primary', action: function() { startGame(); } }]
         });
-
-        // Run initGame
-        initGame();
-
-      } catch(e) {
-        console.error('Init error:', JSON.stringify({ error: e.message }, null, 2));
-      }
+      } catch (e) { console.error('Init error:', JSON.stringify({ error: e.message }, null, 2)); }
     });
   </script>
 </body>

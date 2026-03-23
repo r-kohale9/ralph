@@ -462,6 +462,266 @@ describe('slack', () => {
     assert.ok(sentMessage.includes('Missing score display'));
   });
 
+  // ─── updateThreadOpener tests ──────────────────────────────────────────
+
+  /**
+   * Helper: load slack.js with a mock WebClient injected into the require cache.
+   * Returns { slack, mockChatUpdate } so callers can inspect calls.
+   */
+  function loadSlackWithMockWebClient() {
+    // Build a mock WebClient whose chat.update we can spy on
+    const calls = [];
+    function MockWebClient() {
+      this.chat = {
+        update: async (opts) => {
+          calls.push(opts);
+          return { ok: true };
+        },
+        postMessage: async (opts) => {
+          calls.push(opts);
+          return { ts: '9999.0001', channel: opts.channel };
+        },
+      };
+    }
+
+    // Inject the mock into the require cache under the @slack/web-api key
+    const apiKey = require.resolve('@slack/web-api');
+    require.cache[apiKey] = {
+      id: apiKey,
+      filename: apiKey,
+      loaded: true,
+      exports: { WebClient: MockWebClient },
+      children: [],
+      paths: [],
+    };
+
+    // Ensure slack.js is freshly loaded so it picks up the mock
+    delete require.cache[require.resolve('../lib/slack')];
+    process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+    process.env.SLACK_CHANNEL_ID = 'C_DEFAULT';
+
+    const slackMod = require('../lib/slack');
+    slackMod.init(); // wires up webClient = new MockWebClient(token)
+
+    return { slack: slackMod, calls };
+  }
+
+  function cleanupMockWebClient() {
+    try {
+      delete require.cache[require.resolve('@slack/web-api')];
+    } catch {
+      // module may not be resolvable in test env — ignore
+    }
+    delete process.env.SLACK_BOT_TOKEN;
+    delete process.env.SLACK_CHANNEL_ID;
+    delete require.cache[require.resolve('../lib/slack')];
+  }
+
+  it('updateThreadOpener: no-op when webClient is absent', async () => {
+    delete process.env.SLACK_BOT_TOKEN;
+    delete require.cache[require.resolve('../lib/slack')];
+    const s = require('../lib/slack');
+    // Should resolve without error — returns undefined
+    const result = await s.updateThreadOpener('1234.0', 'C123', 'mygame', { status: 'APPROVED' });
+    assert.equal(result, undefined);
+  });
+
+  it('updateThreadOpener: status=running uses 🔄 emoji and Running label', async () => {
+    const { slack, calls } = loadSlackWithMockWebClient();
+    try {
+      await slack.updateThreadOpener('1111.0', 'C123', 'doubles', {
+        status: 'running',
+        buildId: 42,
+        iterations: 0,
+      }, { currentStep: 'Step 2 · game-flow' });
+
+      assert.equal(calls.length, 1);
+      const call = calls[0];
+      assert.equal(call.channel, 'C123');
+      assert.equal(call.ts, '1111.0');
+      assert.ok(call.text.includes('🔄'), `Expected 🔄 in text, got: ${call.text}`);
+      assert.ok(call.text.includes('Running'), `Expected "Running" in text, got: ${call.text}`);
+      assert.ok(call.text.includes('doubles'), `Expected gameId in text, got: ${call.text}`);
+      assert.ok(Array.isArray(call.blocks), 'blocks should be an array');
+    } finally {
+      cleanupMockWebClient();
+    }
+  });
+
+  it('updateThreadOpener: status=APPROVED uses ✅ emoji and APPROVED label', async () => {
+    const { slack, calls } = loadSlackWithMockWebClient();
+    try {
+      await slack.updateThreadOpener('2222.0', 'C456', 'find-triangle-side', {
+        status: 'APPROVED',
+        buildId: 99,
+        iterations: 1,
+      });
+
+      assert.equal(calls.length, 1);
+      const call = calls[0];
+      assert.equal(call.channel, 'C456');
+      assert.equal(call.ts, '2222.0');
+      assert.ok(call.text.includes('✅'), `Expected ✅ in text, got: ${call.text}`);
+      assert.ok(call.text.includes('APPROVED'), `Expected "APPROVED" in text, got: ${call.text}`);
+      assert.ok(Array.isArray(call.blocks), 'blocks should be an array');
+    } finally {
+      cleanupMockWebClient();
+    }
+  });
+
+  it('updateThreadOpener: status=REJECTED uses 🔸 emoji and REJECTED label', async () => {
+    const { slack, calls } = loadSlackWithMockWebClient();
+    try {
+      await slack.updateThreadOpener('3333.0', 'C789', 'count-and-tap', {
+        status: 'REJECTED',
+        buildId: 77,
+        iterations: 3,
+      });
+
+      assert.equal(calls.length, 1);
+      const call = calls[0];
+      assert.equal(call.channel, 'C789');
+      assert.equal(call.ts, '3333.0');
+      assert.ok(call.text.includes('🔸'), `Expected 🔸 in text, got: ${call.text}`);
+      assert.ok(call.text.includes('REJECTED'), `Expected "REJECTED" in text, got: ${call.text}`);
+      assert.ok(Array.isArray(call.blocks), 'blocks should be an array');
+    } finally {
+      cleanupMockWebClient();
+    }
+  });
+
+  it('updateThreadOpener: status=FAILED uses ❌ emoji and FAILED label', async () => {
+    const { slack, calls } = loadSlackWithMockWebClient();
+    try {
+      await slack.updateThreadOpener('4444.0', 'CFAIL', 'which-ratio', {
+        status: 'FAILED',
+        buildId: 55,
+        iterations: 5,
+        errors: ['timeout after 5 iterations'],
+      });
+
+      assert.equal(calls.length, 1);
+      const call = calls[0];
+      assert.equal(call.channel, 'CFAIL');
+      assert.equal(call.ts, '4444.0');
+      assert.ok(call.text.includes('❌'), `Expected ❌ in text, got: ${call.text}`);
+      assert.ok(call.text.includes('FAILED'), `Expected "FAILED" in text, got: ${call.text}`);
+      assert.ok(Array.isArray(call.blocks), 'blocks should be an array');
+    } finally {
+      cleanupMockWebClient();
+    }
+  });
+
+  it('updateThreadOpener: falls back to default channel when channelId is null', async () => {
+    const { slack, calls } = loadSlackWithMockWebClient();
+    try {
+      await slack.updateThreadOpener('5555.0', null, 'mygame', {
+        status: 'APPROVED',
+        buildId: 1,
+        iterations: 0,
+      });
+
+      assert.equal(calls.length, 1);
+      // SLACK_CHANNEL_ID is set to 'C_DEFAULT' by loadSlackWithMockWebClient
+      assert.equal(calls[0].channel, 'C_DEFAULT');
+    } finally {
+      cleanupMockWebClient();
+    }
+  });
+
+  it('updateThreadOpener: uses publish.gameLink as latestHtmlUrl when present', async () => {
+    const { slack, calls } = loadSlackWithMockWebClient();
+    try {
+      await slack.updateThreadOpener('6666.0', 'CTEST', 'doubles', {
+        status: 'APPROVED',
+        buildId: 10,
+        iterations: 0,
+        publish: { gameLink: 'https://cdn.example.com/games/doubles/index.html', gameId: 'doubles' },
+      });
+
+      assert.equal(calls.length, 1);
+      // The blocks should include the publish gameLink somewhere
+      const blocksStr = JSON.stringify(calls[0].blocks);
+      assert.ok(blocksStr.includes('cdn.example.com'), `Expected publish gameLink in blocks, got: ${blocksStr}`);
+    } finally {
+      cleanupMockWebClient();
+    }
+  });
+
+  it('updateThreadOpener: handles chat.update errors gracefully', async () => {
+    const calls = [];
+    function MockWebClientThrows() {
+      this.chat = {
+        update: async () => { throw new Error('Slack API error'); },
+        postMessage: async (opts) => { calls.push(opts); return { ts: '0', channel: opts.channel }; },
+      };
+    }
+
+    let apiKey;
+    try {
+      apiKey = require.resolve('@slack/web-api');
+    } catch {
+      // @slack/web-api not installed in test env; skip this sub-test
+      return;
+    }
+
+    require.cache[apiKey] = {
+      id: apiKey, filename: apiKey, loaded: true,
+      exports: { WebClient: MockWebClientThrows }, children: [], paths: [],
+    };
+    delete require.cache[require.resolve('../lib/slack')];
+    process.env.SLACK_BOT_TOKEN = 'xoxb-error-test';
+    process.env.SLACK_CHANNEL_ID = 'C_ERR';
+
+    const s = require('../lib/slack');
+    s.init();
+
+    try {
+      // Should not throw — error is caught and logged internally
+      await s.updateThreadOpener('7777.0', 'C_ERR', 'mygame', { status: 'FAILED', buildId: 1 });
+    } finally {
+      cleanupMockWebClient();
+    }
+  });
+
+  it('updateThreadOpener: running status label includes currentStep', async () => {
+    const { slack, calls } = loadSlackWithMockWebClient();
+    try {
+      await slack.updateThreadOpener('8888.0', 'CSTEP', 'doubles', {
+        status: 'running',
+        buildId: 3,
+        iterations: 0,
+      }, { currentStep: 'Step 3 · accessibility · iter 1/5' });
+
+      assert.equal(calls.length, 1);
+      assert.ok(
+        calls[0].text.includes('Step 3 · accessibility · iter 1/5'),
+        `Expected currentStep in text, got: ${calls[0].text}`,
+      );
+    } finally {
+      cleanupMockWebClient();
+    }
+  });
+
+  it('updateThreadOpener: running status with no currentStep defaults to "in progress"', async () => {
+    const { slack, calls } = loadSlackWithMockWebClient();
+    try {
+      await slack.updateThreadOpener('9999.0', 'CNOPROG', 'doubles', {
+        status: 'running',
+        buildId: 5,
+        iterations: 0,
+      });
+
+      assert.equal(calls.length, 1);
+      assert.ok(
+        calls[0].text.includes('in progress'),
+        `Expected "in progress" in text when no currentStep, got: ${calls[0].text}`,
+      );
+    } finally {
+      cleanupMockWebClient();
+    }
+  });
+
   it('events handler responds ok for unknown event types', async () => {
     delete process.env.SLACK_SIGNING_SECRET;
     delete require.cache[require.resolve('../lib/slack')];

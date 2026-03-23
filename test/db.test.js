@@ -91,6 +91,105 @@ describe('db', () => {
     assert.equal(build.error_message, 'ralph.sh crashed');
   });
 
+  it('failBuild with null errorMessage stores sentinel (never NULL)', () => {
+    const id = db.createBuild('fail-null-msg', null);
+    db.failBuild(id, null);
+    const build = db.getBuild(id);
+    assert.equal(build.status, 'failed');
+    assert.ok(build.error_message, 'error_message must not be null even when caller passes null');
+    assert.ok(build.error_message.length > 0, 'error_message must be a non-empty string');
+  });
+
+  it('failBuild with undefined errorMessage stores sentinel (never NULL)', () => {
+    const id = db.createBuild('fail-undef-msg', null);
+    db.failBuild(id, undefined);
+    const build = db.getBuild(id);
+    assert.equal(build.status, 'failed');
+    assert.ok(build.error_message, 'error_message must not be null even when caller passes undefined');
+  });
+
+  it('failBuild with empty string errorMessage stores sentinel (never NULL)', () => {
+    const id = db.createBuild('fail-empty-msg', null);
+    db.failBuild(id, '');
+    const build = db.getBuild(id);
+    assert.equal(build.status, 'failed');
+    assert.ok(build.error_message, 'error_message must not be null even when caller passes empty string');
+  });
+
+  it('completeBuild sets error_message from report.errors for failed builds', () => {
+    const id = db.createBuild('fail-with-errors', null);
+    db.completeBuild(id, {
+      status: 'FAILED',
+      iterations: 0,
+      generation_time_s: 5,
+      total_time_s: 10,
+      test_results: [],
+      review_result: null,
+      models: {},
+      errors: ['HTML generation failed: claude -p exited with code 1'],
+    });
+    const build = db.getBuild(id);
+    assert.equal(build.status, 'failed');
+    assert.ok(build.error_message, 'error_message should not be null for failed builds with errors');
+    assert.ok(build.error_message.includes('HTML generation failed'));
+  });
+
+  it('completeBuild sets error_message from test results when errors array is empty', () => {
+    const id = db.createBuild('fail-no-errors', null);
+    db.completeBuild(id, {
+      status: 'FAILED',
+      iterations: 0,
+      generation_time_s: 30,
+      total_time_s: 120,
+      test_results: [
+        { batch: 'game-flow', iteration: 1, passed: 1, failed: 3 },
+        { batch: 'mechanics', iteration: 1, passed: 0, failed: 2 },
+      ],
+      review_result: 'SKIPPED',
+      models: {},
+      errors: [],
+    });
+    const build = db.getBuild(id);
+    assert.equal(build.status, 'failed');
+    assert.ok(build.error_message, 'error_message should be derived from test results');
+    assert.ok(build.error_message.includes('passed'));
+  });
+
+  it('completeBuild does not overwrite existing error_message (COALESCE)', () => {
+    const id = db.createBuild('fail-existing-err', null);
+    db.failBuild(id, 'pre-existing error');
+    db.completeBuild(id, {
+      status: 'FAILED',
+      iterations: 0,
+      generation_time_s: 5,
+      total_time_s: 10,
+      test_results: [],
+      review_result: null,
+      models: {},
+      errors: ['new error from completeBuild'],
+    });
+    const build = db.getBuild(id);
+    // COALESCE: existing error_message should not be overwritten
+    assert.equal(build.error_message, 'pre-existing error');
+  });
+
+  it('completeBuild does not set error_message for approved builds', () => {
+    const id = db.createBuild('approved-no-err', null);
+    db.completeBuild(id, {
+      status: 'APPROVED',
+      iterations: 3,
+      generation_time_s: 30,
+      total_time_s: 120,
+      test_results: [{ batch: 'game-flow', iteration: 3, passed: 5, failed: 0 }],
+      review_result: 'APPROVED',
+      models: {},
+      errors: [],
+    });
+    const build = db.getBuild(id);
+    assert.equal(build.status, 'approved');
+    assert.equal(build.error_message, null, 'approved builds should not have error_message');
+  });
+
   it('getRecentBuilds returns builds in order', () => {
     const builds = db.getRecentBuilds(5);
     assert.ok(Array.isArray(builds));
