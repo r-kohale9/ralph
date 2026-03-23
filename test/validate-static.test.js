@@ -4066,6 +4066,30 @@ describe('GEN-WORKED-EXAMPLE-TEARDOWN: worked-example panel button re-enable che
       `Unexpected GEN-WORKED-EXAMPLE-TEARDOWN warning for HTML with no worked-example logic: ${output}`,
     );
   });
+
+  it('suppressed when btn.disabled = false used to re-enable buttons', () => {
+    // Correct pattern using property assignment instead of removeAttribute
+    const html = VALID_HTML.replace(
+      'function endGame() {',
+      'function handleGotIt() {\n' +
+      '  var optionBtns = document.querySelectorAll(".option-btn");\n' +
+      '  optionBtns.forEach(function(btn) { btn.disabled = false; });\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "none";\n' +
+      '}\n' +
+      'function showWorkedExample() {\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "block";\n' +
+      '}\n' +
+      'function endGame() {',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-WORKED-EXAMPLE-TEARDOWN'),
+      `Unexpected GEN-WORKED-EXAMPLE-TEARDOWN warning when btn.disabled = false used: ${output}`,
+    );
+  });
 });
 
 // ─── GEN-ISPROCESSING-RESET ───────────────────────────────────────────────────
