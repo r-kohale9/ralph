@@ -1044,6 +1044,49 @@ describe('LP-1: progressBar.update() 2nd arg must not be totalRounds (GEN-112)',
   });
 });
 
+describe('GEN-112 false-positive regression: Math.max(0, lives) must NOT trigger 3-arg error', () => {
+  // stats-mean-direct build #575: progressBar.update(currentRound, Math.max(0, lives))
+  // was falsely flagged as a 3-arg call because the regex counted the comma inside Math.max().
+  // The paren-depth-aware arg counter must correctly identify this as a 2-arg call.
+
+  it('passes when 2nd arg is Math.max(0, gameState.lives)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); if (progressBar) progressBar.update(gameState.currentRound, Math.max(0, gameState.lives));',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      exitCode === 0 || !output.includes('3 args'),
+      `False positive: Math.max(0, lives) wrongly flagged as 3-arg call: ${output}`,
+    );
+  });
+
+  it('passes when 2nd arg is Math.max(0, lives) (shorthand)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(round, Math.max(0, lives));',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      exitCode === 0 || !output.includes('3 args'),
+      `False positive: Math.max(0, lives) shorthand wrongly flagged: ${output}`,
+    );
+  });
+
+  it('still fails when progressBar.update() has a genuine 3rd top-level arg', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(gameState.currentRound, gameState.totalRounds, gameState.lives);',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail for genuine 3-arg call but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('3 args'),
+      `Expected 3-arg error but got: ${output}`,
+    );
+  });
+});
+
 describe('TimerComponent slot not created by ScreenLayout (5f8)', () => {
   const cdnHtmlWithTimer = (slotsConfig) => `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>T</title><style>body{}</style></head>
