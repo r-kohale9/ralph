@@ -18,10 +18,16 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** expression-completer #511 DONE. Next target: check DB for next unaudited approved game.
-**Last completed:** face-memory #512 — 2026-03-23 — 0 P0 + 0 HIGH + 3 MEDIUM + 3 LOW; full browser playthrough (Playwright MCP, 375×812px); MEDIUM: results-screen position:static (GEN-UX-001, 15th instance); no aria-live (ARIA-001, 18th instance); gameId undefined (GEN-GAMEID, 6th browser instance); LOW: .feature-option divs not button elements (accessibility); no Enter key; FeedbackManager subtitle 6× (CDN); CSS intact PASS; "I'm ready!" 47px PASS; Play Again 44px PASS; Continue 47px PASS; feature-option 72px PASS; TransitionScreen object API PASS; ProgressBar slotId+totalLives PASS; syncDOMState on #app PASS; window.endGame/restartGame/nextRound PASS; data-testid option-0..3 PASS; game_complete postMessage PASS; Play Again state reset PASS; 3/3 rounds functional (difficulty scales 3→4 features); wrong answer life deduction PASS; 0 console errors PASS; no re-queue required
+**Current task:** truth-tellers-liars #510 DONE. Next target: disappearing-numbers #509 (most recently approved without ui-ux.md after truth-tellers-liars).
+**Last completed:** truth-tellers-liars #510 — 2026-03-23 — 0 P0 + 0 HIGH + 3 MEDIUM + 3 LOW; full browser playthrough (Playwright MCP); MEDIUM: timer always 00:00 (CDN TimerComponent sizing); no aria-live (ARIA-001, 19th instance); missing data-testid on result-time/result-accuracy (Test Engineering); LOW: Lottie loading.json 404 (CDN); no wrong-answer card reveal before transition (Education); FeedbackManager subtitle 4× (CDN); data-phase/lives/score/round on #app PASS; window.endGame/restartGame/nextRound PASS; data-testid btn-check/btn-restart/option-N/score-display/lives-display PASS; toggle cycle PASS; progress bar 0→1→2→3/3 PASS; difficulty scaling 2→3→4 chars PASS; restart full state reset PASS; 0 console errors PASS; no re-queue required
 **stats-which-measure postMessage:** VERIFIED 2026-03-23 — has events/duration/attempts all present. Cross-consistency fix applied to 4 other stats specs (stats-identify-class, stats-mean-direct, stats-median, stats-mode) — all were missing `events: gameState.events`; added to both impl call and Section 8 doc block.
 **Waiting on:** —
+
+### Batch 6 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | truth-tellers-liars | #510 | **full browser playthrough** 2026-03-23 — 0 P0s + 6 findings (3 MEDIUM, 3 LOW) | done — no re-queue required |
 
 ### Batch 5 — Completed 2026-03-23
 
