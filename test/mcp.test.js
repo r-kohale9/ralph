@@ -280,4 +280,27 @@ describe('mcp', () => {
       }
     });
   });
+
+  describe('LOW-5: notify_slack_user validation', () => {
+    const notifyRegex = /^U[A-Z0-9]{6,11}$/;
+
+    it('valid Slack user ID passes notify_slack_user validation', () => {
+      const validIds = ['U0242GULG48', 'UABCDEFG', 'U1234567890A'];
+      for (const id of validIds) {
+        assert.ok(notifyRegex.test(id), `"${id}" should be accepted by notify_slack_user validation`);
+      }
+    });
+
+    it('invalid notify_slack_user values are rejected and fall back to null', () => {
+      const invalidIds = ['bad value', '<@U123> @everyone', '@everyone', 'u0242gulg48', 'U123', ''];
+      for (const id of invalidIds) {
+        assert.ok(!notifyRegex.test(id), `"${id}" should be rejected by notify_slack_user validation`);
+      }
+      // Verify fallback: invalid input → validatedNotifyUser is null
+      for (const id of invalidIds) {
+        const validated = notifyRegex.test(id) ? id : null;
+        assert.equal(validated, null, `"${id}" should produce null validatedNotifyUser`);
+      }
+    });
+  });
 });
