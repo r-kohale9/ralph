@@ -11,7 +11,7 @@
 | [name-the-sides](name-the-sides/index.md) | Trig 1/5 | L2 Understand | ✅ Approved | #562 | 3 | ~35 min | ✅ 10 findings | — |
 | [which-ratio](which-ratio/index.md) | Trig 2/5 | L2 Understand | ✅ Approved | #561 | 3 | ~28 min | ⚠️ 3 P0s + 8 issues | Gen rules 45/46/47 shipped (c0d5391). Re-queue to verify P0 fixes (GEN-TRANSITION-API, GEN-TRANSITION-ICONS, GEN-PROGRESSBAR-LIVES) |
 | [soh-cah-toa-worked-example](soh-cah-toa-worked-example/index.md) | Trig 3/5 | L2 Understand | ✅ Approved | #544 | 1 | ~28 min | ⚠️ P0+5 findings | GEN-UX-001 confirmed (results not fixed), UI-SC-007 retracted |
-| [find-triangle-side](find-triangle-side/index.md) | Trig 4/5 | L3 Apply | ✅ Approved | #549 | 1 | ~28 min | ⚠️ 10 findings | — |
+| [find-triangle-side](find-triangle-side/index.md) | Trig 4/5 | L3 Apply | ✅ Approved | #549 | 1 | ~28 min | ⚠️ 1 P0 + 11 findings (browser playthrough 2026-03-23) | Re-queue: restartGame() not reset (P0); Enter key missing; local asset path |
 | [real-world-problem](real-world-problem/index.md) | Trig 5/5 | L4 Analyze | ✅ Approved | #564 | 2 | ~32 min | ✅ 8 findings | — |
 | [associations](associations/index.md) | Standalone | TBD | ✅ Approved | #472 | 2 | ~29 min | ✅ 5 findings | — |
 | [count-and-tap](count-and-tap/index.md) | Standalone | L1 Remember | ✅ Approved | #551 | 2 | ~30 min | ⚠️ 7 findings | — |

@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** find-triangle-side #549 — browser playthrough (next in Batch 3)
-**Last completed:** which-ratio #561 — 2026-03-23 — 2 new P0s (victory screen blank + SVG icon text) + 1 new medium (ProgressBar RangeError) + 7 confirmed from static analysis; re-queue required
+**Current task:** real-world-problem #564 — browser playthrough (Batch 3 row 3)
+**Last completed:** find-triangle-side #549 — 2026-03-23 — 1 P0 (restartGame() not reset) + 11 findings (2 new: Enter key, restart reset); 2 static findings retracted; re-queue required
 **Waiting on:** none
 
 ### Batch 2 — Completed 2026-03-23
@@ -36,7 +36,7 @@ Track visual and interaction quality audits of generated games. Each entry recor
 | Priority | Game | Build ID | ui-ux.md state | Status |
 |----------|------|----------|----------------|--------|
 | 1 | which-ratio | #561 | **full browser playthrough** 2026-03-23 — 2 P0s + 8 issues | done — re-queue required |
-| 2 | find-triangle-side | #549 | static analysis done (⚠️ 10 findings) | pending |
+| 2 | find-triangle-side | #549 | **full browser playthrough** 2026-03-23 — 1 P0 + 11 findings | done — re-queue required |
 | 3 | real-world-problem | #564 | static analysis done (✅ 8 findings) | pending |
 
 **Stub inventory (ui-ux.md exists but unpopulated — pending future batches):**
@@ -68,7 +68,7 @@ addition-mcq
 | 2026-03-23 | which-ratio | #561 | **10 issues (5a, 2b, 1c, 2 NEW P0) — FULL BROWSER PLAYTHROUGH** | P0-A: `transitionScreen.show('victory',...)` not supported by CDN — victory screen blank, no Play Again. P0-B: SVG markup in `icons[]` HTML-escaped, start screen shows raw code. NEW medium: `totalLives:0` → ProgressBar RangeError ×5. Confirmed: we-btn 40.5px (<44px FAIL), aria-live absent, correct-feedback 1200ms. Re-queue required after gen prompt rule fixes. |
 | 2026-03-23 | which-ratio | #561 | 7 issues (4a, 2b, 1c) | CSS stripping resolved; 4 gen prompt rules confirmed pending in ROADMAP.md; 2 spec additions proposed; 1 CDN constraint unchanged |
 | 2026-03-23 | count-and-tap | #551 | 7 issues (4a, 1b, 2 low) | CSS strip CRITICAL confirmed; ARIA-001 extension proposed; 44px gap confirmed 3rd instance; dead-code guard new rule proposed; dot-warning spec addition; all handoffs routed |
-| 2026-03-23 | find-triangle-side | #549 | 10 issues (6a, 2b, 2 low) | Results static CRITICAL confirmed 2nd instance; 4 new gen rules added to ROADMAP (slot ID, local assets, SignalCollector args, results fixed); ARIA-001 coverage verified; all handoffs routed |
+| 2026-03-23 | find-triangle-side | #549 | **12 issues (8a, 0b, 2 retracted) — FULL BROWSER PLAYTHROUGH** | P0 (NEW): restartGame() does not reset gameState — lives=2, round=5, score=50 retained after Play Again (2nd confirmed instance of UI-QF-NEW-001 pattern). NEW medium: Enter key not bound on numeric input. UI-FTS-005 (local asset) browser-confirmed: broken SVG icon text overlays restart start screen. All 7 static-analysis UI-FTS-001–007 confirmed. UI-FTS-008 RETRACTED (formula overflow not observed on 480px). UI-FTS-009 PARTIALLY RETRACTED (heading shows "Great Job!" not always "Congratulations!"). Results: position:static, rectTop:45px, coversViewport:false. aria-live:[]. Buttons 39px. Re-queue required. |
 | 2026-03-23 | quadratic-formula-worked-example | #546 | P0+5 findings (1P0, 1P1, 3 confirmed-from-static) | **P0 UI-QF-001: results screen off-screen** — body flex-row layout pushes #results-screen out of viewport; computed width 208px, position:static, z-index:auto. GEN-UX-001 already shipped. **P1 UI-QF-NEW-001: restartGame() doesn't reset full gameState** — lives/currentRound/score/attempts not reset; second session starts wrong. New gen rule added to ROADMAP. 3 browser-confirmed: ARIA-001 absent (#faded-feedback + #practice-feedback ariaLive:null), ProgressBar wrong slotId ('mathai-progress-bar-slot'), .btn-option min-height:auto. 8/12 critical rules PASS: data-phase transitions, data-lives deduction, data-round increment, game flow, CDN load, zero PAGEERRORs. Full browser playthrough complete: 3 rounds × 3 sub-phases, wrong answers tested in both phases, results + restart tested. |
 | 2026-03-23 | quadratic-formula-worked-example | #546 | **11 issues (6a, 0b, 1c, 4 low) — FULL BROWSER PLAYTHROUGH** | 4 FAIL / 8 PASS on gen rules. P0 (browser-confirmed): results-screen renders off-screen as body flex-sibling (~209px wide) — ScreenLayout sets body flex-row, position:static is broken; GEN-UX-001 4th+ instance. ARIA-001 confirmed (both feedback divs ariaLive:null). Slot ID wrong ('mathai-progress-bar-slot'). min-height:auto on .btn-option (45px computed only). NEW: restartGame() doesn't reset lives/round/score (data-lives=2, data-round=3 after restart). All handoffs routed to Gen Quality + Test Engineering. |
 | 2026-03-23 | soh-cah-toa-worked-example | #544 | 7 issues (5a, 1b, 1 low) | CSS intact — cleanest build in batch; results not fixed (4th); ARIA-001 (5th); slot ID options missing key; min-height 44px (5th); hide()/show() string selector bug found; formula accessibility spec addition |
