@@ -117,7 +117,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-052 LP-2 + CR-053 DONE (04cd9f8, deployed GCP). Next: CR-049 checkResultsScreenViewport internal waitForSelector guard. |
+| Current task | CR-049 checkResultsScreenViewport internal waitForSelector DONE (pipeline-test-gen.js). Next: Lives games must sync data-lives to DOM (gen prompt rule). |
 | Status | T1 re-validation on targeted fix HTML: DONE (0f84035, 2026-03-23) — after each fix iteration, T1 static validation runs on patched HTML; T1 errors cause fix retry (up to 2 attempts); graceful fallback if T1 still fails. 1065/1065 tests pass. |
 | Waiting on | none |
 | Blocked by | none |
