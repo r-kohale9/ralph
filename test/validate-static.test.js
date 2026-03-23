@@ -3212,4 +3212,82 @@ describe('GEN-PHASE-MCQ: MCQ/timed games must call syncDOMState() at all phase t
       `Unexpected GEN-PHASE-INIT warning for HTML without data-phase: ${output}`,
     );
   });
+
+  // ─── GEN-PHASE-SEQUENCE tests ──────────────────────────────────────────────
+  // Helper: minimal CDN-style HTML with a custom endGame body for GEN-PHASE-SEQUENCE testing
+  function makeEndGameHtml(endGameBody) {
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Test</title><style>body{}</style></head>
+<body><div id="app"></div><div id="gameContent"></div>
+<script>
+window.gameState = { score: 0, lives: 3, totalLives: 3, phase: 'start', gameEnded: false, isActive: true, currentRound: 0, totalRounds: 3, events: [], attempts: [] };
+var gameState = window.gameState;
+function calcStars(outcome) { if(outcome==='game_over') return 0; var pct=gameState.score/gameState.totalRounds; return pct>=0.8?3:pct>=0.5?2:1; }
+function syncDOMState() { var app=document.getElementById('app'); if(!app) return; app.dataset.phase=gameState.phase||'start'; app.dataset.lives=String(gameState.lives); }
+${endGameBody}
+function restartGame() { gameState.gameEnded=false; gameState.phase='start'; syncDOMState(); }
+function nextRound() { gameState.currentRound++; }
+window.addEventListener('DOMContentLoaded', async function() {
+  try {
+    ScreenLayout.inject('app', { slots: { transitionScreen: true } });
+    window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound;
+  } catch(e) { window.__initError = e.message; }
+});
+</script></body></html>`;
+  }
+
+  it('GEN-PHASE-SEQUENCE: warns when endGame() calls syncDOMState() without assigning gameState.phase first', () => {
+    // Simulates LLM pattern from GEN-PM-DUAL-PATH WRONG: syncDOMState() called but phase not set
+    const html = makeEndGameHtml(`function endGame(reason) {
+  if (gameState.gameEnded) return; gameState.gameEnded = true; gameState.isActive = false;
+  syncDOMState();
+  window.parent.postMessage({ type: 'game_complete', data: { metrics: { score: gameState.score, stars: calcStars(reason), accuracy: 1 } } }, '*');
+}`);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-PHASE-SEQUENCE'),
+      `Expected GEN-PHASE-SEQUENCE warning when syncDOMState() is called without phase assignment but got: ${output}`,
+    );
+  });
+
+  it('GEN-PHASE-SEQUENCE: warns when endGame() assigns phase AFTER syncDOMState()', () => {
+    // Phase assigned after syncDOMState — still wrong ordering
+    const html = makeEndGameHtml(`function endGame(reason) {
+  if (gameState.gameEnded) return; gameState.gameEnded = true; gameState.isActive = false;
+  syncDOMState();
+  gameState.phase = reason === 'victory' ? 'results' : 'gameover';
+  window.parent.postMessage({ type: 'game_complete', data: { metrics: { score: gameState.score, stars: calcStars(reason), accuracy: 1 } } }, '*');
+}`);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-PHASE-SEQUENCE'),
+      `Expected GEN-PHASE-SEQUENCE warning when phase is assigned after syncDOMState() but got: ${output}`,
+    );
+  });
+
+  it('GEN-PHASE-SEQUENCE: does NOT warn when endGame() assigns phase BEFORE syncDOMState()', () => {
+    // Correct order: phase assigned first, then syncDOMState()
+    const html = makeEndGameHtml(`function endGame(reason) {
+  if (gameState.gameEnded) return; gameState.gameEnded = true; gameState.isActive = false;
+  gameState.phase = reason === 'victory' ? 'results' : 'gameover';
+  syncDOMState();
+  window.parent.postMessage({ type: 'game_complete', data: { metrics: { score: gameState.score, stars: calcStars(reason), accuracy: 1 } } }, '*');
+}`);
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-PHASE-SEQUENCE'),
+      `Unexpected GEN-PHASE-SEQUENCE warning for correct phase-before-sync pattern: ${output}`,
+    );
+  });
+
+  it('GEN-PHASE-SEQUENCE: does NOT warn when endGame() does not call syncDOMState() at all', () => {
+    // endGame with no syncDOMState — different issue, not covered by this check
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-PHASE-SEQUENCE'),
+      `Unexpected GEN-PHASE-SEQUENCE warning for endGame without syncDOMState: ${output}`,
+    );
+  });
 });
