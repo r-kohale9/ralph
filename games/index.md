@@ -4,6 +4,10 @@
 
 | Game | Session | Bloom | Status | Build # | Iter | Build Time | UI/UX | Next Action |
 |------|---------|-------|--------|---------|------|------------|-------|-------------|
+| [stats-identify-class](stats-identify-class/index.md) | Stats 1/4 | L1 Remember | 📝 Spec ready | — | — | — | ✅ 6 findings | Human review before queuing |
+| [stats-mean-direct](stats-mean-direct/index.md) | Stats 2/4 | L2-L3 Apply | 📝 Spec ready | — | — | — | ✅ 2 findings | Human review before queuing |
+| [stats-median](stats-median/index.md) | Stats 3/4 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
+| [stats-mode](stats-mode/index.md) | Stats 4/4 | L3 Apply | 📝 Spec ready | — | — | — | ⏳ Auditing | Human review before queuing |
 | [name-the-sides](name-the-sides/index.md) | Trig 1/5 | L2 Understand | ✅ Approved | #562 | 3 | ~35 min | ❌ Pending | — |
 | [which-ratio](which-ratio/index.md) | Trig 2/5 | L2 Understand | ✅ Approved | #561 | 3 | ~28 min | ⚠️ 8 issues | — |
 | [soh-cah-toa-worked-example](soh-cah-toa-worked-example/index.md) | Trig 3/5 | L2 Understand | ✅ Approved | #544 | 1 | ~28 min | ❌ Pending | — |
@@ -20,11 +24,25 @@
 | [math-mcq-quiz](math-mcq-quiz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [mcq-addition-blitz](mcq-addition-blitz/index.md) | Standalone | TBD | TBD | — | — | — | ⚠️ 9 issues | Audited 2026-03-23 (6a 2b 1d) |
 
-*Updated: 2026-03-23 — real-world-problem #564 APPROVED, #565 APPROVED; name-the-sides re-approved #562; which-ratio APPROVED #561; mcq-addition-blitz + addition-mcq audited*
+*Updated: 2026-03-23 — Statistics Session 2 all 4 specs written (stats-identify-class, stats-mean-direct, stats-median, stats-mode); real-world-problem #564 APPROVED; name-the-sides re-approved #562; which-ratio APPROVED #561*
 
 ---
 
 ## Sessions
+
+### Statistics (4 games, Bloom L1→L3) — 📝 Specs written (2026-03-23)
+
+*Session goal: learner progresses from identifying measures of central tendency (L1) through computing mean (L2-L3) → median (L3) → mode for grouped data (L3).*
+*All 4 specs written with research citations. Awaiting human review before first builds.*
+
+| # | Game | Bloom | Status | Notes |
+|---|------|-------|--------|-------|
+| 1 | [stats-identify-class](stats-identify-class/index.md) | L1 Remember | 📝 Spec ready | MCQ: identify mean/median/mode from description; GAME_COMPLETE fixed pre-build |
+| 2 | [stats-mean-direct](stats-mean-direct/index.md) | L2-L3 Apply | 📝 Spec ready | Compute mean of small dataset; 4 misconception distractors; timer 45s |
+| 3 | [stats-median](stats-median/index.md) | L3 Apply | 📝 Spec ready | Find median (odd/even n, sort-first); M-no-sort primary distractor |
+| 4 | [stats-mode](stats-mode/index.md) | L3 Apply | 📝 Spec ready | Ungrouped single/bimodal + grouped NCERT formula; dual display mode |
+
+---
 
 ### SOH-CAH-TOA Trigonometry (5 games, Bloom L2→L4) — ✅ COMPLETE (2026-03-23)
 
