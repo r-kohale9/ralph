@@ -2648,3 +2648,11 @@ Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug
 
 **Rule:** All early-exit paths in pipeline.js must: (1) push errors to `report.errors`, (2) call `writeReport()`, (3) return `report` (not throw). The default `report.status = 'FAILED'` is picked up correctly by worker.js without needing an exception.
 
+## Lesson 205 — Fix loop never called fixCdnDomainsInFile after LLM HTML writes (CR-070) (2026-03-23)
+
+**Source:** Code Review CR-070 | **Fix:** commit b87189a
+
+**Problem:** `fixCdnDomainsInFile` and `fixCdnPathsInFile` are defined in `pipeline.js` and called after every LLM HTML write there, but were never passed to `runFixLoop` via `ctx`. Two paths in `pipeline-fix-loop.js` were affected: (1) the warehouse-regen path (stale-init-failure recovery, ~line 891) wrote LLM-regenerated HTML and called `injectHarnessToFile` but not the CDN domain fixers — regenerated HTML could land on disk with wrong CDN domains; (2) the main per-iteration fix write (~line 1450) similarly skipped CDN cleanup after every LLM fix application.
+
+**Rule:** Any new LLM HTML write path added to `pipeline-fix-loop.js` must call `ctx.fixCdnDomainsInFile` and `ctx.fixCdnPathsInFile` (with guards) immediately after `fs.writeFileSync`, before `injectHarnessToFile`. Rollback/snapshot-restore paths are safe (they restore from already-CDN-fixed snapshots). Add functions to `ctx` in `pipeline.js` at the `runFixLoop` call site.
+
