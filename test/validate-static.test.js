@@ -2824,6 +2824,62 @@ describe('GEN-RESULTS-FIXED: #results-screen must have position:fixed (GEN-UX-00
   });
 });
 
+describe('GEN-RESULTS-ROUNDS: multi-round games must have rounds-completed element', () => {
+  it('does not warn when totalRounds + results-screen + rounds-completed are all present', () => {
+    // Correct pattern: multi-round game with rounds-completed element in results screen
+    const html = VALID_HTML.replace(
+      'let gameState = { score: 0, total: 0, currentQuestion: 0, totalQuestions: 10 };',
+      'let gameState = { score: 0, currentRound: 0, totalRounds: 9, totalQuestions: 10 };',
+    ).replace(
+      '</div>\n<script>',
+      `</div>
+  <div id="results-screen"><p id="final-score">Score: 0</p><p id="rounds-completed">Rounds: 0/9</p></div>
+<script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-RESULTS-ROUNDS'),
+      `Unexpected GEN-RESULTS-ROUNDS warning when rounds-completed is present: ${output}`,
+    );
+  });
+
+  it('warns when totalRounds + results-screen present but no rounds-completed element', () => {
+    // Bad pattern: multi-round game missing rounds-completed element
+    const html = VALID_HTML.replace(
+      'let gameState = { score: 0, total: 0, currentQuestion: 0, totalQuestions: 10 };',
+      'let gameState = { score: 0, currentRound: 0, totalRounds: 9, totalQuestions: 10 };',
+    ).replace(
+      '</div>\n<script>',
+      `</div>
+  <div id="results-screen"><p id="final-score">Score: 0</p></div>
+<script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-RESULTS-ROUNDS'),
+      `Expected GEN-RESULTS-ROUNDS warning when rounds-completed missing but got: ${output}`,
+    );
+  });
+
+  it('does not warn when no totalRounds present (lives-only game carve-out)', () => {
+    // Lives-only games have no totalRounds — rule does not apply
+    const html = VALID_HTML.replace(
+      '</div>\n<script>',
+      `</div>
+  <div id="results-screen"><p id="final-score">Score: 0</p></div>
+<script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-RESULTS-ROUNDS'),
+      `Unexpected GEN-RESULTS-ROUNDS warning for lives-only game (no totalRounds): ${output}`,
+    );
+  });
+});
+
 describe('GEN-TRANSITION-API-CALL: transitionScreen.show() string-mode API check (5h2)', () => {
   it('emits ERROR when transitionScreen.show() is called with single-quote string first arg', () => {
     // String-mode call: transitionScreen.show('victory', ...) — no string API in CDN
