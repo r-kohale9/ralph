@@ -550,7 +550,7 @@ function startGame() {
   syncDOMState();                   // GEN-PHASE-001 MANDATORY
   transitionScreen.hide();
   document.getElementById('game-area').style.display = 'block';
-  progressBar.setLives(3);
+  progressBar.update(0, 3);          // reset display: round 0, lives 3
   loadQuestion(1);
 }
 ```
@@ -589,7 +589,7 @@ function loadQuestion(roundNumber) {
   feedbackEl.classList.add('hidden');
 
   // Update progress bar
-  progressBar.setRound(roundNumber);
+  progressBar.update(roundNumber, gameState.lives);  // (currentRound, livesRemaining) — 2 args
   syncDOMState();
 
   // (Re)start timer
@@ -648,7 +648,7 @@ function handleOptionSelect(index, selectedOption) {
   } else {
     gameState.lives--;
     gameState.incorrectAnswers++;
-    progressBar.loseLife();
+    progressBar.update(gameState.currentRound, Math.max(0, gameState.lives));
     syncDOMState();
     FeedbackManager.sound('incorrect');
   }
@@ -689,7 +689,7 @@ function handleTimeout() {
 
   gameState.lives--;
   gameState.incorrectAnswers++;
-  progressBar.loseLife();
+  progressBar.update(gameState.currentRound, Math.max(0, gameState.lives));
   syncDOMState();
   FeedbackManager.sound('incorrect');
 
@@ -1092,7 +1092,9 @@ progressBar = new ProgressBarComponent({
 });
 ```
 
-**`slotId: 'mathai-progress-slot'` is MANDATORY.** The CDN injects the progress bar into the DOM slot with this ID. A missing or wrong `slotId` causes the progress bar to never render, and `progressBar.loseLife()` / `progressBar.setRound()` to throw.
+**`slotId: 'mathai-progress-slot'` is MANDATORY.** The CDN injects the progress bar into the DOM slot with this ID. A missing or wrong `slotId` causes the progress bar to never render.
+
+**ProgressBarComponent API (CORRECT):** `progressBar.update(currentRound, livesRemaining)` — 2 args. Never call `progressBar.setRound()`, `progressBar.setLives()`, or `progressBar.loseLife()` — these methods do NOT exist and will throw `TypeError: progressBar.X is not a function` → blank page.
 
 ---
 
@@ -1175,4 +1177,4 @@ The LLM generating this game MUST verify each item before finalising the HTML:
 12. **Do NOT forget `#results-screen { position: fixed; z-index: 100 }`** — without this the results screen renders behind other elements and is invisible to Playwright.
 13. **Do NOT reset `gameState.gameEnded = false` without also resetting all other state** — `restartGame()` calls `startGame()` which must reset ALL fields (lives, score, currentRound, correctAnswers, incorrectAnswers, attempts, events, gameEnded).
 14. **Do NOT call `timer.start()` before the timer is attached to the DOM** — `#timer-container` must exist in the DOM at the point `new TimerComponent('timer-container', ...)` is called. In this game, the timer is initialised in DOMContentLoaded after `waitForPackages`, so the container is always present.
-15. **Do NOT forget `progressBar.setRound(roundNumber)` in `loadQuestion()`** — if omitted, the progress bar never advances and tests asserting round count in the progress bar will fail.
+15. **Do NOT forget `progressBar.update(roundNumber, gameState.lives)` in `loadQuestion()`** — if omitted, the progress bar never advances and tests asserting round count in the progress bar will fail. Use `update(currentRound, livesRemaining)` — never `setRound()` or `setLives()` (hallucinated methods that do not exist).
