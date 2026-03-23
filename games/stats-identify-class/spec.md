@@ -673,7 +673,8 @@ function advanceRound() {
       livesRemaining: gameState.lives,
       isVictory: isVictory,
       duration: Date.now() - gameState.startTime,
-      attempts: gameState.attempts
+      attempts: gameState.attempts,
+      events: gameState.events
     }, '*')
 - if (isVictory): transitionScreen.show({ title: 'Well done!', subtitle: 'You identified every measure correctly.', icons: ['🌟'], buttons: [{ label: 'Play again', action: 'restart', style: 'primary' }] })
   else:           transitionScreen.show({ title: 'Game Over', subtitle: 'Keep practising — knowing when to use Mean, Median, or Mode takes time.', icons: ['💔'], buttons: [{ label: 'Try again', action: 'restart', style: 'primary' }] })
@@ -1049,14 +1050,16 @@ window.parent.postMessage({
 // Send on game end:
 window.parent.postMessage({
   type: 'game_complete',
-  payload: {
-    score: gameState.score,
-    totalRounds: gameState.totalRounds,
-    firstAttemptCorrect: gameState.totalFirstAttemptCorrect,
-    stars: computeStars(gameState.totalFirstAttemptCorrect),
-    duration: Date.now() - gameState.startTime,
-    events: gameState.events
-  }
+  gameId: 'stats-identify-class',
+  score: gameState.score,
+  stars: starsEarned,
+  firstAttemptAccuracy: Math.round((gameState.totalFirstAttemptCorrect / gameState.totalRounds) * 100),
+  roundsCompleted: gameState.currentRound,
+  livesRemaining: gameState.lives,
+  isVictory: isVictory,
+  duration: Date.now() - gameState.startTime,
+  attempts: gameState.attempts,
+  events: gameState.events
 }, '*');
 ```
 

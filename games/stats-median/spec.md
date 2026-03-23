@@ -878,7 +878,8 @@ function endGame(isVictory) {
     livesRemaining: gameState.lives,
     isVictory: isVictory,
     duration: Date.now() - gameState.startTime,
-    attempts: gameState.attempts
+    attempts: gameState.attempts,
+    events: gameState.events
   }, '*');
 
   // Show transition screen
@@ -1110,7 +1111,8 @@ window.parent.postMessage({
   livesRemaining: gameState.lives,
   isVictory: isVictory,
   duration: Date.now() - gameState.startTime,
-  attempts: gameState.attempts
+  attempts: gameState.attempts,
+  events: gameState.events
 }, '*');
 ```
 
