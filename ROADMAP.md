@@ -217,7 +217,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-044+CR-045 fixes committed (pipeline-fix-loop.js) — global-fix regression guard + T1 baseline null-check. Next: data-testid/id alignment rule or Sentry SDK v10.23.0 pattern. |
+| Current task | GEN-TRANSITION-ICONS rule confirmed — local asset path ban already in GEN-TRANSITION-ICONS (rule 46) + GEN-LOCAL-ASSETS (rule 49) across all 3 prompt locations. Next: secondary/utility buttons min-height 44px rule (ESCALATE — 3 audit instances). |
 | Status | Rules 53 (GEN-ENDGAME-GUARD), 53b (GEN-DATA-LIVES-GUARD b66270a), 54 (GEN-RESULTS-FIXED 290e1d9) all shipped + deployed GCP 2026-03-23. |
 | Waiting on | Next agent commits — monitor for deploys needed |
 | Blocked by | none |
