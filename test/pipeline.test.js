@@ -1953,14 +1953,58 @@ describe('buildTestGenCategoryPrompt — M16: .option-btn touch target rule', ()
     );
   });
 
-  it('includes both .choice-btn and .option-btn patterns in M16 rule', () => {
-    const domSnapshot = `<div id="app"></div>`;
+  it('M16 rule text is always emitted for mechanics category (contains all three selector patterns)', () => {
+    // CR-001 fix: previous test passed an empty DOM snapshot — this test verifies the static
+    // rule text itself is present for any mechanics prompt, regardless of DOM snapshot content.
+    const domSnapshot = `<div id="app">
+  <button class="choice-btn">Choice A</button>
+  <button class="option-btn">Option A</button>
+</div>`;
     const prompt = buildTestGenCategoryPrompt({ ...baseOpts, domSnapshot });
     assert.ok(prompt.includes('.choice-btn'), 'M16 must mention .choice-btn');
     assert.ok(prompt.includes('.option-btn'), 'M16 must mention .option-btn');
+    assert.ok(prompt.includes('.answer-btn'), 'M16 must mention .answer-btn');
     assert.ok(
       prompt.includes('toBeGreaterThanOrEqual(44)') || prompt.includes('44'),
       'M16 must include 44px assertion',
+    );
+  });
+
+  it('includes .answer-btn pattern in M16 rule when .answer-btn present in DOM snapshot', () => {
+    // CR-002: .answer-btn was previously carved out of M16 — now covered
+    const domSnapshot = `<div id="app" data-phase="playing">
+  <button class="answer-btn">True</button>
+  <button class="answer-btn">False</button>
+</div>`;
+    const prompt = buildTestGenCategoryPrompt({ ...baseOpts, domSnapshot });
+    assert.ok(
+      prompt.includes('.answer-btn'),
+      'M16 rule must reference .answer-btn when it appears in the DOM snapshot',
+    );
+    assert.ok(
+      prompt.includes('ansBtn') || prompt.includes('answer-btn'),
+      'M16 rule must include .answer-btn locator pattern',
+    );
+    assert.ok(
+      prompt.includes('GEN-UX-002') || prompt.includes('44'),
+      'M16 .answer-btn pattern must reference 44px touch target (GEN-UX-002)',
+    );
+  });
+
+  it('includes .answer-btn minHeight assertion using getComputedStyle in M16 rule', () => {
+    // CR-002: .answer-btn uses CSS minHeight (getComputedStyle) rather than getBoundingClientRect
+    // because GEN-UX-002 mandates the CSS property itself, not just the rendered height
+    const domSnapshot = `<div id="app" data-phase="playing">
+  <button class="answer-btn">Submit</button>
+</div>`;
+    const prompt = buildTestGenCategoryPrompt({ ...baseOpts, domSnapshot });
+    assert.ok(
+      prompt.includes('getComputedStyle') || prompt.includes('minHeight'),
+      'M16 .answer-btn assertion must use getComputedStyle to check CSS minHeight (GEN-UX-002)',
+    );
+    assert.ok(
+      prompt.includes('toBeGreaterThanOrEqual(44)') || prompt.includes('44'),
+      'M16 .answer-btn assertion must enforce 44px minimum',
     );
   });
 
