@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | M16 .option-btn SHIPPED (a8524a0, 986 tests). Investigating `unknown` batch (33%, 154/466 tests) — root cause agent running. Analytics confirmed from builds.test_results JSON — prod data. Failure_patterns table also tracked: rendering 30 > unknown 28 > scoring 16 > messaging 9. |
-| Status | 986/986 tests pass. First-attempt rate: 47.9% (45/94 approved). |
-| Waiting on | unknown category root cause agent result |
+| Current task | M16 .option-btn SHIPPED + deployed (a8524a0, 986 tests). `unknown` 33% diagnosed — HISTORICAL ARTIFACT (builds #1–51 pre-categorization, no batch field). No pipeline fix needed. Next: game-flow 63% root cause (analytics agent running). |
+| Status | 986/986 tests pass. First-attempt rate: 47.9% (45/94). True current category rates: game-flow 63% > LP 67% > mechanics 68% > contract 69% > edge-cases 70%. |
+| Waiting on | game-flow root cause agent result |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
@@ -494,8 +494,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Reviewed 188bbaa (CR-013/008/009/012 — CLI path GEN-WINDOW-EXPOSE, ARIA assertive AND→OR, short-form diff, renderRound alias) + 3154415 (CR-015 worker.js try/catch) — 2026-03-23 |
-| Waiting on | unblocked — next review: GEN-CR-004 impl when shipped |
+| Current task | Reviewed 188bbaa (CR-013/008/009/012) + 3154415 (CR-015) — PASS. CR-017 [LOW]: 3154415 loop-guard-inside-try is behavioral improvement, no action. Next review: a8524a0 (M16 .option-btn) + 044f903 (stats specs). |
+| Waiting on | unblocked |
 | Blocked by | none |
 
 **Log:**
@@ -565,8 +565,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | stats-identify-class spec written (2026-03-23) — Session 2 Game 1, Bloom L1 MCQ, 9 rounds, 5 Exa sources. Ready for review before queuing. Next: stats-mean-direct spec (Session 2 Game 2, Bloom L2-L3). |
-| Status | Phase 5 DONE (2026-03-23). writeSessionDirectory() produced session-plan.md + 5×spec-instructions.md. generateSessionSpecs() dryRun confirmed 5/5 games have template specs. spec.md files adapted: L1–L4 Bloom levels, NCERT citations (Ch8 §8.1-8.2, Ch9 §9.1), session positions, misconception evidence from 6 peer-reviewed sources embedded in each spec header. Proxy not running locally — spec adaptation done directly (same logical output as callLlm). Note: validate-static.js applies to generated HTML, not .md assembly specs. |
+| Current task | stats-mean-direct spec DONE (044f903) — Session 2 Game 2, Bloom L2-L3, 9 rounds, 4-misconception distractor design, 4 Exa sources. stats-identify-class UI/UX audit complete (6 findings, F1 GAME_COMPLETE fixed in spec). Next: stats-median spec (Session 2 Game 3, Bloom L3). |
+| Status | stats-identify-class: F1 FIXED (game_complete type), F2 (restartGame missing — spec addition needed before queue), F3/F5/F6 gen rules already shipped. stats-mean-direct: all 11 gen rules verified. |
 | Waiting on | Human review of stats-identify-class spec before queuing first build |
 | Blocked by | none |
 
