@@ -217,7 +217,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-TESTID-MATCH (2a217c3) deployed GCP. Next: Sentry SDK v10.23.0 three-script pattern. |
+| Current task | GEN-SENTRY-VERSION committed — Sentry SDK v10.23.0 three-script pattern. Next: waitForPackages only poll packages the game uses. |
 | Status | Rules 53 (GEN-ENDGAME-GUARD), 53b (GEN-DATA-LIVES-GUARD b66270a), 54 (GEN-RESULTS-FIXED 290e1d9) all shipped + deployed GCP 2026-03-23. |
 | Waiting on | Next agent commits — rapid-challenge UI/UX + Code Review worker.js findings to route |
 | Blocked by | none |
