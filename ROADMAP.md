@@ -513,7 +513,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-080/081/082 hardening applied (commit 447baf6) — path.resolve() confinement on register_spec write path, spec_content 500KB size guard, plan_session objective max(2000). 1138 tests pass. Next: review deterministicTriage() for exact-value skip_test shortcut. |
+| Current task | CR-083 [MED] fix shipped — deterministicTriage skip_tests now adds batchLabel to deletedSpecBatches + resets batchFailed; Step 3b filter + passRate guard updated to respect deletedSpecBatches regardless of file existence. 1138 tests pass. Next: review worker.js for race conditions in Slack thread state and GCP upload error paths. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
@@ -529,6 +529,10 @@
 | 2026-03-23 | lib/mcp.js | **CR-080 [WARN] — register_spec write path lacks path.resolve() confinement check.** gameId regex `/^[a-zA-Z0-9-]+$/` (line 304) blocks all traversal vectors (dots, slashes, backslashes, percent-encoded chars) — not currently exploitable. However, the write path (`path.join(REPO, 'warehouse', 'templates', game_id, 'spec.md')`) has no `path.resolve()` + `startsWith()` guard, unlike `readWarehouseFile()` which correctly applies that check (lines 40–42). Asymmetric hardening: reads are guarded, writes are not. If regex is ever relaxed or a new input path is introduced, the write side has no backstop. Recommendation: add `path.resolve()` confinement check on templateDir before mkdirSync, matching readWarehouseFile pattern. | Code — low severity, defense-in-depth |
 | 2026-03-23 | lib/mcp.js | **CR-081 [WARN] — register_spec: no specContent size limit.** `spec_content` written to disk with `fs.writeFileSync()` and inserted into SQLite via `db.createGame()` with no length check. A 100 MB payload writes a 100 MB file and inserts 100 MB into the DB. Low risk (MCP clients are trusted). Recommendation: add `if (spec_content.length > 2_000_000) return { isError: true, ... }` guard before the write. | Code — low severity |
 | 2026-03-23 | lib/mcp.js | **CR-082 [WARN] — plan_session: no objective string length limit.** `objective` passed directly to `planSessionFromObjective()` via `z.string()` with no `.max()` constraint. Recommendation: change to `z.string().max(2000)`. | Code — low severity |
+| 2026-03-23 | lib/pipeline-fix-loop.js | **CR-083 [MED] FIXED — deterministicTriage skip_tests does not update deletedSpecBatches when spec files are kept on disk.** When `deterministicTriage()` returns `skip_tests` (visibilityState, pointer-events patterns), `triageSkipTests` is empty so the LLM-path spec-deletion branch is skipped. `batchFailed` was not reset and `deletedSpecBatches` was not updated. Step 3b re-tested those batches (files exist), counted failures against passRate, and could trigger global fix loop for test-logic-only failures. Fix: unconditionally reset `batchFailed=0` and add to `deletedSpecBatches` on any `skip_tests` decision (not only when files are deleted); extend `batchesToReTest` filter and passRate guard to check `deletedSpecBatches` membership in addition to file existence. 1138 tests pass. | Fixed inline |
+| 2026-03-23 | lib/pipeline-fix-loop.js | **CR-081 [LOW] — GF-EXACT LESSON_PATTERN uses `[\s\S]{0,100}` cross-line lookahead** — could match "Expected: N" from one error and "Received: M" from a different concatenated error in multi-failure strings. Only affects hint injection (LESSON_PATTERNS), not triage decisions. Acceptable risk since hints are advisory only and `every()` batch guard limits blast radius. No fix needed. | backlog |
+| 2026-03-23 | lib/pipeline-fix-loop.js | **CR-082 [LOW] — deterministicTriage pointer-events pattern uses `f.includes('pointer-events')` which could match any error mentioning `pointer-events`** (e.g. a CSS debug log). The `every()` guard (entire batch must match) limits false positives to batch-homogeneous edge cases. In practice the pattern fires only on `.correct` cell re-click failures where the error explicitly mentions pointer-events. Acceptable as-is. | backlog |
+| 2026-03-23 | lib/pipeline-fix-loop.js | **CR-084 [PASS] — passRate false-fail guard (dc20844) intact for LLM skip_tests path.** Lines 1813-1829: when spec files are deleted by LLM triage, batch is removed from totalPassed/totalFailed before Step 3b. Extended by CR-083 fix to also cover deterministic skip_tests batches. | — |
 | 2026-03-23 | lib/mcp.js | **CR-083 [PASS] — register_spec gameId traversal resistance PASS.** Regex `/^[a-zA-Z0-9-]+$/` rejects: `../etc/passwd` (dot), `foo/bar` (slash), `foo\bar` (backslash), `%2e%2e%2f` (percent), empty string (anchored `+`). All known traversal vectors blocked at validation. | — |
 | 2026-03-23 | lib/mcp.js | **CR-084 [PASS] — register_spec Slack failure non-fatal PASS.** Slack notify wrapped in standalone try/catch (lines 352–358). Slack outage cannot block spec registration. | — |
 | 2026-03-23 | lib/mcp.js | **CR-085 [PASS] — readWarehouseFile path traversal guard PASS.** `path.resolve()` + `startsWith(path.resolve(warehouseDir))` applied before every read (lines 40–42). All resource handlers route through this helper. | — |
@@ -634,9 +638,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Stats session plan DONE (games/sessions/stats-class9-20260323-4k2mxp/session-plan.md). Session Planner v1 complete. Next: queue stats game builds in order starting with stats-identify-class (awaiting build approval). |
+| Current task | stats-identify-class build #566 QUEUED (2026-03-23) — CBSE Class 9 stats Game 1 (Bloom L1 MCQ). Monitoring — queue stats-mean-direct after #566 approved. |
 | Status | 5-game CBSE Class 9/10 statistics session written — L1→L4 Bloom ladder, 43 min total, NCERT Ch 9–14 anchored, 4 misconceptions per game documented with Exa-sourced citations. |
-| Waiting on | Build queue approval to start stats-identify-class build |
+| Waiting on | Build #566 to complete (stats-identify-class) |
 | Blocked by | nothing |
 
 | Task | Status | Notes |
