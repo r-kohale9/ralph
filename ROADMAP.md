@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-TESTID-RESTART DONE (29137b3) — btn-restart T1 check + gen rule. GEN-ROUND-INDEX DONE (6786b87) — 0-based currentRound enforcement, rounds[currentRound-1] + loadRound→nextRound T1 checks. GEN-PM-DUAL-PATH in progress — game_complete postMessage must fire on all endGame() paths (messaging 56% weakest). Builds #568/#569 both failed (threadInfo masking). #570 keep-track queued to verify GEN-TS-ONEARG. stats-identify-class pending GEN-ROUND-INDEX deployment. |
-| Status | 1167/1167 tests pass. CT-NEW-1: closure-capture pattern replaces CT4+CT8 (~40% of CT failures). CT-NEW-2: phase-agnostic waitForPhase target (~13% of failures). CT-NEW-3: ban #results-screen as proxy selector. CT-NEW-4: ban exact star count (toBe(N)). CT_WRONG_PHASE T1 linter: catches waitForPhase('gameover'/'recall') in contract files. CT_STAR_EXACT T1 linter: catches .data.metrics.stars).toBe(N). 100-build RCA: 48% pass rate identified 4 distinct root causes. |
-| Waiting on | none |
+| Current task | GEN-PHASE-SEQUENCE DONE (171a5d3) — game-flow 18% root cause: GEN-PM-DUAL-PATH CORRECT example was calling syncDOMState() before gameState.phase assignment. Fixed example + added GEN-PHASE-SEQUENCE gen rule + T1 WARNING (2 patterns: no phase in endGame, phase after syncDOMState). 1195 tests pass. Deployed. Next: monitor keep-track #571 + stats-identify-class re-queue. |
+| Status | 1195/1195 tests pass. GEN-PHASE-SEQUENCE DONE (171a5d3). GEN-PM-DUAL-PATH DONE (60fd1b3). MSG-001 DONE (c4a9f44). GEN-ROUND-INDEX DONE. GEN-TESTID-RESTART DONE. CR-087 DONE (bfe9783). CR-086 DONE (b549f38). GEN-PHASE-INIT + GEN-BTN-START DONE. Stats corrections DONE (3a723ac). |
+| Waiting on | keep-track #571 completion — if approved, queue stats-mean-direct. If rejected, diagnose + queue stats-identify-class. |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
@@ -516,8 +516,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-086 DONE — validate-static.js T1 false positive fix (GEN-ROUND-INDEX `loadRound =` pattern) + 9 new tests for GEN-PM-DUAL-PATH, GEN-ROUND-INDEX, GEN-TESTID-RESTART. 1184/1184 tests pass. |
-| Waiting on | unblocked |
+| Current task | CR-087 DONE (bfe9783) — gameFeatures ReferenceError when existingTests=true (pipeline-test-gen.js). GEN-PHASE-SEQUENCE DONE (171a5d3) — GEN-PM-DUAL-PATH CORRECT example was calling syncDOMState() before phase assignment; root cause of game-flow 18%. 1195/1195 tests pass. Next: review lib/pipeline.js T1 regression handling — keep-track #571 fix-mechanics-1 introduced GEN-RESULTS-FIXED T1 error (results screen lost position:fixed when fixing button touch target). |
+| Waiting on | keep-track #571 result |
 | Blocked by | none |
 
 **Log:**
@@ -646,9 +646,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | stats-identify-class re-queue pending CR-084 deploy (pipeline CSS strip bug fix) |
-| Status | Interaction Pattern Library done (2026-03-23) — 7 patterns documented in docs/education/interaction-patterns.md with CDN parts, Bloom levels, example games, when-to-use/avoid, and pitfalls sourced from 10 ui-ux audits + 4 lessons-learned entries. 5-game CBSE Class 9/10 statistics session written — L1→L4 Bloom ladder, 43 min total, NCERT Ch 9–14 anchored. |
-| Waiting on | CR-084 deploy confirmed + stats-identify-class build approval |
+| Current task | Stats spec corrections DONE (3a723ac) — outlier fix (stats-which-measure), timer 45s→90s (stats-mode), mean calculation (stats-identify-class). Session 2 candidate analysis DONE — Recommendation: Statistics NCERT Ch 14 (grouped data). stats-mean-direct (Session 2 Game 2) ready to queue after keep-track #571 completes. |
+| Status | All 5 stats specs written (stats-identify-class, stats-which-measure, stats-mode, stats-mean-direct, stats-median). Session 2 candidate doc written. Interaction Pattern Library done. |
+| Waiting on | keep-track #571 approval — then queue stats-mean-direct |
 | Blocked by | nothing |
 
 | Task | Status | Notes |
