@@ -3360,3 +3360,69 @@ window.addEventListener('DOMContentLoaded', async function() {
     );
   });
 });
+
+// ─── GEN-SYNCDOMSTATE-ALLATTRS tests ────────────────────────────────────────
+// W16: syncDOMState() must write data-round and data-score, not just data-phase.
+// Helper: minimal CDN-style HTML with a custom syncDOMState body for ALLATTRS testing.
+// The HTML includes currentRound in gameState so the check fires.
+function makeSyncDOMStateHtml(syncBody) {
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Test</title><style>body{}</style></head>
+<body><div id="app"></div><div id="gameContent"></div>
+<script>
+window.gameState = { score: 0, lives: 3, totalLives: 3, phase: 'start', gameEnded: false, isActive: true, currentRound: 0, totalRounds: 5, events: [], attempts: [] };
+var gameState = window.gameState;
+${syncBody}
+function endGame(reason) {
+  if (gameState.gameEnded) return; gameState.gameEnded = true;
+  gameState.phase = reason === 'victory' ? 'results' : 'gameover';
+  syncDOMState();
+  window.parent.postMessage({ type: 'game_complete', data: { metrics: { score: gameState.score, stars: 1, accuracy: 1 } } }, '*');
+}
+function restartGame() { gameState.currentRound = 0; gameState.score = 0; gameState.gameEnded = false; gameState.phase = 'start'; syncDOMState(); }
+function nextRound() { gameState.currentRound++; syncDOMState(); }
+window.addEventListener('DOMContentLoaded', async function() {
+  try {
+    ScreenLayout.inject('app', { slots: { transitionScreen: true } });
+    window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound;
+  } catch(e) { window.__initError = e.message; }
+});
+</script></body></html>`;
+}
+
+describe('GEN-SYNCDOMSTATE-ALLATTRS: syncDOMState() must write data-round and data-score', () => {
+  it('GEN-SYNCDOMSTATE-ALLATTRS: warns when syncDOMState sets data-phase only', () => {
+    // Simulates hide-unhide #461 MEDIUM-6: syncDOMState only writes data-phase
+    const html = makeSyncDOMStateHtml(
+      `function syncDOMState() { var app = document.getElementById('app'); if (app) app.setAttribute('data-phase', gameState.phase); }`
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-SYNCDOMSTATE-ALLATTRS'),
+      `Expected GEN-SYNCDOMSTATE-ALLATTRS warning when syncDOMState sets only data-phase but got: ${output}`,
+    );
+  });
+
+  it('GEN-SYNCDOMSTATE-ALLATTRS: does NOT warn when syncDOMState sets phase + round + score', () => {
+    // Correct pattern: all four attributes written
+    const html = makeSyncDOMStateHtml(
+      `function syncDOMState() { var app = document.getElementById('app'); if (!app) return; app.dataset.phase = gameState.phase || 'start'; app.dataset.round = String(gameState.currentRound || 0); app.dataset.score = String(gameState.score || 0); if (gameState.totalLives > 0) { app.dataset.lives = String(gameState.lives); } }`
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-SYNCDOMSTATE-ALLATTRS'),
+      `Unexpected GEN-SYNCDOMSTATE-ALLATTRS warning for correct syncDOMState pattern: ${output}`,
+    );
+  });
+
+  it('GEN-SYNCDOMSTATE-ALLATTRS: does NOT warn when no syncDOMState function exists', () => {
+    // No syncDOMState() at all — W16 check should be silent
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-SYNCDOMSTATE-ALLATTRS'),
+      `Unexpected GEN-SYNCDOMSTATE-ALLATTRS warning for HTML with no syncDOMState() function: ${output}`,
+    );
+  });
+});
