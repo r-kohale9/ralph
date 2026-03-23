@@ -1,197 +1,175 @@
-# UI/UX Audit — addition-mcq
-
-**Audit date:** 2026-03-23
-**Auditor:** UI/UX Slot (mandatory active slot — CLAUDE.md Rule 16)
-**Audit type:** Spec-only — no approved build exists (0 builds in DB)
-**Spec:** games/addition-mcq/spec.md (161 lines, v1)
+# Addition MCQ — UI/UX Audit
+**Build:** #579
+**Date:** 2026-03-23
+**Method:** Full browser playthrough — Playwright MCP, 375×812px (mobile)
+**URL:** https://storage.googleapis.com/mathai-temp-assets/games/addition-mcq/builds/579/index.html
 
 ---
 
 ## Summary
 
-Spec-only audit. No HTML available for browser playthrough — static spec analysis only.
+| Severity | Count | Items |
+|----------|-------|-------|
+| P0 | 3 | Results screen always visible, Option buttons 22px (below 44px minimum), `.hidden` CSS class has no definition |
+| HIGH | 2 | No `data-testid="btn-start"` on start button, No `aria-live` on feedback element |
+| MEDIUM | 1 | No `data-testid="lives"` display element |
+| LOW | 1 | Questions set is static — same 5 questions in same order every restart |
 
-Game profile: MCQ addition, 3 lives, 30s countdown timer per question, 4-option buttons (`.option-btn`). Uses PART-019 results screen (custom div, not TransitionScreen) for victory, TransitionScreen for game-over. Also uses TimerComponent (PART-006), ProgressBarComponent (PART-023), SignalCollector (PART-010), VisibilityTracker (PART-005), Sentry (PART-030). Core logic functions (advanceGame, endGame, showGameOver, restartGame) are all named in spec — better coverage than prior MCQ specs.
-
-**No P0 blockers.** FeedbackManager.init() absent (PASS). No alert()/confirm()/prompt() (PASS).
-
-**10 actionable findings (7a, 2b, 1d).** Key gaps: gameState.gameId absent, window.endGame unassigned, data-phase/syncDOMState absent, ARIA live region absent, ProgressBar slotId unspecified, SignalCollector no constructor args, game_complete postMessage type wrong (spec says `game_end`, contract requires `game_complete`), results screen position:fixed unspecified (PART-019 custom div), timer destroy/recreate on restartGame() ambiguous, .option-btn min-height absent.
-
----
-
-## Mandatory Checklist
-
-| # | Check | Result | Notes |
-|---|-------|--------|-------|
-| 1 | CSS stylesheet intact | N/A | Spec-only — no HTML build |
-| 2 | FeedbackManager.init() ABSENT | PASS | Not mentioned anywhere in spec |
-| 3 | alert()/confirm()/prompt() absent | PASS | Not mentioned in spec |
-| 4 | window.endGame assigned at DOMContentLoaded end | FAIL | Section 9 defines endGame() as local function; no `window.endGame = endGame` assignment anywhere |
-| 5 | data-phase transitions + syncDOMState() at EVERY phase change | FAIL | Screen Flow (Section 6) defines start/game/results/game-over states — no data-phase, no syncDOMState(), no gameState.phase field |
-| 6 | Enter key handler (text input games only) | N/A | MCQ tap game — no text input |
-| 7 | ProgressBar: options object with slotId: 'mathai-progress-slot' | FAIL | Section 13 shows ProgressBarComponent with autoInject + totalRounds + totalLives — missing `slotId: 'mathai-progress-slot'` key |
-| 8 | aria-live="polite" role="status" on ALL dynamic feedback elements | FAIL | Section 5 HTML shows .option-btn elements; no feedback div with aria-live/role="status" specified |
-| 9 | SignalCollector constructor args: sessionId, studentId, templateId | FAIL | PART-010 listed; Section 9 calls signalCollector.send() but no instantiation with required args shown |
-| 10 | gameState.gameId field as FIRST field | FAIL | Section 3 gameState declaration has isGameActive as first field — gameId absent entirely |
-| 11 | Results screen position:fixed with z-index≥100 | FAIL | Victory path uses PART-019 custom `#results-screen` div (Section 5 HTML: `style="display:none;"`). No position:fixed or z-index specified — 7th confirmed GEN-UX-001 instance |
-| 12 | ALL interactive buttons min-height:44px (incl. .option-btn) | FAIL | Section 5 HTML shows 4× `.option-btn` buttons; Section 10 CSS guidance has no min-height:44px for .option-btn |
-| 13 | Sentry SDK v10.23.0 three-script pattern | FAIL (low) | PART-030 listed; no version pinning, no initSentry() call, no three-script pattern shown in spec |
-| 14 | game_complete postMessage on BOTH victory AND game-over paths | FAIL | Section 11 specifies outgoing type as `game_end` — contract requires `game_complete`. Neither path shows `window.parent.postMessage({type:'game_complete',...})` |
-| 15 | restartGame() resets ALL gameState fields; timer games destroy+recreate TimerComponent | FAIL | Section 7g: restartGame() calls `transitionScreen.hide()` then `startGame()`. startGame() does NOT re-create TimerComponent (timer was destroyed in endGame()). Game-over path: showGameOver() → restartGame() → startGame() — timer not recreated |
-| 16 | waitForPackages() only awaits packages the game actually instantiates | PASS | Game uses TimerComponent (PART-006) + VisibilityTracker (PART-005) — both legitimately awaited |
+**Verdict: RE-QUEUE REQUIRED.** Three P0 issues make this build unplayable on mobile. The results screen ("Great Job! / Final Score / Play Again") is visible throughout gameplay — it overlaps the game screen from the first click through end of game. Option buttons render at 22px tall (requirement: 44px minimum). The `.hidden` CSS class applied to the game screen during results phase has no stylesheet definition and has no effect.
 
 ---
 
-## Findings
+## P0 Issues
 
-### F1 — window.endGame not assigned to window [type-a] [HIGH]
+### P0-1 — Results screen always visible during playing phase
+**What:** `#results-screen` has `style="display: flex"` hardcoded inline at all times, even during the `playing` phase. Both `#game-screen` and `#results-screen` are simultaneously visible and stacked vertically on screen throughout gameplay. The results content ("Great Job!", "Final Score: 0", "Play Again") renders immediately below the question and options from the first round onward.
 
-**Pattern:** window.endGame not assigned in DOMContentLoaded
-**Instance count:** 7th confirmed (math-mcq-quiz, math-cross-grid, word-pairs, associations, adjustment-strategy, mcq-addition-blitz, addition-mcq)
-**Description:** Section 9 defines `endGame()` as a local function. The CDN harness calls `window.endGame()` to force end-of-game in contract tests. Without `window.endGame = endGame`, the harness call silently fails — contract tests time out.
-**Action:** GEN-WINDOW-EXPOSE (rule 36) already shipped — T1 W3 check already active. No new rule needed. Add `window.endGame = endGame;` to spec Section 9 or DOMContentLoaded summary before first build.
+**Evidence:**
+- On transition to `playing` phase: `resultsScreenDisplay = "flex"`, `gameScreenDisplay = "block"`, both visible
+- Screenshot at round 1: question + tiny option buttons visible above "Great Job! Final Score: 0 / Play Again"
+- Screenshot at results phase (win): last question + options still visible alongside "Great Job! Final Score: 5 ⭐⭐⭐ / Play Again"
+- `#results-screen` inline style: `display: flex` — never removed or toggled off during playing phase
 
----
+**Root cause:** The results screen is initialized with an inline `display: flex` that is never removed when starting gameplay. The game relies on a `.hidden` class on `#game-screen` to hide it during results, but that class has no CSS definition (P0-3). Neither screen uses phase-based CSS (`#app[data-phase="playing"] #results-screen { display: none }`) or explicit show/hide calls.
 
-### F2 — No data-phase / syncDOMState() state machine [type-a] [HIGH]
-
-**Pattern:** data-phase + syncDOMState() absent from MCQ spec
-**Instance count:** 6th confirmed MCQ spec instance
-**Description:** Section 6 (Screen Flow) defines four distinct states — start screen, question screen, results screen, game-over screen — but specifies no `gameState.phase` field, no `data-phase` attribute on `#app`, and no `syncDOMState()` calls at any transition. Without explicit phase transitions, the LLM omits syncDOMState() calls, causing game-flow test timeouts.
-**Required phase mapping:**
-- `showStartScreen()` / game_init handler → `gameState.phase = 'start_screen'` → `syncDOMState()`
-- `startGame()` → `gameState.phase = 'playing'` → `syncDOMState()`
-- `endGame()` victory path → `gameState.phase = 'results'` → `syncDOMState()`
-- `showGameOver()` → `gameState.phase = 'game_over'` → `syncDOMState()`
-**Action:** Already tracked in ROADMAP. Add phase mapping to spec Section 6 before first build.
+**Route:** Gen Quality — add `.hidden { display: none !important; }` to stylesheet AND add `resultsScreen.style.display = 'none'` on game init / phase transition to playing.
 
 ---
 
-### F3 — No ARIA live region on option feedback [type-a] [HIGH]
+### P0-2 — Option buttons far below 44px touch target minimum
+**What:** All 4 option buttons render at **31px wide × 22px tall** on a 375px mobile viewport. The minimum tap target per WCAG 2.5.5 and Apple HIG is 44×44px. These buttons are effectively un-tappable on a real physical device.
 
-**Pattern:** Dynamic feedback elements missing aria-live="polite" role="status"
-**Instance count:** 16th confirmed
-**Description:** Section 5 shows the play area HTML with `.option-btn` elements. No feedback div with `aria-live="polite"` and `role="status"` is specified. After option selection (correct/incorrect/timeout), visual CSS class feedback is applied but screen reader users receive no announcement.
-**Action:** ARIA-001 gen rule already shipped. No new rule needed. Add explicit feedback div to Section 5 HTML: `<div id="answer-feedback" aria-live="polite" role="status"></div>`. Add population to Section 7c.
+**Evidence:**
+- option-0 through option-3: width=31px, height=22px, minHeight=0px, padding=1px 6px, fontSize=13.3px
+- Options grid: `display: block`, buttons laid out in a single cramped row
+- No `min-height`, `min-width`, or adequate `padding` rule applied to option buttons
 
----
+**Root cause:** The options grid uses `display: block` with no sizing rules on the buttons. Default browser button styling yields minimal padding. No gen rule enforced `min-height: 44px` on the rendered buttons.
 
-### F4 — gameState.gameId absent from initial declaration [type-a] [HIGH]
-
-**Pattern:** gameState missing gameId field as FIRST field
-**Instance count:** 7th confirmed
-**Description:** Section 3 gameState declaration starts with `isGameActive: false` — `gameId` field is completely absent. GEN-GAMEID rule (shipped) requires `gameId: 'addition-mcq'` as the FIRST field. Without it, `window.gameState.gameId` is undefined — postMessage payload and signal events lack game identification.
-**Action:** GEN-GAMEID rule already shipped. Add `gameId: 'addition-mcq'` as FIRST field in Section 3 gameState before first build.
+**Route:** Gen Quality — option buttons must have `min-height: 44px; padding: 12px 16px; width: 100%;` — verify GEN-UX-002 / GEN-TOUCH-TARGET covers `.option-btn` or the generated class name for MCQ options.
 
 ---
 
-### F5 — ProgressBar slotId not specified [type-a] [HIGH]
+### P0-3 — `.hidden` CSS class applied but never defined in stylesheet
+**What:** When the game transitions to the results phase, the code adds class `"hidden"` to `#game-screen`. However, inspection of all loaded stylesheets reveals **zero CSS rules** defining `.hidden { display: none }` or any equivalent. The game screen element has `class="hidden"` set, but it is still `display: block; visibility: visible`.
 
-**Pattern:** ProgressBarComponent instantiation missing slotId options key
-**Instance count:** 10th confirmed
-**Description:** Section 13 shows ProgressBarComponent instantiated as:
-```javascript
-const progressBar = new ProgressBarComponent({
-  autoInject: true,
-  totalRounds: gameState.totalRounds,
-  totalLives: 3
-});
-```
-No `slotId: 'mathai-progress-slot'` key. Without it, the component either fails silently or injects into the wrong location. GEN-UX-003 rule (shipped) requires the slotId key.
-**Action:** GEN-UX-003 already shipped. Add `slotId: 'mathai-progress-slot'` to the options object in Section 13 before first build.
+**Evidence:**
+- `#game-screen.className = "hidden"` during results phase
+- `gameScreenDisplay = "block"` despite `.hidden` class being applied
+- `phaseRules = []` — no `[data-phase]`-based CSS rules exist in any stylesheet
+- Zero stylesheet rules containing `.hidden` found via full stylesheet scan
+- Results screenshot confirms: old question still visible alongside final score
 
----
+**Root cause:** A class-based visibility pattern was generated without the corresponding CSS definition. `.hidden` does nothing without a `display: none` rule.
 
-### F6 — SignalCollector instantiated without constructor args [type-a] [MEDIUM]
-
-**Pattern:** SignalCollector no constructor args
-**Instance count:** 6th confirmed
-**Description:** Section 2 lists PART-010 (Event Tracking & SignalCollector). Section 9 calls `signalCollector.send('game_end', metrics)` but no instantiation snippet is shown anywhere in the spec. GEN-UX-005 rule (shipped) requires `new SignalCollector({ sessionId, studentId, templateId })`. Without the spec showing correct usage, the LLM may generate `new SignalCollector()` with no args.
-**Action:** GEN-UX-005 already shipped. Add correct instantiation to spec (Section 4 Init Block or new section) before first build.
+**Route:** Gen Quality — add `.hidden { display: none !important; }` to the game stylesheet. Alternatively use inline style toggles or `data-phase`-based CSS.
 
 ---
 
-### F7 — results-screen div lacks position:fixed z-index≥100 [type-a] [HIGH]
+## HIGH Issues
 
-**Pattern:** Custom results div not specified as overlay
-**Instance count:** 7th confirmed GEN-UX-001 instance
-**Description:** Section 5 HTML shows `<div id="results-screen" class="screen" style="display:none;"></div>`. The victory path calls `showResultsScreen(metrics)` (PART-019 custom div) rather than TransitionScreen CDN component. No CSS specification for `position:fixed`, `z-index≥100`, or `top:0; left:0; width:100%; height:100%` is given. Without this, the results screen may render behind other elements or fail to fill the viewport.
-**Action:** GEN-UX-001 already shipped. Spec Section 10 (CSS) must add: `#results-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; }` before first build.
+### HIGH-1 — Start button missing `data-testid="btn-start"`
+**What:** The start screen "Let's Go!" button has no `data-testid` attribute. The button is rendered via TransitionScreen's `buttons` config. Tests that use `[data-testid="btn-start"]` to click the start button will fail to find it.
 
----
+**Evidence:**
+- `document.querySelector('[data-testid="btn-start"]')` returns null
+- Full `data-testid` inventory: `app, game-screen, timer-container, question-container, question-text, options-grid, option-0..3, results-screen, score-display, stars-display, btn-restart` — `btn-start` absent
+- TransitionScreen renders the button, but testid is not injected into the generated HTML
 
-### F8 — game_complete postMessage type incorrect [type-b] [HIGH]
-
-**Pattern:** Outgoing postMessage type is `game_end` instead of `game_complete`
-**Instance count:** New finding — specific type-name mismatch
-**Description:** Section 11 specifies the outgoing postMessage as `{ "type": "game_end", ... }`. The CDN contract requires `{ "type": "game_complete", ... }`. Additionally, neither the victory path (endGame → showResultsScreen) nor the game-over path (showGameOver) shows an explicit `window.parent.postMessage({ type: 'game_complete', ... })` call. Risk: harness contract tests will timeout waiting for `game_complete` while the game fires `game_end` instead.
-**Action:** Spec addition needed. Correct Section 11: rename `game_end` → `game_complete`. Add explicit postMessage call to Section 9 endGame() and Section 7f showGameOver() before first build.
+**Route:** Gen Quality — the TransitionScreen start button must receive `data-testid="btn-start"` via the CDN `#mathai-transition-slot button` pattern or inline script post-injection.
 
 ---
 
-### F9 — restartGame() timer not re-created after endGame() destroys it [type-b] [HIGH]
+### HIGH-2 — No `aria-live` region for answer feedback
+**What:** No element with `aria-live` attribute exists anywhere in the DOM. There is no accessible announcement when a correct or wrong answer is selected, making the game non-functional for screen reader users and violating GEN-120.
 
-**Pattern:** Timer game restartGame() must destroy+recreate TimerComponent
-**Instance count:** 4th confirmed timer game
-**Description:** Section 9 endGame() calls `timer.destroy()`. Section 7g restartGame() calls `transitionScreen.hide(); startGame()`. Section 7a startGame() calls `loadQuestion(0)`. Section 7b loadQuestion() calls `timer.reset(); timer.start()`. But after `timer.destroy()`, the timer instance is destroyed — calling `timer.reset()` on a destroyed instance will throw or fail silently. The game-over path (showGameOver → restartGame) is the most common replay scenario. No re-instantiation of TimerComponent is shown anywhere in restartGame() or startGame().
-**Action:** Spec addition needed. Add to Section 7g restartGame(): destroy existing timer if not already destroyed, then re-create: `timer = new TimerComponent('timer-container', { timerType: 'decrease', format: 'sec', startTime: 30, endTime: 0, autoStart: false, onEnd: handleTimeout });` before calling startGame(). Also reset all gameState fields in restartGame() rather than relying on startGame() alone.
+**Evidence:**
+- `ariaLiveCount = 0`
+- `ariaLiveElements = []`
+- No feedback container (`[class*="feedback"]`, `[id*="feedback"]`) found either
+- No visual feedback animation/color change observed on option buttons during answer selection
 
----
-
-### F10 — .option-btn buttons missing explicit min-height:44px [type-a] [MEDIUM]
-
-**Pattern:** Interactive buttons missing 44px touch targets
-**Instance count:** 11th confirmed
-**Description:** Section 5 HTML shows four `.option-btn` elements (data-index 0–3). Section 10 CSS guidance describes visual styling (border, hover, correct/incorrect colors) but specifies no `min-height: 44px`. On mobile, undersized option buttons cause mis-taps on a 480×800 viewport. GEN-UX-002 / GEN-TOUCH-TARGET rule (shipped) must cover `.option-btn` — confirm selector in prompts.js includes this class.
-**Action:** GEN-UX-002 already shipped. Verify `.option-btn` is covered by the rule's CSS selector. Add explicit `min-height: 44px;` to `.option-btn` in Section 10 CSS before first build.
+**Route:** Gen Quality — GEN-120 violation. Add `<div id="answer-feedback" aria-live="polite" role="status"></div>` and populate it on correct/wrong answer.
 
 ---
 
-## Routing Table
+## MEDIUM Issues
 
-| Finding | Classification | Destination | Action |
-|---------|---------------|-------------|--------|
-| F1 — window.endGame unassigned | (a) gen prompt rule | Gen Quality | Already shipped (GEN-WINDOW-EXPOSE). Add to spec before build. |
-| F2 — data-phase/syncDOMState absent | (a) gen prompt rule | Gen Quality | Already tracked (ROADMAP). Add to spec before build. |
-| F3 — ARIA live region absent | (a) gen prompt rule | Gen Quality | Already shipped (ARIA-001). Add feedback div to spec before build. |
-| F4 — gameState.gameId absent | (a) gen prompt rule | Gen Quality | Already shipped (GEN-GAMEID). Add to spec Section 3 before build. |
-| F5 — ProgressBar slotId missing | (a) gen prompt rule | Gen Quality | Already shipped (GEN-UX-003). Add to spec Section 13 before build. |
-| F6 — SignalCollector no args | (a) gen prompt rule | Gen Quality | Already shipped (GEN-UX-005). Add instantiation to spec before build. |
-| F7 — results-screen not position:fixed | (a) gen prompt rule | Gen Quality | Already shipped (GEN-UX-001). Add CSS rule to spec Section 10 before build. |
-| F8 — game_complete type wrong (game_end) | (b) spec addition | Education | New type-name mismatch finding. Correct Section 11 + add explicit postMessage calls on both paths before first build. |
-| F9 — restartGame() timer not recreated | (b) spec addition | Education | 4th timer game instance. Add timer re-instantiation to spec Section 7g before first build. |
-| F10 — .option-btn min-height absent | (a) gen prompt rule | Gen Quality + Test Engineering | Already shipped (GEN-UX-002). Verify .option-btn is in selector; add test assertion for computed min-height on .option-btn. |
+### MEDIUM-1 — No `data-testid="lives"` display element
+**What:** The lives display shows ❤️❤️❤️ correctly in the progress bar slot, but no element with `data-testid="lives"` exists in the DOM. Tests that read the life count via testid will find nothing.
+
+**Evidence:**
+- `document.querySelector('[data-testid="lives"]')` returns null
+- Lives tracked correctly in `window.gameState.lives` and `#app[data-lives]`
+- The progress bar renders hearts visually but exposes no lives testid
+
+**Route:** Gen Quality — add `data-testid="lives"` to the hearts/lives display container.
 
 ---
 
-## Positive Observations
+## LOW Issues
 
-- FeedbackManager.init() correctly absent — no audio popup risk.
-- No alert()/confirm()/prompt() in any interaction path.
-- Core logic functions all explicitly named and defined: advanceGame(), endGame(), showGameOver(), restartGame(), loadQuestion(), handleOptionSelect(), handleTimeout() — more complete than prior MCQ specs.
-- isAnswered flag correctly specified as lock-after-selection-or-timeout — prevents double-scoring on timer expiry.
-- timer.pause() called in handleOptionSelect() to stop the countdown on answer — correct.
-- Both answer and timeout paths call recordAttempt() — attempt tracking is complete.
-- PART-026 Anti-Patterns listed — LLM will check against banned patterns.
-- timer.destroy() + progressBar.destroy() both called in endGame() — correct cleanup.
-- waitForPackages() is justified: TimerComponent (PART-006) + VisibilityTracker (PART-005) both actually instantiated.
-- InputSchema (Section 4) is well-formed with 5 sample questions, all 4 options, correct answers.
-- VisibilityTracker (PART-005) listed — timer pause/resume on tab-away is specified.
+### LOW-1 — Static question set (same 5 questions every restart)
+**What:** All playthroughs during this audit presented the same identical 5 questions in the same order: "What is 1+1?", "What is 2+3?", "What is 5+4?", "What is 8+7?", "What is 10+9?". No randomization of question order or question pool selection.
+
+**Evidence:** 3 game sessions across 2 restarts all presented same 5 questions in same sequence.
+
+**Route:** Education — if spec intends a larger question bank with random sampling, add that to spec; if static is intentional for this difficulty level, document it.
 
 ---
 
-## Pre-Build Checklist (before queuing first build)
+## Passing Checks
 
-Before queuing addition-mcq for the first time, apply these spec additions:
+| Check | Result |
+|-------|--------|
+| Start screen renders: title, button, 3 lives | PASS — "Addition Blitz!", "Let's Go!", ❤️❤️❤️ all visible |
+| `window.gameState.gameId = 'addition-mcq'` | PASS |
+| `#app[data-phase]` starts as `"start"` | PASS |
+| `#app[data-lives]` starts as `"3"` | PASS |
+| Option buttons are `<button>` elements | PASS — all 4 are BUTTON tags |
+| `data-testid` on options (option-0..option-3) | PASS |
+| `#results-screen` element present in DOM | PASS |
+| `data-testid="btn-restart"` on Play Again button | PASS — `<button data-testid="btn-restart">Play Again</button>` |
+| Life deduction on wrong answer | PASS — `data-lives` and `gameState.lives` both decrement on wrong answer |
+| Score increment on correct answer | PASS — `gameState.score` increments correctly per correct click |
+| After 3 wrong answers → `data-phase = 'gameover'` | PASS — gameover phase transitions correctly |
+| `data-phase` transitions: start → playing | PASS |
+| `data-phase` transitions: playing → results (win path) | PASS — score=5, ⭐⭐⭐ shown |
+| `data-phase` transitions: playing → gameover (loss path) | PASS |
+| Gameover → Try Again → full restart | PASS — lives/score/round all reset correctly |
+| JS console errors | PASS — 0 errors across full session (84 log messages, 0 errors) |
+| `gameState.questions[n].correctIndex` accuracy | PASS — indices match actual option positions |
+| Timer countdown visible per question | PASS — countdown number visible above question |
+| Timer resets on each new question | PASS — timer restarts at 30s each round |
+| `data-testid="score-display"` present | PASS |
+| `data-testid="stars-display"` present | PASS |
+| CDN packages all loaded successfully | PASS — all 12 packages loaded without error |
 
-- [ ] Section 3: Add `gameId: 'addition-mcq'` as FIRST field in gameState (F4)
-- [ ] Section 5: Add `<div id="answer-feedback" aria-live="polite" role="status"></div>` to play area HTML (F3)
-- [ ] Section 6: Add data-phase state machine (start_screen → playing → results / game_over) with syncDOMState() at each transition (F2)
-- [ ] Section 7f: Add `window.parent.postMessage({ type: 'game_complete', gameId: 'addition-mcq', score: gameState.score, stars: 0, totalRounds: gameState.totalRounds }, '*')` to showGameOver() (F8)
-- [ ] Section 7g: Add timer destroy+recreate and full gameState reset to restartGame() before calling startGame() (F9)
-- [ ] Section 9: Add `window.endGame = endGame;` after endGame() definition (F1)
-- [ ] Section 9: Correct outgoing postMessage type from `game_end` to `game_complete`; add explicit postMessage call on victory path (F8)
-- [ ] Section 10: Add `#results-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; }` (F7)
-- [ ] Section 10: Add `min-height: 44px;` to `.option-btn` CSS (F10)
-- [ ] Section 13: Add `slotId: 'mathai-progress-slot'` to ProgressBarComponent options object (F5)
-- [ ] New section (Init Block): Add SignalCollector instantiation with required args (F6)
+---
+
+## Flow Observations
+
+1. Start screen loads cleanly via TransitionScreen component. Title "Addition Blitz!", lives display (❤️❤️❤️), and "Let's Go!" button all render. CDN packages load without error.
+2. On "Let's Go!" click: `data-phase` transitions to `"playing"`. However, the results screen ("Great Job! Final Score: 0 / Play Again") is immediately visible below the question — P0-1 and P0-3.
+3. Option buttons render as a single cramped horizontal row of tiny (31×22px) buttons — P0-2. They can be clicked with a precise mouse cursor but would be consistently mis-tapped on a physical mobile screen.
+4. Correct answers: `gameState.score` increments, `currentRound` advances, progress bar updates ("1/5 rounds completed"). Lives are unaffected. No visual feedback on the option button (no color change, no checkmark animation).
+5. Wrong answers: `gameState.lives` decrements, `#app[data-lives]` updates, hearts display updates in real-time (❤️❤️🤍 → ❤️🤍🤍 → etc.). Progress bar also advances — wrong answers count toward round completion.
+6. After 3 wrong answers (lives reach 0): `data-phase` transitions to `"gameover"`. TransitionScreen shows "Game Over! You scored X out of 5" with "Try Again" button. This path works correctly.
+7. "Try Again" (btn-restart) fully resets: `gameState.lives=3`, `gameState.score=0`, `gameState.currentRound=0`, returns to question 1. Game-over → restart flow works correctly.
+8. Win path (5 correct answers): `data-phase` transitions to `"results"`. `gameState.score=5`, `score-display` shows "5", `stars-display` shows "⭐⭐⭐". But the last question and option buttons remain visible alongside the results — P0-1 / P0-3 confirmed on win path too.
+9. No `aria-live` announcement at any point during answer selection — HIGH-2.
+10. Timer counts down from 30 per question. On each answer click, TIMER pause() fires. Timer correctly resets to 30 on each new question.
+
+---
+
+## Routing Summary
+
+| Finding | Severity | Route To | Action |
+|---------|----------|----------|--------|
+| Results screen always visible — `display:flex` never cleared | P0 | Gen Quality | Add `resultsScreen.style.display = 'none'` on game start; add `.hidden { display: none !important; }` to stylesheet |
+| Option buttons 22px tall — below 44px minimum | P0 | Gen Quality | Add `min-height: 44px; padding: 12px 16px; width: 100%` to option button CSS; verify GEN-UX-002 covers generated selector |
+| `.hidden` class has no CSS definition | P0 | Gen Quality | Add `.hidden { display: none !important; }` to stylesheet |
+| Missing `data-testid="btn-start"` on start button | HIGH | Gen Quality | TransitionScreen `#mathai-transition-slot button` must receive btn-start testid |
+| No `aria-live` on feedback element | HIGH | Gen Quality | GEN-120 violation — add `aria-live="polite"` feedback div, populate on answer |
+| Missing `data-testid="lives"` | MEDIUM | Gen Quality | Add testid to lives/hearts display container |
+| Static question set (no randomization) | LOW | Education | Clarify if static bank is intentional per spec |
