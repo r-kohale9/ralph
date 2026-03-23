@@ -679,13 +679,22 @@ function createApp(deps = {}) {
     db.updateBuildFeedback(newBuildId, feedbackPrompt);
 
     if (queue) {
-      await queue.add('build-game', {
-        type: 'fix',
-        gameId,
-        buildId: newBuildId,
-        parentBuildId: buildId || null,
-        feedbackPrompt,
-      });
+      let job;
+      try {
+        job = await queue.add('build-game', {
+          type: 'fix',
+          gameId,
+          buildId: newBuildId,
+          parentBuildId: buildId || null,
+          feedbackPrompt,
+        });
+      } catch (queueErr) {
+        // Roll back the DB record to prevent orphaned 'queued' status
+        try { db.failBuild(newBuildId, `Queue error: ${queueErr.message}`); } catch (_) {}
+        logger.error({ err: queueErr }, 'Failed to queue fix job');
+        return res.status(503).json({ error: 'Queue unavailable — fix job not created' });
+      }
+      void job; // suppress unused variable lint warning
     }
 
     logger.info(`Targeted fix queued for ${gameId}`, { gameId, buildId: newBuildId, event: 'fix_queued' });

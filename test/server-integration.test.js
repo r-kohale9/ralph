@@ -697,3 +697,46 @@ describe('Server integration: rate limiting (CR-063)', () => {
     assert.ok(res.body.error.includes('Rate limit exceeded'));
   });
 });
+
+// ─── CR-064: queue.add() catch block in /api/fix ─────────────────────────────
+describe('Server integration: /api/fix queue error handling (CR-064)', () => {
+  let server, failQueue;
+
+  before((_, done) => {
+    // Queue that throws on add() to simulate Redis being down
+    failQueue = {
+      add: async () => { throw new Error('Redis connection refused'); },
+      getJobCounts: async () => ({ waiting: 0, active: 0, completed: 0, failed: 0 }),
+    };
+    const app = createApp({ queue: failQueue, connection: createMockConnection() });
+    server = app.listen(0, done);
+  });
+
+  after((_, done) => {
+    server.close(done);
+  });
+
+  it('POST /api/fix returns 503 when queue.add() throws', async () => {
+    const res = await request(server, 'POST', '/api/fix', {
+      gameId: 'cr064-game',
+      feedbackPrompt: 'Fix the scoring bug',
+    });
+    assert.equal(res.status, 503);
+    assert.ok(res.body.error.includes('Queue unavailable'), `Expected 'Queue unavailable' in: ${res.body.error}`);
+  });
+
+  it('POST /api/fix rolls back DB record when queue.add() throws', async () => {
+    const res = await request(server, 'POST', '/api/fix', {
+      gameId: 'cr064-rollback-game',
+      feedbackPrompt: 'Another fix attempt',
+    });
+    assert.equal(res.status, 503);
+
+    // The DB record should have been failed (not left as 'queued')
+    const builds = db.getDb()
+      .prepare("SELECT status FROM builds WHERE game_id = ? ORDER BY id DESC LIMIT 1")
+      .get('cr064-rollback-game');
+    assert.ok(builds, 'A build record should have been created');
+    assert.equal(builds.status, 'failed', `Expected status='failed', got '${builds.status}'`);
+  });
+});
