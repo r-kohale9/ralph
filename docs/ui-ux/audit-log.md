@@ -18,10 +18,10 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** stats-identify-class — 2026-03-23 — COMPLETE. 6 findings (0a-HIGH, 1b-HIGH, 1b-LOW, 1a-MEDIUM, 1a-LOW×2, 1d-LOW). No P0. ui-ux.md written.
-**Last completed:** stats-identify-class — 2026-03-23
-**Next target:** reciprocal-ratios — BLOCKED: no spec exists. Referenced only in docs/education/session-planner-v1.md. No audit possible until spec is written.
-**Waiting on:** reciprocal-ratios spec creation (Education slot)
+**Current task:** stats-mean-direct — 2026-03-23 — PENDING (spec just written 044f903). Audit when spec stabilizes (after F2 fix committed).
+**Last completed:** stats-identify-class — 2026-03-23 — 6 findings. F1 (GAME_COMPLETE type) FIXED in 044f903. F2 (restartGame pseudocode) fix in progress.
+**Next target:** stats-mean-direct (spec just written, all gen rules pre-applied — should be low-finding audit)
+**Waiting on:** stats-identify-class F2 fix commit; then stats-mean-direct spec audit
 
 ### Batch 2 — Completed 2026-03-23 (static analysis)
 
