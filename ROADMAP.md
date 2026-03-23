@@ -219,8 +219,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | **PART-003 P0 fix DONE (commit 947b570)**. Next: game-flow batch 29.2% root cause — diagnose via failed game-flow.spec.js patterns. |
-| Status | 947b570 deployed GCP 2026-03-23. 1125 tests pass. GEN-WAITFOR-BANNEDNAMES T1 ERROR added (5c3 in validate-static.js); PART-003 WRONG/RIGHT examples added in buildGenerationPrompt (line 367) and buildCliGenPrompt (line 1396). Root cause: disappearing-numbers #509 — typeof Components/Helpers never resolves → 180s white screen. |
+| Current task | **GF-NEW-1/2/3 DONE (commit TBD, 2026-03-23)** — game-flow root cause fix: lives poll-before-read, banned-selector fix-loop hard-replace, step-panel no-hidden-precondition. Next: monitor game-flow pass rate on next 2 builds; target ≥50% (up from 29.2%). |
+| Status | 1135 tests pass. GF-NEW-1 added after GF7 (line ~2316): mandatory expect.poll before getLives() loop. GF9-ENFORCEMENT extended (line ~2355): 11 new trigger phrases + fix-loop hard-replace instruction. GF-NEW-3 added after GF10 (line ~2384): no .toBeHidden() precondition on step panels. |
 | Waiting on | none |
 | Blocked by | none |
 
