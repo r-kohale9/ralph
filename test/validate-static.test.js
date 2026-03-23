@@ -3680,6 +3680,46 @@ describe('GEN-MOBILE-STACK: flex-direction:row detection', () => {
       `Expected GEN-DOM-CACHE warning when getElementById is inside async loadQuestion() but got: ${output}`,
     );
   });
+
+  it('GEN-DOM-CACHE: warns when loadQuestion() has an if block before getElementById (previously false negative)', () => {
+    // The old [^{}]* pattern stopped at the opening brace of the if-block,
+    // missing the getElementById call inside it — this was a silent false negative.
+    const html = VALID_HTML.replace(
+      'function showQuestion()',
+      `function loadQuestion(index) {
+        if (index === 0) {
+          const el = document.getElementById('question-text');
+          el.textContent = 'First question';
+        }
+      }
+      function showQuestion()`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-DOM-CACHE'),
+      `Expected GEN-DOM-CACHE warning when getElementById is inside if-block in loadQuestion() but got: ${output}`,
+    );
+  });
+
+  it('GEN-DOM-CACHE: warns when renderRound() has a for loop before getElementById (previously false negative)', () => {
+    // The old [^{}]* pattern stopped at the opening brace of the for-loop,
+    // missing the getElementById call inside it — this was a silent false negative.
+    const html = VALID_HTML.replace(
+      'function showQuestion()',
+      `function renderRound(round) {
+        for (let i = 0; i < round.options.length; i++) {
+          const btn = document.getElementById('option-' + i);
+          btn.textContent = round.options[i];
+        }
+      }
+      function showQuestion()`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-DOM-CACHE'),
+      `Expected GEN-DOM-CACHE warning when getElementById is inside for-loop in renderRound() but got: ${output}`,
+    );
+  });
 });
 
 describe('GEN-TIMER-GETTIME: banned CDN timer methods', () => {
