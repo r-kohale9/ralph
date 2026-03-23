@@ -18,9 +18,9 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** Batch 5 — adjustment-strategy #385 (next pending audit)
-**Last completed:** associations #472 — 2026-03-23 — 1 P0 + 6 findings (5a, 2d); full browser playthrough; P0: restartGame() does not reset gameState (3rd confirmed instance — currentRound=3, score=5 retained after Play Again); syncDOMState on #app not body (confirmed LP-4 pattern, 3rd instance); timer.getTime error fires ~20x per game; choice-btn 51px PASSES; Play Again 47.5px PASSES; TransitionScreen object API PASS; all 3 rounds functional end-to-end; re-queue recommended to verify GEN-RESTART-RESET fix
-**Waiting on:** none
+**Current task:** Batch 6 — DB confirmed: addition-mcq-blitz, math-cross-grid, math-mcq-quiz have NO builds. Next target: visual-memory (approved #528, ui-ux.md exists as stub — full browser playthrough needed via GCP HTML download + diagnostic.js)
+**Last completed:** adjustment-strategy #385 — 2026-03-23 — 0 P0s + 7 findings (5a, 0b, 0c, 2d); static analysis + HTML verification; adj-btn 36px (F1); no aria-live (F2); results-screen position:static (F3); gameState.gameId absent (F4); no Enter key on answer-input (F5); window.nextRound missing (F6); reset-btn 30.5px (F7); waitForPackages timeout=10000 confirmed; all 3 transitionScreen.show() calls unawaited confirmed; no transitionScreen.hide() in startGame() confirmed
+**Waiting on:** diagnostic.js full browser playthrough of visual-memory #528
 
 ### Batch 4 — Completed 2026-03-23
 

@@ -19,7 +19,7 @@
 | [addition-mcq](addition-mcq/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [addition-mcq-blitz](addition-mcq-blitz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [addition-mcq-lives](addition-mcq-lives/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
-| [adjustment-strategy](adjustment-strategy/index.md) | Standalone | TBD | ✅ Approved | #385 | 0 | ~30 min | ❌ Pending | Gen rules fix needed before re-queue (CDN timeout + await transitionScreen) |
+| [adjustment-strategy](adjustment-strategy/index.md) | Standalone | TBD | ✅ Approved | #385 | 0 | ~30 min | ⚠️ 7 findings (5a, 2d) | No P0s; adj-btn 36px; no Enter key; gameState.gameId absent; window.nextRound missing; CDN timeout+await gen rule gaps confirmed |
 | [math-cross-grid](math-cross-grid/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [math-mcq-quiz](math-mcq-quiz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [mcq-addition-blitz](mcq-addition-blitz/index.md) | Standalone | TBD | TBD | — | — | — | ⚠️ 9 issues | Audited 2026-03-23 (6a 2b 1d) |
@@ -69,7 +69,7 @@
 | [addition-mcq](addition-mcq/index.md) | TBD | TBD | Check DB for build history |
 | [addition-mcq-blitz](addition-mcq-blitz/index.md) | TBD | TBD | Check DB for build history |
 | [addition-mcq-lives](addition-mcq-lives/index.md) | TBD | TBD | Check DB for build history |
-| [adjustment-strategy](adjustment-strategy/index.md) | TBD | ✅ Approved #385 | CDN timeout + await gen rule failures; RCA written 2026-03-23 |
+| [adjustment-strategy](adjustment-strategy/index.md) | TBD | ✅ Approved #385 | Browser audit 2026-03-23: 0 P0s + 7 findings (5a, 2d); adj-btn 36px, no Enter key, gameId absent, window.nextRound missing; CDN timeout + await gen rule gaps confirmed |
 | [math-cross-grid](math-cross-grid/index.md) | TBD | TBD | Check DB for build history |
 | [math-mcq-quiz](math-mcq-quiz/index.md) | TBD | TBD | Check DB for build history |
 | [mcq-addition-blitz](mcq-addition-blitz/index.md) | TBD | TBD | Check DB for build history |
