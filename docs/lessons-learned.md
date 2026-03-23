@@ -2581,3 +2581,21 @@ Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug
 **Root cause:** `isActive` is a "currently processing answer" flag, not an "endGame allowed" flag. Using it as an endGame guard conflates two different state concepts.
 
 **Rule:** `endGame()` guard must use ONLY `gameEnded`: `if (gameState.gameEnded) return;`. Never use `!isActive` as an endGame guard. Use a separate `isProcessing` flag for answer double-click protection. (GEN-ENDGAME-GUARD, Rule 53)
+
+## Lesson 198 — Results screen position:static clips content on mobile (2026-03-23)
+
+**Source:** UI/UX audits — 6 confirmed instances (quadratic-formula, soh-cah-toa, right-triangle-area, word-pairs, name-the-sides, find-triangle-side) | **Pattern across session**
+
+**Problem:** Results screen uses `position: static` (default), causing it to stack in document flow. On `#app` containers with `overflow: hidden`, the results screen is clipped below the visible area. On mobile, the "Play Again" button is unreachable without scrolling. Tests still pass because the element exists in DOM — but user cannot interact with it.
+
+**Root cause:** LLMs default to hiding/showing elements with `display: none → block`, inheriting whatever position the element has in DOM flow. The `#app` container is typically `height: 100vh; overflow: hidden`, clipping any child that overflows.
+
+**Rule:** Results screen MUST use `position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100`. Never `position: static` for the results screen. (GEN-RESULTS-FIXED, Rule 54). Playwright assertion TE-RES-002: `checkResultsScreenViewport()` guards against this — checks `position:fixed OR (coversViewport AND rectTop <= 10)`.
+
+## Lesson 199 — LP-2 banned-selector substitution misses .first().click() form (2026-03-23)
+
+**Source:** Code Review CR-052 of pipeline-test-gen.js | **Build pattern: all test-gen builds**
+
+**Problem:** The LP-2 substitution regex correctly handles `page.locator('#mathai-transition-slot button').click()` and `page.locator('#mathai-transition-slot button').first().toBeVisible()` — but NOT `page.locator('#mathai-transition-slot button').first().click()`. The `.first()` group is present in the `.toBeVisible()` regex but not in the `.click()` regex. The banned selector escapes post-processing and appears in emitted contract/game-flow tests → test timeouts.
+
+**Rule:** LP-2 regex for click substitution must handle both `button.click()` AND `button.first().click()`. Asymmetric regex coverage is a common bug when adding `.first()` support — always check BOTH the click and the visibility assertion variants.
