@@ -251,6 +251,7 @@
 | **Ship 44px min-height rule on all interactive buttons** | **DONE — 2026-03-23 (GEN-UX-002)** | 7 confirmed instances: which-ratio, name-the-sides, count-and-tap, find-triangle-side, quadratic-formula, soh-cah-toa, real-world-problem #564. GEN-TOUCH-TARGET shipped: CDN_CONSTRAINTS_BLOCK line 121 + buildGenerationPrompt() rule 32 (lines 536–539) in lib/prompts.js. Rule: `min-height:44px; min-width:44px` on all interactive buttons/options. | Affects touch usability on every mobile game. |
 | **Canvas responsive sizing rule** | **DONE — 2026-03-23 (commit 9b5b7fe)** | GEN-CANVAS-001: Added to CDN_CONSTRAINTS_BLOCK + buildGenerationPrompt() rule 39. Canvas elements MUST include `style="max-width: 100%; height: auto;"`. Ban: hardcoded `width="500"` with no responsive CSS. Source: UI/UX audit right-triangle-area #543. 988/988 tests pass. Deployed. | Prevents horizontal scroll on canvas-based games. |
 | **CSS variable token consistency rule** | **DONE — 2026-03-23 (commit 8221ae2, GEN-CSS-TOKENS rule 40)** | CDN_CONSTRAINTS_BLOCK + buildGenerationPrompt rule 40: ban `--mathai-green`, `--color-red`, `--color-orange`; mandate `--mathai-success`, `--mathai-error`, `--mathai-warning`. Deployed. | Prevents invisible feedback text when CSS vars are undefined. |
+| **GEN-TESTID-RESTART: restart button data-testid must be `btn-restart`** | **pending** | Source: one-digit-doubles #487 UI/UX audit (UI-ODD-003). Restart button uses `data-testid="restart-btn"` — convention across all other audited games is `"btn-restart"`. The test harness helper `clickRestart()` likely targets `btn-restart`. Add gen rule: restart button MUST use `data-testid="btn-restart"`. | Ensures test harness `clickRestart()` works reliably; eliminates false-pass where restart button exists but has wrong testid. |
 | **data-testid must match element id rule** | **pending** | `data-testid` value must exactly match the element's `id` attribute (or use a consistent `btn-` prefix). Ban divergence between testid and functional id. Source: UI/UX audit word-pairs #529. | Prevents test selector inconsistencies. |
 | **Standardise Sentry SDK to v10.23.0 three-script pattern** | **pending** | CDN_CONSTRAINTS_BLOCK must mandate Sentry SDK version 10.23.0 with three scripts: bundle.tracing.replay.feedback.min.js + captureconsole.min.js + browserprofiling.min.js. Ban v7 single-bundle. Source: UI/UX audit word-pairs #529. | Ensures consistent Sentry behaviour across all games. |
 | **hide()/show() helpers must receive DOM elements not strings** | **DONE — 2026-03-23 (commit 8221ae2, GEN-HIDE-SHOW rule 41)** | CDN_CONSTRAINTS_BLOCK + buildGenerationPrompt rule 41: WRONG/RIGHT examples; NEVER pass string — always pass `document.getElementById('id')`. Deployed. | Prevents silent TypeError when string passed to classList/style. |
@@ -515,7 +516,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | **CR-058 DONE** — categorizeFailure() multi-line Playwright numeric diff fix (commit eea041e). File deployed to GCP (SCP only — build #567 running). 2 unit tests added (branch 15b). Next: backlog sweep or new finding. |
+| Current task | CR-058 DONE (eea041e) — categorizeFailure multiline Playwright diff. CR-084 DONE (8b45ab4) — early-review CSS strip bug. Next: worker.js threadInfo scoping investigation (build #567 failed with threadInfo is not defined after test-gen). |
 | Waiting on | unblocked |
 | Blocked by | none |
 
@@ -608,8 +609,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-032 (689d668) + LP-2 (34d7fa8) + LP-3 (6a74ba9) deployed to GCP 2026-03-23 — worker restarted, active. W13 GEN-RESTART-RESET T1 check live; LP-2 banned-selector substitution live; LP-3 step-panel fix-loop reinforcement live. CR-024 [MED] flagged: GEN-PROGRESSBAR-LIVES regex misses negative totalLives — needs validate-static.js fix. CR-066 fix deployed to GCP — verify resolve rate improves after next fix-job approval. Waiting on next approved build to verify CR-032 + LP-2 + LP-3 + CR-066 improvements. |
-| Waiting on | Next approved build to verify CR-032 + LP-2 + LP-3 improvements |
+| Current task | CR-084 (8b45ab4) deployed — early-review CSS strip fix. stats-identify-class #569 queued to verify. CT-NEW-1/2/3 + LP-NEW-1/2/3 verification agent running (addf2b4b). GEN-TS-ONEARG verified via keep-track #568 re-queue. |
+| Waiting on | stats-identify-class #569 approval to verify CR-084 |
 | Blocked by | none |
 
 **Verification log:**
@@ -644,7 +645,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | All 5 stats session specs reviewed — 0 spec fixes needed. Waiting for stats-identify-class re-queue after #566 rejection diagnosis. |
+| Current task | Interaction Pattern Library agent running (a3736bd3) — 7 patterns being documented. Waiting: stats-identify-class #569 queued (verify CR-084), stats-mean-direct queued after approval. |
 | Status | 5-game CBSE Class 9/10 statistics session written — L1→L4 Bloom ladder, 43 min total, NCERT Ch 9–14 anchored, 4 misconceptions per game documented with Exa-sourced citations. |
 | Waiting on | Build #566 to complete (stats-identify-class) |
 | Blocked by | nothing |

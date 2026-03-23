@@ -2838,3 +2838,115 @@ describe('GEN-TRANSITION-API-CALL: transitionScreen.show() string-mode API check
     );
   });
 });
+
+describe('GEN-PHASE-MCQ: MCQ/timed games must call syncDOMState() at all phase transitions', () => {
+  // Helper: build a minimal MCQ game fragment with exactly N syncDOMState() call sites.
+  // We write the function body as a comment-style stub to avoid counting the definition
+  // itself, then add exactly N calls inside showStartScreen().
+  // Note: the definition `function _syncDOM() {}` + alias avoids the regex matching the stub.
+  function mcqHtml(syncCallCount, useTimer = false) {
+    // Each call is spelled out as a separate statement so the count is exact
+    const syncs = Array.from({ length: syncCallCount }, () => 'syncDOMState();').join('\n    ');
+    const timerLine = useTimer ? 'const timer = new TimerComponent("timer-container", { timerType: "decrease", startTime: 30, endTime: 0, onEnd: function() {} });' : '';
+    return VALID_HTML.replace(
+      '</script>',
+      `
+  /* stub: syncDOMState writes gameState.phase to #app[data-phase] */
+  var syncDOMState = function() { /* stub */ };
+  ${timerLine}
+  window.gameState = { phase: 'start', totalLives: 3, currentRound: 0, totalRounds: 5, score: 0, events: [], attempts: [], gameEnded: false };
+  function showStartScreen() { gameState.phase = 'start'; ${syncs} }
+  function handleClick(answer) { gameState.score++; }
+  </script>`,
+    ).replace(
+      // inject an option button so the MCQ pattern is detected
+      '<div id="answers"></div>',
+      '<div id="answers"><button class="option-btn" data-testid="option-0">A</button></div>',
+    );
+  }
+
+  it('emits WARNING [GEN-PHASE-MCQ] when MCQ game has 0 syncDOMState() calls', () => {
+    const html = mcqHtml(0);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('WARNING [GEN-PHASE-MCQ]'),
+      `Expected GEN-PHASE-MCQ warning for 0 syncDOMState() calls but got: ${output}`,
+    );
+    assert.ok(
+      output.includes('found 0'),
+      `Expected "found 0" in warning message but got: ${output}`,
+    );
+  });
+
+  it('emits WARNING [GEN-PHASE-MCQ] when MCQ game has 1 syncDOMState() call', () => {
+    const html = mcqHtml(1);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('WARNING [GEN-PHASE-MCQ]'),
+      `Expected GEN-PHASE-MCQ warning for 1 syncDOMState() call but got: ${output}`,
+    );
+    assert.ok(
+      output.includes('found 1'),
+      `Expected "found 1" in warning message but got: ${output}`,
+    );
+  });
+
+  it('emits WARNING [GEN-PHASE-MCQ] when MCQ game has 2 syncDOMState() calls', () => {
+    const html = mcqHtml(2);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('WARNING [GEN-PHASE-MCQ]'),
+      `Expected GEN-PHASE-MCQ warning for 2 syncDOMState() calls but got: ${output}`,
+    );
+    assert.ok(
+      output.includes('found 2'),
+      `Expected "found 2" in warning message but got: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-PHASE-MCQ warning when MCQ game has 3 syncDOMState() calls', () => {
+    const html = mcqHtml(3);
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-PHASE-MCQ'),
+      `Unexpected GEN-PHASE-MCQ warning for 3 syncDOMState() calls: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-PHASE-MCQ warning when MCQ game has 4 syncDOMState() calls (all 4 sites)', () => {
+    const html = mcqHtml(4);
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-PHASE-MCQ'),
+      `Unexpected GEN-PHASE-MCQ warning for 4 syncDOMState() calls: ${output}`,
+    );
+  });
+
+  it('emits WARNING [GEN-PHASE-MCQ] for timed MCQ game (TimerComponent) with fewer than 3 calls', () => {
+    // Timed games use TimerComponent — also MCQ pattern trigger
+    const html = mcqHtml(1, true);
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('WARNING [GEN-PHASE-MCQ]'),
+      `Expected GEN-PHASE-MCQ warning for timed MCQ with 1 syncDOMState() call but got: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-PHASE-MCQ warning for non-MCQ game without option buttons or lives', () => {
+    // VALID_HTML has no .option-btn and no gameState.lives — not an MCQ game
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-PHASE-MCQ'),
+      `Unexpected GEN-PHASE-MCQ warning for non-MCQ game: ${output}`,
+    );
+  });
+
+  it('includes all 4 required call sites in the warning message', () => {
+    const html = mcqHtml(1);
+    const { output } = runValidator(html);
+    assert.ok(output.includes('showStartScreen()'), `Missing showStartScreen call site in warning: ${output}`);
+    assert.ok(output.includes('startGame()/renderRound()'), `Missing renderRound call site in warning: ${output}`);
+    assert.ok(output.includes("'gameover'"), `Missing gameover phase in warning: ${output}`);
+    assert.ok(output.includes("'results'"), `Missing results phase in warning: ${output}`);
+  });
+});
