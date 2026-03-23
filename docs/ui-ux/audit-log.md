@@ -18,16 +18,23 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** keep-track #503 — full browser playthrough COMPLETED 2026-03-23 (Playwright MCP 375×812px). All findings validated. Next target: next game without ui-ux.md.
+**Current task:** one-digit-doubles #487 audit complete (2026-03-23). 0 P0 + 2 HIGH + 2 MEDIUM + 2 LOW. No re-queue required. Key findings: ARIA-001 (no aria-live), GEN-UX-001 (results-screen static), GEN-TESTID-RESTART mismatch (data-testid="restart-btn" vs expected "btn-restart"), seal-before-recordViewEvent ordering. Next target: next game without ui-ux.md.
+**Last completed:** keep-track #503 — 2026-03-23 — 2 P0 + 3 HIGH + 3 MEDIUM + 2 LOW; full browser playthrough (Playwright MCP 375×812px); P0-A: `transitionScreen.show()` called with two args (string + config) — all screens blank, game never starts (NEW critical gen rule GEN-TS-ONEARG — confirmed 2nd instance after which-ratio #561 victory screen); P0-B: gameContent stays display:none since TransitionScreen hide() never fires (consequence of P0-A); HIGH: ARIA-001 no aria-live (25th+ instance); interactive cup divs missing role=button/tabindex/aria-label (NEW GEN-INTERACTIVE-DIV-ROLE); results-screen position:static (21st+ GEN-UX-001); MEDIUM: restartGame() incomplete state reset; accuracy 0% in results; timer hardcoded #000FFF color; LOW: FeedbackManager subtitle CDN warning; timer 0:00 (conditional on P0-A); PASS: CDN packages 0 404s, gameState.gameId='game_keep_track', window.endGame/nextRound/restartGame exposed, syncDOMState targets #app (not body), data-phase/round/lives/score all set, progress bar updates, cup data-testid option-0..2, game_complete postMessage correct structure; RE-QUEUE REQUIRED.
 **Last completed:** keep-track #503 — 2026-03-23 — 2 P0 + 3 HIGH + 3 MEDIUM + 2 LOW; full browser playthrough (Playwright MCP 375×812px); P0-A: `transitionScreen.show()` called with two args (string + config) — all screens blank, game never starts (NEW critical gen rule GEN-TS-ONEARG — confirmed 2nd instance after which-ratio #561 victory screen); P0-B: gameContent stays display:none since TransitionScreen hide() never fires (consequence of P0-A); HIGH: ARIA-001 no aria-live (25th+ instance); interactive cup divs missing role=button/tabindex/aria-label (NEW GEN-INTERACTIVE-DIV-ROLE); results-screen position:static (21st+ GEN-UX-001); MEDIUM: restartGame() incomplete state reset; accuracy 0% in results; timer hardcoded #000FFF color; LOW: FeedbackManager subtitle CDN warning; timer 0:00 (conditional on P0-A); PASS: CDN packages 0 404s, gameState.gameId='game_keep_track', window.endGame/nextRound/restartGame exposed, syncDOMState targets #app (not body), data-phase/round/lives/score all set, progress bar updates, cup data-testid option-0..2, game_complete postMessage correct structure; RE-QUEUE REQUIRED.
 **stats-which-measure postMessage:** VERIFIED 2026-03-23 — has events/duration/attempts all present. Cross-consistency fix applied to 4 other stats specs (stats-identify-class, stats-mean-direct, stats-median, stats-mode) — all were missing `events: gameState.events`; added to both impl call and Section 8 doc block.
 **Waiting on:** —
+
+### Batch 12 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | one-digit-doubles | #487 | **full browser playthrough** 2026-03-23 — 0 P0 + 2 HIGH + 2 MEDIUM + 2 LOW | done — no re-queue required |
 
 ### Batch 11 — Completed 2026-03-23
 
 | Priority | Game | Build ID | ui-ux.md state | Status |
 |----------|------|----------|----------------|--------|
-| 1 | keep-track | #503 | **full browser playthrough** 2026-03-23 — 2 P0 + 3 HIGH + 3 MEDIUM + 2 LOW | done — re-queue required |
+| 1 | keep-track | #503 | **full browser playthrough** 2026-03-23 — 2 P0 + 3 HIGH + 3 MEDIUM + 2 LOW | done — re-queued as build #567 (GEN-TS-ONEARG a320a31 deployed) |
 
 ### Batch 10 — Completed 2026-03-23
 
