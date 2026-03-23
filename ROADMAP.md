@@ -573,9 +573,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | stats-mode spec DONE — Session 2 Game 4 (terminal), Bloom L3, 9 rounds (3 easy/3 medium/3 hard), 5 misconception tags (M-mean-confusion, M-median-confusion, M-multiple-mode, M-formula-error, M-freq-extremum), 3 Exa sources (NCERT Ch13, IASE SERJ 2023, Enisoğlu 2014). All 18 anti-pattern rules pre-applied. Dual display mode: number list (R1–R6) + HTML table (R7–R9). Session 2 complete — all 4 games specced. Session 3 planning next. |
-| Status | stats-identify-class: F1 FIXED (game_complete type), F2 (restartGame missing — spec addition needed before queue), F3/F5/F6 gen rules already shipped. stats-mean-direct: all 11 gen rules verified. |
-| Waiting on | Human review of stats-identify-class spec before queuing first build |
+| Current task | Session 3 plan written (docs/education/session3-plan.md). Recommendation: Arithmetic Progressions (NCERT Class 10 Ch 5), 5 games, Bloom L1→L4. Defers Probability to Session 4. Awaiting human approval of topic before spec writing begins. |
+| Status | Session 2 complete (4 games specced). Session 3 plan compares Probability vs AP across exam weight, misconception addressability, CDN compatibility, and pattern library value. |
+| Waiting on | Human approval of Session 3 topic (AP recommended) before writing ap-identify spec |
 | Blocked by | none |
 
 | Task | Status | Notes |
