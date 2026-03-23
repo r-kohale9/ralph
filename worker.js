@@ -263,13 +263,18 @@ async function handleFixJob(job) {
   if (buildId) db.completeBuild(buildId, report);
 
   // GCP upload — always upload for preview link regardless of status
+  // CR-056: wrapped in try/catch — GCP failure must not flip an approved build to failed
   if (gcp.isEnabled()) {
     const htmlFile = path.join(gameDir, 'index.html');
     if (fs.existsSync(htmlFile)) {
-      const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
-      if (gcpUrl) {
-        db.updateBuildGcpUrl(buildId, gcpUrl);
-        db.updateGameGcpUrl(gameId, gcpUrl);
+      try {
+        const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
+        if (gcpUrl) {
+          db.updateBuildGcpUrl(buildId, gcpUrl);
+          db.updateGameGcpUrl(gameId, gcpUrl);
+        }
+      } catch (gcpErr) {
+        logger.warn(`[worker] handleFixJob GCP upload failed (build ${buildId}): ${gcpErr.message} — build remains approved`);
       }
     }
   }
@@ -284,6 +289,21 @@ async function handleFixJob(job) {
 
   // Update game status
   db.updateGameStatus(gameId, report.status === 'APPROVED' ? 'approved' : 'fix-failed');
+
+  // CR-055: Resolve all unresolved failure patterns on APPROVED path (mirrors handleJob CODE-001 fix)
+  if (report.status === 'APPROVED') {
+    try {
+      const patterns = db.getFailurePatterns(gameId).filter(p => !p.resolved);
+      for (const pattern of patterns) {
+        db.resolveFailurePattern(pattern.id);
+      }
+      if (patterns.length > 0) {
+        logger.info(`[worker] handleFixJob: resolved ${patterns.length} failure pattern(s) for ${gameId}`);
+      }
+    } catch (err) {
+      logger.warn(`[worker] handleFixJob: could not resolve failure patterns for ${gameId}: ${err.message}`);
+    }
+  }
 
   return report;
 }
@@ -1162,14 +1182,19 @@ const worker = new Worker(
     extractLearnings(gameId, buildId, report);
 
     // GCP upload — always upload so a preview link is available regardless of status
+    // CR-056: wrapped in try/catch — GCP failure must not flip an approved build to failed
     if (gcp.isEnabled()) {
       const gameBuildDir = path.join(REPO_DIR, 'data', 'games', gameId, 'builds', String(buildId));
       const htmlFile = path.join(gameBuildDir, 'index.html');
       if (fs.existsSync(htmlFile)) {
-        const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
-        if (gcpUrl) {
-          if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
-          db.updateGameGcpUrl(gameId, gcpUrl);
+        try {
+          const gcpUrl = await gcp.uploadGameArtifact(gameId, buildId, htmlFile);
+          if (gcpUrl) {
+            if (buildId) db.updateBuildGcpUrl(buildId, gcpUrl);
+            db.updateGameGcpUrl(gameId, gcpUrl);
+          }
+        } catch (gcpErr) {
+          logger.warn(`[worker] GCP upload failed (build ${buildId}): ${gcpErr.message} — build remains approved`);
         }
       }
     }
