@@ -15,7 +15,7 @@
 | Severity | Count | Open |
 |----------|-------|------|
 | Critical | 1 | 0 (rule shipped) |
-| High | 4 | 1 open (syncDOMState target) |
+| High | 4 | 0 open (UI-CAT-008 RETRACTED — #app consistent with test harness) |
 | Medium | 2 | 1 open (ProgressBar off-by-one) |
 | Low | 3 | 3 open |
 
@@ -59,12 +59,11 @@
 - Classification: (a) Gen prompt rule
 - Status: New — added to ROADMAP 2026-03-23. Rule proposed: never negate an `isActive` guard within the same synchronous execution frame; only reset in `.finally()` or after guarded async op completes.
 
-**UI-CAT-008 — syncDOMState targets #app not body (HIGH test gap)**
+**UI-CAT-008 — syncDOMState targets #app not body — RETRACTED**
 
-- Observed (browser-confirmed): `syncDOMState()` function sets `data-phase`, `data-round`, `data-lives`, `data-score` on `document.getElementById('app')` — NOT on `document.body`. Verified: `app[data-phase="playing"]`, `app[data-lives="3"]`, `app[data-round="0"]` during gameplay; `body[data-phase]=null`, `body[data-lives]=null`, `body[data-round]=null`. This is the exact same pattern confirmed in real-world-problem #564 (2026-03-23).
-- Impact: All Playwright test assertions using `body[data-phase]`, `body[data-lives]`, `body[data-round]` selectors will fail silently. Pipeline cannot observe game state transitions via standard test harness. Category pass rates for state-transition tests will be 0%.
-- Classification: (d) Test gap + (a) gen rule
-- Status: Open — HIGH priority. Second confirmed instance (real-world-problem was first). Gen rule needed: `syncDOMState()` must always call `document.body.setAttribute(...)` not `getElementById('app').setAttribute(...)`. Test Engineering handoff.
+- Observed (browser-confirmed): `syncDOMState()` function sets `data-phase`, `data-round`, `data-lives`, `data-score` on `document.getElementById('app')`.
+- **RETRACTED 2026-03-23:** This is NOT a bug. Investigation of `lib/pipeline-test-gen.js` line 323 confirms `waitForPhase()` reads `page.locator('#app').toHaveAttribute('data-phase', phase)` — it uses `#app[data-phase]`, not `body[data-phase]`. Gen prompt examples at prompts.js ~line 1996 also show `page.locator('#app').toHaveAttribute('data-phase', ...)`. Games write to `#app[data-phase]`; tests read from `#app[data-phase]` — fully consistent. No mismatch exists. Classification: not a bug.
+- Status: **RETRACTED** — LP-4/GEN-SYNC-TARGET false alarm. No gen rule or test change needed.
 
 ---
 
@@ -126,8 +125,8 @@
 | ProgressBar totalLives | PASS — totalLives:3 (correct) |
 | TransitionScreen API (object, not string) | PASS — `new TransitionScreenComponent({autoInject:true})` |
 | game_complete postMessage | PASS — type:'game_complete' |
-| data-phase on body | FAIL — set on #app, not body |
-| data-lives on body | FAIL — set on #app, not body |
+| data-phase on #app | PASS — set on #app; test harness also reads #app[data-phase] (RETRACTED: was mis-classified as FAIL) |
+| data-lives on #app | PASS — set on #app; getLives() also reads #app[data-lives] (RETRACTED: was mis-classified as FAIL) |
 | Option buttons 44px min-height | FAIL — 21.5px (no CSS) |
 | aria-live on feedback | FAIL — no aria-live anywhere |
 | JS runtime errors | PASS — zero runtime errors |
@@ -143,7 +142,7 @@
 | Explicit 44px touch targets on all buttons (GEN-UX-002) | SHIPPED 2026-03-23 |
 | ARIA live regions on all dynamic feedback (ARIA-001 expanded) | SHIPPED c826ec1 |
 | Never negate isActive guard in same sync frame | New — ROADMAP 2026-03-23 |
-| syncDOMState must target body not #app | New — 2nd instance confirmed, ROADMAP |
+| syncDOMState targets #app (GEN-SYNC-TARGET) | RETRACTED 2026-03-23 — #app is consistent with test harness; not a bug |
 | ProgressBar.update final round before endGame() | New — ROADMAP |
 | Results screen position:fixed (GEN-UX-001) | SHIPPED — N/A for this game (CDN TransitionScreen used) |
 
@@ -151,8 +150,8 @@
 
 | Action | Priority | Owner |
 |--------|----------|-------|
-| Ship gen rule: syncDOMState must target body not #app | HIGH | Gen Quality |
-| Add test assertion for #app[data-phase] as fallback | HIGH | Test Engineering |
+| ~~Ship gen rule: syncDOMState must target body not #app~~ | ~~HIGH~~ | RETRACTED — #app is consistent with test harness |
+| ~~Add test assertion for #app[data-phase] as fallback~~ | ~~HIGH~~ | RETRACTED — test harness already uses #app[data-phase] |
 | Add dot/count-warning visual at 80% threshold to spec | Medium | Education |
 | Ship gen rule: progressBar.update final round before endGame() | Medium | Gen Quality |
 | Ship dead-code guard rule (isActive anti-pattern) | Low | Gen Quality |

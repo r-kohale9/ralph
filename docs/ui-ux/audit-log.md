@@ -19,7 +19,7 @@ Track visual and interaction quality audits of generated games. Each entry recor
 ## Active Audit Target
 
 **Current task:** Batch 4 — associations #472 (next up)
-**Last completed:** count-and-tap #551 — 2026-03-23 — 0 P0s + 10 findings (6a, 1b, 1 retracted, 2d); full browser playthrough; UI-CAT-006 RETRACTED (CDN TransitionScreen used correctly); NEW HIGH: syncDOMState on #app not body (2nd confirmed instance); NEW MEDIUM: ProgressBar off-by-one on final round; restartGame() state reset PASS; flow fully functional end-to-end; no re-queue required
+**Last completed:** count-and-tap #551 — 2026-03-23 — 0 P0s + 10 findings (6a, 1b, 2 retracted, 1d); full browser playthrough; UI-CAT-006 RETRACTED (CDN TransitionScreen used correctly); UI-CAT-008 RETRACTED (2026-03-23): syncDOMState on #app is correct — test harness waitForPhase() also uses #app[data-phase], no mismatch (LP-4/GEN-SYNC-TARGET false alarm); NEW MEDIUM: ProgressBar off-by-one on final round; restartGame() state reset PASS; flow fully functional end-to-end; no re-queue required
 **Waiting on:** none
 
 ### Batch 4 — In Progress 2026-03-23
@@ -45,7 +45,7 @@ Track visual and interaction quality audits of generated games. Each entry recor
 |----------|------|----------|----------------|--------|
 | 1 | which-ratio | #561 | **full browser playthrough** 2026-03-23 — 2 P0s + 8 issues | done — re-queue required |
 | 2 | find-triangle-side | #549 | **full browser playthrough** 2026-03-23 — 1 P0 + 11 findings | done — re-queue required |
-| 3 | real-world-problem | #564 | **full browser playthrough** 2026-03-23 — 0 P0s + 12 findings (4 new: syncDOMState on #app not body, Play Again 41px, SignalCollector sealed on restart, SVG clip confirmed) | done |
+| 3 | real-world-problem | #564 | **full browser playthrough** 2026-03-23 — 0 P0s + 12 findings (3 new active: Play Again 41px, SignalCollector sealed on restart, SVG clip confirmed; UI-RWP-009 RETRACTED — syncDOMState on #app is correct, test harness also uses #app[data-phase]) | done |
 
 **Stub inventory (ui-ux.md exists but unpopulated — pending future batches):**
 addition-mcq

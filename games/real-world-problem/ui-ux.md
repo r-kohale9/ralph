@@ -16,11 +16,11 @@ No P0 flow bugs that block game completion — all 4 rounds reachable, results s
 | Severity | Count | Open |
 |----------|-------|------|
 | Critical | 0 | 0 |
-| High | 6 | 2 (N1 new, N2 new — test gaps) |
+| High | 6 | 1 (N2 new — Play Again 41px; N1 UI-RWP-009 RETRACTED) |
 | Medium | 4 | 2 open, 2 shipped |
 | Low | 2 | 2 open |
 
-**Playthrough result:** CSS intact. All 4 rounds reachable. All 3 steps per round functional. Wrong answer correctly deducts a life. Enter key confirmed unbound. Results screen confirmed `position:static`. restartGame() resets lives/score/round/wrongOnStep3 correctly. `data-phase`/`data-lives`/`data-round` set on `#app` (not `body`) — tests that target `body` will fail.
+**Playthrough result:** CSS intact. All 4 rounds reachable. All 3 steps per round functional. Wrong answer correctly deducts a life. Enter key confirmed unbound. Results screen confirmed `position:static`. restartGame() resets lives/score/round/wrongOnStep3 correctly. `data-phase`/`data-lives`/`data-round` set on `#app` — this is CORRECT and consistent with test harness which also reads `#app[data-phase]` (UI-RWP-009 RETRACTED).
 
 ---
 
@@ -71,13 +71,11 @@ No P0 flow bugs that block game completion — all 4 rounds reachable, results s
 - Classification: (a) Gen prompt rule → add to spec: `restartGame()` must call `signalCollector.reset()` or create a new `SignalCollector` instance.
 - Status: Open — escalate to Gen Quality. Add to spec Section 3 notes.
 
-**UI-RWP-009 (NEW) — syncDOMState() targets `#app` not `body` — test gap**
+**UI-RWP-009 (NEW) — syncDOMState() targets `#app` not `body` — RETRACTED**
 
 - Observed (browser): `syncDOMState()` sets `data-phase`, `data-lives`, `data-round`, `data-score` on `document.getElementById('app')`. `document.body` has `null` for all these attributes throughout gameplay.
-- Values confirmed: `app.dataset.phase = "playing"`, `app.dataset.lives = "3"`, `app.dataset.round = "1"` — all correct on `#app`. But Playwright tests that use `page.locator('body[data-phase="playing"]')` or `body.getAttribute('data-lives')` will always fail.
-- Impact: Test harness assertions on `data-phase`/`data-lives` will time out or return null. This is a test gap — the game logic is correct (syncDOMState works) but tests look at the wrong element.
-- Classification: (d) Test gap → Test Engineering: update test selectors to use `#app[data-phase]` instead of `body[data-phase]`. OR add to gen rule: syncDOMState must target `body` AND `#app`.
-- Status: Open — HIGH priority for Test Engineering.
+- **RETRACTED 2026-03-23:** This is NOT a test gap. Investigation of `lib/pipeline-test-gen.js` line 323 confirms `waitForPhase()` reads `page.locator('#app').toHaveAttribute('data-phase', phase)` — it uses `#app[data-phase]`, not `body[data-phase]`. Gen prompt examples at prompts.js ~line 1996 also show `page.locator('#app').toHaveAttribute('data-phase', ...)`. The game writes to `#app[data-phase]`; the test harness reads from `#app[data-phase]` — fully consistent. No mismatch. Classification: not a bug.
+- Status: **RETRACTED** — LP-4/GEN-SYNC-TARGET false alarm. No test selector change needed.
 
 **UI-RWP-010 (NEW) — "Play Again" button 41px height (below 44px)**
 
@@ -166,7 +164,7 @@ No P0 flow bugs that block game completion — all 4 rounds reachable, results s
 
 | Action | Priority | Owner |
 |--------|----------|-------|
-| Test Engineering: update test selectors to use `#app[data-phase]` not `body[data-phase]` | HIGH | Test Engineering |
+| ~~Test Engineering: update test selectors to use `#app[data-phase]` not `body[data-phase]`~~ | ~~HIGH~~ | RETRACTED — test harness already uses #app[data-phase]; no change needed |
 | Test Engineering: add Play Again button height assertion (≥44px) | High | Test Engineering |
 | Gen Quality: add restartGame() SignalCollector re-init rule | Medium | Gen Quality |
 | Education: add SVG label margin/preserveAspectRatio requirement to spec | Medium | Education |

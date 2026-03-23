@@ -117,8 +117,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | LP-2 committed — substitute banned #mathai-transition-slot button assertions: click()→clickNextLevel(page), toBeVisible()→waitForPhase(page,'playing',10000), not.toBeVisible()/toHaveText()→REMOVED comment. Next: LP-3 (stale step-panel fix-loop prompt). |
-| Status | 1050/1050 tests pass. 49 gen rules active. LP-2 shipped — vacuous-pass risk eliminated for banned-selector patterns. LP=49% and contract=49% confirmed lowest categories — primary targets for next gen rule improvement cycle. |
+| Current task | LP-4 committed — GEN-SYNC-TARGET: T1 check + gen rule for syncDOMState() targeting #app instead of body. Next: LP-3 (stale step-panel fix-loop prompt). |
+| Status | 1050/1050 tests pass. 51 gen rules active. LP-4 shipped — GEN-SYNC-TARGET T1 check + gen rule blocks syncDOMState writing to #app; LP-2 shipped. LP=49% and contract=49% confirmed lowest categories — primary targets for next gen rule improvement cycle. |
 | Waiting on | LP/contract root cause trace to complete before writing new gen rules |
 | Blocked by | none |
 
