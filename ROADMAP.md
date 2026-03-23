@@ -627,8 +627,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | /api/session endpoint DONE (commit TBD, 2026-03-23). Next: add /api/session to MCP tools list in lib/mcp.js so Claude can trigger session planning via MCP. |
-| Status | Session Planner v1 Steps 1+2+3 wired. POST /api/session → planSessionFromObjective → return session JSON. planSessionFromObjective injectable via createApp(deps). 5 new integration tests added (200 valid, 400 missing/empty/non-string, 500 LLM error). 1135 total tests pass (0 failures). |
+| Current task | MCP tools plan_session + register_spec DONE (commit TBD, 2026-03-23). Session Planner v1 complete — all 3 steps wired, /api/session live, MCP accessible from Claude Desktop. Next: supervisor demo flow doc polishing. |
+| Status | plan_session MCP tool added (calls planSessionFromObjective directly). register_spec updated: gameId validation guard, writes warehouse/templates/<gameId>/spec.md, Slack notification on registration. 2 new unit tests. 1138 total tests pass (0 failures). |
 | Waiting on | nothing — unblocked |
 | Blocked by | nothing |
 

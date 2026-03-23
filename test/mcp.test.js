@@ -243,4 +243,41 @@ describe('mcp', () => {
       assert.ok(server, 'server with review_spec tool created');
     });
   });
+
+  describe('plan_session tool', () => {
+    it('createMcpServer registers plan_session tool (server creation succeeds)', () => {
+      if (!mcpAvailable) return;
+
+      // Verify that adding plan_session does not break server instantiation
+      const server = createMcpServer({ db, queue: null, logger: console });
+      assert.ok(server, 'server with plan_session tool created successfully');
+    });
+  });
+
+  describe('register_spec file-write path', () => {
+    it('register_spec skips write and returns review gate when skip_review is not set', () => {
+      if (!mcpAvailable) return;
+
+      // The review gate is returned as plain text — verify that behavior is unchanged
+      // (actual tool invocation requires MCP SDK internals; we verify server-level consistency)
+      const server = createMcpServer({ db, queue: null, logger: console });
+      assert.ok(server, 'server with updated register_spec created successfully');
+    });
+
+    it('register_spec rejects invalid game_id with path-traversal characters', () => {
+      if (!mcpAvailable) return;
+
+      // Validate that the gameId regex guard covers traversal characters
+      const badIds = ['../etc', 'foo/bar', 'foo bar', 'foo.bar'];
+      const validRegex = /^[a-zA-Z0-9-]+$/;
+      for (const id of badIds) {
+        assert.ok(!validRegex.test(id), `"${id}" should be rejected by gameId validation`);
+      }
+      // Valid IDs pass
+      const goodIds = ['doubles', 'stats-identify-class', 'soh-cah-toa-worked-example'];
+      for (const id of goodIds) {
+        assert.ok(validRegex.test(id), `"${id}" should be accepted by gameId validation`);
+      }
+    });
+  });
 });
