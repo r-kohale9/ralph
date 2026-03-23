@@ -731,7 +731,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       `window.endGame = endGame;
 window.gameState = gameState;
 window.nextRound = nextRound;
-window.loadRound = function(n) { gameState.currentRound = n - 1; nextRound(); };
+window.loadRound = function(n) { gameState.currentRound = n - 1; }; // GEN-ROUND-INDEX: set index directly, do NOT call nextRound()
 window.addEventListener('DOMContentLoaded', async () => {
   window.gameState.totalRounds = 5;
   window.gameState.currentRound = 0;
@@ -2948,5 +2948,179 @@ describe('GEN-PHASE-MCQ: MCQ/timed games must call syncDOMState() at all phase t
     assert.ok(output.includes('startGame()/renderRound()'), `Missing renderRound call site in warning: ${output}`);
     assert.ok(output.includes("'gameover'"), `Missing gameover phase in warning: ${output}`);
     assert.ok(output.includes("'results'"), `Missing results phase in warning: ${output}`);
+  });
+
+  // ─── GEN-PM-DUAL-PATH tests ───────────────────────────────────────────────
+
+  it('GEN-PM-DUAL-PATH: fails when postMessage is inside a simple if-victory guard', () => {
+    // Bug: postMessage only fires on 'victory' path — game_over path never sends it
+    const html = VALID_HTML.replace(
+      `  function endGame() {
+    const pct = gameState.score / gameState.totalQuestions;
+    const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
+    window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
+    document.getElementById('gameArea').innerHTML = '<h2>Game Over! Score: ' + gameState.score + '/' + gameState.totalQuestions + '</h2>';
+  }`,
+      `  function endGame(reason) {
+    document.getElementById('gameArea').innerHTML = '<h2>Game Over!</h2>';
+    if (reason === 'victory') { window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: 3, total: gameState.totalQuestions }, '*'); }
+  }`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected GEN-PM-DUAL-PATH error but got exit 0: ${output}`);
+    assert.ok(output.includes('GEN-PM-DUAL-PATH'), `Expected GEN-PM-DUAL-PATH in output but got: ${output}`);
+  });
+
+  it('GEN-PM-DUAL-PATH: fails when postMessage is inside a multiline if-victory guard', () => {
+    // Bug: same issue across multiple lines — the s-flag on the regex handles newlines
+    const html = VALID_HTML.replace(
+      `  function endGame() {
+    const pct = gameState.score / gameState.totalQuestions;
+    const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
+    window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
+    document.getElementById('gameArea').innerHTML = '<h2>Game Over! Score: ' + gameState.score + '/' + gameState.totalQuestions + '</h2>';
+  }`,
+      `  function endGame(reason) {
+    if (reason === 'victory') {
+      window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: 3, total: gameState.totalQuestions }, '*');
+    }
+    document.getElementById('gameArea').innerHTML = '<h2>Game Over!</h2>';
+  }`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected GEN-PM-DUAL-PATH error for multiline guard but got exit 0: ${output}`);
+    assert.ok(output.includes('GEN-PM-DUAL-PATH'), `Expected GEN-PM-DUAL-PATH in output but got: ${output}`);
+  });
+
+  it('GEN-PM-DUAL-PATH: does NOT fire when postMessage is unconditional after an if-victory block', () => {
+    // Correct: if-victory block handles UI only; postMessage fires unconditionally after
+    const html = VALID_HTML.replace(
+      `  function endGame() {
+    const pct = gameState.score / gameState.totalQuestions;
+    const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
+    window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
+    document.getElementById('gameArea').innerHTML = '<h2>Game Over! Score: ' + gameState.score + '/' + gameState.totalQuestions + '</h2>';
+  }`,
+      `  function endGame(reason) {
+    const pct = gameState.score / gameState.totalQuestions;
+    const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
+    if (reason === 'victory') { playVictorySound(); }
+    window.parent.postMessage({ type: 'game_complete', score: gameState.score, stars: stars, total: gameState.totalQuestions }, '*');
+    document.getElementById('gameArea').innerHTML = '<h2>Done!</h2>';
+  }`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass for correct dual-path postMessage but got: ${output}`);
+    assert.ok(!output.includes('GEN-PM-DUAL-PATH'), `Unexpected GEN-PM-DUAL-PATH error: ${output}`);
+  });
+
+  // ─── GEN-ROUND-INDEX tests ────────────────────────────────────────────────
+
+  it('GEN-ROUND-INDEX: warns when rounds[currentRound - 1] is used', () => {
+    // Bug: currentRound is 0-based — rounds[-1] on first click crashes the game
+    const html = VALID_HTML.replace(
+      `  function showQuestion() {
+    var a = Math.floor(Math.random() * 12) + 1;
+    var b = Math.floor(Math.random() * 12) + 1;
+    gameState.correct = a * b;
+    document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+  }`,
+      `  var rounds = [{q:'1+1',a:2},{q:'2+2',a:4}];
+  function showQuestion() {
+    var r = rounds[gameState.currentRound - 1];
+    document.getElementById('questionText').textContent = r.q;
+    gameState.correct = r.a;
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-ROUND-INDEX'),
+      `Expected GEN-ROUND-INDEX warning for rounds[currentRound-1] but got: ${output}`,
+    );
+  });
+
+  it('GEN-ROUND-INDEX: warns when loadRound calls nextRound causing double-increment', () => {
+    // Bug: loadRound sets currentRound = n-1 then nextRound increments again → off-by-one
+    const html = VALID_HTML.replace(
+      `  function showQuestion() {
+    var a = Math.floor(Math.random() * 12) + 1;
+    var b = Math.floor(Math.random() * 12) + 1;
+    gameState.correct = a * b;
+    document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+  }`,
+      `  function nextRound() { gameState.currentRound++; showQuestion(); }
+  function loadRound(n) { gameState.currentRound = n - 1; nextRound(); }
+  function showQuestion() {
+    var a = 2; document.getElementById('questionText').textContent = a + ' x ' + a;
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-ROUND-INDEX'),
+      `Expected GEN-ROUND-INDEX warning for loadRound→nextRound but got: ${output}`,
+    );
+  });
+
+  it('GEN-ROUND-INDEX: does NOT warn when rounds[currentRound] (0-based) is used correctly', () => {
+    // Correct: rounds[currentRound] — 0-based direct index
+    const html = VALID_HTML.replace(
+      `  function showQuestion() {
+    var a = Math.floor(Math.random() * 12) + 1;
+    var b = Math.floor(Math.random() * 12) + 1;
+    gameState.correct = a * b;
+    document.getElementById('questionText').textContent = a + ' x ' + b + ' = ?';
+  }`,
+      `  var rounds = [{q:'1+1',a:2},{q:'2+2',a:4}];
+  function showQuestion() {
+    var r = rounds[gameState.currentRound];
+    document.getElementById('questionText').textContent = r.q;
+    gameState.correct = r.a;
+  }`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-ROUND-INDEX'),
+      `Unexpected GEN-ROUND-INDEX warning for correct 0-based index: ${output}`,
+    );
+  });
+
+  // ─── GEN-TESTID-RESTART tests ─────────────────────────────────────────────
+
+  it('GEN-TESTID-RESTART: warns when restart button uses data-testid="restart-btn"', () => {
+    // Bug: test harness clicks [data-testid="btn-restart"] — "restart-btn" fails silently
+    const html = VALID_HTML.replace(
+      '</div>\n</div>',
+      '</div>\n  <button data-testid="restart-btn" onclick="initGame()">Play Again</button>\n</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-TESTID-RESTART'),
+      `Expected GEN-TESTID-RESTART warning for restart-btn but got: ${output}`,
+    );
+  });
+
+  it('GEN-TESTID-RESTART: warns when restart button uses data-testid="replay-btn"', () => {
+    const html = VALID_HTML.replace(
+      '</div>\n</div>',
+      '</div>\n  <button data-testid="replay-btn" onclick="initGame()">Replay</button>\n</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-TESTID-RESTART'),
+      `Expected GEN-TESTID-RESTART warning for replay-btn but got: ${output}`,
+    );
+  });
+
+  it('GEN-TESTID-RESTART: does NOT warn when restart button uses correct data-testid="btn-restart"', () => {
+    // Correct: btn-restart matches test harness selector
+    const html = VALID_HTML.replace(
+      '</div>\n</div>',
+      '</div>\n  <button data-testid="btn-restart" onclick="initGame()">Play Again</button>\n</div>',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-TESTID-RESTART'),
+      `Unexpected GEN-TESTID-RESTART warning for correct btn-restart: ${output}`,
+    );
   });
 });
