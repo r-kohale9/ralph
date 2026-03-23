@@ -43,16 +43,16 @@
 
 ## Sessions
 
-### Geometry (4 games, Bloom L1→L3) — 📝 Specs 1–2 written (2026-03-23)
+### Geometry (4 games, Bloom L1→L3) — 📝 Specs 1–3 written (2026-03-23)
 
 *Session goal: learner progresses from angle type identification (L1) through triangle and quadrilateral classification (L1–L2) → angle-sum computation (L3). Prerequisite: Statistics Session. Session plan: docs/education/geometry-session.md.*
-*Specs for Game 1 (geo-angle-id) and Game 2 (geo-triangle-sort) written. Games 3–4 specs pending game approvals.*
+*Specs for Game 1 (geo-angle-id), Game 2 (geo-triangle-sort), and Game 3 (geo-quad-match) written. Game 4 spec pending geo-quad-match approval.*
 
 | # | Game | Bloom | Status | Notes |
 |---|------|-------|--------|-------|
 | 1 | [geo-angle-id](geo-angle-id/index.md) | L1 Remember | 📝 Spec ready | Visual MCQ: classify angle from CSS diagram; 9 rounds 3 tiers; no lives (learning mode); 3★≥7/9 |
 | 2 | [geo-triangle-sort](geo-triangle-sort/index.md) | L1–L2 Remember→Understand | 📝 Spec ready | Dual-axis MCQ: angles + sides + both; 9 rounds 3 tiers; CSS clip-path triangles; 6 misconceptions; no lives; 3★≥7/9 |
-| 3 | geo-quad-match | L2 Understand | 📝 Planned | Property-to-class MCQ; spec pending geo-triangle-sort approval |
+| 3 | [geo-quad-match](geo-quad-match/index.md) | L2 Understand | 📝 Spec ready | Tri-mode MCQ: name→shape, shape→name, property→name; 9 rounds 3 tiers; CSS clip-path quads; 6 misconceptions; no lives; 3★≥7/9 |
 | 4 | geo-angle-sum | L3 Apply | 📝 Planned | Computation MCQ: find missing angle; spec pending geo-quad-match approval |
 
 ---
