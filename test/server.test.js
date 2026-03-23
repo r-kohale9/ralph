@@ -7,7 +7,7 @@ const crypto = require('crypto');
 // ─── Import pure functions from server.js ───────────────────────────────────
 // server.js now exports createApp, extractChangedSpecs, getNextMidnight
 // without starting Express or connecting to Redis.
-const { extractChangedSpecs, getNextMidnight } = require('../server');
+const { extractChangedSpecs, getNextMidnight, isValidGameId } = require('../server');
 const { buildSessionPlan, normalizeConcept, CONCEPT_GRAPH } = require('../lib/session-planner');
 
 function verifySignature(body, secret) {
@@ -325,5 +325,69 @@ describe('CONCEPT_GRAPH structure', () => {
   it('has trigonometry and multiplication keys', () => {
     assert.ok('trigonometry' in CONCEPT_GRAPH);
     assert.ok('multiplication' in CONCEPT_GRAPH);
+  });
+});
+
+// ─── gameId validation ────────────────────────────────────────────────────────
+
+describe('isValidGameId', () => {
+  it('accepts a valid lowercase-alphanumeric gameId', () => {
+    assert.ok(isValidGameId('doubles'));
+  });
+
+  it('accepts a valid gameId with hyphens', () => {
+    assert.ok(isValidGameId('find-triangle-side'));
+  });
+
+  it('accepts a 2-character gameId (minimum length)', () => {
+    assert.ok(isValidGameId('ab'));
+  });
+
+  it('accepts a 50-character gameId (maximum length)', () => {
+    assert.ok(isValidGameId('a'.repeat(25) + '-' + 'b'.repeat(24)));
+  });
+
+  it('rejects a gameId with uppercase letters (400-level concern)', () => {
+    assert.ok(!isValidGameId('Doubles'));
+  });
+
+  it('rejects a gameId with special characters (shell injection concern)', () => {
+    assert.ok(!isValidGameId('game;rm -rf /'));
+  });
+
+  it('rejects a gameId with path traversal (../../etc/passwd)', () => {
+    assert.ok(!isValidGameId('../../etc/passwd'));
+  });
+
+  it('rejects an empty gameId', () => {
+    assert.ok(!isValidGameId(''));
+  });
+
+  it('rejects a single-character gameId (below minimum length)', () => {
+    assert.ok(!isValidGameId('a'));
+  });
+
+  it('rejects a gameId exceeding 50 characters', () => {
+    assert.ok(!isValidGameId('a'.repeat(51)));
+  });
+
+  it('rejects a gameId with spaces', () => {
+    assert.ok(!isValidGameId('my game'));
+  });
+
+  it('rejects a gameId with dots', () => {
+    assert.ok(!isValidGameId('game.name'));
+  });
+
+  it('rejects a gameId with underscores', () => {
+    assert.ok(!isValidGameId('game_name'));
+  });
+
+  it('rejects a non-string gameId (number)', () => {
+    assert.ok(!isValidGameId(42));
+  });
+
+  it('rejects a non-string gameId (null)', () => {
+    assert.ok(!isValidGameId(null));
   });
 });
