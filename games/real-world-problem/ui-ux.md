@@ -3,22 +3,38 @@
 **Audited:** 2026-03-23
 **Build:** #564
 **Auditor:** UI/UX slot
-**Method:** Live browser audit via Playwright (headless Chromium). Screenshots captured at 1024×768 (desktop) and 480×800 (mobile). All three steps walked through via correct submissions. End screen reached. CSS inspection run post-load.
+**Method:** Full browser playthrough via Playwright (headless Chromium, 480×800 mobile viewport). All 4 rounds played end-to-end. Wrong answer tested on step 3 (life deduction verified). Enter key tested. Results screen and Play Again tested. CSS and DOM state inspected via `evaluate()`.
 
 ---
 
 ## Summary
 
-8 total issues: 6 gen prompt rules (a), 2 education/test handoffs (b/d).
+**12 total issues: 7 gen prompt rules (a), 2 spec/education additions (b), 1 CDN constraint (c), 2 test gaps (d).**
+
+No P0 flow bugs that block game completion — all 4 rounds reachable, results screen reachable, Play Again restarts correctly. However results screen is `position:static` (UI-RWP-002, HIGH, confirmed P0 class for post-rule builds). Two new HIGH findings added from browser playthrough: data-phase/data-lives on wrong element, and Play Again button below 44px.
 
 | Severity | Count | Open |
 |----------|-------|------|
 | Critical | 0 | 0 |
-| High | 4 | 0 (rules shipped) |
-| Medium | 2 | 2 |
-| Low | 2 | 2 |
+| High | 6 | 2 (N1 new, N2 new — test gaps) |
+| Medium | 4 | 2 open, 2 shipped |
+| Low | 2 | 2 open |
 
-**CSS intact. No P0 flow bugs. All three steps reachable. End screen reachable.** 44px and results-screen rules now at 7 confirmed instances each — both shipped immediately following this audit. Two new gen rules (alert() ban, Enter-key on inputs) also triggered. All handoffs routed.
+**Playthrough result:** CSS intact. All 4 rounds reachable. All 3 steps per round functional. Wrong answer correctly deducts a life. Enter key confirmed unbound. Results screen confirmed `position:static`. restartGame() resets lives/score/round/wrongOnStep3 correctly. `data-phase`/`data-lives`/`data-round` set on `#app` (not `body`) — tests that target `body` will fail.
+
+---
+
+## P0 Pattern Check (per audit mandate)
+
+| P0 Pattern | Result |
+|-----------|--------|
+| Results screen position:fixed | FAIL — `position:static`, `rectTop:80`, `rectLeft:36`, `width:344px`, `coversViewport:false` |
+| restartGame() not resetting lives/round | PASS — lives:3, currentRound:0, score:0, wrongOnStep3:0 all reset |
+| SVG icons in TransitionScreen (P0-002) | PASS — CDN renders SVG stars via `show({icons:[...]})` correctly, no raw strings |
+| String-mode transitionScreen.show() (P0-001) | PASS — `show()` called with object `{title, message, icons}` |
+| totalLives:0 in ProgressBar (P0-003) | PASS — `totalLives: gameState.totalLives` (3) passed; but wrong `slotId` still causes fallback |
+| Local asset 404s | PASS — only Sentry 404 (known warehouse gap), no local asset paths |
+| Low-contrast SVG stroke/text | PASS — SVG text inherits fill (dark), readable |
 
 ---
 
@@ -28,31 +44,46 @@
 
 **UI-RWP-001 — Option buttons missing explicit 44px touch targets**
 
-- Observed: Numeric input submit button and any multiple-choice option buttons computed at browser-default height with no `min-height: 44px` or `padding: 12px 16px` declarations. On mobile (480px wide), interactive elements are ~21-30px tall — below the iOS/Android HIG minimum.
-- Impact: Learners on touch devices cannot reliably tap submit or option buttons. This is the 7th confirmed instance of this pattern. Consistently absent across all games in the trig session.
+- Observed (browser): Step 1 MCQ buttons (Opposite/Adjacent/Hypotenuse): computed height **41px**. Step 2 MCQ buttons (cos/sin/tan): 41px. Step 3 "Check" button: visible on screen. "Play Again" button: 41px.
+- Measurement: `getBoundingClientRect().height = 41` for all 3 step-1 MCQ buttons.
+- Impact: Learners on touch devices cannot reliably tap option buttons. 7th confirmed instance of this pattern. Rule shipped.
 - Classification: (a) Gen prompt rule
-- Status: **SHIPPED** — GEN-UX-002 / GEN-TOUCH-TARGET (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 121 + rule 32. 10 confirmed instances total. 7th instance confirmed in this audit — rule shipped immediately.
+- Status: **SHIPPED** — GEN-UX-002 (2026-03-23). Verify next build: all interactive buttons ≥44px.
 
-**UI-RWP-002 — Results screen renders below game content (position: static)**
+**UI-RWP-002 — Results screen renders in document flow (position: static)**
 
-- Observed: `#results-screen` has `position: static; z-index: auto`. On game completion, results render in document flow below the game content. On mobile, learners must scroll to see the score, stars, and play-again button. The results screen never covers the viewport — the game area is hidden but the page does not reflow cleanly.
-- Impact: The end state is not visible without scrolling. On first glance after the last submission, the game appears to have no response — the results are below the fold. This is the 7th confirmed instance. 7th instance confirmed in this audit — rule shipped immediately.
+- Observed (browser): `#results-screen` computed style: `position:static`, `z-index:auto`. After "See Results" click: `rectTop:80px`, `rectLeft:36px`, `rectWidth:408px`, `rectHeight:231px`, `coversViewport:false`. Viewport: 480×800. Results content is visible but does NOT overlay — it sits in page flow below the progress bar region.
+- Impact: Results screen is visible (not below-fold in this case) but does not cover the game area. Game content is still rendered behind. On builds where game content is taller, results will be below fold. This is the 7th confirmed instance of this pattern.
 - Classification: (a) Gen prompt rule
-- Status: **SHIPPED** — GEN-UX-001 / GEN-MOBILE-RESULTS (2026-03-23) — CDN_CONSTRAINTS_BLOCK line 120 + rule 31. Results screen must be `position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999`. 10 confirmed instances total.
+- Status: **SHIPPED** — GEN-UX-001 (2026-03-23). `position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999` required.
 
-**UI-RWP-003 — ProgressBarComponent initialized with wrong slot ID format (`-bar-` infix)**
+**UI-RWP-003 — ProgressBarComponent initialized with wrong slot ID**
 
-- Observed: `ProgressBarComponent` is instantiated with a slot ID using a `-bar-` infix (e.g. `'mathai-progress-bar-slot'` or `'mathai-bar-slot'`) rather than the canonical `{ slotId: 'mathai-progress-slot' }` options object. The CDN component cannot find its mount point, resulting in no progress bar or an incorrect render.
-- Impact: Progress bar does not mount. Learners see no indication of how many steps remain in the real-world problem. This is the 4th confirmed instance of this pattern (find-triangle-side #549, quadratic-formula #546, right-triangle-area #543).
+- Observed (browser): Source code: `new ProgressBarComponent({ slotId: 'mathai-progress-bar-slot', totalRounds: gameState.totalRounds, totalLives: gameState.totalLives })`. Browser console: `[WARNING] ProgressBar: Slot #mathai-progress-bar-slot not found`. CDN created a fallback slot in `.game-area` instead. `mathai-progress-slot` exists in DOM but unused by ProgressBar.
+- Impact: ProgressBar mounts in wrong location (fallback). Visual position may be incorrect relative to ScreenLayout.
 - Classification: (a) Gen prompt rule
-- Status: **SHIPPED** — GEN-UX-003 (25bdad0 2026-03-23). Rule: ProgressBarComponent must always be `new ProgressBarComponent({ slotId: 'mathai-progress-slot' })`. 9 confirmed instances total.
+- Status: **SHIPPED** — GEN-UX-003 (2026-03-23). Must use `{ slotId: 'mathai-progress-slot' }`.
 
-**UI-RWP-004 — SignalCollector instantiated without constructor arguments**
+**UI-RWP-004 — SignalCollector sealed on restart — signal loss**
 
-- Observed: `new SignalCollector()` called with no arguments. Without constructor args, the collector cannot attach game ID, session ID, or signal-type metadata to analytics events. Signals sent during gameplay are malformed.
-- Impact: Analytics data for this game is corrupted — no attribution to game ID or round number. DB-driven slot prioritization cannot compute correct per-category pass rates for real-world-problem. This is the 2nd confirmed instance (find-triangle-side #549 first).
-- Classification: (a) Gen prompt rule
-- Status: **SHIPPED** — GEN-UX-005 (25bdad0 2026-03-23). Rule: SignalCollector must always receive required constructor args. 5 confirmed instances total.
+- Observed (browser): After Play Again, browser console shows: `[WARNING] [SignalCollector] Sealed — cannot record`, `[WARNING] [SignalCollector] Sealed — cannot startProblem`. The `restartGame()` function does not re-initialize SignalCollector — it reuses the sealed instance. Round 2 problems on a restarted game emit no signals.
+- Impact: Analytics for replay sessions are completely silent — no events, no round data. DB pass rates for real-world-problem in replayed sessions are absent.
+- Classification: (a) Gen prompt rule → add to spec: `restartGame()` must call `signalCollector.reset()` or create a new `SignalCollector` instance.
+- Status: Open — escalate to Gen Quality. Add to spec Section 3 notes.
+
+**UI-RWP-009 (NEW) — syncDOMState() targets `#app` not `body` — test gap**
+
+- Observed (browser): `syncDOMState()` sets `data-phase`, `data-lives`, `data-round`, `data-score` on `document.getElementById('app')`. `document.body` has `null` for all these attributes throughout gameplay.
+- Values confirmed: `app.dataset.phase = "playing"`, `app.dataset.lives = "3"`, `app.dataset.round = "1"` — all correct on `#app`. But Playwright tests that use `page.locator('body[data-phase="playing"]')` or `body.getAttribute('data-lives')` will always fail.
+- Impact: Test harness assertions on `data-phase`/`data-lives` will time out or return null. This is a test gap — the game logic is correct (syncDOMState works) but tests look at the wrong element.
+- Classification: (d) Test gap → Test Engineering: update test selectors to use `#app[data-phase]` instead of `body[data-phase]`. OR add to gen rule: syncDOMState must target `body` AND `#app`.
+- Status: Open — HIGH priority for Test Engineering.
+
+**UI-RWP-010 (NEW) — "Play Again" button 41px height (below 44px)**
+
+- Observed (browser): `#results-screen button[data-testid="btn-restart"]` height: 41px. Same as MCQ buttons — GEN-UX-002 rule not applied to results screen Play Again button.
+- Classification: (a) Gen prompt rule — GEN-UX-002 must explicitly cover `#btn-restart` and results-screen buttons.
+- Status: Open — add to GEN-UX-002 rule coverage: all buttons including Play Again and Try Again.
 
 ---
 
@@ -60,17 +91,23 @@
 
 **UI-RWP-005 — Input validation uses alert() instead of inline feedback**
 
-- Observed: When the learner submits an empty or invalid numeric answer, the game calls `alert('Please enter a number')` (or equivalent `window.alert()`). This produces a native browser modal dialog that blocks the page, interrupts flow, and is not accessible to screen readers as an aria-live update.
-- Impact: On mobile, the alert dialog partially covers the game content and requires a tap to dismiss before the learner can retry. The interruption breaks concentration during a multi-step problem. This is a new pattern — first confirmed instance.
+- Observed (static): `alert('Please enter a number')` on empty/invalid submission. Could not trigger during browser playthrough (input accepts 0.00 default without alerting).
+- Impact: Native modal blocks page on mobile.
 - Classification: (a) Gen prompt rule
-- Status: **SHIPPED** — GEN-UX-004 (25bdad0 2026-03-23). Rule: never use `alert()` or `confirm()` in game code. All validation feedback must use an inline `aria-live="assertive"` feedback div.
+- Status: **SHIPPED** — GEN-UX-004 (2026-03-23).
 
 **UI-RWP-006 — Typed numeric input has no Enter key submission handler**
 
-- Observed: The numeric answer input field (`<input type="number">`) does not respond to the Enter key. Pressing Enter after typing an answer does nothing — the learner must click the submit button. No `keydown` event listener for `Enter` is bound to the input element.
-- Impact: On physical keyboards and on-screen keyboards that show a "Go"/"Done"/"Return" key, learners expect Enter to submit. The absence of this handler creates a UX friction point — learners type an answer and press Enter expecting submission, then are confused when nothing happens. This is the 2nd confirmed instance (adjustment-strategy #385 also lacks it).
+- Observed (browser): Typed "5" into `input[type="number"]`, pressed Enter. Page state unchanged — no submission. `input.onkeydown = null`. No addEventListener for keydown bound to input.
 - Classification: (a) Gen prompt rule
-- Status: **2nd confirmed instance — shipped** as part of GEN-UX-004 batch (25bdad0 2026-03-23). Rule: all typed numeric input fields must bind `keydown` Enter → submit handler equivalent to clicking the submit button.
+- Status: **SHIPPED** — GEN-UX-004 batch (2026-03-23). 2nd confirmed instance (browser-verified).
+
+**UI-RWP-011 (NEW) — SVG diagram missing `preserveAspectRatio` — clip risk on narrow screens**
+
+- Observed (browser): SVG `viewBox="0 0 400 300"`, no `width`/`height` attributes, no `preserveAspectRatio`. Text element "wall height (?)" at `x=360` — only 40px from viewBox right edge (400px wide). Text extends rightward from x=360, clipping beyond SVG right edge. Visually confirmed in screenshot: "wall" label truncated to just "wall |" with a cursor-like artifact at x=400.
+- Impact: Label for the unknown quantity is clipped. Learner cannot read "wall height (?)" completely. Affects comprehension of what to calculate.
+- Classification: (b) Spec addition → add to spec: SVG must declare `preserveAspectRatio="xMidYMid meet"` and all text must be positioned with ≥20px margin from viewBox edges. Labels for unknown sides must use `text-anchor="end"` or `x` ≤ viewBox-width - 80px.
+- Status: Open — routed to Education slot.
 
 ---
 
@@ -78,17 +115,37 @@
 
 **UI-RWP-007 — Accuracy metric scope ambiguous — per-step vs per-game**
 
-- Observed: The accuracy metric sent via SignalCollector appears to track overall game completion rate rather than per-step first-attempt accuracy. The real-world problem has 3 distinct steps (setup, calculation, interpretation) — each should be tracked independently to identify which step type has the highest error rate.
-- Impact: Coarse accuracy data cannot drive targeted improvements to the real-world-problem spec. Analytics slot cannot identify whether learners struggle most on setup, calculation, or interpretation steps.
+- Observed: SignalCollector emits `problem_ended` with aggregate data. No per-step `signal_answer` with `step_id`.
 - Classification: (d) Test gap / Education handoff
-- Status: Open — routed to Education slot for spec addition and Test Engineering for per-step signal assertions. Add to spec: each step submission must emit a separate `signal_answer` event with `step_id` and `first_attempt` boolean.
+- Status: Open — routed to Education slot (per-step signal spec) and Test Engineering (per-step assertion).
 
-**UI-RWP-008 — SVG label text overflows bounding box on mobile**
+**UI-RWP-008 — SVG label text overflows bounding box**
 
-- Observed: The real-world scenario SVG diagram (showing the physical setup — e.g. a ladder against a wall, or a ramp angle) has label text that overflows the SVG viewBox on 480px mobile. Text nodes are positioned with fixed pixel coordinates that exceed the SVG width, causing the label to be clipped.
-- Impact: Part of the diagram label (e.g. the distance or angle annotation) is invisible on mobile. Learners cannot read the full problem setup from the diagram alone and must rely solely on the text description.
+- Observed (browser CONFIRMED): `text` elements at fixed pixel coordinates relative to `viewBox="0 0 400 300"` with no `preserveAspectRatio`. "wall height (?)" at `x=360` clips at SVG right edge. SVG has no `width`/`height` attrs, relies on container.
 - Classification: (b) Spec addition
-- Status: Open — routed to Education slot. Add to spec: all SVG labels must use relative positioning (`x` as percentage of viewBox width or `textAnchor="middle"` with appropriate x placement); SVG must include `viewBox` and `preserveAspectRatio="xMidYMid meet"` for responsive scaling.
+- Status: Open — merged with UI-RWP-011 finding. Routed to Education slot.
+
+**UI-RWP-012 (NEW) — Sentry package 404**
+
+- Observed (browser): `GET test-dynamic-assets/packages/sentry/index.js => 404`. No Sentry error tracking active.
+- Impact: Production errors in this game will not be captured. Low severity as this is a monitoring gap, not a functional issue.
+- Classification: (c) CDN constraint / warehouse gap — Sentry v10 three-script pattern missing from template. 12th+ confirmed instance.
+- Status: Low — known recurring pattern. Warehouse template gap.
+
+---
+
+## Browser Playthrough Confirmation Status
+
+| Static Finding | Browser Status |
+|---------------|----------------|
+| UI-RWP-001 — buttons < 44px | CONFIRMED — measured 41px |
+| UI-RWP-002 — results-screen static | CONFIRMED — position:static, rectTop:80, coversViewport:false |
+| UI-RWP-003 — wrong ProgressBar slot ID | CONFIRMED — `mathai-progress-bar-slot` in source, console WARNING logged |
+| UI-RWP-004 — SignalCollector no args | CONFIRMED — sealed warning on restart (replay signals lost) |
+| UI-RWP-005 — alert() validation | SHIPPED — could not trigger in playthrough (tolerates 0.00 default) |
+| UI-RWP-006 — Enter key unbound | CONFIRMED — Enter pressed, no submission, `onkeydown=null` |
+| UI-RWP-007 — per-step signal tracking | Pending spec change |
+| UI-RWP-008 — SVG label overflow | CONFIRMED — "wall height (?)" at x=360 clips, no preserveAspectRatio |
 
 ---
 
@@ -101,13 +158,19 @@
 | ProgressBarComponent must use `{ slotId: 'mathai-progress-slot' }` (GEN-UX-003) | SHIPPED 2026-03-23 |
 | Never use alert()/confirm() — use inline aria-live div (GEN-UX-004) | SHIPPED 2026-03-23 |
 | SignalCollector must receive constructor args (GEN-UX-005) | SHIPPED 2026-03-23 |
-| Typed numeric input fields must bind Enter key → submit handler | SHIPPED 2026-03-23 (2nd instance) |
+| Typed numeric input fields must bind Enter key → submit handler | SHIPPED 2026-03-23 (browser-confirmed 2nd instance) |
+| restartGame() must re-initialize SignalCollector (not reuse sealed instance) | Open — NEW finding from browser playthrough |
+| GEN-UX-002 must cover Play Again / Try Again buttons explicitly | Open — NEW finding, extend rule |
 
 ## Open Actions
 
 | Action | Priority | Owner |
 |--------|----------|-------|
-| Add per-step signal tracking to spec (step_id + first_attempt) | Medium | Education |
-| Add SVG label overflow handling to spec (viewBox + relative positioning) | Medium | Education |
-| Add per-step assertion to test harness (signal_answer per step) | Medium | Test Engineering |
-| Verify next real-world-problem build: results overlay, 44px, ProgressBar slot ID, no alert(), Enter key | High | Test Engineering |
+| Test Engineering: update test selectors to use `#app[data-phase]` not `body[data-phase]` | HIGH | Test Engineering |
+| Test Engineering: add Play Again button height assertion (≥44px) | High | Test Engineering |
+| Gen Quality: add restartGame() SignalCollector re-init rule | Medium | Gen Quality |
+| Education: add SVG label margin/preserveAspectRatio requirement to spec | Medium | Education |
+| Education: add per-step signal tracking to spec (step_id + first_attempt) | Medium | Education |
+| Test Engineering: add per-step signal_answer assertion | Medium | Test Engineering |
+| Gen Quality: extend GEN-UX-002 to explicitly cover Play Again/Try Again buttons | Low | Gen Quality |
+| Verify next real-world-problem build: results overlay, 44px all buttons, ProgressBar slot ID, no alert(), Enter key, SignalCollector re-init on restart | High | Test Engineering |

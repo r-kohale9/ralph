@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** real-world-problem #564 — browser playthrough (Batch 3 row 3)
-**Last completed:** find-triangle-side #549 — 2026-03-23 — 1 P0 (restartGame() not reset) + 11 findings (2 new: Enter key, restart reset); 2 static findings retracted; re-queue required
+**Current task:** Batch 3 complete — next batch TBD
+**Last completed:** real-world-problem #564 — 2026-03-23 — 0 P0s + 12 findings (4 new from browser: syncDOMState on #app not body HIGH test gap, Play Again 41px, SignalCollector sealed on restart, SVG clip confirmed); all static findings confirmed; no re-queue required (flow complete, re-queue only after shipped gen rules applied)
 **Waiting on:** none
 
 ### Batch 2 — Completed 2026-03-23
@@ -37,7 +37,7 @@ Track visual and interaction quality audits of generated games. Each entry recor
 |----------|------|----------|----------------|--------|
 | 1 | which-ratio | #561 | **full browser playthrough** 2026-03-23 — 2 P0s + 8 issues | done — re-queue required |
 | 2 | find-triangle-side | #549 | **full browser playthrough** 2026-03-23 — 1 P0 + 11 findings | done — re-queue required |
-| 3 | real-world-problem | #564 | static analysis done (✅ 8 findings) | pending |
+| 3 | real-world-problem | #564 | **full browser playthrough** 2026-03-23 — 0 P0s + 12 findings (4 new: syncDOMState on #app not body, Play Again 41px, SignalCollector sealed on restart, SVG clip confirmed) | done |
 
 **Stub inventory (ui-ux.md exists but unpopulated — pending future batches):**
 addition-mcq
@@ -62,7 +62,7 @@ addition-mcq
 | 2026-03-23 | addition-mcq | spec-only | 9 issues (6a, 2b, 1d) | No P0 blockers; ProgressBar slotId missing (6th instance); data-phase/syncDOMState absent (3rd MCQ spec); ARIA-001 (10th instance); window.endGame unassigned; data-lives not on DOM (2nd MCQ spec test gap); gameState.gameId missing; SignalCollector no constructor args (3rd); timer destroy/recreate ambiguity; initSentry absent from spec |
 | 2026-03-23 | addition-mcq-lives | spec-only | 6 issues (4a, 2b, 1d; F4 downgraded) | No P0 blockers; data-phase/syncDOMState absent (9th pattern, 2nd MCQ spec); ProgressBar slotId missing (5th); ARIA-001 MCQ (9th); endGame branching implicit; restartGame() unspecified; data-lives not on DOM (test gap) |
 | 2026-03-23 | addition-mcq-blitz | spec-only | 8 issues (6a, 2b) | FeedbackManager.init() in spec (URGENT — fix before first build); results not fixed (8th instance); ARIA-001 (8th instance); timer.start() race in setupGame(); recordViewEvent after seal() data loss; window.endGame unassigned; no syncDOMState/data-phase; gameState.gameId undeclared |
-| 2026-03-23 | real-world-problem | #564 | 8 issues (6a, 2b/d) | 44px 7th instance; results-fixed 7th instance; ProgressBar slotId 4th instance; SignalCollector no-args 2nd; alert() new rule; Enter-key new rule; 2 education/test handoffs |
+| 2026-03-23 | real-world-problem | #564 | **12 issues (7a, 2b, 1c, 2d) — FULL BROWSER PLAYTHROUGH** | 0 P0s. CONFIRMED: buttons 41px, results-screen position:static rectTop:80 coversViewport:false, ProgressBar slotId 'mathai-progress-bar-slot' (console WARNING), SignalCollector sealed on restart (signal loss), Enter key unbound (onkeydown=null), SVG "wall height(?)" at x=360 clips. NEW: syncDOMState() targets #app not body (HIGH test gap — Playwright body[data-phase] assertions all fail); Play Again button 41px; Sentry 404 (12th instance). All 4 rounds functional. All 3 steps per round functional. restartGame() correctly resets lives/score/round/wrongOnStep3. |
 | 2026-03-23 | name-the-sides | #557 | 10 issues (5a, 3b, 2 low) | 5 gen prompt rules proposed; 3 spec additions documented; rebuild needed |
 | 2026-03-23 | which-ratio | #560 | 8 issues (4a, 2b, 2c) | 4 gen prompt rules proposed; 2 spec additions documented; 2 CDN constraints noted |
 | 2026-03-23 | which-ratio | #561 | **10 issues (5a, 2b, 1c, 2 NEW P0) — FULL BROWSER PLAYTHROUGH** | P0-A: `transitionScreen.show('victory',...)` not supported by CDN — victory screen blank, no Play Again. P0-B: SVG markup in `icons[]` HTML-escaped, start screen shows raw code. NEW medium: `totalLives:0` → ProgressBar RangeError ×5. Confirmed: we-btn 40.5px (<44px FAIL), aria-live absent, correct-feedback 1200ms. Re-queue required after gen prompt rule fixes. |
