@@ -117,8 +117,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | M20 DONE (2026-03-23, see commit). CSS transition panel visibility timeout fix for mechanics tests. Added M20 CSS TRANSITION PANEL VISIBILITY (CRITICAL) to buildTestGenCategoryPrompt() mechanics section in lib/prompts.js immediately after M15. Covers `.toBeHidden()`/`.toBeVisible()` calls on panels that use CSS class transitions — requires `{ timeout: 15000 }` or expect.poll(). 1119/1120 tests pass (1 pre-existing server-integration failure unrelated to M20). Next: M19's worked-example-panel pattern eliminated + re-audit mechanics pass rate after 2 builds. |
-| Status | 1130/1130 tests pass. M20 deployed GCP (lib/prompts.js). Three root causes in mechanics 35.2% rate identified: (1) transition slot .not.toBeVisible() 5/30 batches → M19 fixed, (2) CSS transition panel visibility 5/30 batches → M20 fixed, (3) exact value assertions 8/30 batches → pending. |
+| Current task | CR-079 GF-EXACT DONE (commit TBD) — game-flow exact-value gap: 3-point fix (gen rule + triage + lesson pattern). Next: monitor game-flow rate on next 2 builds. |
+| Status | 1138/1138 tests pass. CR-079 shipped: GF-EXACT gen rule in game-flow section (prompts.js), KNOWN TEST BUGS triage entry (prompts.js), LESSON_PATTERNS entry (pipeline-fix-loop.js). Addresses 8/30 game-flow batches failing on exact numeric assertions (quadratic, real-world-problem, find-triangle-side). M20 deployed GCP. All 3 mechanics root causes now fixed: (1) transition slot .not.toBeVisible() → M19, (2) CSS transition panel visibility → M20, (3) exact value assertions → CR-079. |
 | Waiting on | none |
 | Blocked by | none |
 
@@ -513,7 +513,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-079 DONE — pipeline-fix-loop.js exact-value-assertion review: GF-EXACT gap confirmed. game-flow category has NO rule banning exact score/lives/round values in toBe(); triage prompt has NO skip_test trigger for "Expected N, Received M" pattern; LESSON_PATTERNS has NO entry for exact-value assertions. Filed CR-079 to Gen Quality. Next: review deterministicTriage() for exact-value skip_test shortcut. |
+| Current task | CR-080 DONE — lib/mcp.js register_spec security review: gameId regex `/^[a-zA-Z0-9-]+$/` correctly blocks all traversal vectors (dots, slashes, backslashes, percent-encoded chars). Path construction uses `path.join()` but NO `path.resolve()` confinement check on the write path (WARN — see CR-080). No specContent size limit (WARN — CR-081). Slack failure non-fatal (PASS). plan_session has no objective length limit (WARN — CR-082). Next: review deterministicTriage() for exact-value skip_test shortcut. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
@@ -726,7 +726,7 @@ NOTE: Previous unknown high-occurrence patterns (occ=19/4) no longer appear — 
 - Gen Quality: contract (38%) is new primary target — postMessage payload completeness (score/maxScore/completed/perfect fields always present + correctly typed)
 - Test Engineering: diagnose contract.spec.js failures — HTML bug vs test-gen bug across name-the-sides, find-triangle-side, associations
 - Education: real-world-problem #564/#565 approved — session 2 spec alignment review ready
-- Local Verification: PART-003 T1 check VERIFIED against disappearing-numbers #509 (typeof Components + Helpers confirmed in HTML; T1 ERROR fires correctly). Next: verify GEN-WAITFOR-BANNEDNAMES fires on re-queue candidate.
+- Local Verification: GEN-SLOT-A11Y VERIFIED (prompt rule — confirmed position-maximizer #507 has divs without role/aria; T1 does not catch; rule text confirmed in prompts.js). Next: verify GF-EXACT once committed.
 
 **Last updated:** 2026-03-23 session-3
 
@@ -754,6 +754,37 @@ NOTE: Prior sessions measured approved-only builds (contract=38% lowest). Includ
 - Code Review: "unknown" batch at 5.5% (3/55) — investigate why some test runs have batch=unknown
 
 **Last updated:** 2026-03-23 session-4
+
+---
+
+**ANALYTICS UPDATE (2026-03-23 session-4 refresh — last 40 approved+failed builds, corrected batch schema):**
+
+**Batch pass rates — last 40 builds (lowest to highest):**
+- contract: 22/52 (42%) — LOWEST
+- level-progression: 23/49 (47%) — second lowest
+- game-flow: 77/142 (54%)
+- edge-cases: 64/93 (69%)
+- mechanics: 138/194 (71%) — highest
+
+**Recent builds (last 20):** approved 9, failed 9, rejected 2 — 45% approval rate
+
+**Top failure patterns (failure_patterns table):**
+1. unknown / unknown — 11 occurrences (noise bucket; categorization gap)
+2. timing: game-flow full playthrough TimeoutError — 1 occ
+3. rendering: game load toBeVisible failed — 1 occ (×2 variants)
+4. rendering: start screen toHaveText failed — 1 occ
+5. rendering: game over toContainText failed — 1 occ
+6. messaging: postMessage type undefined — 1 occ
+7. scoring: play-again resets game toHaveText failed — 1 occ
+
+**Never-approved real games:** 0 (only artifact: `template-schema.md`)
+
+**Slot routing:**
+- Gen Quality: contract (42%) is primary target — postMessage payload completeness + inputSchema compliance
+- Test Engineering: level-progression (47%) second lowest — diagnose round/step progression assertion failures
+- Code Review: "unknown" noise bucket (11 occurrences) — investigate categorizeFailure() catch-all path
+
+**Last updated:** 2026-03-23 session-4 refresh — primary target: contract (42%)
 
 ---
 
