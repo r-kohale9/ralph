@@ -16,6 +16,7 @@
 | [associations](associations/index.md) | Standalone | TBD | ✅ Approved | #472 | 2 | ~29 min | ⚠️ 1 P0 + 6 findings (browser 2026-03-23) | Re-queue recommended: restartGame() state not reset (P0); timer.getTime error; waitForPackages 10s |
 | [count-and-tap](count-and-tap/index.md) | Standalone | L1 Remember | ✅ Approved | #551 | 2 | ~30 min | ⚠️ 10 findings (browser 2026-03-23) | syncDOMState on #app not body (HIGH test gap); ProgressBar off-by-one on final round (MEDIUM); no re-queue (flow complete) |
 | [quadratic-formula-worked-example](quadratic-formula-worked-example/index.md) | Standalone | L2 Understand | ✅ Approved | #546 | 2 | ~38 min | ⚠️ P0+5 findings | Re-queue: GEN-UX-001+restartGame() reset |
+| visual-memory | Standalone | TBD | ✅ Approved | #528 | — | — | ⚠️ 2 P0s + 5 findings (3a, 1b, 1c) | Re-queue: endGame() guard blocks results on perfect playthrough (P0-1); setupRound() crash on round 6 (P0-2) |
 | [addition-mcq](addition-mcq/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [addition-mcq-blitz](addition-mcq-blitz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [addition-mcq-lives](addition-mcq-lives/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |

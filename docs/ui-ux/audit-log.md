@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** Batch 6 — DB confirmed: addition-mcq-blitz, math-cross-grid, math-mcq-quiz have NO builds. Next target: visual-memory (approved #528, ui-ux.md exists as stub — full browser playthrough needed via GCP HTML download + diagnostic.js)
-**Last completed:** adjustment-strategy #385 — 2026-03-23 — 0 P0s + 7 findings (5a, 0b, 0c, 2d); static analysis + HTML verification; adj-btn 36px (F1); no aria-live (F2); results-screen position:static (F3); gameState.gameId absent (F4); no Enter key on answer-input (F5); window.nextRound missing (F6); reset-btn 30.5px (F7); waitForPackages timeout=10000 confirmed; all 3 transitionScreen.show() calls unawaited confirmed; no transitionScreen.hide() in startGame() confirmed
+**Current task:** Batch 7 — Next target: addition-mcq-blitz, math-cross-grid, or math-mcq-quiz (all pending DB confirmation of any approved builds)
+**Last completed:** visual-memory #528 — 2026-03-23 — 2 P0s + 5 findings (3a, 1b, 1c); full browser playthrough (Playwright MCP); P0-1: endGame() guard blocks results screen on perfect playthrough (isActive=false guard exits before showResults); P0-2: setupRound() crash TypeError on rounds[5]=undefined after guard bypass; F1: waitForPackages timeout=10000ms (should be 180000ms); F2: feedback-area no aria-live; F3: grid cells no ARIA role; F4: accuracy can display >100%; F5: FeedbackManager subtitle not loaded; Re-queue required
 **Waiting on:** diagnostic.js full browser playthrough of visual-memory #528
 
 ### Batch 4 — Completed 2026-03-23
