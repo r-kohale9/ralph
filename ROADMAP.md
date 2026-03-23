@@ -219,8 +219,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | **P0 QUEUED: PART-003 wrong package names** — disappearing-numbers #509 audit found white screen: waitForPackages() checks `typeof Components`/`typeof Helpers` (never window globals) instead of `typeof ScreenLayout`/`typeof ProgressBarComponent`. Fix: (1) add T1 ERROR check for banned package names (Components, Helpers, Utils) in waitForPackages; (2) update PART-003 rule with explicit WRONG/RIGHT examples. Re-queue disappearing-numbers after fix. BLOCKED on M20 agent completing (both edit prompts.js). |
-| Status | 72a189c deployed GCP 2026-03-23. 1100 tests pass. GEN-RESTART-RESET updated (custom fields); GEN-TRANSITION-ICONS updated (local file paths banned); GEN-PHASE-ALL updated (card-matching added, "no exceptions" framing). All 3 rules updated in all occurrences. |
+| Current task | **PART-003 P0 fix DONE (commit 947b570)**. Next: game-flow batch 29.2% root cause — diagnose via failed game-flow.spec.js patterns. |
+| Status | 947b570 deployed GCP 2026-03-23. 1125 tests pass. GEN-WAITFOR-BANNEDNAMES T1 ERROR added (5c3 in validate-static.js); PART-003 WRONG/RIGHT examples added in buildGenerationPrompt (line 367) and buildCliGenPrompt (line 1396). Root cause: disappearing-numbers #509 — typeof Components/Helpers never resolves → 180s white screen. |
 | Waiting on | none |
 | Blocked by | none |
 
@@ -513,7 +513,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-063 DONE (commit 3900bd2, deployed 2026-03-23) — in-process rate limiter added to POST /api/build and POST /api/fix (max 5/60s per IP, env-configurable). Scoped per createApp() for test isolation. 3 new integration tests; 1120/1120 pass. Next: CR-064 [MED] — /api/fix missing queue.add() catch block. |
+| Current task | CR-064 DONE (commit eb2e589, deployed 2026-03-23) — /api/fix queue.add() wrapped in try/catch; db.failBuild() rolls back orphaned record on Redis failure; returns 503. 2 new integration tests; 1122/1122 pass. Next: review game-flow test gen patterns (game-flow=29.2% lowest from analytics). |
 | Waiting on | unblocked |
 | Blocked by | none |
 
@@ -555,7 +555,7 @@
 | 2026-03-23 | server.js (`/slack/events`, `createEventsHandler()`) | **CR-061 [HIGH] Slack retry dedup missing** — Slack sends `X-Slack-Retry-Num` header on retries (after a 3-sec timeout). `createEventsHandler()` in lib/slack.js has no early-return on that header. A slow `onFeedback` handler (>3 s, e.g. DB write + BullMQ enqueue) triggers Slack to retry, causing duplicate build jobs for the same feedback message. Return `200 { ok: true }` immediately when `x-slack-retry-num` header is present, or deduplicate on `event.client_msg_id`. | Gen Quality / Code fix |
 | 2026-03-23 | server.js (`POST /mcp`, `GET /mcp`) | **CR-062 [MED] MCP endpoint unauthenticated** — `/mcp` accepts any client with no token/IP check. MCP tools include `queue.add()` and `db` access. In production this is an open RCE surface. Add Bearer token check using `process.env.MCP_SECRET` or restrict to localhost. | Code fix |
 | 2026-03-23 | server.js (`POST /api/build`) | **CR-063 [MED] No rate limiting on build queue** — `POST /api/build` has dedup for already-queued/running game but no global rate limit. A client can flood with different gameIds (real or invented) and exhaust Redis/BullMQ memory. Consider an in-process rate limiter (e.g. 10 req/min per IP) or at minimum a max-queue-depth guard before `queue.add()`. | Code fix |
-| 2026-03-23 | server.js (`POST /api/fix`, line 640) | **CR-064 [MED] /api/fix has no catch around queue.add()** — `db.createBuild()` is called before `queue.add()`. If BullMQ throws (Redis down), the build row is left in `queued` state with no cancellation, unlike `/api/build` which has an explicit `db.cancelBuild()` in its catch block (lines 272–279). Wrap `queue.add()` in try/catch mirroring the `/api/build` pattern. | Code fix |
+| 2026-03-23 | server.js (`POST /api/fix`, line 640) | **CR-064 [MED] DONE (commit eb2e589)** — Added try/catch around queue.add() in /api/fix. On Redis failure: db.failBuild() rolls back the build record from 'queued' to 'failed', returns HTTP 503 with "Queue unavailable" message. /api/build already had equivalent protection (db.cancelBuild() at lines 301-308). 2 integration tests added: (1) 503 returned on queue throw, (2) DB record status='failed' after rollback. 1122/1122 tests pass. Deployed to ralph-server. | DONE |
 | 2026-03-23 | server.js (`/api/publish`, line 366) | **CR-065 [LOW] `new Function()` on extracted HTML content** — `inferSchema()` uses `new Function("return " + extractedJS)()` to parse `fallbackContent` from the generated HTML (line 366–368). If LLM-generated content ever produces malicious JS here, it runs in the server process. Replace with a JSON-safe eval (e.g. `JSON.parse`) or strip the `new Function` path — `fallbackContent` should always be JSON-serializable. | Gen Quality |
 | 2026-03-23 | lib/pipeline.js (full — 1648 lines) | **CR-066 [HIGH] `handleFixJob` calls `resolveFailurePattern(pattern.id)` with wrong argument shape.** `db.resolveFailurePattern()` signature is `(gameId, pattern)` — two string args matched against `WHERE game_id = ? AND pattern = ?`. In `handleFixJob` (worker.js line 298), the call is `db.resolveFailurePattern(pattern.id)` — passing a numeric row `id` as the first positional arg, leaving the second arg `undefined`. The SQL `WHERE game_id = <id_number> AND pattern = undefined` matches nothing; the `resolved` flag is never set. By contrast, `handleJob` at line 1286 calls `db.resolveFailurePattern(gameId, fp.pattern)` — correct. This explains the CODE-001 Analytics finding (0% resolve rate on targeted-fix approvals). Fix: change worker.js line 298 to `db.resolveFailurePattern(gameId, pattern.pattern)`. | Code fix — worker.js line 298 |
 | 2026-03-23 | lib/pipeline.js (Step 0, line 626) | **CR-067 [MED] Spec pre-validation error throws without writing report, leaving build in `running` DB state.** When `specValidation.errors.length > 0`, the pipeline throws `new Error(...)` (line 626) without calling `writeReport()` first. The `runPipeline` caller in `worker.js` catches the throw and calls `db.failBuild(buildId, ...)` (line 1142) — so the DB is updated correctly. However, `report.json` is never written to disk, meaning no build artifact exists for diagnosis. Comparison: spec-too-small check (line 612) and spec-not-found check (line 607) both call `writeReport()` before returning — spec-validation errors should follow the same pattern. No data loss (DB is correct), but diagnostic artifact is absent for this failure mode. | Gen Quality — low priority; add `writeReport()` before throw at line 626 |
@@ -619,8 +619,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | researchCurriculum() DONE (commit a0483cb, 2026-03-23). Next: wire planSession() end-to-end and test with real objective text. |
-| Status | Session Planner v1 Steps 1+2 complete. 92 session-planner tests pass (77 existing + 15 new researchCurriculum tests). planSessionFromObjective() now calls researchCurriculum() automatically. |
+| Current task | planSession() wired end-to-end with researchCurriculum context (commit TBD, 2026-03-23). Next: implement /api/session endpoint (POST → planSessionFromObjective → return session JSON). |
+| Status | Session Planner v1 Steps 1+2+3 wired. planSessionFromObjective() now accepts parsedGoalOverride + outputDir for deterministic testing. 5 integration tests added. 1130 total tests pass (0 failures). |
 | Waiting on | nothing — unblocked |
 | Blocked by | nothing |
 

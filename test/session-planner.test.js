@@ -18,6 +18,7 @@ const {
   writeSessionDirectory,
   generateSpec,
   generateSessionSpecs,
+  planSessionFromObjective,
 } = require('../lib/session-planner');
 
 // ─── CONCEPT_GRAPH structure tests ───────────────────────────────────────────
@@ -1097,5 +1098,174 @@ describe('researchCurriculum — Step 2 curriculum research pipeline', () => {
     assert.ok('realWorldContexts' in result);
     assert.ok('researchComplete' in result);
     assert.ok('sourceCount' in result);
+  });
+});
+
+// ─── planSessionFromObjective integration tests ───────────────────────────────
+describe('Session Planner: end-to-end planSessionFromObjective()', () => {
+  // Shared mock data — mirrors real KG + Exa output shape
+  const mockParsedGoal = {
+    topic: 'right triangle trigonometry',
+    gradeLevel: 10,
+    bloomTarget: 2,
+    curriculumSystem: 'CC',
+    ncertChapter: null,
+  };
+
+  const mockResearch = {
+    standardStatement: 'HSG-SRT.C.6: Understand that by similarity, side ratios in right triangles are properties of the angles in the triangle.',
+    prerequisites: ['8.G.B.7', 'HSG-SRT.A.2'],
+    misconceptions: [
+      { description: 'opposite/adjacent confusion when the reference angle changes', source: 'NCTM', url: 'https://nctm.org/example' },
+      { description: 'sin/cos mix-up under exam pressure', source: 'Exa', url: null },
+    ],
+    ncertRefs: [
+      { chapter: 'NCERT Class 10 Ch 8', section: '§8.1', exerciseNotes: 'Introduction to trigonometry' },
+    ],
+    realWorldContexts: [
+      { label: 'Ramp design', description: 'Find ramp angle given rise and run.' },
+      { label: 'Surveying heights', description: 'Use angle of elevation to find building height.' },
+    ],
+    researchComplete: true,
+    sourceCount: 2,
+  };
+
+  // Mock tools for researchCurriculum — injected via tools parameter
+  function makeMockTools() {
+    return {
+      findStandardStatement: async () => ({
+        statementCode: 'HSG-SRT.C.6',
+        description: 'Understand that by similarity, side ratios in right triangles are properties of the angles in the triangle.',
+        caseIdentifierUUID: '3752ff25-ce4b-4c02-808b-95a71569a52f',
+      }),
+      findProgressionFromStandard: async () => ({
+        standards: [
+          { statementCode: '8.G.B.7', description: 'Apply the Pythagorean Theorem.' },
+          { statementCode: 'HSG-SRT.A.2', description: 'Given two figures, use the definition of similarity.' },
+        ],
+      }),
+      exaSearch: async ({ query }) => {
+        if (/misconception/i.test(query)) {
+          return 'SOH-CAH-TOA mix-up: students confuse opposite and adjacent when labelling triangles. Standard values: students forget specific angle values.';
+        }
+        return 'NCERT Solutions Class 10 Maths Chapter 8 Exercise 8.1 — Trigonometric Ratios. Exercise 8.2 — Specific Angles.';
+      },
+    };
+  }
+
+  it('produces a valid session for trig objective with parsedGoalOverride + researchContextOverride', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-e2e-override-'));
+    try {
+      const result = await planSessionFromObjective(
+        'Students should understand sin, cos, tan ratios for right triangles',
+        mockResearch,         // researchContextOverride — skip researchCurriculum
+        null,                 // tools — not needed when override is provided
+        { parsedGoalOverride: mockParsedGoal, outputDir: tmpDir },
+      );
+
+      // Top-level shape
+      assert.ok(!result.error, `should not error: ${result && result.message}`);
+      assert.ok(typeof result.sessionId === 'string' && result.sessionId.length > 0, 'must have sessionId');
+      assert.ok(typeof result.outputPath === 'string', 'must have outputPath');
+      assert.ok(Array.isArray(result.filesWritten) && result.filesWritten.length > 0, 'must have filesWritten');
+
+      // parsedGoal is the override we passed
+      assert.equal(result.parsedGoal.topic, 'right triangle trigonometry', 'parsedGoal.topic must match override');
+      assert.equal(result.parsedGoal.gradeLevel, 10, 'parsedGoal.gradeLevel must match override');
+
+      // sessionPlan shape
+      const plan = result.sessionPlan;
+      assert.ok(plan && !plan.error, 'sessionPlan must not have error');
+      assert.ok(Array.isArray(plan.games), 'sessionPlan.games must be an array');
+      assert.ok(plan.games.length >= 2, `must have 2-4 games (bloomTarget=2 gives 2 games), got ${plan.games.length}`);
+      assert.ok(plan.games.length <= 4, `must have at most 4 games, got ${plan.games.length}`);
+
+      // Each game has required fields
+      for (const g of plan.games) {
+        assert.ok(typeof g.templateSpecId === 'string', `game "${g.gameId}" must have templateSpecId`);
+        assert.ok(typeof g.bloomLevel === 'number', `game "${g.gameId}" must have bloomLevel`);
+        assert.ok(g.bloomLevel <= 2, `game "${g.gameId}" bloomLevel ${g.bloomLevel} must be <= bloomTarget 2`);
+      }
+
+      // Research context flows through: standardStatement and misconceptions appear in the plan
+      assert.equal(plan.standardStatement, mockResearch.standardStatement, 'standardStatement must come from research context');
+      assert.deepEqual(plan.prerequisites, mockResearch.prerequisites, 'prerequisites must come from research context');
+
+      // At least one game must have a targetedMisconception from the research context
+      const gamesWithMisconception = plan.games.filter((g) => g.targetedMisconception !== null);
+      assert.ok(gamesWithMisconception.length > 0, 'at least one game must have a targeted misconception from research context');
+      const firstMisconception = gamesWithMisconception[0].targetedMisconception;
+      assert.ok(
+        firstMisconception.description.length > 0,
+        'targeted misconception must have a non-empty description',
+      );
+
+      // session-plan.md written to disk and contains standard statement
+      const sessionPlanPath = path.join(result.outputPath, 'session-plan.md');
+      assert.ok(fs.existsSync(sessionPlanPath), 'session-plan.md must be written to disk');
+      const content = fs.readFileSync(sessionPlanPath, 'utf8');
+      assert.ok(content.includes('HSG-SRT.C.6'), 'session-plan.md must embed the standard statement from research context');
+      assert.ok(content.includes('trigonometry') || content.includes('right triangle'), 'session-plan.md must mention the concept');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('produces a valid session using mocked researchCurriculum tools (no override)', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-e2e-tools-'));
+    try {
+      const result = await planSessionFromObjective(
+        'Students should understand sin, cos, tan ratios for right triangles',
+        null,                // no researchContextOverride — will call researchCurriculum with injected tools
+        makeMockTools(),     // tools injected to researchCurriculum
+        { parsedGoalOverride: mockParsedGoal, outputDir: tmpDir },
+      );
+
+      assert.ok(!result.error, `should not error: ${result && result.message}`);
+      assert.ok(typeof result.sessionId === 'string', 'must have sessionId');
+
+      const plan = result.sessionPlan;
+      assert.ok(plan && !plan.error, 'sessionPlan must not have error');
+      assert.ok(Array.isArray(plan.games) && plan.games.length > 0, 'must have games');
+
+      // Research context is populated from mocked tools — standardStatement must be present
+      assert.ok(typeof plan.standardStatement === 'string' && plan.standardStatement.length > 0,
+        'standardStatement from mocked KG must flow through to session plan');
+
+      // NCERT chapter context — should appear in the written session-plan.md
+      const sessionPlanPath = path.join(result.outputPath, 'session-plan.md');
+      const content = fs.readFileSync(sessionPlanPath, 'utf8');
+      assert.ok(content.includes('Ch 8') || content.includes('NCERT'),
+        'session-plan.md must include NCERT chapter context from research');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns error shape when topic is unrecognised (no LLM call needed)', async () => {
+    const unknownGoal = { topic: 'quantum-physics', gradeLevel: 12, bloomTarget: 3, curriculumSystem: 'CC', ncertChapter: null };
+    const result = await planSessionFromObjective(
+      'Students learn quantum entanglement',
+      null,
+      null,
+      { parsedGoalOverride: unknownGoal },
+    );
+    assert.equal(result.error, 'concept_not_found', 'must return concept_not_found for unknown topic');
+    assert.ok(typeof result.message === 'string', 'must include error message');
+    assert.ok(result.parsedGoal, 'must include parsedGoal in error response');
+  });
+
+  it('throws when objectiveText is empty', async () => {
+    await assert.rejects(
+      () => planSessionFromObjective('', null, null, {}),
+      /objectiveText is required/,
+    );
+  });
+
+  it('throws when objectiveText is not a string', async () => {
+    await assert.rejects(
+      () => planSessionFromObjective(null, null, null, {}),
+      /objectiveText is required/,
+    );
   });
 });
