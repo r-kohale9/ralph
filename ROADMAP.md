@@ -508,7 +508,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | DONE — bfbe125 reviewed (2026-03-23). Next: review next lib/ commit. |
+| Current task | DONE — 2edf689 (rules 48/49) + 7d7c2be (TE-TRANSITION-001) + 9cd4bbf (T1 checks) reviewed (2026-03-23). CR-024 [MED] totalLives regex gaps; CR-025 [LOW] SVG contrast values overstated; CR-026 [LOW] visibility:hidden test gap. Next: pick next lib/ commit. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
@@ -611,33 +611,47 @@
 
 ## Analytics — Last Run
 
-**ANALYTICS UPDATE (2026-03-23, live DB queries — test_results JSON + failure_patterns + builds tables):**
+**ANALYTICS UPDATE (2026-03-23 new session — build #565 latest, 94 approved total, corrected field names: batch/passed/failed):**
 
-**Category pass rates (last-iteration per batch, lowest to highest):**
-- game-flow: 313/412 (76%) — LOWEST, primary Gen Quality target
-- level-progression: 198/256 (77%)
-- mechanics: 445/556 (80%)
-- contract: 202/247 (82%)
-- edge-cases: 272/325 (84%) — highest
+**Batch pass rates — last 30 approved builds (lowest to highest):**
+- level-progression: 22/45 (49%) — LOWEST, primary Gen Quality + Test Engineering target
+- contract: 23/47 (49%) — tied lowest
+- game-flow: 81/113 (72%)
+- mechanics: 128/170 (75%)
+- edge-cases: 61/80 (76%) — highest
+- **Overall: 315/455 (69%) across all batches**
 
-**Top 5 unresolved failure patterns:**
-1. 19 occ | unknown | adjustment-strategy
-2. 4 occ | unknown | count-and-tap
-3. 2 occ | rendering | adjustment-strategy — game_complete postMessage on game over
-4. 2 occ | rendering | adjustment-strategy — gameState init with required fields
-5. 2 occ | rendering | adjustment-strategy — responsive layout fits within 480px
-(+5 more rendering patterns in adjustment-strategy, all freq=2)
+NOTE: Previous session showed higher numbers (76-84%) due to wrong field names (category/total vs batch/failed). These corrected figures are the accurate baseline.
 
-**First-attempt approval rate:** 45/94 approved builds (48%) — iter=0
+**Top unresolved failure patterns (all resolved=0):**
+1. 2 occ | rendering | adjustment-strategy — game_complete postMessage on game over
+2. 2 occ | rendering | adjustment-strategy — gameState init with required fields
+3. 2 occ | rendering | adjustment-strategy — responsive layout fits within 480px
+4. 2 occ | rendering | adjustment-strategy — Complete game with all correct answers (scenario)
+5. 2 occ | rendering | adjustment-strategy — Use adjustment aid then answer correctly (scenario)
+(+5 more rendering patterns in adjustment-strategy, all freq=2 — toBeVisible failures throughout)
+NOTE: Previous unknown high-occurrence patterns (occ=19/4) no longer appear — resolved or re-categorized by TE-UNKNOWN-001 fix.
+
+**First-attempt approval rate:** 47/94 approved builds (50%) — iter=0 or null
 
 **Never-approved games:** 1 — `template-schema.md` (non-game artifact, ignore)
 
-**Slot routing:**
-- Gen Quality: game-flow at 76% is lowest real category — trace failures to HTML vs test-gen root cause
-- Test Engineering: TE-UNKNOWN-001 FIXED — 28 unknown rows found, 17 re-categorized (6 state, 7 rendering, 1 infra, 3 interaction); 11 irreducible noise rows (literal pattern='unknown') remain
-- Code Review: unresolved failure_patterns persist — verify resolveFailurePattern() call site on approval path (CODE-001)
+**Recent builds (last 5):**
+- #565 real-world-problem — approved (iter=null, $2.23)
+- #564 real-world-problem — approved (iter=2, $1.53)
+- #563 real-world-problem — failed (iter=0)
+- #562 name-the-sides — approved (iter=3, $1.80)
+- #561 which-ratio — approved (iter=3, $2.31)
 
-**Last updated:** 2026-03-23
+**Most-built game:** adjustment-strategy (68 total builds, 6 approvals)
+
+**Slot routing:**
+- Gen Quality: level-progression (49%) and contract (49%) confirmed lowest — trace root cause for next improvement task
+- Test Engineering: All unresolved patterns are rendering/adjustment-strategy toBeVisible — diagnose HTML init vs test-gen root cause
+- Code Review: resolveFailurePattern() — CODE-001 fix shipped; verify adjustment-strategy patterns resolving on approval (still showing resolved=0)
+- Education: real-world-problem has 2 approved builds — ready for session 2 spec alignment review
+
+**Last updated:** 2026-03-23 (new session — corrected Q1 field names)
 
 ---
 
