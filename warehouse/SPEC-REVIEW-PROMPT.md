@@ -116,6 +116,55 @@ Flag anything left undefined or ambiguous:
 
 ---
 
+### Step 6 — Input Schema & Content Set Readiness
+
+The spec must provide enough information for the pipeline to generate an `inputSchema.json` and multiple content sets without guessing. Check both:
+
+#### 6a — Input Schema
+
+Look for a section in the spec that describes **what data the game accepts as input** — i.e., what is parameterized and what is hardcoded. Specifically:
+
+1. **Is there a clear description of the input schema structure?** The spec should describe (in prose or JSON) every top-level field the game expects from external content: round configurations, prompts, grid/board dimensions, answer sets, distractor pools, timing values, etc.
+2. **Is it clear which parts of the game are content-driven vs. hardcoded?** For example: are sound IDs, sticker URLs, and instruction text parameterized, or baked into the HTML? The spec should make this explicit.
+3. **Are the field types, constraints, and required/optional status described?** e.g., "rounds: array of 1–5 round objects, each with a grid (rows: integer 3–7, cols: integer 3–7) and a tagCluster (tags: array of at least 3 tag objects)."
+4. **Is there a fallback content example?** The spec should include at least one complete example of valid input content so the generator knows the exact shape.
+
+If input schema information is **missing or vague**, emit a **⚠️ Warning · Completeness** finding. In the "Suggested fix" field, propose a concrete schema outline based on what the spec's game mechanics imply should be parameterized (round structure, answer data, difficulty knobs, display text, etc.).
+
+#### 6b — Content Set Generation
+
+Look for a section that describes **how to generate multiple content sets** at different difficulty levels. Specifically:
+
+1. **Does the spec state how many content sets to generate?** (The standard is 3: easy, medium, hard.)
+2. **Does it describe what varies between difficulties?** e.g., "easy uses smaller numbers and fewer blanks; hard uses larger numbers, more blanks, and denser grids." Vague statements like "make it harder" are not sufficient — the spec should name the specific dimensions that change (number range, grid size, item count, time limit, number of rounds, distractor count, etc.).
+3. **Does it describe constraints that all content sets must satisfy?** e.g., "every expression must be mathematically solvable," "no duplicate tags," "grid must have at least one valid solution."
+4. **Are there examples or authoring guidance?** e.g., "one simpler compact grid with fewer blanks, one medium grid, one larger grid with more expressions."
+
+If content set generation guidance is **missing or vague**, emit a **⚠️ Warning · Completeness** finding. In the "Suggested fix" field, propose concrete content set guidance: how many sets, what dimensions to vary, what constraints to enforce, and a brief example of how easy/medium/hard would differ for this specific game.
+
+---
+
+### Step 7 — Feedback Asset Completeness
+
+If the spec describes audio or visual feedback, check that the required assets are actually specified.
+
+#### 7a — Static Audio URLs
+
+Look for any mention of playing pre-loaded sounds (e.g., `sound.play`, `FeedbackManager.sound.play`, `preload`, sound IDs like `correct_tap`, `wrong_tap`, `all_correct`, etc.).
+
+- If the spec says a sound should play but **does not provide the audio URL** for that sound (or reference a standard sound ID from PART-017), emit a **⚠️ Warning · Completeness** finding. The generator cannot preload audio without a URL.
+- This does **NOT** apply to dynamic/TTS audio (`playDynamicFeedback`, `audio_content`). Dynamic audio only needs text content, not a URL.
+
+#### 7b — Sticker URLs
+
+Look for any mention of showing stickers during feedback (e.g., `sticker`, `IMAGE_GIF`, sticker on correct/incorrect, etc.).
+
+- If the spec says a sticker should appear but **does not provide the sticker image URL** (or reference a standard sticker from PART-017), emit a **⚠️ Warning · Completeness** finding. The generator cannot show a sticker without a URL.
+
+For both 7a and 7b: if the spec references standard asset IDs (e.g., "use the standard correct/incorrect sounds and stickers") without explicit URLs, that is acceptable — the standard URLs are defined in PART-017. The warning is only for cases where the spec invents custom feedback moments without providing the corresponding asset URLs.
+
+---
+
 ### Summary
 
 End with this exact summary table. List each finding as a one-line reference. Do not omit any finding.

@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sticker Component Demo</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        padding: 40px;
+        max-width: 1200px;
+        margin: 0 auto;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+
+      .card {
+        background: white;
+        padding: 30px;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      h1 {
+        margin-top: 0;
+        color: #270f36;
+      }
+
+      h2 {
+        color: #667eea;
+        margin-top: 0;
+      }
+
+      .button {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 5px;
+        transition: all 0.2s;
+      }
+
+      .button:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+
+      .button:active {
+        transform: scale(0.98);
+      }
+
+      .button.secondary {
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+      }
+
+      .button.secondary:hover {
+        background: #f5f7ff;
+      }
+
+      .button.danger {
+        background: #ef4444;
+      }
+
+      .button.danger:hover {
+        background: #dc2626;
+      }
+
+      .status {
+        background: #f0f0f0;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 15px 0;
+        font-family: monospace;
+        font-size: 14px;
+      }
+
+      .info {
+        background: #e8f4f8;
+        border-left: 4px solid #667eea;
+        padding: 15px;
+        margin: 15px 0;
+        border-radius: 4px;
+      }
+
+      code {
+        background: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "Courier New", monospace;
+        color: #e83e8c;
+      }
+
+      pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 20px;
+        border-radius: 8px;
+        overflow-x: auto;
+        font-size: 13px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        margin: 15px 0;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 15px 0;
+      }
+
+      @media (max-width: 768px) {
+        body {
+          padding: 20px;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>🎨 Sticker Component Demo</h1>
+      <p>
+        A vanilla JavaScript component for displaying animated stickers (Lottie
+        or Images/GIFs) as feedback.
+      </p>
+
+      <div class="info">
+        <strong>ℹ️ How it works:</strong><br />
+        Click the buttons below to show different stickers. Stickers auto-hide
+        after the specified duration.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Status</h2>
+      <div class="status" id="status">Ready to show stickers</div>
+    </div>
+
+    <div class="card">
+      <h2>Lottie Stickers</h2>
+      <div class="grid">
+        <button class="button" onclick="showLottieSticker()">
+          Show Lottie
+        </button>
+
+        <button class="button" onclick="showSuccessSticker()">
+          Success Sticker
+        </button>
+
+        <button class="button" onclick="showLoadingSticker()">
+          Loading Sticker
+        </button>
+
+        <button class="button" onclick="showHeartSticker()">
+          Heart Sticker
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Image/GIF Stickers</h2>
+      <div class="grid">
+        <button class="button" onclick="showImageSticker()">
+          Show Image
+        </button>
+
+        <button class="button" onclick="showGifSticker()">Show GIF</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Alignment Options</h2>
+      <div class="grid">
+        <button class="button" onclick="showLeftAligned()">Left Aligned</button>
+
+        <button class="button" onclick="showRightAligned()">
+          Right Aligned
+        </button>
+
+        <button class="button" onclick="showCustomPosition()">
+          Custom Position
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Controls</h2>
+      <div class="controls">
+        <button class="button secondary" onclick="hideSticker()">
+          Hide Sticker
+        </button>
+
+        <button class="button secondary" onclick="getStatus()">
+          Get Status
+        </button>
+
+        <button class="button secondary" onclick="extendDuration()">
+          Extend Duration (+3s)
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Advanced Examples</h2>
+
+      <button class="button" onclick="showWithCallback()">
+        With Callbacks
+      </button>
+
+      <button class="button" onclick="showSequence()">
+        Show Sequence (3 stickers)
+      </button>
+
+      <button class="button" onclick="showFromList()">
+        From Stickers List
+      </button>
+    </div>
+
+    <div class="card">
+      <h2>Usage Code</h2>
+      <pre><code>&lt;!-- Include Lottie Player (for Lottie stickers) --&gt;
+&lt;script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"&gt;&lt;/script&gt;
+
+&lt;!-- Include Sticker Component --&gt;
+&lt;script src="sticker-component.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+// Basic usage - Lottie
+StickerComponent.show({
+  type: "LOTTIE",
+  json: "https://assets.lottiefiles.com/path/to/animation.json",
+  alignment: "RIGHT",
+  duration: 3
+});
+
+// Image/GIF
+StickerComponent.show({
+  type: "IMAGE_GIF",
+  image: "https://example.com/sticker.gif",
+  alignment: "LEFT",
+  duration: 3
+});
+
+// With callbacks
+StickerComponent.configure({
+  onShow: function(sticker) {
+    console.log('Sticker shown:', sticker);
+  },
+  onHide: function(sticker) {
+    console.log('Sticker hidden:', sticker);
+  }
+});
+
+// Using stickers list
+StickerComponent.configure({
+  stickersList: [
+    { id: 'success', type: 'LOTTIE', json: {...}, alignment: 'RIGHT' },
+    { id: 'error', type: 'IMAGE_GIF', image: 'error.gif', alignment: 'LEFT' }
+  ]
+});
+
+StickerComponent.show({ sticker: 'success' });
+
+// Hide manually
+StickerComponent.hide();
+
+// Get state
+const state = StickerComponent.getState();
+console.log(state.isVisible);
+&lt;/script&gt;</code></pre>
+    </div>
+
+    <!-- Include Lottie Player -->
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+
+    <!-- Include Sticker Component -->
+    <script src="https://storage.googleapis.com/test-dynamic-assets/packages/sticker/index.js"></script>
+
+    <script>
+      // Configure the component with callbacks
+      StickerComponent.configure({
+        onShow: function (sticker) {
+          console.log("[onShow]", sticker);
+          updateStatus("Showing sticker: " + sticker.type);
+        },
+        onHide: function (sticker) {
+          console.log("[onHide]", sticker);
+          updateStatus("Sticker hidden");
+        },
+        stickersList: [
+          {
+            id: "success",
+            type: "LOTTIE",
+            json: "https://assets2.lottiefiles.com/packages/lf20_touohxv0.json",
+            alignment: "RIGHT",
+          },
+          {
+            id: "loading",
+            type: "LOTTIE",
+            json: "https://assets9.lottiefiles.com/packages/lf20_szlepvdh.json",
+            alignment: "LEFT",
+          },
+        ],
+      });
+
+      function updateStatus(message) {
+        const status = document.getElementById("status");
+        const timestamp = new Date().toLocaleTimeString();
+        status.innerHTML = `[${timestamp}] ${message}`;
+      }
+
+      // Lottie Examples
+      function showLottieSticker() {
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets2.lottiefiles.com/packages/lf20_touohxv0.json",
+          alignment: "RIGHT",
+          duration: 3,
+        });
+        updateStatus("Showing Lottie sticker (3s)");
+      }
+
+      function showSuccessSticker() {
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets4.lottiefiles.com/packages/lf20_jbrw3hcz.json",
+          alignment: "RIGHT",
+          duration: 3,
+        });
+        updateStatus("Showing success sticker (3s)");
+      }
+
+      function showLoadingSticker() {
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets9.lottiefiles.com/packages/lf20_szlepvdh.json",
+          alignment: "LEFT",
+          duration: 5,
+        });
+        updateStatus("Showing loading sticker (5s)");
+      }
+
+      function showHeartSticker() {
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets10.lottiefiles.com/packages/lf20_kyu7xb1v.json",
+          alignment: "RIGHT",
+          duration: 3,
+          width: "120px",
+          height: "120px",
+        });
+        updateStatus("Showing heart sticker (3s)");
+      }
+
+      // Image Examples
+      function showImageSticker() {
+        StickerComponent.show({
+          type: "IMAGE_GIF",
+          image: "https://media.giphy.com/media/26BRBKqUiq586bRVm/giphy.gif",
+          alignment: "RIGHT",
+          duration: 3,
+        });
+        updateStatus("Showing image sticker (3s)");
+      }
+
+      function showGifSticker() {
+        StickerComponent.show({
+          type: "IMAGE_GIF",
+          image: "https://media.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.gif",
+          alignment: "LEFT",
+          duration: 4,
+        });
+        updateStatus("Showing GIF sticker (4s)");
+      }
+
+      // Alignment Examples
+      function showLeftAligned() {
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets2.lottiefiles.com/packages/lf20_touohxv0.json",
+          alignment: "LEFT",
+          duration: 3,
+        });
+        updateStatus("Showing left-aligned sticker (3s)");
+      }
+
+      function showRightAligned() {
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets2.lottiefiles.com/packages/lf20_touohxv0.json",
+          alignment: "RIGHT",
+          duration: 3,
+        });
+        updateStatus("Showing right-aligned sticker (3s)");
+      }
+
+      function showCustomPosition() {
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets2.lottiefiles.com/packages/lf20_touohxv0.json",
+          alignment: "RIGHT",
+          bottom: "150px",
+          duration: 3,
+        });
+        updateStatus("Showing custom position sticker (3s)");
+      }
+
+      // Controls
+      function hideSticker() {
+        StickerComponent.hide();
+        updateStatus("Sticker hidden manually");
+      }
+
+      function getStatus() {
+        const state = StickerComponent.getState();
+        console.log("Current state:", state);
+
+        if (state.isVisible) {
+          updateStatus(`Visible - Type: ${state.currentSticker.type}`);
+        } else {
+          updateStatus("Not visible");
+        }
+      }
+
+      function extendDuration() {
+        if (!StickerComponent.isShowing()) {
+          alert("No sticker is currently showing");
+          return;
+        }
+
+        StickerComponent.extendDuration(3);
+        updateStatus("Extended duration by 3 seconds");
+      }
+
+      // Advanced Examples
+      function showWithCallback() {
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets4.lottiefiles.com/packages/lf20_jbrw3hcz.json",
+          alignment: "RIGHT",
+          duration: 3,
+        });
+        updateStatus("Showing sticker with callbacks (check console)");
+      }
+
+      async function showSequence() {
+        updateStatus("Starting sequence...");
+
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets2.lottiefiles.com/packages/lf20_touohxv0.json",
+          alignment: "RIGHT",
+          duration: 2,
+        });
+
+        await sleep(2500);
+
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets4.lottiefiles.com/packages/lf20_jbrw3hcz.json",
+          alignment: "LEFT",
+          duration: 2,
+        });
+
+        await sleep(2500);
+
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets10.lottiefiles.com/packages/lf20_kyu7xb1v.json",
+          alignment: "RIGHT",
+          duration: 2,
+        });
+
+        updateStatus("Sequence complete");
+      }
+
+      function showFromList() {
+        StickerComponent.show({ sticker: "success" });
+        updateStatus("Showing sticker from configured list");
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      // Demo: Show welcome sticker on load
+      window.addEventListener("load", function () {
+        setTimeout(function () {
+          StickerComponent.show({
+            type: "LOTTIE",
+            json: "https://assets10.lottiefiles.com/packages/lf20_kyu7xb1v.json",
+            alignment: "RIGHT",
+            duration: 4,
+          });
+          updateStatus("Welcome! Try the buttons above 👋");
+        }, 1000);
+      });
+    </script>
+  </body>
+</html>

@@ -126,6 +126,10 @@ timer = new TimerComponent('timer-container', { timerType: 'increase', startTime
 - [ ] `timer.destroy()` called in endGame cleanup
 - [ ] No `setInterval` or `setTimeout` used for timing
 
+## Source Code
+
+Full TimerComponent implementation: `warehouse/packages/components/timer/index.js`
+
 ## Deep Reference
 
 `mathai-game-builder/components/timer-component.md`

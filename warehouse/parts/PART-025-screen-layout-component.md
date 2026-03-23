@@ -106,3 +106,7 @@ gameContent.innerHTML = `
 - [ ] Game HTML uses `<template>` + cloneNode or JS innerHTML (not static HTML in body)
 - [ ] Slots match the components used (progressBar=true if ProgressBar used, etc.)
 - [ ] No game element sets `width: 100vw` or `max-width: 100%` without a pixel cap
+
+## Source Code
+
+Full ScreenLayoutComponent implementation: `warehouse/packages/components/screen-layout/index.js`

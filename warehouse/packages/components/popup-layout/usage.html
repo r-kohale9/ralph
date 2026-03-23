@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Popup Component Demo</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        padding: 40px;
+        background: #f5f5f5;
+      }
+
+      .demo-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        padding: 30px;
+        border-radius: 0px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      h1 {
+        margin-top: 0;
+        color: #270f36;
+      }
+
+      .demo-button {
+        background: #ffde49;
+        color: #270f36;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 16px;
+        /* margin: 10px 10px 10px 0; */
+        transition: transform 0.1s;
+      }
+
+      .demo-button:hover {
+        transform: translateY(-2px);
+      }
+
+      .demo-button:active {
+        transform: scale(0.98);
+      }
+
+      .demo-button.secondary {
+        background: white;
+        color: #3030ed;
+        border: 2px solid #3030ed;
+      }
+
+      code {
+        background: #f0f0f0;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "Courier New", monospace;
+      }
+
+      pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 20px;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin-top: 20px;
+      }
+
+      .chat-form {
+        margin-top: 30px;
+        padding: 20px;
+        background: #f9f9f9;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="demo-container">
+      <h1>Popup Component Demo</h1>
+      <p>
+        This is a vanilla JavaScript popup component that can be imported with a
+        script tag.
+      </p>
+
+      <h2>Basic Examples</h2>
+
+      <button class="demo-button" onclick="showBasicPopup()">
+        Show Basic Popup
+      </button>
+
+      <button class="demo-button" onclick="showPermissionPopup()">
+        Show Permission Popup (Original Example)
+      </button>
+
+      <button class="demo-button secondary" onclick="showSecondaryPopup()">
+        Show Popup with Secondary Button
+      </button>
+
+      <button class="demo-button secondary" onclick="showCustomPopup()">
+        Show Custom Popup
+      </button>
+
+      <div class="chat-form">
+        <h3>Exact React Usage Example</h3>
+        <audio
+          id="permission_to_play_audio"
+          src="https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/sounds/1sec.mp3"
+        ></audio>
+        <button class="demo-button" onclick="showPermissionPopupExact()">
+          Trigger Audio Permission (Exact React Example)
+        </button>
+      </div>
+
+      <h2>Usage</h2>
+      <pre><code>&lt;!-- Include Lottie Player --&gt;
+&lt;script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"&gt;&lt;/script&gt;
+
+&lt;!-- Include Popup Component --&gt;
+&lt;script src="popup-component.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+// Show popup
+PopupComponent.show({
+    icon: "https://cdn.homeworkapp.ai/...",
+    title: "Permission to play audio",
+    description: "Please click okay",
+    primaryText: "Okay!",
+    primaryClick: () => {
+        console.log('Primary clicked');
+        PopupComponent.hide();
+    },
+    hasSecondary: false,
+    secondaryText: "Cancel",
+    secondaryClick: () => {
+        console.log('Secondary clicked');
+    }
+});
+
+// Hide popup
+PopupComponent.hide();
+
+// Check if visible
+PopupComponent.isVisible();
+&lt;/script&gt;</code></pre>
+    </div>
+
+    <!-- Include Lottie Player -->
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+
+    <!-- Include Popup Component -->
+    <script src="https://storage.googleapis.com/test-dynamic-assets/packages/popup-layout/index.js"></script>
+
+    <script>
+      // Basic popup example
+      function showBasicPopup() {
+        PopupComponent.show({
+          icon: "https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/animations/audio.json",
+          title: "Hello World!",
+          description: "This is a basic popup example",
+          primaryText: "Got it!",
+          primaryClick: () => {
+            console.log("Primary button clicked");
+            PopupComponent.hide();
+          },
+        });
+      }
+
+      // Permission popup (original example)
+      function showPermissionPopup() {
+        PopupComponent.show({
+          icon: "https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/animations/audio.json",
+          title: "Permission to play audio",
+          description: "Please click okay",
+          hasSecondary: false,
+          primaryText: "Okay!",
+          primaryClick: () => {
+            console.log("Audio permission granted");
+            PopupComponent.hide();
+          },
+        });
+      }
+
+      // Popup with secondary button
+      function showSecondaryPopup() {
+        PopupComponent.show({
+          icon: "https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/animations/audio.json",
+          title: "Confirm Action",
+          description: "Are you sure you want to proceed?",
+          hasSecondary: true,
+          primaryText: "Yes, Continue",
+          secondaryText: "Cancel",
+          primaryClick: () => {
+            console.log("Confirmed");
+            PopupComponent.hide();
+          },
+          secondaryClick: () => {
+            console.log("Cancelled");
+            PopupComponent.hide();
+          },
+        });
+      }
+
+      // Custom popup
+      function showCustomPopup() {
+        PopupComponent.show({
+          icon: "https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/animations/audio.json",
+          title: "Success!",
+          description: "Your action was completed successfully",
+          primaryText: "Awesome!",
+          primaryClick: () => {
+            alert("Thanks!");
+            PopupComponent.hide();
+          },
+          onShow: () => {
+            console.log("Popup shown");
+          },
+          onHide: () => {
+            console.log("Popup hidden");
+          },
+        });
+      }
+
+      // Exact React usage example
+      function showPermissionPopupExact() {
+        const audio = document.getElementById("permission_to_play_audio");
+
+        PopupComponent.show({
+          icon: "https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/animations/audio.json",
+          title: "Permission to play audio",
+          description: "Please click okay",
+          hasSecondary: false,
+          primaryText: "Okay!",
+          primaryClick: () => {
+            // Bless audio/video components (enable autoplay)
+            audio.play().catch((error) => {
+              console.log("Audio play failed:", error);
+            });
+            PopupComponent.hide();
+          },
+        });
+      }
+    </script>
+  </body>
+</html>

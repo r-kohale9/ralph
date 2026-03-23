@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InteractionManager Usage Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .game-play-area {
+            width: 400px;
+            height: 300px;
+            background-color: #f0f0f0;
+            border: 2px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .game-play-area.interaction-disabled {
+            background-color: #ffcccc;
+            opacity: 0.7;
+        }
+
+        .game-play-area.interaction-disabled::after {
+            content: "Interaction Disabled";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .controls {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+        }
+
+        .clickable-element {
+            padding: 20px;
+            background-color: #28a745;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px;
+            display: inline-block;
+        }
+
+        .clickable-element:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <h1>InteractionManager Usage Demo</h1>
+
+    <div class="status">
+        <strong>Status:</strong> <span id="status">Ready</span>
+    </div>
+
+    <div class="game-play-area" id="game-area">
+        <div class="clickable-element" onclick="handleGameClick()">Click me! (Game Element)</div>
+    </div>
+
+    <div class="controls">
+        <h3>Controls</h3>
+        <button onclick="enableInteraction()">Enable Interaction</button>
+        <button onclick="disableInteraction()">Disable Interaction</button>
+        <button onclick="toggleInteraction()">Toggle Interaction</button>
+        <br><br>
+        <button onclick="simulateAudioFeedback()">Simulate Audio Feedback (Long)</button>
+        <button onclick="simulateShortAudioFeedback()">Simulate Audio Feedback (Short)</button>
+        <button onclick="simulateEvaluation()">Simulate Evaluation</button>
+        <br><br>
+        <button onclick="updateSettings()">Toggle Audio Feedback Setting</button>
+        <button onclick="showState()">Show Current State</button>
+    </div>
+
+    <div class="controls">
+        <h3>Settings</h3>
+        <label><input type="checkbox" id="disableAudio" checked> Disable on Audio Feedback</label><br>
+        <label><input type="checkbox" id="disableEval" checked> Disable on Evaluation</label><br>
+        <button onclick="applySettings()">Apply Settings</button>
+    </div>
+
+    <div class="controls">
+        <h3>Event Log</h3>
+        <div id="event-log" style="max-height: 200px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px;"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <!-- Load InteractionManager -->
+    <script src="../interaction-manager/index.js"></script>
+
+    <script>
+        let interactionManager;
+        let eventLog = [];
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            interactionManager = new InteractionManager({
+                selector: '#game-area',
+                disableOnAudioFeedback: true,
+                disableOnEvaluation: true
+            });
+
+            // Listen for interaction state changes
+            interactionManager.onStateChange(handleStateChange);
+
+            logEvent('InteractionManager initialized');
+            updateStatus();
+        });
+
+        function handleGameClick() {
+            logEvent('Game element clicked!');
+        }
+
+        function enableInteraction() {
+            interactionManager.enable('manual_control');
+            updateStatus();
+        }
+
+        function disableInteraction() {
+            interactionManager.disable('manual_control');
+            updateStatus();
+        }
+
+        function toggleInteraction() {
+            if (interactionManager.isInteractive()) {
+                interactionManager.disable('toggle');
+            } else {
+                interactionManager.enable('toggle');
+            }
+            updateStatus();
+        }
+
+        function simulateAudioFeedback() {
+            logEvent('Simulating long audio feedback...');
+            if (interactionManager.shouldDisableOnAudioFeedback()) {
+                interactionManager.disable('audio_feedback');
+                // Simulate audio duration
+                setTimeout(() => {
+                    interactionManager.enable('audio_feedback_end');
+                    logEvent('Audio feedback ended, interaction re-enabled');
+                }, 3000);
+            } else {
+                logEvent('Audio feedback setting disabled, interaction remains enabled');
+            }
+        }
+
+        function simulateShortAudioFeedback() {
+            logEvent('Simulating short audio feedback...');
+            if (interactionManager.shouldDisableOnAudioFeedback()) {
+                // Short audio doesn't disable interaction
+                logEvent('Short audio - interaction remains enabled');
+            } else {
+                logEvent('Audio feedback setting disabled');
+            }
+        }
+
+        function simulateEvaluation() {
+            logEvent('Simulating evaluation start...');
+            if (interactionManager.shouldDisableOnEvaluation()) {
+                interactionManager.disable('evaluation');
+                // Simulate evaluation duration
+                setTimeout(() => {
+                    logEvent('Evaluation ended - click "Enable Interaction" to continue');
+                }, 2000);
+            } else {
+                logEvent('Evaluation setting disabled, interaction remains enabled');
+            }
+        }
+
+        function updateSettings() {
+            const currentSetting = interactionManager.shouldDisableOnAudioFeedback();
+            interactionManager.updateSettings({
+                disableOnAudioFeedback: !currentSetting
+            });
+            logEvent(`Audio feedback setting changed to: ${!currentSetting}`);
+            updateStatus();
+        }
+
+        function applySettings() {
+            const disableAudio = document.getElementById('disableAudio').checked;
+            const disableEval = document.getElementById('disableEval').checked;
+
+            interactionManager.updateSettings({
+                disableOnAudioFeedback: disableAudio,
+                disableOnEvaluation: disableEval
+            });
+
+            logEvent(`Settings updated - Audio: ${disableAudio}, Evaluation: ${disableEval}`);
+            updateStatus();
+        }
+
+        function showState() {
+            const state = interactionManager.getState();
+            logEvent('Current State: ' + JSON.stringify(state, null, 2));
+        }
+
+        function handleStateChange(event) {
+            logEvent(`State Change: ${event.type} - Reason: ${event.reason} - Interactive: ${event.isEnabled}`);
+            updateStatus();
+        }
+
+        function updateStatus() {
+            const status = document.getElementById('status');
+            const isInteractive = interactionManager.isInteractive();
+            const audioSetting = interactionManager.shouldDisableOnAudioFeedback();
+            const evalSetting = interactionManager.shouldDisableOnEvaluation();
+
+            status.textContent = `Interactive: ${isInteractive} | Audio Feedback: ${audioSetting} | Evaluation: ${evalSetting}`;
+            status.style.color = isInteractive ? 'green' : 'red';
+        }
+
+        function logEvent(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            eventLog.unshift(`[${timestamp}] ${message}`);
+
+            // Keep only last 20 events
+            if (eventLog.length > 20) {
+                eventLog = eventLog.slice(0, 20);
+            }
+
+            updateEventLog();
+        }
+
+        function updateEventLog() {
+            document.getElementById('event-log').innerHTML = eventLog.join('<br>');
+        }
+
+        function clearLog() {
+            eventLog = [];
+            updateEventLog();
+        }
+    </script>
+</body>
+</html>

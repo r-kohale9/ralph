@@ -191,6 +191,12 @@ onResume: () => { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeA
 - [ ] No `new Audio()` anywhere
 - [ ] VisibilityTracker uses `sound.pause()`/`sound.resume()` — NOT `sound.stopAll()`
 
+## Source Code
+
+Full FeedbackManager implementation: `warehouse/packages/feedback-manager/index.js`
+- Contains SoundManager, StreamManager, AudioKitCore, PopupManager, FeedbackComponentsManager
+- Read this source to understand: preload internals, play() promise behavior, subtitle/sticker timing, permission flow, iOS quirks
+
 ## Deep Reference
 
 `mathai-game-builder/components/feedback-manager.md`

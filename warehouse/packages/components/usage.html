@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MathAI Components Demo</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        padding: 40px;
+        max-width: 1200px;
+        margin: 0 auto;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+
+      .card {
+        background: white;
+        padding: 30px;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      h1 {
+        margin-top: 0;
+        color: #270f36;
+      }
+
+      h2 {
+        color: #667eea;
+        margin-top: 0;
+      }
+
+      .button {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 5px;
+        transition: all 0.2s;
+      }
+
+      .button:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+
+      .button.secondary {
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+      }
+
+      .status {
+        background: #f0f0f0;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 15px 0;
+        font-family: monospace;
+        font-size: 14px;
+      }
+
+      .info {
+        background: #e8f4f8;
+        border-left: 4px solid #667eea;
+        padding: 15px;
+        margin: 15px 0;
+        border-radius: 4px;
+      }
+
+      code {
+        background: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "Courier New", monospace;
+        color: #e83e8c;
+      }
+
+      pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 20px;
+        border-radius: 8px;
+        overflow-x: auto;
+        font-size: 13px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        margin: 15px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>🎨 MathAI Components Demo</h1>
+      <p>Consolidated UI components for rich user interfaces.</p>
+
+      <div class="info">
+        <strong>ℹ️ Single Import:</strong><br />
+        Instead of importing each component separately, just import the components package once and get access to all UI components.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Status</h2>
+      <div class="status" id="status">Loading components...</div>
+    </div>
+
+    <div class="card">
+      <h2>Subtitle Component</h2>
+      <p>Display subtitles with automatic positioning.</p>
+
+      <div class="grid">
+        <button class="button" onclick="showSubtitle()">Show Subtitle</button>
+        <button class="button" onclick="showCustomSubtitle()">
+          Custom Subtitle
+        </button>
+        <button class="button secondary" onclick="hideSubtitle()">
+          Hide Subtitle
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Sticker Component</h2>
+      <p>Show animated stickers (Lottie or Images/GIFs).</p>
+
+      <div class="grid">
+        <button class="button" onclick="showLottieSticker()">
+          Show Lottie Sticker
+        </button>
+        <button class="button" onclick="showImageSticker()">
+          Show Image Sticker
+        </button>
+        <button class="button secondary" onclick="hideSticker()">
+          Hide Sticker
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Timer Component</h2>
+      <p>Visual timer with progress indicators.</p>
+
+      <div class="grid">
+        <button class="button" onclick="startTimer()">Start Timer (10s)</button>
+        <button class="button" onclick="pauseTimer()">Pause Timer</button>
+        <button class="button" onclick="resumeTimer()">Resume Timer</button>
+        <button class="button secondary" onclick="stopTimer()">
+          Stop Timer
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Popup Component</h2>
+      <p>Modal popups with customizable content.</p>
+
+      <div class="grid">
+        <button class="button" onclick="showPopup()">Show Popup</button>
+        <button class="button" onclick="showCustomPopup()">
+          Custom Popup
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Usage Code</h2>
+      <pre><code>&lt;!-- Single import for all components --&gt;
+&lt;script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+// Wait for components to load
+window.addEventListener('load', function() {
+
+  // All components are available globally
+
+  // Subtitle
+  SubtitleComponent.show({
+    text: 'Hello World!',
+    duration: 3
+  });
+
+  // Sticker
+  StickerComponent.show({
+    type: 'LOTTIE',
+    json: 'https://assets.lottiefiles.com/path/to/animation.json',
+    alignment: 'RIGHT',
+    duration: 3
+  });
+
+  // Timer
+  TimerComponent.start({
+    duration: 60,
+    onComplete: function() {
+      console.log('Timer complete!');
+    }
+  });
+
+  // Popup
+  PopupComponent.show({
+    title: 'Welcome',
+    description: 'Hello from popup!',
+    primaryButton: { text: 'OK' }
+  });
+
+  // Or use via MathAIComponents namespace
+  MathAIComponents.SubtitleComponent.show({...});
+  MathAIComponents.StickerComponent.show({...});
+  MathAIComponents.TimerComponent.start({...});
+  MathAIComponents.PopupComponent.show({...});
+});
+&lt;/script&gt;</code></pre>
+    </div>
+
+    <!-- Include MathAI Components Package -->
+    <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+
+    <script>
+      function updateStatus(message) {
+        const status = document.getElementById("status");
+        const timestamp = new Date().toLocaleTimeString();
+        status.innerHTML = `[${timestamp}] ${message}`;
+        console.log(message);
+      }
+
+      // Wait for components to load
+      window.addEventListener("load", function () {
+        setTimeout(function () {
+          if (
+            window.MathAIComponents &&
+            window.SubtitleComponent &&
+            window.StickerComponent &&
+            window.TimerComponent &&
+            window.PopupComponent
+          ) {
+            updateStatus("MathAI Components loaded successfully!");
+          } else {
+            updateStatus("Waiting for components to load...");
+            // Check again after a delay
+            setTimeout(function () {
+              if (window.MathAIComponents) {
+                updateStatus("MathAI Components loaded successfully!");
+              } else {
+                updateStatus("Error: Components failed to load");
+              }
+            }, 3000);
+          }
+        }, 500);
+      });
+
+      // Subtitle Examples
+      function showSubtitle() {
+        SubtitleComponent.show({
+          text: "This is a simple subtitle!",
+          duration: 3,
+        });
+        updateStatus("Showing subtitle");
+      }
+
+      function showCustomSubtitle() {
+        SubtitleComponent.show({
+          text: "Custom subtitle with title",
+          title: "Success",
+          id: "custom-subtitle",
+          duration: 4,
+        });
+        updateStatus("Showing custom subtitle");
+      }
+
+      function hideSubtitle() {
+        SubtitleComponent.hide();
+        updateStatus("Subtitle hidden");
+      }
+
+      // Sticker Examples
+      function showLottieSticker() {
+        StickerComponent.show({
+          type: "LOTTIE",
+          json: "https://assets2.lottiefiles.com/packages/lf20_touohxv0.json",
+          alignment: "RIGHT",
+          duration: 3,
+        });
+        updateStatus("Showing Lottie sticker");
+      }
+
+      function showImageSticker() {
+        StickerComponent.show({
+          type: "IMAGE_GIF",
+          image: "https://media.giphy.com/media/26BRBKqUiq586bRVm/giphy.gif",
+          alignment: "LEFT",
+          duration: 3,
+        });
+        updateStatus("Showing image sticker");
+      }
+
+      function hideSticker() {
+        StickerComponent.hide();
+        updateStatus("Sticker hidden");
+      }
+
+      // Timer Examples
+      function startTimer() {
+        TimerComponent.start({
+          duration: 10,
+          onComplete: function () {
+            updateStatus("Timer completed!");
+          },
+          onTick: function (remaining) {
+            console.log("Time remaining:", remaining);
+          },
+        });
+        updateStatus("Timer started (10 seconds)");
+      }
+
+      function pauseTimer() {
+        TimerComponent.pause();
+        updateStatus("Timer paused");
+      }
+
+      function resumeTimer() {
+        TimerComponent.resume();
+        updateStatus("Timer resumed");
+      }
+
+      function stopTimer() {
+        TimerComponent.stop();
+        updateStatus("Timer stopped");
+      }
+
+      // Popup Examples
+      function showPopup() {
+        PopupComponent.show({
+          title: "Simple Popup",
+          description: "This is a simple popup message!",
+          primaryButton: {
+            text: "Got it",
+            onClick: function () {
+              updateStatus("Popup closed");
+            },
+          },
+        });
+      }
+
+      function showCustomPopup() {
+        PopupComponent.show({
+          title: "Custom Popup",
+          description: "This popup has both primary and secondary buttons.",
+          primaryButton: {
+            text: "Confirm",
+            onClick: function () {
+              updateStatus("Confirmed!");
+            },
+          },
+          secondaryButton: {
+            text: "Cancel",
+            onClick: function () {
+              updateStatus("Cancelled!");
+            },
+          },
+        });
+      }
+    </script>
+  </body>
+</html>

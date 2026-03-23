@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics Package Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      opacity: 0.9;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 15px;
+      color: #333;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 10px;
+    }
+
+    .config-status {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      color: #333;
+    }
+
+    .config-item {
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      padding: 8px;
+      background: white;
+      border-left: 3px solid #667eea;
+      border-radius: 3px;
+    }
+
+    .config-label {
+      font-weight: bold;
+      color: #667eea;
+      min-width: 120px;
+    }
+
+    .config-value {
+      color: #555;
+      word-break: break-word;
+    }
+
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: left;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5568d3;
+    }
+
+    .btn-success {
+      background: #10b981;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #059669;
+    }
+
+    .btn-info {
+      background: #3b82f6;
+      color: white;
+    }
+
+    .btn-info:hover {
+      background: #2563eb;
+    }
+
+    .btn-warning {
+      background: #f59e0b;
+      color: white;
+    }
+
+    .btn-warning:hover {
+      background: #d97706;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+
+    .console-log {
+      background: #1e1e1e;
+      color: #00ff00;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      padding: 15px;
+      border-radius: 6px;
+      max-height: 400px;
+      overflow-y: auto;
+      border: 1px solid #333;
+      margin-top: 15px;
+    }
+
+    .log-entry {
+      margin-bottom: 8px;
+      padding: 5px;
+      border-left: 2px solid #00ff00;
+      padding-left: 10px;
+    }
+
+    .log-timestamp {
+      color: #888;
+      margin-right: 10px;
+    }
+
+    .log-error {
+      color: #ff6b6b;
+      border-left-color: #ff6b6b;
+    }
+
+    .log-warn {
+      color: #ffd43b;
+      border-left-color: #ffd43b;
+    }
+
+    .log-info {
+      color: #74c0fc;
+      border-left-color: #74c0fc;
+    }
+
+    .event-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .platform-badges {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-top: 5px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: white;
+    }
+
+    .badge-mixpanel {
+      background: #a4c639;
+    }
+
+    .badge-amplitude {
+      background: #662e9b;
+    }
+
+    .badge-clevertap {
+      background: #007bff;
+    }
+
+    .badge-skipped {
+      background: #6c757d;
+      text-decoration: line-through;
+    }
+
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .status-ready {
+      background: #10b981;
+    }
+
+    .status-loading {
+      background: #f59e0b;
+      animation: pulse 1s infinite;
+    }
+
+    .status-error {
+      background: #ef4444;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    .full-width {
+      grid-column: 1 / -1;
+    }
+
+    @media (max-width: 768px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 1.8rem;
+      }
+
+      .event-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .clear-logs {
+      margin-top: 10px;
+      font-size: 0.85rem;
+    }
+
+    .divider {
+      height: 1px;
+      background: #ddd;
+      margin: 15px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Analytics Manager Demo</h1>
+      <p class="subtitle">Test Mixpanel, Amplitude, and CleverTap Integration</p>
+    </header>
+
+    <div class="main-grid">
+      <!-- Configuration Status -->
+      <div class="card">
+        <h2>Configuration Status</h2>
+        <div class="config-status">
+          <div class="config-item">
+            <span class="config-label">Version:</span>
+            <span class="config-value" id="config-version">1.0.0</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Region:</span>
+            <span class="config-value" id="config-region">IN</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Platforms:</span>
+            <span class="config-value" id="config-platforms">MIXPANEL, AMPLITUDE, CLEVERTAP</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Detected Platform:</span>
+            <span class="config-value" id="config-detected-platform">web</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Status:</span>
+            <span class="config-value">
+              <span class="status-indicator status-loading" id="status-indicator"></span>
+              <span id="status-text">Initializing...</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 style="font-size: 1.1rem; color: #333; margin-bottom: 10px;">Control</h3>
+        <div class="button-group">
+          <button class="btn-primary" onclick="initAnalytics()">
+            Initialize Analytics
+          </button>
+          <button class="btn-danger" onclick="resetAnalytics()">
+            Reset All Platforms
+          </button>
+        </div>
+      </div>
+
+      <!-- User Identification -->
+      <div class="card">
+        <h2>User Identification</h2>
+        <p style="color: #666; margin-bottom: 15px; font-size: 0.9rem;">
+          Identify the current user across all platforms
+        </p>
+
+        <div class="button-group">
+          <button class="btn-success" onclick="identifyTestUser()">
+            Identify Test User
+          </button>
+        </div>
+
+        <div class="config-status">
+          <div class="config-item">
+            <span class="config-label">User ID:</span>
+            <span class="config-value" id="current-user-id">Not identified</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Mobile:</span>
+            <span class="config-value" id="current-mobile">7875158990</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Name:</span>
+            <span class="config-value" id="current-name">rishabh</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Email:</span>
+            <span class="config-value" id="current-email">a@x.co</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Profile ID:</span>
+            <span class="config-value" id="current-profile-id">1554</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Distinct ID:</span>
+            <span class="config-value" id="current-distinct-id">Generated dynamically</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Event Tracking -->
+      <div class="card full-width">
+        <h2>Event Tracking</h2>
+        <p style="color: #666; margin-bottom: 15px; font-size: 0.9rem;">
+          Track events across enabled platforms. Platform filtering rules are applied automatically.
+        </p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; margin-bottom: 15px;">
+          <div>
+            <button class="btn-info" onclick="trackEvent('page_opened', {})">
+              page_opened
+            </button>
+            <div class="platform-badges">
+              <span class="badge badge-mixpanel">SKIPPED</span>
+              <span class="badge badge-amplitude">✓</span>
+              <span class="badge badge-clevertap">SKIPPED</span>
+            </div>
+          </div>
+
+          <div>
+            <button class="btn-info" onclick="trackEvent('page_closed', {})">
+              page_closed
+            </button>
+            <div class="platform-badges">
+              <span class="badge badge-mixpanel">SKIPPED</span>
+              <span class="badge badge-amplitude">✓</span>
+              <span class="badge badge-clevertap">SKIPPED</span>
+            </div>
+          </div>
+
+          <div>
+            <button class="btn-info" onclick="trackEvent('game_started', { game_id: 'math-101', difficulty: 'easy' })">
+              game_started
+            </button>
+            <div class="platform-badges">
+              <span class="badge badge-mixpanel">✓</span>
+              <span class="badge badge-amplitude">✓</span>
+              <span class="badge badge-clevertap">✓</span>
+            </div>
+          </div>
+
+          <div>
+            <button class="btn-info" onclick="trackEvent('question_answered', { correct: true, time_spent: 15 })">
+              question_answered
+            </button>
+            <div class="platform-badges">
+              <span class="badge badge-mixpanel">✓</span>
+              <span class="badge badge-amplitude">✓</span>
+              <span class="badge badge-clevertap">✓</span>
+            </div>
+          </div>
+
+          <div>
+            <button class="btn-warning" onclick="trackEvent('test_event', {})">
+              test_event
+            </button>
+            <div class="platform-badges">
+              <span class="badge badge-mixpanel badge-skipped">ALL SKIP</span>
+              <span class="badge badge-amplitude badge-skipped">ALL SKIP</span>
+              <span class="badge badge-clevertap badge-skipped">ALL SKIP</span>
+            </div>
+          </div>
+
+          <div>
+            <button class="btn-info" onclick="trackEvent('custom_event', { custom_prop: 'value' })">
+              custom_event
+            </button>
+            <div class="platform-badges">
+              <span class="badge badge-mixpanel">✓</span>
+              <span class="badge badge-amplitude">✓</span>
+              <span class="badge badge-clevertap">✓</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Console Log -->
+      <div class="card full-width">
+        <h2>Console Log</h2>
+        <div class="console-log" id="console-log">
+          <div class="log-entry log-info">
+            <span class="log-timestamp">[Ready]</span>Console output will appear here
+          </div>
+        </div>
+        <button class="btn-primary clear-logs" onclick="clearLogs()">
+          Clear Logs
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load analytics manager (config loads automatically) -->
+  <script src="./index.js"></script>
+
+  <!-- Demo implementation -->
+  <script>
+    // Global analytics instance
+    let analytics = null;
+
+    // Capture console output
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+
+    function appendLog(message, type = 'info') {
+      const logElement = document.getElementById('console-log');
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+
+      const timestamp = new Date().toLocaleTimeString();
+      const logTimestamp = document.createElement('span');
+      logTimestamp.className = 'log-timestamp';
+      logTimestamp.textContent = `[${timestamp}]`;
+
+      const logMessage = document.createElement('span');
+      logMessage.textContent = message;
+
+      entry.appendChild(logTimestamp);
+      entry.appendChild(logMessage);
+      logElement.appendChild(entry);
+
+      // Auto-scroll to bottom
+      logElement.scrollTop = logElement.scrollHeight;
+    }
+
+    console.log = function(...args) {
+      originalLog.apply(console, args);
+      appendLog(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' '), 'info');
+    };
+
+    console.error = function(...args) {
+      originalError.apply(console, args);
+      appendLog(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' '), 'error');
+    };
+
+    console.warn = function(...args) {
+      originalWarn.apply(console, args);
+      appendLog(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' '), 'warn');
+    };
+
+    // Initialize Analytics
+    async function initAnalytics() {
+      appendLog('Initializing AnalyticsManager...', 'info');
+
+      try {
+        analytics = new AnalyticsManager();
+        await analytics.init();
+
+        // Update UI
+        document.getElementById('status-indicator').className = 'status-indicator status-ready';
+        document.getElementById('status-text').textContent = 'Ready';
+        document.getElementById('config-detected-platform').textContent = analytics.mathai_platform || 'web';
+
+        appendLog('Analytics initialized successfully!', 'info');
+      } catch (error) {
+        appendLog(`Error initializing analytics: ${error.message}`, 'error');
+        document.getElementById('status-indicator').className = 'status-indicator status-error';
+        document.getElementById('status-text').textContent = 'Error';
+      }
+    }
+
+    // Identify test user
+    function identifyTestUser() {
+      if (!analytics) {
+        appendLog('Analytics not initialized. Please click "Initialize Analytics" first.', 'warn');
+        return;
+      }
+
+      const traits = {
+        id: 1554,
+        mobile: '7875158990',
+        name: 'rishabh',
+        email: 'a@x.co'
+      };
+
+      appendLog(`Identifying user with id: ${traits.id}`, 'info');
+      analytics.identify(traits);
+
+      // Update UI
+      document.getElementById('current-user-id').textContent = traits.id;
+      document.getElementById('current-mobile').textContent = traits.mobile;
+      document.getElementById('current-name').textContent = traits.name;
+      document.getElementById('current-email').textContent = traits.email || 'N/A';
+      document.getElementById('current-profile-id').textContent = traits.id;
+      document.getElementById('current-distinct-id').textContent = `${traits.mobile}_${traits.name.toLowerCase().replace(/\s+/g, '_')}_${traits.id}`;
+    }
+
+    // Track event
+    function trackEvent(eventName, properties) {
+      if (!analytics) {
+        appendLog('Analytics not initialized. Please click "Initialize Analytics" first.', 'warn');
+        return;
+      }
+
+      appendLog(`Tracking event: ${eventName}`, 'info');
+
+      // Log which platforms will receive this event
+      const platforms = analytics.platforms || [];
+      const sentPlatforms = platforms.filter(p =>
+        analytics._isPlatformEnabled(p) && analytics._shouldSendTo(p, eventName)
+      );
+
+      if (sentPlatforms.length === 0) {
+        appendLog(`Event "${eventName}" will be skipped on all platforms (skip list rules)`, 'warn');
+      } else {
+        appendLog(`Event "${eventName}" will be sent to: ${sentPlatforms.join(', ')}`, 'info');
+      }
+
+      analytics.track(eventName, properties);
+    }
+
+    // Reset analytics
+    function resetAnalytics() {
+      if (!analytics) {
+        appendLog('Analytics not initialized.', 'warn');
+        return;
+      }
+
+      appendLog('Resetting all platforms...', 'info');
+      analytics.reset();
+
+      // Update UI
+      document.getElementById('current-user-id').textContent = 'Not identified';
+      document.getElementById('current-distinct-id').textContent = 'Generated dynamically';
+    }
+
+    // Clear logs
+    function clearLogs() {
+      const logElement = document.getElementById('console-log');
+      logElement.innerHTML = '<div class="log-entry log-info"><span class="log-timestamp">[Cleared]</span>Logs cleared</div>';
+    }
+
+    // Initialize on page load
+    window.addEventListener('DOMContentLoaded', async () => {
+      appendLog('Page loaded. Auto-initializing analytics...', 'info');
+
+      // Auto-initialize analytics
+      await initAnalytics();
+
+      // Auto-identify user
+      appendLog('Auto-identifying user...', 'info');
+      identifyTestUser();
+    });
+  </script>
+</body>
+</html>

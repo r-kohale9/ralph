@@ -143,6 +143,10 @@ onResume: () => {
 - [ ] `popupProps` configured with title, description, primaryText
 - [ ] `destroy()` called in endGame cleanup
 
+## Source Code
+
+Full VisibilityTracker implementation: `warehouse/packages/helpers/visibility-tracker/index.js`
+
 ## Deep Reference
 
 `mathai-game-builder/components/visibility-tracker.md`

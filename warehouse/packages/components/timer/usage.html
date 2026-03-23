@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Timer Component Demo</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 2rem;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        color: white;
+        text-align: center;
+        margin-bottom: 2rem;
+        font-size: 2.5rem;
+      }
+
+      .demo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 2rem;
+        margin-bottom: 2rem;
+      }
+
+      .demo-card {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      .demo-card h2 {
+        color: #333;
+        margin-bottom: 1rem;
+        font-size: 1.5rem;
+      }
+
+      .demo-card p {
+        color: #666;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+      }
+
+      .timer-container {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: center;
+      }
+
+      .controls {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        flex: 1;
+        min-width: 80px;
+      }
+
+      .btn-primary {
+        background: #000fff;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #0008cc;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 15, 255, 0.3);
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background: #5a6268;
+        transform: translateY(-2px);
+      }
+
+      .btn-success {
+        background: #28a745;
+        color: white;
+      }
+
+      .btn-success:hover {
+        background: #218838;
+        transform: translateY(-2px);
+      }
+
+      .btn-warning {
+        background: #ffc107;
+        color: #000;
+      }
+
+      .btn-warning:hover {
+        background: #e0a800;
+        transform: translateY(-2px);
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: #c82333;
+        transform: translateY(-2px);
+      }
+
+      .btn:active {
+        transform: translateY(0);
+      }
+
+      .info-box {
+        background: #e7f3ff;
+        border-left: 4px solid #000fff;
+        padding: 1rem;
+        margin-top: 1rem;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        color: #333;
+      }
+
+      .status {
+        text-align: center;
+        margin-top: 1rem;
+        padding: 0.5rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        color: #666;
+        font-weight: 500;
+      }
+
+      /* Action bar demo specific styles */
+      .action-bar-demo {
+        position: relative;
+        height: 200px;
+        background: #f0f0f0;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .action-bar-demo::before {
+        content: "Game Area";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #999;
+        font-size: 1.5rem;
+        font-weight: 600;
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        .demo-grid {
+          grid-template-columns: 1fr;
+        }
+
+        h1 {
+          font-size: 2rem;
+        }
+
+        .controls {
+          flex-direction: column;
+        }
+
+        .btn {
+          width: 100%;
+        }
+      }
+
+      footer {
+        text-align: center;
+        color: white;
+        margin-top: 3rem;
+        padding: 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      footer a {
+        color: white;
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>⏱️ Timer Component Demo</h1>
+
+      <div class="demo-grid">
+        <!-- Demo 1: Countdown Timer -->
+        <div class="demo-card">
+          <h2>1. Countdown Timer</h2>
+          <p>A simple countdown timer from 60 seconds to 0.</p>
+          <div class="timer-container">
+            <div id="countdown-timer"></div>
+          </div>
+          <div class="controls">
+            <button class="btn btn-primary" onclick="countdown.start()">
+              Start
+            </button>
+            <button class="btn btn-warning" onclick="countdown.pause()">
+              Pause
+            </button>
+            <button class="btn btn-success" onclick="countdown.resume()">
+              Resume
+            </button>
+            <button class="btn btn-danger" onclick="countdown.reset()">
+              Reset
+            </button>
+          </div>
+          <div class="status" id="countdown-status">Ready to start</div>
+        </div>
+
+        <!-- Demo 2: Stopwatch -->
+        <div class="demo-card">
+          <h2>2. Stopwatch (Count Up)</h2>
+          <p>Count up from 0 to 5 minutes in MM:SS format.</p>
+          <div class="timer-container">
+            <div id="stopwatch-timer"></div>
+          </div>
+          <div class="controls">
+            <button class="btn btn-primary" onclick="stopwatch.start()">
+              Start
+            </button>
+            <button class="btn btn-warning" onclick="stopwatch.pause()">
+              Pause
+            </button>
+            <button class="btn btn-success" onclick="stopwatch.resume()">
+              Resume
+            </button>
+            <button class="btn btn-danger" onclick="stopwatch.reset()">
+              Reset
+            </button>
+          </div>
+          <div class="status" id="stopwatch-status">Ready to start</div>
+        </div>
+
+        <!-- Demo 3: Seconds Only Timer -->
+        <div class="demo-card">
+          <h2>3. Seconds Display</h2>
+          <p>Timer displaying only seconds (30 second countdown).</p>
+          <div class="timer-container">
+            <div id="seconds-timer"></div>
+          </div>
+          <div class="controls">
+            <button class="btn btn-primary" onclick="secondsTimer.start()">
+              Start
+            </button>
+            <button class="btn btn-warning" onclick="secondsTimer.pause()">
+              Pause
+            </button>
+            <button class="btn btn-danger" onclick="secondsTimer.reset()">
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- Demo 4: Dynamic Control -->
+        <div class="demo-card">
+          <h2>4. Dynamic Controls</h2>
+          <p>Add time, change format, and toggle timer direction.</p>
+          <div class="timer-container">
+            <div id="dynamic-timer"></div>
+          </div>
+          <div class="controls">
+            <button class="btn btn-primary" onclick="addTime()">
+              +10 Seconds
+            </button>
+            <button class="btn btn-secondary" onclick="removeTime()">
+              -10 Seconds
+            </button>
+            <button class="btn btn-success" onclick="toggleFormat()">
+              Toggle Format
+            </button>
+            <button class="btn btn-warning" onclick="toggleDirection()">
+              Toggle Direction
+            </button>
+          </div>
+          <div class="info-box" id="dynamic-info">
+            Current: 0s | Format: min | Direction: decrease
+          </div>
+        </div>
+
+        <!-- Demo 5: Auto-start Timer -->
+        <div class="demo-card">
+          <h2>5. Auto-Start Timer</h2>
+          <p>Automatically starts on page load (2 minute countdown).</p>
+          <div class="timer-container">
+            <div id="autostart-timer"></div>
+          </div>
+          <div class="controls">
+            <button class="btn btn-warning" onclick="autoTimer.pause()">
+              Pause
+            </button>
+            <button class="btn btn-success" onclick="autoTimer.resume()">
+              Resume
+            </button>
+            <button
+              class="btn btn-danger"
+              onclick="autoTimer.reset(); autoTimer.start()"
+            >
+              Restart
+            </button>
+          </div>
+        </div>
+
+        <!-- Demo 6: Action Bar Timer -->
+        <div class="demo-card">
+          <h2>6. Action Bar Timer</h2>
+          <p>Timer positioned in action bar style (like in games).</p>
+          <div class="action-bar-demo">
+            <div id="actionbar-timer"></div>
+          </div>
+          <div class="controls">
+            <button class="btn btn-primary" onclick="actionBarTimer.start()">
+              Start
+            </button>
+            <button class="btn btn-warning" onclick="actionBarTimer.pause()">
+              Pause
+            </button>
+            <button class="btn btn-danger" onclick="actionBarTimer.reset()">
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        <p>Timer Component - Vanilla JavaScript Implementation</p>
+        <p>See <a href="#">TIMER_COMPONENT.md</a> for full documentation</p>
+      </footer>
+    </div>
+
+    <script src="https://storage.googleapis.com/test-dynamic-assets/packages/timer/index.js"></script>
+    <script>
+      // Demo 1: Countdown Timer
+      const countdown = new TimerComponent("countdown-timer", {
+        timerType: "decrease",
+        format: "min",
+        startTime: 60,
+        endTime: 0,
+        autoStart: false,
+        onEnd: (timeTaken) => {
+          document.getElementById(
+            "countdown-status"
+          ).textContent = `Finished! Took ${timeTaken} seconds`;
+          setTimeout(() => {
+            alert("Countdown complete!");
+          }, 100);
+        },
+      });
+
+      // Update countdown status
+      setInterval(() => {
+        if (countdown.isRunning && !countdown.isPaused) {
+          document.getElementById(
+            "countdown-status"
+          ).textContent = `Running... ${countdown.getCurrentTime()}s remaining`;
+        }
+      }, 1000);
+
+      // Demo 2: Stopwatch
+      const stopwatch = new TimerComponent("stopwatch-timer", {
+        timerType: "increase",
+        format: "min",
+        startTime: 0,
+        endTime: 300, // 5 minutes
+        autoStart: false,
+        onEnd: (timeTaken) => {
+          document.getElementById("stopwatch-status").textContent =
+            "Reached 5 minutes!";
+        },
+      });
+
+      setInterval(() => {
+        if (stopwatch.isRunning && !stopwatch.isPaused) {
+          document.getElementById(
+            "stopwatch-status"
+          ).textContent = `Running... ${stopwatch.getCurrentTime()}s elapsed`;
+        }
+      }, 1000);
+
+      // Demo 3: Seconds Only Timer
+      const secondsTimer = new TimerComponent("seconds-timer", {
+        timerType: "decrease",
+        format: "sec",
+        startTime: 30,
+        endTime: 0,
+        autoStart: false,
+        onEnd: () => {
+          alert("30 seconds elapsed!");
+        },
+      });
+
+      // Demo 4: Dynamic Control Timer
+      const dynamicTimer = new TimerComponent("dynamic-timer", {
+        timerType: "decrease",
+        format: "min",
+        startTime: 60,
+        endTime: 0,
+        autoStart: true,
+      });
+
+      function addTime() {
+        const currentTime = dynamicTimer.getCurrentTime();
+        dynamicTimer.setTime(currentTime + 10);
+        updateDynamicInfo();
+      }
+
+      function removeTime() {
+        const currentTime = dynamicTimer.getCurrentTime();
+        dynamicTimer.setTime(Math.max(0, currentTime - 10));
+        updateDynamicInfo();
+      }
+
+      function toggleFormat() {
+        const newFormat = dynamicTimer.config.format === "min" ? "sec" : "min";
+        dynamicTimer.updateConfig({ format: newFormat });
+        updateDynamicInfo();
+      }
+
+      function toggleDirection() {
+        const newType =
+          dynamicTimer.config.timerType === "decrease"
+            ? "increase"
+            : "decrease";
+        const newEnd = newType === "increase" ? 120 : 0;
+        dynamicTimer.updateConfig({
+          timerType: newType,
+          endTime: newEnd,
+        });
+        updateDynamicInfo();
+      }
+
+      function updateDynamicInfo() {
+        document.getElementById(
+          "dynamic-info"
+        ).textContent = `Current: ${dynamicTimer.getCurrentTime()}s | Format: ${
+          dynamicTimer.config.format
+        } | Direction: ${dynamicTimer.config.timerType}`;
+      }
+
+      setInterval(updateDynamicInfo, 1000);
+
+      // Demo 5: Auto-start Timer
+      const autoTimer = new TimerComponent("autostart-timer", {
+        timerType: "decrease",
+        format: "min",
+        startTime: 120,
+        endTime: 0,
+        autoStart: true,
+        onEnd: () => {
+          alert("2 minutes elapsed!");
+        },
+      });
+
+      // Demo 6: Action Bar Timer
+      const actionBarTimer = new TimerComponent("actionbar-timer", {
+        timerType: "decrease",
+        format: "min",
+        startTime: 90,
+        endTime: 0,
+        showInActionBar: true,
+        autoStart: false,
+        onEnd: () => {
+          alert("Action bar timer finished!");
+        },
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StoriesComponent - Usage Examples (v2_story Format)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+
+        .examples-grid {
+            display: grid;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .example-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .example-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+        }
+
+        .example-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
+        }
+
+        .example-header h2 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .example-header p {
+            font-size: 15px;
+            opacity: 0.9;
+        }
+
+        .example-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            min-height: 500px;
+        }
+
+        .example-demo {
+            border-right: 1px solid #e0e0e0;
+            position: relative;
+        }
+
+        .story-container {
+            width: 100%;
+            height: 100%;
+            min-height: 500px;
+            position: relative;
+        }
+
+        /* Fullscreen story mode - when StoriesComponent is active,
+           it will take over the entire viewport */
+        .story-container.fullscreen-mode {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            min-height: unset;
+        }
+
+        .example-code {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 30px;
+            overflow-x: auto;
+        }
+
+        .example-code h3 {
+            color: #fff;
+            font-size: 16px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            overflow-x: auto;
+        }
+
+        .keyword { color: #569cd6; }
+        .string { color: #ce9178; }
+        .number { color: #b5cea8; }
+        .comment { color: #6a9955; font-style: italic; }
+        .function { color: #dcdcaa; }
+        .property { color: #9cdcfe; }
+
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #1976d2;
+            margin-top: 20px;
+        }
+
+        .output-box {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .output-box h4 {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        .output-box pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        @media (max-width: 1024px) {
+            .example-content {
+                grid-template-columns: 1fr;
+            }
+
+            .example-demo {
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>StoriesComponent Examples</h1>
+            <p>Real-world examples using the actual v2_story JSON format</p>
+        </div>
+
+        <!-- Example 1: Basic Video Story with Button -->
+        <div class="examples-grid">
+            <div class="example-card">
+                <div class="example-header">
+                    <h2>Example 1: Video Background Story</h2>
+                    <p>Simple story with video background and button using internal action</p>
+                </div>
+                <div class="example-content">
+                    <div class="example-demo">
+                        <div id="story-container-1" class="story-container"></div>
+                    </div>
+                    <div class="example-code">
+                        <h3>Actual JSON Structure</h3>
+                        <div class="code-block">
+{
+  <span class="property">"data"</span>: {
+    <span class="property">"children"</span>: [
+      {
+        <span class="property">"id"</span>: <span class="string">"story-1"</span>,
+        <span class="property">"data"</span>: {
+          <span class="property">"v2_story"</span>: {
+            <span class="property">"name"</span>: <span class="string">"welcome"</span>,
+            <span class="property">"background"</span>: {
+              <span class="property">"type"</span>: <span class="string">"VIDEO"</span>,
+              <span class="property">"value"</span>: <span class="string">"https://cdn.mathai.ai/video.mp4"</span>,
+              <span class="property">"loop"</span>: <span class="keyword">false</span>
+            },
+            <span class="property">"duration_type"</span>: <span class="keyword">null</span>
+          },
+          <span class="property">"children"</span>: [
+            {
+              <span class="property">"type"</span>: <span class="string">"button"</span>,
+              <span class="property">"data"</span>: {
+                <span class="property">"name"</span>: <span class="string">"next_btn"</span>,
+                <span class="property">"button"</span>: {
+                  <span class="property">"text"</span>: <span class="string">"Next Story"</span>,
+                  <span class="property">"color"</span>: <span class="string">"#ffffff"</span>,
+                  <span class="property">"background_color"</span>: <span class="string">"#3927ff"</span>,
+                  <span class="property">"font_size"</span>: <span class="string">"18"</span>,
+                  <span class="property">"font_weight"</span>: <span class="string">"600"</span>,
+                  <span class="property">"action"</span>: {
+                    <span class="property">"type"</span>: <span class="string">"internal"</span>,
+                    <span class="property">"value"</span>: <span class="string">""</span>
+                  }
+                }
+              },
+              <span class="property">"other"</span>: {
+                <span class="property">"position"</span>: { <span class="property">"top"</span>: <span class="number">648</span>, <span class="property">"left"</span>: <span class="number">0</span> },
+                <span class="property">"size"</span>: { <span class="property">"width"</span>: <span class="number">412</span>, <span class="property">"height"</span>: <span class="number">84</span> }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+                        </div>
+                        <div class="output-box" id="output-1">
+                            <h4>Events Log</h4>
+                            <pre id="log-1">Waiting for interaction...</pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-secondary" onclick="resetExample1()">Reset</button>
+                    <span style="margin-left: auto; color: #666; font-size: 14px;" id="status-1"></span>
+                </div>
+            </div>
+
+            <!-- Example 2: Compute Functions with Branching -->
+            <div class="example-card">
+                <div class="example-header">
+                    <h2>Example 2: Branching with Compute Functions</h2>
+                    <p>Dynamic navigation using getNextStory compute function based on button clicks</p>
+                </div>
+                <div class="example-content">
+                    <div class="example-demo">
+                        <div id="story-container-2" class="story-container"></div>
+                    </div>
+                    <div class="example-code">
+                        <h3>Compute Function Structure</h3>
+                        <div class="code-block">
+{
+  <span class="property">"data"</span>: {
+    <span class="property">"v2_story"</span>: {
+      <span class="property">"name"</span>: <span class="string">"quiz"</span>,
+      <span class="property">"background"</span>: {
+        <span class="property">"type"</span>: <span class="string">"SOLID_COLOR"</span>,
+        <span class="property">"value"</span>: <span class="string">"#667eea"</span>
+      },
+      <span class="property">"logic"</span>: {
+        <span class="property">"compute_functions"</span>: [
+          {
+            <span class="property">"name"</span>: <span class="string">"getNextStory"</span>,
+            <span class="property">"output"</span>: <span class="string">"function getNextStory(history, inputs, global_context_variables) {
+  if (inputs.answer_correct) {
+    return 'correct-path';
+  } else if (inputs.answer_wrong) {
+    return 'incorrect-path';
+  }
+  return 'next';
+}"</span>
+          }
+        ]
+      }
+    },
+    <span class="property">"children"</span>: [
+      {
+        <span class="property">"type"</span>: <span class="string">"button"</span>,
+        <span class="property">"data"</span>: {
+          <span class="property">"name"</span>: <span class="string">"answer_correct"</span>,
+          <span class="property">"button"</span>: {
+            <span class="property">"text"</span>: <span class="string">"Correct Answer"</span>,
+            <span class="property">"action"</span>: { <span class="property">"type"</span>: <span class="string">"internal"</span> }
+          }
+        }
+      }
+    ]
+  }
+}
+                        </div>
+                        <div class="output-box" id="output-2">
+                            <h4>Navigation Path</h4>
+                            <pre id="log-2">Choose an answer to see branching...</pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-secondary" onclick="resetExample2()">Reset</button>
+                    <span style="margin-left: auto; color: #666; font-size: 14px;" id="status-2"></span>
+                </div>
+            </div>
+
+            <!-- Example 3: Input Fields with Global Context -->
+            <div class="example-card">
+                <div class="example-header">
+                    <h2>Example 3: Input Handling & Global Context</h2>
+                    <p>Capturing user input and storing in global context variables</p>
+                </div>
+                <div class="example-content">
+                    <div class="example-demo">
+                        <div id="story-container-3" class="story-container"></div>
+                    </div>
+                    <div class="example-code">
+                        <h3>Input Field Structure</h3>
+                        <div class="code-block">
+{
+  <span class="property">"type"</span>: <span class="string">"input"</span>,
+  <span class="property">"data"</span>: {
+    <span class="property">"name"</span>: <span class="string">"user_name"</span>,
+    <span class="property">"input"</span>: {
+      <span class="property">"placeholder"</span>: <span class="string">"Enter your name"</span>,
+      <span class="property">"input_type"</span>: <span class="string">"text"</span>,
+      <span class="property">"font_size"</span>: <span class="string">"16"</span>,
+      <span class="property">"color"</span>: <span class="string">"#333333"</span>,
+      <span class="property">"background_color"</span>: <span class="string">"#ffffff"</span>
+    }
+  },
+  <span class="property">"other"</span>: {
+    <span class="property">"position"</span>: { <span class="property">"top"</span>: <span class="number">200</span>, <span class="property">"left"</span>: <span class="number">50</span> },
+    <span class="property">"size"</span>: { <span class="property">"width"</span>: <span class="number">312</span>, <span class="property">"height"</span>: <span class="number">50</span> }
+  }
+}
+
+<span class="comment">// Access in compute function:</span>
+<span class="keyword">function</span> <span class="function">getNextStory</span>(history, inputs, global_context_variables) {
+  <span class="keyword">const</span> userName = global_context_variables.user_name;
+  <span class="keyword">return</span> userName ? <span class="string">'personalized-story'</span> : <span class="string">'default-story'</span>;
+}
+                        </div>
+                        <div class="output-box" id="output-3">
+                            <h4>Global Context</h4>
+                            <pre id="log-3">{}</pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-secondary" onclick="resetExample3()">Reset</button>
+                    <button class="btn btn-primary" onclick="showContext3()">Show Context</button>
+                    <span style="margin-left: auto; color: #666; font-size: 14px;" id="status-3"></span>
+                </div>
+            </div>
+
+            <!-- Example 4: Different Background Types -->
+            <div class="example-card">
+                <div class="example-header">
+                    <h2>Example 4: Background Types</h2>
+                    <p>VIDEO, SOLID_COLOR, and IMAGE backgrounds with different configurations</p>
+                </div>
+                <div class="example-content">
+                    <div class="example-demo">
+                        <div id="story-container-4" class="story-container"></div>
+                    </div>
+                    <div class="example-code">
+                        <h3>Background Options</h3>
+                        <div class="code-block">
+<span class="comment">// VIDEO Background</span>
+<span class="property">"background"</span>: {
+  <span class="property">"type"</span>: <span class="string">"VIDEO"</span>,
+  <span class="property">"value"</span>: <span class="string">"https://cdn.example.com/video.mp4"</span>,
+  <span class="property">"loop"</span>: <span class="keyword">true</span>
+}
+
+<span class="comment">// SOLID_COLOR Background</span>
+<span class="property">"background"</span>: {
+  <span class="property">"type"</span>: <span class="string">"SOLID_COLOR"</span>,
+  <span class="property">"value"</span>: <span class="string">"#FF6B6B"</span>,
+  <span class="property">"loop"</span>: <span class="keyword">false</span>
+}
+
+<span class="comment">// IMAGE Background</span>
+<span class="property">"background"</span>: {
+  <span class="property">"type"</span>: <span class="string">"IMAGE"</span>,
+  <span class="property">"value"</span>: <span class="string">"https://cdn.example.com/bg.jpg"</span>,
+  <span class="property">"loop"</span>: <span class="keyword">false</span>
+}
+
+<span class="comment">// Background positioning and styling</span>
+<span class="comment">// applied automatically based on type</span>
+                        </div>
+                        <div class="output-box" id="output-4">
+                            <h4>Current Background</h4>
+                            <pre id="log-4">Solid color background</pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-secondary" onclick="resetExample4()">Reset</button>
+                    <button class="btn btn-primary" onclick="nextStory4()">Next Background</button>
+                    <span style="margin-left: auto; color: #666; font-size: 14px;" id="status-4"></span>
+                </div>
+            </div>
+
+            <!-- Example 5: Complete Interactive Story Flow -->
+            <div class="example-card">
+                <div class="example-header">
+                    <h2>Example 5: Complete Interactive Flow</h2>
+                    <p>Full story sequence with inputs, branching, and submission data</p>
+                </div>
+                <div class="example-content">
+                    <div class="example-demo">
+                        <div id="story-container-5" class="story-container"></div>
+                    </div>
+                    <div class="example-code">
+                        <h3>Complete Flow Structure</h3>
+                        <div class="code-block">
+{
+  <span class="property">"data"</span>: {
+    <span class="property">"children"</span>: [
+      {
+        <span class="property">"id"</span>: <span class="string">"intro"</span>,
+        <span class="property">"data"</span>: {
+          <span class="property">"v2_story"</span>: {
+            <span class="property">"name"</span>: <span class="string">"intro"</span>,
+            <span class="property">"background"</span>: {
+              <span class="property">"type"</span>: <span class="string">"SOLID_COLOR"</span>,
+              <span class="property">"value"</span>: <span class="string">"#667eea"</span>
+            },
+            <span class="property">"logic"</span>: {
+              <span class="property">"compute_functions"</span>: [
+                {
+                  <span class="property">"name"</span>: <span class="string">"getNextStory"</span>,
+                  <span class="property">"output"</span>: <span class="string">"function getNextStory(h, i, g) {
+  return i.start_btn ? 'questions' : 'next';
+}"</span>
+                }
+              ]
+            }
+          },
+          <span class="property">"children"</span>: [
+            {
+              <span class="property">"type"</span>: <span class="string">"button"</span>,
+              <span class="property">"data"</span>: {
+                <span class="property">"name"</span>: <span class="string">"start_btn"</span>,
+                <span class="property">"button"</span>: {
+                  <span class="property">"text"</span>: <span class="string">"Start"</span>,
+                  <span class="property">"action"</span>: { <span class="property">"type"</span>: <span class="string">"internal"</span> }
+                }
+              },
+              <span class="property">"other"</span>: {
+                <span class="property">"position"</span>: { <span class="property">"top"</span>: <span class="number">400</span>, <span class="property">"left"</span>: <span class="number">156</span> },
+                <span class="property">"size"</span>: { <span class="property">"width"</span>: <span class="number">100</span>, <span class="property">"height"</span>: <span class="number">50</span> }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+                        </div>
+                        <div class="output-box" id="output-5">
+                            <h4>Submission Data</h4>
+                            <pre id="log-5">Complete the story to see data...</pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-secondary" onclick="resetExample5()">Reset</button>
+                    <span style="margin-left: auto; color: #666; font-size: 14px;" id="status-5"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <strong>Note:</strong> These examples use the actual v2_story JSON format with:
+            <ul style="margin-top: 10px; padding-left: 20px;">
+                <li><code>data.children[]</code> array structure</li>
+                <li><code>v2_story.background.{type, value, loop}</code> for backgrounds</li>
+                <li><code>v2_story.logic.compute_functions[]</code> for branching logic</li>
+                <li><code>data.button.{text, color, background_color, action}</code> for buttons</li>
+                <li><code>other.{position, size}</code> for element positioning</li>
+                <li><code>global_context_variables</code> for shared state</li>
+            </ul>
+            <p style="margin-top: 15px;">
+                <strong>💡 Fullscreen Behavior:</strong> When the StoriesComponent is initialized, it automatically takes over the entire viewport (100vw × 100vh) with <code>position: fixed</code> and <code>z-index: 9999</code>.
+                This ensures that only the story is visible on screen at a time, similar to Instagram Stories or Snapchat.
+                When <code>destroy()</code> is called, all fullscreen styles are removed and the container returns to its original state.
+            </p>
+        </div>
+    </div>
+
+    <!-- Load StoriesComponent -->
+    <script src="index.js"></script>
+
+    <!-- Example Implementations -->
+    <script>
+        // Global component references
+        let example1, example2, example3, example4, example5;
+
+        // ==========================================
+        // EXAMPLE 1: Video Background Story
+        // ==========================================
+        function initExample1() {
+            const storyBlock = {
+                data: {
+                    children: [
+                        {
+                            id: "story-1",
+                            data: {
+                                v2_story: {
+                                    name: "welcome",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#FF6B6B",
+                                        loop: false
+                                    },
+                                    duration_type: null
+                                },
+                                children: [
+                                    {
+                                        type: "button",
+                                        data: {
+                                            name: "next_btn",
+                                            button: {
+                                                text: "Next Story",
+                                                color: "#ffffff",
+                                                background_color: "#3927ff",
+                                                font_size: "18",
+                                                font_weight: "600",
+                                                action: {
+                                                    type: "internal",
+                                                    value: ""
+                                                }
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 400, left: 130 },
+                                            size: { width: 150, height: 50 }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            id: "story-2",
+                            data: {
+                                v2_story: {
+                                    name: "second",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#4ECDC4",
+                                        loop: false
+                                    }
+                                },
+                                children: [
+                                    {
+                                        type: "button",
+                                        data: {
+                                            name: "finish_btn",
+                                            button: {
+                                                text: "Finish",
+                                                color: "#ffffff",
+                                                background_color: "#2ecc71",
+                                                font_size: "18",
+                                                font_weight: "600",
+                                                action: {
+                                                    type: "internal",
+                                                    value: ""
+                                                }
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 400, left: 150 },
+                                            size: { width: 110, height: 50 }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            };
+
+            example1 = new StoriesComponent('story-container-1', {
+                storyBlock: storyBlock,
+                showProgress: true,
+                onStoryChange: (index, direction, story) => {
+                    logToElement('log-1', `Story: ${story.name}\nDirection: ${direction}\nIndex: ${index}`);
+                    updateStatus('status-1', `Story ${index + 1}/2: ${story.name}`);
+                },
+                onButtonClick: (name, action, index) => {
+                    logToElement('log-1', `Button clicked: ${name}\nAction type: ${action.type}`);
+                },
+                onComplete: (data) => {
+                    logToElement('log-1', 'Story complete!\n' + JSON.stringify(data, null, 2));
+                    updateStatus('status-1', 'Complete!');
+                }
+            });
+        }
+
+        function resetExample1() {
+            if (example1) example1.destroy();
+            initExample1();
+        }
+
+        // ==========================================
+        // EXAMPLE 2: Branching with Compute Functions
+        // ==========================================
+        function initExample2() {
+            const storyBlock = {
+                data: {
+                    children: [
+                        {
+                            id: "quiz-question",
+                            data: {
+                                v2_story: {
+                                    name: "quiz",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#667eea",
+                                        loop: false
+                                    },
+                                    logic: {
+                                        compute_functions: [
+                                            {
+                                                name: "getNextStory",
+                                                output: `function getNextStory(history, inputs, global_context_variables) {
+                                                    if (inputs.answer_correct) {
+                                                        return 'correct-path';
+                                                    } else if (inputs.answer_wrong) {
+                                                        return 'incorrect-path';
+                                                    }
+                                                    return 'next';
+                                                }`
+                                            }
+                                        ]
+                                    }
+                                },
+                                children: [
+                                    {
+                                        type: "button",
+                                        data: {
+                                            name: "answer_correct",
+                                            button: {
+                                                text: "2 + 2 = 4",
+                                                color: "#ffffff",
+                                                background_color: "#48bb78",
+                                                font_size: "16",
+                                                font_weight: "600",
+                                                action: { type: "internal", value: "" }
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 250, left: 100 },
+                                            size: { width: 210, height: 50 }
+                                        }
+                                    },
+                                    {
+                                        type: "button",
+                                        data: {
+                                            name: "answer_wrong",
+                                            button: {
+                                                text: "2 + 2 = 5",
+                                                color: "#ffffff",
+                                                background_color: "#f56565",
+                                                font_size: "16",
+                                                font_weight: "600",
+                                                action: { type: "internal", value: "" }
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 320, left: 100 },
+                                            size: { width: 210, height: 50 }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            id: "correct-path",
+                            data: {
+                                v2_story: {
+                                    name: "correct",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#48bb78",
+                                        loop: false
+                                    }
+                                },
+                                children: [
+                                    {
+                                        type: "button",
+                                        data: {
+                                            name: "retry_btn",
+                                            button: {
+                                                text: "Try Again",
+                                                color: "#48bb78",
+                                                background_color: "#ffffff",
+                                                font_size: "16",
+                                                font_weight: "600",
+                                                action: { type: "internal", value: "" }
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 400, left: 130 },
+                                            size: { width: 150, height: 50 }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            id: "incorrect-path",
+                            data: {
+                                v2_story: {
+                                    name: "incorrect",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#f56565",
+                                        loop: false
+                                    }
+                                },
+                                children: [
+                                    {
+                                        type: "button",
+                                        data: {
+                                            name: "retry_btn",
+                                            button: {
+                                                text: "Try Again",
+                                                color: "#f56565",
+                                                background_color: "#ffffff",
+                                                font_size: "16",
+                                                font_weight: "600",
+                                                action: { type: "internal", value: "" }
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 400, left: 130 },
+                                            size: { width: 150, height: 50 }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            };
+
+            example2 = new StoriesComponent('story-container-2', {
+                storyBlock: storyBlock,
+                showProgress: true,
+                onStoryChange: (index, direction, story) => {
+                    const messages = {
+                        'quiz': 'Question presented',
+                        'correct': 'Correct answer path (compute function)',
+                        'incorrect': 'Incorrect answer path (compute function)'
+                    };
+                    logToElement('log-2', messages[story.name] || story.name);
+                    updateStatus('status-2', `Story: ${story.name}`);
+                },
+                onButtonClick: (name, action, index) => {
+                    const msg = name === 'answer_correct' ?
+                        'Correct answer clicked! Compute function will route to success path.' :
+                        name === 'answer_wrong' ?
+                        'Wrong answer clicked! Compute function will route to retry path.' :
+                        'Button clicked: ' + name;
+                    logToElement('log-2', msg);
+                }
+            });
+        }
+
+        function resetExample2() {
+            if (example2) example2.destroy();
+            initExample2();
+        }
+
+        // ==========================================
+        // EXAMPLE 3: Input & Global Context
+        // ==========================================
+        function initExample3() {
+            const storyBlock = {
+                data: {
+                    children: [
+                        {
+                            id: "input-story",
+                            data: {
+                                v2_story: {
+                                    name: "input_form",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#f093fb",
+                                        loop: false
+                                    }
+                                },
+                                children: [
+                                    {
+                                        type: "input",
+                                        data: {
+                                            name: "user_name",
+                                            input: {
+                                                placeholder: "Enter your name",
+                                                input_type: "text",
+                                                font_size: "16",
+                                                color: "#333333",
+                                                background_color: "#ffffff"
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 200, left: 50 },
+                                            size: { width: 312, height: 50 }
+                                        }
+                                    },
+                                    {
+                                        type: "input",
+                                        data: {
+                                            name: "user_age",
+                                            input: {
+                                                placeholder: "Enter your age",
+                                                input_type: "number",
+                                                font_size: "16",
+                                                color: "#333333",
+                                                background_color: "#ffffff"
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 270, left: 50 },
+                                            size: { width: 312, height: 50 }
+                                        }
+                                    },
+                                    {
+                                        type: "button",
+                                        data: {
+                                            name: "submit_btn",
+                                            button: {
+                                                text: "Submit",
+                                                color: "#ffffff",
+                                                background_color: "#f093fb",
+                                                font_size: "16",
+                                                font_weight: "600",
+                                                action: { type: "internal", value: "" }
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 400, left: 150 },
+                                            size: { width: 110, height: 50 }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            id: "confirmation",
+                            data: {
+                                v2_story: {
+                                    name: "confirmation",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#a8edea",
+                                        loop: false
+                                    }
+                                },
+                                children: []
+                            }
+                        }
+                    ]
+                }
+            };
+
+            example3 = new StoriesComponent('story-container-3', {
+                storyBlock: storyBlock,
+                showProgress: true,
+                onInputChange: (name, value, index) => {
+                    if (example3) {
+                        const context = example3.getGlobalContext();
+                        logToElement('log-3', JSON.stringify(context.value_map || {}, null, 2));
+                        updateStatus('status-3', `Updated: ${name} = ${value}`);
+                    }
+                },
+                onStoryChange: (index, direction, story) => {
+                    updateStatus('status-3', `Story: ${story.name}`);
+                }
+            });
+        }
+
+        function resetExample3() {
+            if (example3) example3.destroy();
+            initExample3();
+        }
+
+        function showContext3() {
+            if (example3) {
+                const context = example3.getGlobalContext();
+                alert('Global Context:\n' + JSON.stringify(context.value_map || {}, null, 2));
+            }
+        }
+
+        // ==========================================
+        // EXAMPLE 4: Background Types
+        // ==========================================
+        function initExample4() {
+            const storyBlock = {
+                data: {
+                    children: [
+                        {
+                            id: "solid-bg",
+                            data: {
+                                v2_story: {
+                                    name: "solid_color",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#fa709a",
+                                        loop: false
+                                    }
+                                },
+                                children: [
+                                    {
+                                        type: "button",
+                                        data: {
+                                            name: "next_bg",
+                                            button: {
+                                                text: "Next Background",
+                                                color: "#fa709a",
+                                                background_color: "#ffffff",
+                                                font_size: "16",
+                                                font_weight: "600",
+                                                action: { type: "internal", value: "" }
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 400, left: 105 },
+                                            size: { width: 200, height: 50 }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            id: "gradient-bg",
+                            data: {
+                                v2_story: {
+                                    name: "gradient",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#fee140",
+                                        loop: false
+                                    }
+                                },
+                                children: [
+                                    {
+                                        type: "button",
+                                        data: {
+                                            name: "next_bg",
+                                            button: {
+                                                text: "Next Background",
+                                                color: "#fee140",
+                                                background_color: "#ffffff",
+                                                font_size: "16",
+                                                font_weight: "600",
+                                                action: { type: "internal", value: "" }
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 400, left: 105 },
+                                            size: { width: 200, height: 50 }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            id: "final-bg",
+                            data: {
+                                v2_story: {
+                                    name: "final_color",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#30cfd0",
+                                        loop: false
+                                    }
+                                },
+                                children: []
+                            }
+                        }
+                    ]
+                }
+            };
+
+            example4 = new StoriesComponent('story-container-4', {
+                storyBlock: storyBlock,
+                showProgress: true,
+                onStoryChange: (index, direction, story) => {
+                    const backgrounds = {
+                        'solid_color': 'Solid color background (#fa709a)',
+                        'gradient': 'Gradient background (#fee140)',
+                        'final_color': 'Final background (#30cfd0)'
+                    };
+                    logToElement('log-4', backgrounds[story.name] || story.name);
+                    updateStatus('status-4', `Background: ${story.name}`);
+                }
+            });
+        }
+
+        function resetExample4() {
+            if (example4) example4.destroy();
+            initExample4();
+        }
+
+        function nextStory4() {
+            if (example4) example4.next();
+        }
+
+        // ==========================================
+        // EXAMPLE 5: Complete Interactive Flow
+        // ==========================================
+        function initExample5() {
+            const storyBlock = {
+                data: {
+                    children: [
+                        {
+                            id: "intro",
+                            data: {
+                                v2_story: {
+                                    name: "intro",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#667eea",
+                                        loop: false
+                                    },
+                                    logic: {
+                                        compute_functions: [
+                                            {
+                                                name: "getNextStory",
+                                                output: `function getNextStory(history, inputs, global_context_variables) {
+                                                    return inputs.start_btn ? 'questions' : 'next';
+                                                }`
+                                            }
+                                        ]
+                                    }
+                                },
+                                children: [
+                                    {
+                                        type: "button",
+                                        data: {
+                                            name: "start_btn",
+                                            button: {
+                                                text: "Start",
+                                                color: "#ffffff",
+                                                background_color: "#764ba2",
+                                                font_size: "18",
+                                                font_weight: "600",
+                                                action: { type: "internal", value: "" }
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 400, left: 156 },
+                                            size: { width: 100, height: 50 }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            id: "questions",
+                            data: {
+                                v2_story: {
+                                    name: "questions",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#764ba2",
+                                        loop: false
+                                    },
+                                    logic: {
+                                        compute_functions: [
+                                            {
+                                                name: "getNextStory",
+                                                output: `function getNextStory(history, inputs, global_context_variables) {
+                                                    if (inputs.submit_btn && global_context_variables.name && global_context_variables.email) {
+                                                        return 'thank-you';
+                                                    }
+                                                    return 'next';
+                                                }`
+                                            }
+                                        ]
+                                    }
+                                },
+                                children: [
+                                    {
+                                        type: "input",
+                                        data: {
+                                            name: "name",
+                                            input: {
+                                                placeholder: "Your name",
+                                                input_type: "text",
+                                                font_size: "16",
+                                                color: "#333333",
+                                                background_color: "#ffffff"
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 180, left: 50 },
+                                            size: { width: 312, height: 50 }
+                                        }
+                                    },
+                                    {
+                                        type: "input",
+                                        data: {
+                                            name: "email",
+                                            input: {
+                                                placeholder: "Your email",
+                                                input_type: "email",
+                                                font_size: "16",
+                                                color: "#333333",
+                                                background_color: "#ffffff"
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 250, left: 50 },
+                                            size: { width: 312, height: 50 }
+                                        }
+                                    },
+                                    {
+                                        type: "button",
+                                        data: {
+                                            name: "submit_btn",
+                                            button: {
+                                                text: "Submit",
+                                                color: "#ffffff",
+                                                background_color: "#667eea",
+                                                font_size: "16",
+                                                font_weight: "600",
+                                                action: { type: "internal", value: "" }
+                                            }
+                                        },
+                                        other: {
+                                            position: { top: 350, left: 150 },
+                                            size: { width: 110, height: 50 }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            id: "thank-you",
+                            data: {
+                                v2_story: {
+                                    name: "complete",
+                                    background: {
+                                        type: "SOLID_COLOR",
+                                        value: "#48bb78",
+                                        loop: false
+                                    }
+                                },
+                                children: []
+                            }
+                        }
+                    ]
+                }
+            };
+
+            example5 = new StoriesComponent('story-container-5', {
+                storyBlock: storyBlock,
+                showProgress: true,
+                trackDuration: true,
+                onStoryChange: (index, direction, story) => {
+                    updateStatus('status-5', `Story: ${story.name}`);
+                },
+                onComplete: (data) => {
+                    logToElement('log-5', JSON.stringify({
+                        globalContext: data.globalContext || {},
+                        durations: data.durations || {},
+                        completed: true
+                    }, null, 2));
+                    updateStatus('status-5', 'Complete!');
+                },
+                onInputChange: (name, value, index) => {
+                    updateStatus('status-5', `Input: ${name} = ${value}`);
+                }
+            });
+        }
+
+        function resetExample5() {
+            if (example5) example5.destroy();
+            initExample5();
+        }
+
+        // ==========================================
+        // Utility Functions
+        // ==========================================
+        function logToElement(elementId, message) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = message;
+            }
+        }
+
+        function updateStatus(elementId, message) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = message;
+            }
+        }
+
+        // ==========================================
+        // Initialize All Examples
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Initializing all examples with v2_story format...');
+            initExample1();
+            initExample2();
+            initExample3();
+            initExample4();
+            initExample5();
+        });
+
+        // Cleanup
+        window.addEventListener('beforeunload', () => {
+            [example1, example2, example3, example4, example5].forEach(ex => {
+                if (ex) ex.destroy();
+            });
+        });
+    </script>
+</body>
+</html>

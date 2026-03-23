@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Variables Question - Subjective Evaluation</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 40px 20px;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .container {
+        max-width: 600px;
+        width: 100%;
+        background: white;
+        border-radius: 16px;
+        padding: 40px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      h1 {
+        color: #667eea;
+        margin-bottom: 30px;
+        font-size: 2em;
+        text-align: center;
+      }
+
+      .question {
+        background: #f5f5f5;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 25px;
+        font-size: 1.1em;
+        color: #333;
+        line-height: 1.6;
+      }
+
+      .input-group {
+        margin-bottom: 25px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 10px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      textarea {
+        width: 100%;
+        padding: 15px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 16px;
+        font-family: inherit;
+        resize: vertical;
+        min-height: 120px;
+        transition: border-color 0.3s;
+      }
+
+      textarea:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      .submit-btn {
+        width: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 18px;
+        font-weight: 600;
+        transition: transform 0.2s, box-shadow 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      .submit-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+      }
+
+      .submit-btn:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      .submit-btn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .spinner {
+        display: none;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      .submit-btn:disabled .spinner {
+        display: block;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Math Question</h1>
+
+      <div class="question">
+        What do you know about variables? Can you explain what you know about
+        it?
+      </div>
+
+      <div class="input-group">
+        <label for="student-answer">Your Answer:</label>
+        <textarea
+          id="student-answer"
+          placeholder="Type your answer here..."
+          required
+        ></textarea>
+      </div>
+
+      <button class="submit-btn" id="submit-btn">
+        <span class="spinner"></span>
+        <span id="btn-text">Submit Answer</span>
+      </button>
+    </div>
+
+    <!-- Load dependencies -->
+    <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+    <script src="../index.js"></script>
+    <!-- <script src="./index.js"></script> -->
+
+    <script>
+      const submitBtn = document.getElementById("submit-btn");
+      const btnText = document.getElementById("btn-text");
+      const answerInput = document.getElementById("student-answer");
+
+      // Initialize FeedbackManager
+      async function initFeedbackManager() {
+        try {
+          await FeedbackManager.init({
+            sound: { sounds: [] },
+            stream: { streams: [] },
+          });
+          console.log("FeedbackManager initialized");
+        } catch (error) {
+          console.error("Failed to initialize FeedbackManager:", error);
+        }
+      }
+
+      // Initialize on page load
+      initFeedbackManager();
+
+      submitBtn.addEventListener("click", async function () {
+        const answer = answerInput.value.trim();
+
+        if (!answer) {
+          alert("Please enter your answer");
+          return;
+        }
+
+        // Disable button and show loading state
+        submitBtn.disabled = true;
+        btnText.textContent = "Evaluating...";
+
+        try {
+          // Call subjective evaluation
+          const result = await subjectiveEvaluation({
+            components: [
+              {
+                component_id: "variables_question",
+                evaluation_prompt: `You are a math tutor, you will be given a question and you will be given student's response to that question. You have to ignore all grammatical and spelling mistakes and return one-word response from these options - "correct", "incorrect", "gibberish", "idk"
+
+Question: What do you know about variables? Can you explain what you know about it?
+
+Student's response: ${answer}
+
+Criteria for correct answers:
+1. Consider student's response to be correct, if it is a comprehensible version, after correcting all grammatical and spelling mistakes
+2. Even incomplete responses - with partial details about variables are to be considered correct
+3. Responses like "yes", "yes, I know", explanations of variables, etc...are all considered correct
+
+Criteria for incorrect:
+1. If response has some explanation but it is not the correct explanation, or it is not even remotely close to the correct answer
+
+Criteria for gibberish:
+1. if response cannot be comprehended even after correcting spelling and grammatical errors
+2. If response is anything totally irrelevant to the question
+
+Criteria for idk:
+1. if response is anything on the lines of "i don't know", "idk", "no, I don't know",...`,
+                feedback_prompt: `You are a math tutor, you will be given a question, student's response to that question and evaluation result. You have to give short feedback to the student.
+
+Question: What do you know about variables? Can you explain what you know about it?
+
+Student's response: ${answer}
+
+Evaluation: {{evaluation}}
+
+Criteria for correct answer:
+1. Consider student's response to be correct, if it is a comprehensible version, after correcting all grammatical and spelling mistakes
+2. Feedback should be short and clear
+3. If student shares thinking or opinions, acknowledge it, and give feedback
+4. If student has explained what they know about variables, assess their understanding of the same and tell them their LEVEL of understanding
+5. DO NOT explain or add extra details about what the actual answer is
+6. End with telling them we will deepen their understanding today
+
+Criteria for incorrect answer:
+1. If response has some explanation but it is not the correct explanation, or it is not even remotely close to the correct answer
+2. If there is room to acknowledge response, please do. Otherwise feedback should just be "that's an interesting answer!"
+3. DO NOT reveal the answer or give steps to find the answer
+
+Criteria for "idk":
+1. If responses are like "No, I don't know", "I don't know" or "idk",...
+2. Feedback should just say - "It's alright if you don't know! We will learn about them in this activity"
+
+Criteria for gibberish responses:
+1. If response cannot be comprehended even after correcting spelling and grammatical errors
+2. If response is anything totally irrelevant to the question
+3. Feedback can just be on the lines of it's alright if you don't know, we will learn about it`,
+              },
+            ],
+            onComplete: async (response) => {
+              console.log("Evaluation complete:", response);
+
+              if (response.success && response.data && response.data[0]) {
+                const feedback = response.data[0].feedback;
+                const evaluation = response.data[0].evaluation;
+
+                console.log("Evaluation:", evaluation);
+                console.log("Feedback:", feedback);
+
+                if (feedback) {
+                  // Fetch audio stream for the feedback
+                  try {
+                    btnText.textContent = "Generating Audio...";
+
+                    // Fetch audio stream from TTS API
+                    const audioResponse = await fetch(
+                      `https://asia-south1-mathai-449208.cloudfunctions.net/generate-audio?text=${encodeURIComponent(
+                        feedback
+                      )}`
+                    );
+
+                    // Add stream from response
+                    await FeedbackManager.stream.addFromResponse(
+                      "feedback_stream",
+                      audioResponse
+                    );
+
+                    btnText.textContent = "Playing Feedback...";
+
+                    // Play the stream with subtitle
+                    FeedbackManager.stream.play(
+                      "feedback_stream",
+                      {
+                        complete: () => {
+                          console.log("Feedback playback complete");
+                          // Re-enable button
+                          submitBtn.disabled = false;
+                          btnText.textContent = "Submit Answer";
+                        },
+                        error: (err) => {
+                          console.error("Feedback playback error:", err);
+                          // Re-enable button
+                          submitBtn.disabled = false;
+                          btnText.textContent = "Submit Answer";
+                        },
+                      },
+                      {
+                        subtitle: feedback,
+                      }
+                    );
+                  } catch (error) {
+                    console.error("Failed to play feedback:", error);
+                    alert("Feedback: " + feedback);
+                    // Re-enable button
+                    submitBtn.disabled = false;
+                    btnText.textContent = "Submit Answer";
+                  }
+                } else {
+                  alert("Evaluation: " + evaluation);
+                  // Re-enable button
+                  submitBtn.disabled = false;
+                  btnText.textContent = "Submit Answer";
+                }
+              }
+            },
+            onError: (error) => {
+              console.error("Evaluation error:", error);
+              alert("Error: " + error.message);
+              // Re-enable button
+              submitBtn.disabled = false;
+              btnText.textContent = "Submit Answer";
+            },
+          });
+        } catch (error) {
+          console.error("Submission error:", error);
+          alert("Error: " + error.message);
+          // Re-enable button
+          submitBtn.disabled = false;
+          btnText.textContent = "Submit Answer";
+        }
+      });
+
+      // Allow Enter+Ctrl to submit
+      answerInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && e.ctrlKey) {
+          submitBtn.click();
+        }
+      });
+    </script>
+  </body>
+</html>

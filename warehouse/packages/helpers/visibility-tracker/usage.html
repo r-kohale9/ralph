@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visibility Tracker Demo</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 2rem;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        color: white;
+        text-align: center;
+        margin-bottom: 1rem;
+        font-size: 2.5rem;
+      }
+
+      .subtitle {
+        color: rgba(255, 255, 255, 0.9);
+        text-align: center;
+        margin-bottom: 2rem;
+        font-size: 1.1rem;
+      }
+
+      .info-banner {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      .info-banner h3 {
+        color: #000fff;
+        margin-bottom: 0.5rem;
+      }
+
+      .info-banner p {
+        color: #666;
+        line-height: 1.6;
+      }
+
+      .demo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 2rem;
+        margin-bottom: 2rem;
+      }
+
+      .demo-card {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      .demo-card h2 {
+        color: #333;
+        margin-bottom: 1rem;
+        font-size: 1.5rem;
+      }
+
+      .demo-card p {
+        color: #666;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+      }
+
+      .timer-container {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: center;
+      }
+
+      .status-box {
+        background: #e7f3ff;
+        border-left: 4px solid #000fff;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 4px;
+      }
+
+      .status-box.inactive {
+        background: #fff3cd;
+        border-left-color: #ffc107;
+      }
+
+      .status-box.active {
+        background: #d4edda;
+        border-left-color: #28a745;
+      }
+
+      .status-label {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        color: #333;
+      }
+
+      .status-value {
+        font-size: 0.85rem;
+        color: #666;
+      }
+
+      .controls {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+      }
+
+      .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        flex: 1;
+        min-width: 120px;
+      }
+
+      .btn-primary {
+        background: #000fff;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #0008cc;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 15, 255, 0.3);
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background: #5a6268;
+        transform: translateY(-2px);
+      }
+
+      .btn-success {
+        background: #28a745;
+        color: white;
+      }
+
+      .btn-success:hover {
+        background: #218838;
+        transform: translateY(-2px);
+      }
+
+      .btn-warning {
+        background: #ffc107;
+        color: #000;
+      }
+
+      .btn-warning:hover {
+        background: #e0a800;
+        transform: translateY(-2px);
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: #c82333;
+        transform: translateY(-2px);
+      }
+
+      .btn:active {
+        transform: translateY(0);
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .log-container {
+        background: #2d3748;
+        color: #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        max-height: 200px;
+        overflow-y: auto;
+        font-family: "Courier New", monospace;
+        font-size: 0.85rem;
+        margin-top: 1rem;
+      }
+
+      .log-entry {
+        margin-bottom: 0.5rem;
+        padding: 0.25rem;
+      }
+
+      .log-entry.inactive {
+        color: #ffc107;
+      }
+
+      .log-entry.resume {
+        color: #28a745;
+      }
+
+      .highlight {
+        background: #ffde49;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 600;
+      }
+
+      footer {
+        text-align: center;
+        color: white;
+        margin-top: 3rem;
+        padding: 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      @media (max-width: 768px) {
+        .demo-grid {
+          grid-template-columns: 1fr;
+        }
+
+        h1 {
+          font-size: 2rem;
+        }
+
+        .controls {
+          flex-direction: column;
+        }
+
+        .btn {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🔍 Visibility Tracker Demo</h1>
+      <p class="subtitle">
+        Track tab visibility and automatically pause/resume activities
+      </p>
+
+      <div class="info-banner">
+        <h3>👉 Try It Out!</h3>
+        <p>
+          <strong>To test this demo:</strong> Switch to another tab or minimize
+          your browser. A popup will appear when you return. The timers below
+          will automatically pause when you're away and resume when you click
+          the "Resume" button in the popup.
+        </p>
+      </div>
+
+      <div class="demo-grid">
+        <!-- Demo 1: Basic Timer with Visibility Tracking -->
+        <div class="demo-card">
+          <h2>1. Timer with Auto-Pause</h2>
+          <p>
+            This timer automatically pauses when you switch tabs and resumes
+            when you click "Resume".
+          </p>
+
+          <div class="timer-container">
+            <div id="timer1"></div>
+          </div>
+
+          <div class="status-box" id="status1">
+            <div class="status-label">Tracker Status</div>
+            <div class="status-value">Tracking enabled</div>
+          </div>
+
+          <div class="controls">
+            <button class="btn btn-primary" onclick="demo1.timer.start()">
+              Start Timer
+            </button>
+            <button class="btn btn-warning" onclick="demo1.timer.pause()">
+              Manual Pause
+            </button>
+            <button class="btn btn-danger" onclick="demo1.timer.reset()">
+              Reset
+            </button>
+          </div>
+
+          <div class="controls">
+            <button class="btn btn-secondary" onclick="demo1.tracker.stop()">
+              Disable Tracking
+            </button>
+            <button class="btn btn-success" onclick="demo1.tracker.start()">
+              Enable Tracking
+            </button>
+          </div>
+        </div>
+
+        <!-- Demo 2: Custom Popup Message -->
+        <div class="demo-card">
+          <h2>2. Custom Popup Configuration</h2>
+          <p>This demo uses a custom popup message and configuration.</p>
+
+          <div class="timer-container">
+            <div id="timer2"></div>
+          </div>
+
+          <div class="status-box" id="status2">
+            <div class="status-label">Session Status</div>
+            <div class="status-value">Active</div>
+          </div>
+
+          <div class="controls">
+            <button class="btn btn-primary" onclick="demo2.timer.start()">
+              Start Session
+            </button>
+            <button class="btn btn-danger" onclick="demo2.timer.reset()">
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- Demo 3: Manual Trigger Test -->
+        <div class="demo-card">
+          <h2>3. Manual Testing</h2>
+          <p>
+            Test the visibility tracker without switching tabs. Great for
+            debugging!
+          </p>
+
+          <div class="timer-container">
+            <div id="timer3"></div>
+          </div>
+
+          <div class="status-box" id="status3">
+            <div class="status-label">Test Status</div>
+            <div class="status-value">Ready</div>
+          </div>
+
+          <div class="controls">
+            <button
+              class="btn btn-warning"
+              onclick="demo3.tracker.triggerInactive()"
+            >
+              🔴 Trigger Inactive
+            </button>
+            <button
+              class="btn btn-success"
+              onclick="demo3.tracker.triggerResume()"
+            >
+              🟢 Trigger Resume
+            </button>
+          </div>
+
+          <div class="controls">
+            <button class="btn btn-primary" onclick="demo3.timer.start()">
+              Start Timer
+            </button>
+            <button class="btn btn-danger" onclick="demo3.timer.reset()">
+              Reset Timer
+            </button>
+          </div>
+        </div>
+
+        <!-- Demo 4: Activity Log -->
+        <div class="demo-card">
+          <h2>4. Activity Logger</h2>
+          <p>
+            Monitor all visibility events and timer state changes in real-time.
+          </p>
+
+          <div class="timer-container">
+            <div id="timer4"></div>
+          </div>
+
+          <div class="status-box" id="status4">
+            <div class="status-label">Current State</div>
+            <div class="status-value">
+              Active - <span id="timer4-time">60s remaining</span>
+            </div>
+          </div>
+
+          <div class="controls">
+            <button class="btn btn-primary" onclick="demo4.timer.start()">
+              Start
+            </button>
+            <button class="btn btn-danger" onclick="clearLogs()">
+              Clear Logs
+            </button>
+          </div>
+
+          <div class="log-container" id="activity-log">
+            <div class="log-entry">Waiting for activity...</div>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        <p>Visibility Tracker Component - Vanilla JavaScript Implementation</p>
+        <p>PopupComponent is automatically loaded from CDN</p>
+      </footer>
+    </div>
+
+    <!-- Include required scripts -->
+    <script src="https://storage.googleapis.com/test-dynamic-assets/packages/timer/index.js"></script>
+    <script src="https://storage.googleapis.com/test-dynamic-assets/packages/visibility-tracker/index.js"></script>
+    <script>
+      // Demo 1: Basic Timer with Visibility Tracking
+      const demo1 = {
+        timer: new TimerComponent("timer1", {
+          timerType: "decrease",
+          format: "min",
+          startTime: 60,
+          endTime: 0,
+          autoStart: false,
+        }),
+        tracker: null,
+      };
+
+      demo1.tracker = new VisibilityTracker({
+        onInactive: () => {
+          demo1.timer.pause({ fromVisibilityTracker: true });
+          updateStatus("status1", "Inactive - Timer Paused", "inactive");
+        },
+        onResume: () => {
+          demo1.timer.resume({ fromVisibilityTracker: true });
+          updateStatus("status1", "Active - Timer Resumed", "active");
+        },
+      });
+
+      // Demo 2: Custom Popup Configuration
+      const demo2 = {
+        timer: new TimerComponent("timer2", {
+          timerType: "decrease",
+          format: "min",
+          startTime: 120,
+          endTime: 0,
+          autoStart: false,
+        }),
+        tracker: null,
+      };
+
+      //   demo2.tracker = new VisibilityTracker({
+      //     onInactive: () => {
+      //       demo2.timer.pause({ fromVisibilityTracker: true });
+      //       updateStatus(
+      //         "status2",
+      //         "Session Paused - You switched tabs",
+      //         "inactive"
+      //       );
+      //     },
+      //     onResume: () => {
+      //       demo2.timer.resume({ fromVisibilityTracker: true });
+      //       updateStatus("status2", "Session Active - Welcome back!", "active");
+      //     },
+      //     popupProps: {
+      //       title: "Learning Session Paused",
+      //       description:
+      //         "Your learning session has been paused because you switched tabs. Click resume to continue your progress.",
+      //       primaryText: "Continue Learning",
+      //       hasSecondary: true,
+      //       secondaryText: "End Session",
+      //       secondaryClick: () => {
+      //         demo2.timer.stop();
+      //         demo2.timer.reset();
+      //         updateStatus("status2", "Session Ended", "");
+      //       },
+      //     },
+      //   });
+
+      // Demo 3: Manual Trigger Test
+      const demo3 = {
+        timer: new TimerComponent("timer3", {
+          timerType: "decrease",
+          format: "sec",
+          startTime: 30,
+          endTime: 0,
+          autoStart: false,
+        }),
+        tracker: null,
+      };
+
+      //   demo3.tracker = new VisibilityTracker({
+      //     onInactive: () => {
+      //       demo3.timer.pause({ fromVisibilityTracker: true });
+      //       updateStatus("status3", "Inactive Event Triggered", "inactive");
+      //     },
+      //     onResume: () => {
+      //       demo3.timer.resume({ fromVisibilityTracker: true });
+      //       updateStatus("status3", "Resume Event Triggered", "active");
+      //     },
+      //     popupProps: {
+      //       title: "Test Popup",
+      //       description:
+      //         "This is a test popup triggered manually for debugging purposes.",
+      //       primaryText: "Close",
+      //     },
+      //   });
+
+      // Demo 4: Activity Logger
+      const demo4 = {
+        timer: new TimerComponent("timer4", {
+          timerType: "decrease",
+          format: "sec",
+          startTime: 60,
+          endTime: 0,
+          autoStart: false,
+        }),
+        tracker: null,
+      };
+
+      //   demo4.tracker = new VisibilityTracker({
+      //     onInactive: () => {
+      //       demo4.timer.pause({ fromVisibilityTracker: true });
+      //       addLog("User went inactive - Timer paused", "inactive");
+      //       updateStatus("status4", "Inactive - Paused", "inactive");
+      //     },
+      //     onResume: () => {
+      //       demo4.timer.resume({ fromVisibilityTracker: true });
+      //       addLog("User resumed activity - Timer resumed", "resume");
+      //       updateStatus("status4", "Active - Running", "active");
+      //     },
+      //   });
+
+      // Update timer4 time display
+      setInterval(() => {
+        if (demo4.timer.isRunning && !demo4.timer.isPaused) {
+          document.getElementById("timer4-time").textContent =
+            demo4.timer.getCurrentTime() + "s remaining";
+        }
+      }, 1000);
+
+      // Helper Functions
+      function updateStatus(elementId, message, statusClass) {
+        const element = document.getElementById(elementId);
+        element.className = "status-box " + statusClass;
+        element.querySelector(".status-value").textContent = message;
+      }
+
+      function addLog(message, type = "") {
+        const logContainer = document.getElementById("activity-log");
+        const logEntry = document.createElement("div");
+        logEntry.className = "log-entry " + type;
+        const timestamp = new Date().toLocaleTimeString();
+        logEntry.textContent = `[${timestamp}] ${message}`;
+        logContainer.insertBefore(logEntry, logContainer.firstChild);
+
+        // Keep only last 10 logs
+        while (logContainer.children.length > 10) {
+          logContainer.removeChild(logContainer.lastChild);
+        }
+      }
+
+      function clearLogs() {
+        const logContainer = document.getElementById("activity-log");
+        logContainer.innerHTML =
+          '<div class="log-entry">Logs cleared. Waiting for activity...</div>';
+      }
+
+      // Add initial log
+      addLog("Demo initialized - Try switching tabs!");
+    </script>
+
+    <!-- Include Lottie for animations (optional, for popup icons) -->
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+  </body>
+</html>

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TransitionScreenComponent - Usage Example</title>
+  
+  <!-- Load CSS Variables -->
+  <link rel="stylesheet" href="https://storage.googleapis.com/test-dynamic-assets/packages/styles/mathai-game-styles.css">
+  
+  <!-- Load ScreenLayout -->
+  <script src="../screen-layout/index.js"></script>
+  
+  <!-- Load TransitionScreen -->
+  <script src="./index.js"></script>
+  
+  <style>
+    #demo-controls {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 10000;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    
+    #demo-controls button {
+      display: block;
+      margin: 5px 0;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 12px;
+      width: 100%;
+    }
+    
+    #demo-controls h3 {
+      margin-top: 0;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  
+  <div id="demo-controls">
+    <h3>TransitionScreen Demo</h3>
+    <button onclick="showStart()">1. Start Screen</button>
+    <button onclick="showVictory3()">2. Victory (3 Stars)</button>
+    <button onclick="showVictory2()">3. Game Complete (2 Stars)</button>
+    <button onclick="showVictory1()">4. Game Complete (1 Star)</button>
+    <button onclick="showGameOver()">5. Game Over</button>
+    <button onclick="showStarsClaimed()">6. Stars Claimed</button>
+    <button onclick="showLevelNoButton()">7. Level (No Button)</button>
+    <button onclick="showLevelWithButton()">8. Level (With Button)</button>
+    <button onclick="showTimeTaken()">9. Time Taken</button>
+    <button onclick="testSynchronousShow()">10. Test Synchronous Show (Bug Fix)</button>
+    <hr>
+    <button onclick="hideScreen()" style="background: #E35757; color: white;">Hide Screen</button>
+  </div>
+  
+  <script>
+    let transitionScreen;
+    
+    function init() {
+      // Inject layout with transition screen slot
+      ScreenLayout.inject('app', {
+        slots: {
+          transitionScreen: true
+        }
+      });
+      
+      // Create transition screen
+      transitionScreen = new TransitionScreenComponent({
+        autoInject: true
+      });
+      
+      // Add content to game area
+      document.getElementById('gameContent').innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+          <h1>Sample Game</h1>
+          <p>Use the controls on the right to test different transition screens</p>
+          <p>The transition screen replaces this content when shown</p>
+        </div>
+      `;
+    }
+    
+    // Type 1: Start Screen
+    function showStart() {
+      transitionScreen.show({
+        icons: ['🎮'],
+        iconSize: 'large',
+        title: 'Are you ready?',
+        subtitle: 'Get ready to start the game!',
+        buttons: [{
+          text: "I'm ready!",
+          type: 'primary',
+          action: () => console.log('Game starting!')
+        }]
+      });
+    }
+    
+    // Type 2: Victory (3 Stars)
+    function showVictory3() {
+      transitionScreen.show({
+        stars: 3,
+        title: 'Victory! 🎉',
+        subtitle: 'Perfect score - Amazing work!',
+        buttons: [{
+          text: 'Claim Stars',
+          type: 'primary',
+          action: () => showStarsClaimed()
+        }]
+      });
+    }
+    
+    // Type 3: Game Complete (2 Stars)
+    function showVictory2() {
+      transitionScreen.show({
+        stars: 2,
+        title: 'Game Complete! 🎊',
+        subtitle: 'Great job! You earned 2 stars!',
+        buttons: [
+          {
+            text: 'Retry for more stars',
+            type: 'secondary',
+            action: () => console.log('Retrying...')
+          },
+          {
+            text: 'Claim stars',
+            type: 'primary',
+            action: () => showStarsClaimed()
+          }
+        ]
+      });
+    }
+    
+    // Type 4: Game Complete (1 Star)
+    function showVictory1() {
+      transitionScreen.show({
+        stars: 1,
+        title: 'Game Complete! 🎊',
+        subtitle: 'Good effort! You earned 1 star!',
+        buttons: [
+          {
+            text: 'Retry for more stars',
+            type: 'secondary',
+            action: () => console.log('Retrying...')
+          },
+          {
+            text: 'Claim stars',
+            type: 'primary',
+            action: () => showStarsClaimed()
+          }
+        ]
+      });
+    }
+    
+    // Type 5: Game Over
+    function showGameOver() {
+      transitionScreen.show({
+        icons: ['😔'],
+        iconSize: 'large',
+        title: 'Game Over!',
+        subtitle: 'All lives lost!',
+        buttons: [{
+          text: 'Try again!',
+          type: 'primary',
+          action: () => console.log('Restarting...')
+        }]
+      });
+    }
+    
+    // Type 6: Stars Claimed (persists forever)
+    function showStarsClaimed() {
+      transitionScreen.show({
+        icons: ['🎉'],
+        iconSize: 'large',
+        title: 'Yay! Stars claimed!',
+        persist: true  // CRITICAL: Stays forever, no buttons
+      });
+    }
+    
+    // Type 7: Level/Round (No Button)
+    function showLevelNoButton() {
+      transitionScreen.show({
+        icons: ['🎯'],
+        iconSize: 'normal',
+        title: 'Level 3!',
+        titleStyles: {
+          color: '#270F63',
+          fontSize: '36px'
+        },
+        duration: 2000  // Auto-hide after 2 seconds
+      });
+    }
+    
+    // Type 8: Level/Round (With Button)
+    function showLevelWithButton() {
+      transitionScreen.show({
+        icons: ['🎮'],
+        iconSize: 'normal',
+        title: 'Round 2!',
+        titleStyles: {
+          color: '#270F63',
+          fontSize: '36px'
+        },
+        buttons: [{
+          text: "I'm ready!",
+          type: 'primary',
+          action: () => console.log('Starting round!')
+        }]
+      });
+    }
+    
+    // Type 9: Time Taken
+    function showTimeTaken() {
+      transitionScreen.show({
+        icons: ['⏱️'],
+        iconSize: 'large',
+        title: 'Average time taken:',
+        titleStyles: {
+          fontWeight: '500'
+        },
+        subtitle: '2 minutes 15 seconds',
+        subtitleStyles: {
+          fontWeight: '700'
+        },
+        duration: 3000  // Auto-hide after 3 seconds
+      });
+    }
+
+    // Type 10: Test Synchronous Show (reproduces the bug scenario)
+    function testSynchronousShow() {
+      transitionScreen.show({
+        title: 'Start',
+        buttons: [{
+          text: 'Go',
+          action: () => {
+            console.log('First screen button clicked, showing second screen synchronously...');
+            // Second screen shown immediately (synchronous call)
+            transitionScreen.show({
+              title: 'Level 1',
+              buttons: [{
+                text: 'Start',
+                action: () => {
+                  console.log('SUCCESS: Second screen button action executed!');
+                  alert('SUCCESS: Button click worked after synchronous show() call!');
+                }
+              }]
+            });
+          }
+        }]
+      });
+    }
+
+    function hideScreen() {
+      transitionScreen.hide();
+    }
+    
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
+
+

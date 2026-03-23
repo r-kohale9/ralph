@@ -129,3 +129,7 @@ Also ensure the game **hides the game screen** and **shows it again** when the t
 - [ ] ScreenLayout has transitionScreen slot enabled
 - [ ] Transition buttons work on ALL rounds, not just the first
 - [ ] No mix of `duration` + `buttons` on the same screen
+
+## Source Code
+
+Full TransitionScreenComponent implementation: `warehouse/packages/components/transition-screen/index.js`

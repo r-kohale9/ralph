@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>API Helper Demo</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        padding: 40px;
+        max-width: 1200px;
+        margin: 0 auto;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+
+      .card {
+        background: white;
+        padding: 30px;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      h1 {
+        margin-top: 0;
+        color: #270f36;
+      }
+
+      h2 {
+        color: #667eea;
+        margin-top: 0;
+      }
+
+      .button {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 5px;
+        transition: all 0.2s;
+      }
+
+      .button:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+
+      .button.secondary {
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+      }
+
+      .status {
+        background: #f0f0f0;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 15px 0;
+        font-family: monospace;
+        font-size: 14px;
+      }
+
+      .info {
+        background: #e8f4f8;
+        border-left: 4px solid #667eea;
+        padding: 15px;
+        margin: 15px 0;
+        border-radius: 4px;
+      }
+
+      code {
+        background: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "Courier New", monospace;
+        color: #e83e8c;
+      }
+
+      pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 20px;
+        border-radius: 8px;
+        overflow-x: auto;
+        font-size: 13px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        margin: 15px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>🔗 MathAI API Helper Demo</h1>
+      <p>Handles communication with the MathAI Core API for game session management.</p>
+
+      <div class="info">
+        <strong>ℹ️ Package Integration:</strong><br />
+        Load via Helpers package or directly from CDN for API communication.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Status</h2>
+      <div class="status" id="status">Loading API Helper...</div>
+    </div>
+
+    <div class="card">
+      <h2>API Helper Operations</h2>
+      <p>Test API communication and configuration.</p>
+
+      <div class="grid">
+        <button class="button" onclick="initAPIHelper()">
+          Initialize API Helper
+        </button>
+        <button class="button" onclick="testSubmitResults()">Test Submit Results</button>
+        <button class="button" onclick="testGetConfig()">Get Configuration</button>
+        <button class="button secondary" onclick="testConfigure()">
+          Update Configuration
+        </button>
+      </div>
+
+      <div class="info">
+        <strong>💡 Test Flow:</strong><br />
+        1. Click "Initialize API Helper"<br />
+        2. Test configuration with "Get Configuration"<br />
+        3. Update config with "Update Configuration"<br />
+        4. Test submission with "Test Submit Results"
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Usage Code</h2>
+      <pre><code>&lt;!-- Option 1: Load via Helpers package --&gt;
+&lt;script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"&gt;&lt;/script&gt;
+
+&lt;!-- Option 2: Load directly --&gt;
+&lt;script src="https://storage.googleapis.com/test-dynamic-assets/packages/api-helper/index.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+// Initialize API Helper
+const api = new APIHelper({
+  baseUrl: 'http://localhost:4000',
+  timeout: 10000
+});
+
+// Configure error handling
+api.onError((error) => {
+  console.error('API Error:', error);
+});
+
+// Submit game results
+const gameResults = {
+  session_id: 'session_123',
+  game_id: 'game_456',
+  metrics: { score: 95, time: 120 },
+  attempts: [],
+  completed_at: Date.now()
+};
+
+api.submitResults(gameResults)
+  .then(response => console.log('Results submitted:', response))
+  .catch(error => console.error('Submission failed:', error));
+
+// Get current configuration
+const config = api.getConfig();
+console.log('Current config:', config);
+
+// Update configuration
+api.configure({
+  baseUrl: 'http://localhost:4000',
+  headers: {
+    'Authorization': 'Bearer token123'
+  }
+});
+&lt;/script&gt;</code></pre>
+    </div>
+
+    <!-- Include API Helper Package -->
+    <script src="https://storage.googleapis.com/test-dynamic-assets/packages/api-helper/index.js"></script>
+
+    <script>
+      function updateStatus(message) {
+        const status = document.getElementById("status");
+        const timestamp = new Date().toLocaleTimeString();
+        status.innerHTML = `[${timestamp}] ${message}`;
+        console.log(message);
+      }
+
+      // Wait for helper to load
+      window.addEventListener("load", function () {
+        setTimeout(function () {
+          if (window.APIHelper) {
+            updateStatus("API Helper loaded successfully!");
+          } else {
+            updateStatus("Waiting for API Helper to load...");
+            // Check again after a delay
+            setTimeout(function() {
+              if (window.APIHelper) {
+                updateStatus("API Helper loaded successfully!");
+              } else {
+                updateStatus("Error: API Helper failed to load");
+              }
+            }, 2000);
+          }
+        }, 500);
+      });
+
+      function initAPIHelper() {
+        try {
+          window.apiHelper = new APIHelper({
+            timeout: 10000
+          });
+
+          // Set up error handling
+          window.apiHelper.onError((error) => {
+            updateStatus("API Error: " + error.message);
+          });
+
+          updateStatus("API Helper initialized");
+        } catch (e) {
+          updateStatus("Error: " + e.message);
+        }
+      }
+
+      function testSubmitResults() {
+        if (!window.apiHelper) {
+          updateStatus("Error: API Helper not initialized. Click 'Initialize API Helper' first.");
+          return;
+        }
+
+        try {
+          const testPayload = {
+            session_id: 'demo_session_' + Date.now(),
+            game_id: 'demo_game',
+            metrics: {
+              score: Math.floor(Math.random() * 100),
+              time: Math.floor(Math.random() * 300),
+              completed: true
+            },
+            attempts: [
+              { question: 1, correct: true, time: 5 },
+              { question: 2, correct: false, time: 8 }
+            ],
+            completed_at: Date.now()
+          };
+
+          updateStatus("Submitting test results...");
+
+          window.apiHelper.submitResults(testPayload)
+            .then(response => {
+              updateStatus("✅ Results submitted successfully: " + JSON.stringify(response));
+            })
+            .catch(error => {
+              updateStatus("❌ Submission failed: " + error.message);
+            });
+        } catch (e) {
+          updateStatus("Error: " + e.message);
+        }
+      }
+
+      function testGetConfig() {
+        if (!window.apiHelper) {
+          updateStatus("Error: API Helper not initialized. Click 'Initialize API Helper' first.");
+          return;
+        }
+
+        try {
+          const config = window.apiHelper.getConfig();
+          updateStatus("Current configuration: " + JSON.stringify(config, null, 2));
+        } catch (e) {
+          updateStatus("Error: " + e.message);
+        }
+      }
+
+      function testConfigure() {
+        if (!window.apiHelper) {
+          updateStatus("Error: API Helper not initialized. Click 'Initialize API Helper' first.");
+          return;
+        }
+
+        try {
+          window.apiHelper.configure({
+            baseUrl: 'https://demo-api.mathai.com',
+            headers: {
+              'X-Test-Header': 'demo-value'
+            },
+            timeout: 15000
+          });
+
+          updateStatus("Configuration updated successfully");
+        } catch (e) {
+          updateStatus("Error: " + e.message);
+        }
+      }
+    </script>
+  </body>
+</html>

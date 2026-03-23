@@ -84,3 +84,7 @@ interactionManager.enable('audio');
 - [ ] Assigned to `window.interactionManager`
 - [ ] `disableOnAudioFeedback` set appropriately
 - [ ] Game play area element matches the selector
+
+## Source Code
+
+Full InteractionManager implementation: `warehouse/packages/helpers/interaction-manager/index.js`

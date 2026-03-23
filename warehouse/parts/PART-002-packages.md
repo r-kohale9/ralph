@@ -65,6 +65,14 @@ Game packages load in this order (AFTER Sentry — see PART-030 for full block):
 - [ ] No other scripts between these three
 - [ ] All three use exact URLs from code block above
 
+## Source Code
+
+Package source is available in `warehouse/packages/` for debugging during fix iterations:
+- `packages/feedback-manager/index.js` — FeedbackManager (SoundManager, StreamManager, Subtitle/Sticker integration)
+- `packages/components/index.js` — Bundle loader for ScreenLayout, ProgressBar, TransitionScreen, Timer, Stories
+- `packages/helpers/index.js` — Bundle loader for VisibilityTracker, InteractionManager, SignalCollector, etc.
+- `packages/README.md` — Full package index with API quick reference
+
 ## Deep Reference
 
 `mathai-game-builder/workflows/checklists/package-loading.md`

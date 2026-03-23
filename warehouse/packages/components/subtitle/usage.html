@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Subtitle Component Demo</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        padding: 40px;
+        max-width: 800px;
+        margin: 0 auto;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+
+      .card {
+        background: white;
+        padding: 30px;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      h1 {
+        margin-top: 0;
+        color: #270f36;
+      }
+
+      h2 {
+        color: #667eea;
+        margin-top: 0;
+      }
+
+      .button {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 5px;
+        transition: all 0.2s;
+      }
+
+      .button:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+
+      .button:active {
+        transform: scale(0.98);
+      }
+
+      .button.secondary {
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+      }
+
+      .button.secondary:hover {
+        background: #f5f7ff;
+      }
+
+      .button.danger {
+        background: #ef4444;
+      }
+
+      .button.danger:hover {
+        background: #dc2626;
+      }
+
+      .status {
+        background: #f0f0f0;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 15px 0;
+        font-family: monospace;
+        font-size: 14px;
+      }
+
+      .info {
+        background: #e8f4f8;
+        border-left: 4px solid #667eea;
+        padding: 15px;
+        margin: 15px 0;
+        border-radius: 4px;
+      }
+
+      code {
+        background: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "Courier New", monospace;
+        color: #e83e8c;
+      }
+
+      pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 20px;
+        border-radius: 8px;
+        overflow-x: auto;
+        font-size: 13px;
+      }
+
+      .input-group {
+        margin: 15px 0;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      input[type="text"],
+      input[type="number"],
+      textarea {
+        width: 100%;
+        padding: 10px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        box-sizing: border-box;
+        transition: border-color 0.2s;
+      }
+
+      input[type="text"]:focus,
+      input[type="number"]:focus,
+      textarea:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 80px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        margin: 15px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>📢 Subtitle Component Demo</h1>
+      <p>
+        A vanilla JavaScript component for displaying feedback/subtitles at the
+        bottom of the screen.
+      </p>
+
+      <div class="info">
+        <strong>ℹ️ How it works:</strong><br />
+        Click the buttons below to show different subtitle messages. Messages
+        auto-hide after the duration you specify.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Status</h2>
+      <div class="status" id="status">Ready to show subtitles</div>
+    </div>
+
+    <div class="card">
+      <h2>Quick Examples</h2>
+      <div class="grid">
+        <button class="button" onclick="showSimple()">Simple Subtitle</button>
+
+        <button class="button" onclick="showFormatted()">Formatted Text</button>
+
+        <button class="button" onclick="showLong()">Long Duration (10s)</button>
+
+        <button class="button" onclick="showShort()">
+          Short Duration (1s)
+        </button>
+      </div>
+
+      <div class="grid">
+        <button class="button secondary" onclick="hideSubtitle()">
+          Hide Subtitle
+        </button>
+
+        <button class="button secondary" onclick="getStatus()">
+          Get Status
+        </button>
+
+        <button class="button secondary" onclick="extendDuration()">
+          Extend Duration (+3s)
+        </button>
+
+        <button class="button secondary" onclick="updateText()">
+          Update Text
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Custom Subtitle</h2>
+      <div class="input-group">
+        <label>Subtitle Text:</label>
+        <textarea id="customText" placeholder="Enter your subtitle text...">
+Great job! You got it right! ✨</textarea
+        >
+      </div>
+
+      <div class="input-group">
+        <label>Duration (seconds):</label>
+        <input
+          type="number"
+          id="customDuration"
+          value="3"
+          min="0.5"
+          max="30"
+          step="0.5"
+        />
+      </div>
+
+      <button class="button" onclick="showCustom()">
+        Show Custom Subtitle
+      </button>
+    </div>
+
+    <div class="card">
+      <h2>Advanced Examples</h2>
+
+      <button class="button" onclick="showSequence()">
+        Show Sequence (3 subtitles)
+      </button>
+
+      <button class="button" onclick="showWithCallback()">With Callback</button>
+
+      <button class="button" onclick="showTakingLonger()">
+        "Taking longer..." (Triggers Mixpanel)
+      </button>
+
+      <button class="button danger" onclick="testAnomaly()">
+        Test Anomaly Detection
+      </button>
+    </div>
+
+    <div class="card">
+      <h2>Usage Code</h2>
+      <pre><code>&lt;!-- Include the script --&gt;
+&lt;script src="subtitle-component.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+// Basic usage
+SubtitleComponent.show({
+  text: "Great job!",
+  duration: 3
+});
+
+// With formatting
+SubtitleComponent.show({
+  text: "**Bold** and *italic* text",
+  duration: 5
+});
+
+// With callback
+SubtitleComponent.show({
+  text: "Processing...",
+  duration: 3,
+  onHide: function() {
+    console.log('Subtitle hidden!');
+  }
+});
+
+// Hide manually
+SubtitleComponent.hide();
+
+// Get current state
+const state = SubtitleComponent.getState();
+console.log(state.isVisible);
+
+// Configure with custom options
+SubtitleComponent.configure({
+  dumpLogs: function(data) {
+    console.log('Log:', data);
+  },
+  mixpanelTrack: function(event, props) {
+    console.log('Mixpanel:', event, props);
+  }
+});
+&lt;/script&gt;</code></pre>
+    </div>
+
+    <!-- Include Subtitle Component -->
+    <script src="https://storage.googleapis.com/test-dynamic-assets/packages/subtitle/index.js"></script>
+
+    <script>
+      // Configure the component with callbacks
+      SubtitleComponent.configure({
+        dumpLogs: function (data) {
+          console.log("[dumpLogs]", data);
+          updateStatus("Logged: " + data.action);
+        },
+        mixpanelTrack: function (event, props) {
+          console.log("[Mixpanel]", event, props);
+          updateStatus("Mixpanel tracked: " + event);
+        },
+        onShow: function (feedback) {
+          console.log("[onShow]", feedback);
+        },
+        onHide: function (feedback) {
+          console.log("[onHide]", feedback);
+        },
+      });
+
+      function updateStatus(message) {
+        const status = document.getElementById("status");
+        const timestamp = new Date().toLocaleTimeString();
+        status.innerHTML = `[${timestamp}] ${message}`;
+      }
+
+      // Simple examples
+      function showSimple() {
+        SubtitleComponent.show({
+          text: "Simple subtitle message",
+          duration: 3,
+        });
+        updateStatus("Showing simple subtitle (3s)");
+      }
+
+      function showFormatted() {
+        SubtitleComponent.show({
+          text: "**Bold text** and *italic text* with **formatting**!",
+          duration: 4,
+        });
+        updateStatus("Showing formatted subtitle (4s)");
+      }
+
+      function showLong() {
+        SubtitleComponent.show({
+          text: "This is a long duration subtitle that will stay visible for 10 seconds",
+          duration: 10,
+        });
+        updateStatus("Showing long subtitle (10s)");
+      }
+
+      function showShort() {
+        SubtitleComponent.show({
+          text: "Quick! ⚡",
+          duration: 1,
+        });
+        updateStatus("Showing short subtitle (1s)");
+      }
+
+      // Custom subtitle
+      function showCustom() {
+        const text = document.getElementById("customText").value;
+        const duration = parseFloat(
+          document.getElementById("customDuration").value
+        );
+
+        if (!text) {
+          alert("Please enter subtitle text");
+          return;
+        }
+
+        SubtitleComponent.show({
+          text: text,
+          duration: duration,
+        });
+        updateStatus(`Showing custom subtitle (${duration}s)`);
+      }
+
+      // Control functions
+      function hideSubtitle() {
+        SubtitleComponent.hide();
+        updateStatus("Subtitle hidden manually");
+      }
+
+      function getStatus() {
+        const state = SubtitleComponent.getState();
+        console.log("Current state:", state);
+
+        if (state.isVisible) {
+          updateStatus(`Visible - Elapsed: ${state.timeElapsed}ms`);
+        } else {
+          updateStatus("Not visible");
+        }
+      }
+
+      function extendDuration() {
+        if (!SubtitleComponent.isShowing()) {
+          alert("No subtitle is currently showing");
+          return;
+        }
+
+        SubtitleComponent.extendDuration(3);
+        updateStatus("Extended duration by 3 seconds");
+      }
+
+      function updateText() {
+        if (!SubtitleComponent.isShowing()) {
+          alert("No subtitle is currently showing");
+          return;
+        }
+
+        SubtitleComponent.updateText(
+          "**Updated text!** This is the new subtitle text 🎉"
+        );
+        updateStatus("Updated subtitle text");
+      }
+
+      // Advanced examples
+      async function showSequence() {
+        updateStatus("Starting sequence...");
+
+        SubtitleComponent.show({
+          text: "First subtitle in sequence... (2s)",
+          duration: 2,
+        });
+
+        await sleep(2500);
+
+        SubtitleComponent.show({
+          text: "Second subtitle... (2s)",
+          duration: 2,
+        });
+
+        await sleep(2500);
+
+        SubtitleComponent.show({
+          text: "Final subtitle! ✨ (2s)",
+          duration: 2,
+        });
+
+        updateStatus("Sequence complete");
+      }
+
+      function showWithCallback() {
+        SubtitleComponent.show({
+          text: "This subtitle has a callback",
+          duration: 3,
+          onHide: function () {
+            alert("Subtitle was hidden!");
+            updateStatus("Callback fired");
+          },
+        });
+        updateStatus("Showing subtitle with callback");
+      }
+
+      function showTakingLonger() {
+        SubtitleComponent.show({
+          text: "Taking longer than expected. Please wait...",
+          duration: 5,
+          id: "activity_123",
+          title: "Math Problem Solving",
+        });
+        updateStatus('Showing "Taking longer..." (triggers Mixpanel)');
+      }
+
+      function testAnomaly() {
+        SubtitleComponent.show({
+          text: "This will be hidden quickly to test anomaly detection",
+          duration: 10,
+        });
+
+        // Hide after 1 second (less than threshold of 2 seconds)
+        setTimeout(function () {
+          SubtitleComponent.hide();
+          updateStatus("Anomaly detected - hidden too quickly!");
+        }, 1000);
+
+        updateStatus("Testing anomaly detection...");
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      // Demo: Show welcome message on load
+      window.addEventListener("load", function () {
+        setTimeout(function () {
+          SubtitleComponent.show({
+            text: "Welcome! Try the buttons above to see different subtitle styles 👋",
+            duration: 4,
+          });
+        }, 500);
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SignalCollector - Usage Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 20px; background: #f5f5f5; }
+    h1 { margin-bottom: 10px; }
+    .subtitle { color: #666; margin-bottom: 20px; }
+    .game-play-area {
+      background: white; border: 2px solid #ddd; border-radius: 12px; padding: 24px;
+      min-height: 300px; margin-bottom: 20px;
+    }
+    .question { font-size: 24px; font-weight: bold; margin-bottom: 16px; }
+    .options { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .option {
+      padding: 12px 24px; border: 2px solid #ddd; border-radius: 8px;
+      cursor: pointer; font-size: 18px; transition: all 0.2s;
+      background: white; user-select: none;
+    }
+    .option:hover { border-color: #4A90D9; background: #f0f7ff; }
+    .option.selected { border-color: #4A90D9; background: #4A90D9; color: white; }
+    .input-area { margin-bottom: 16px; }
+    .input-area input {
+      padding: 10px; font-size: 18px; border: 2px solid #ddd; border-radius: 8px; width: 200px;
+    }
+    .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+    button {
+      padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 600;
+    }
+    .btn-primary { background: #4A90D9; color: white; }
+    .btn-secondary { background: #eee; color: #333; }
+    .btn-danger { background: #e74c3c; color: white; }
+    .log-panel {
+      background: #1e1e1e; color: #d4d4d4; border-radius: 8px; padding: 16px;
+      font-family: 'Menlo', 'Monaco', monospace; font-size: 12px;
+      max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+    }
+    .log-label { font-weight: bold; margin-bottom: 8px; color: #999; }
+    .signal-summary {
+      background: white; border-radius: 8px; padding: 16px; margin-bottom: 20px;
+      border: 1px solid #ddd;
+    }
+    .signal-summary h3 { margin-bottom: 8px; }
+    .metric { display: inline-block; margin: 4px 8px; padding: 4px 12px; background: #f0f0f0; border-radius: 16px; font-size: 13px; }
+    .draggable {
+      width: 60px; height: 60px; background: #ff9800; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: white; font-weight: bold; cursor: grab; margin-right: 12px;
+    }
+    .drop-zone {
+      width: 80px; height: 80px; border: 2px dashed #aaa; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: #aaa; margin-left: 12px;
+    }
+    .drag-area { display: flex; align-items: center; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+
+  <h1>SignalCollector Demo</h1>
+  <p class="subtitle">Interact with the game area below. All events are captured and displayed in the log panel.</p>
+
+  <div class="controls">
+    <button class="btn-primary" onclick="startNewProblem()">Start Problem</button>
+    <button class="btn-primary" onclick="endCurrentProblem(true)">Submit Correct</button>
+    <button class="btn-danger" onclick="endCurrentProblem(false)">Submit Wrong</button>
+    <button class="btn-secondary" onclick="showDebug()">Debug</button>
+    <button class="btn-secondary" onclick="showSignals()">Show Signals</button>
+    <button class="btn-secondary" onclick="clearLog()">Clear Log</button>
+  </div>
+
+  <div class="game-play-area" data-signal-id="game-area">
+    <div class="question" data-signal-id="question-text">What is 38 + 25?</div>
+
+    <div class="options">
+      <div class="option" data-signal-id="option-a" onclick="selectOption(this)">53</div>
+      <div class="option" data-signal-id="option-b" onclick="selectOption(this)">63</div>
+      <div class="option" data-signal-id="option-c" onclick="selectOption(this)">65</div>
+      <div class="option" data-signal-id="option-d" onclick="selectOption(this)">67</div>
+    </div>
+
+    <div class="input-area">
+      <input type="text" data-signal-id="answer-input" placeholder="Or type your answer...">
+    </div>
+
+    <div class="drag-area">
+      <div class="draggable" draggable="true" data-signal-id="drag-number">40</div>
+      <span>Drag to: </span>
+      <div class="drop-zone" data-signal-id="drop-target"
+           ondragover="event.preventDefault()"
+           ondrop="handleDrop(event)">Drop</div>
+    </div>
+  </div>
+
+  <div class="signal-summary" id="signalSummary" style="display:none">
+    <h3>Last Problem Signals</h3>
+    <div id="signalMetrics"></div>
+  </div>
+
+  <div class="log-label">Event Log</div>
+  <div class="log-panel" id="logPanel">Waiting for interactions...\n</div>
+
+  <script src="./index.js"></script>
+  <script>
+    var collector;
+    var problemCounter = 0;
+    var logPanel = document.getElementById('logPanel');
+
+    // Override console.log to capture SignalCollector output
+    var origLog = console.log;
+    console.log = function() {
+      origLog.apply(console, arguments);
+      var msg = Array.from(arguments).map(function(a) {
+        return typeof a === 'string' ? a : JSON.stringify(a, null, 2);
+      }).join(' ');
+      if (msg.indexOf('[SignalCollector]') !== -1) {
+        logPanel.textContent += msg + '\n';
+        logPanel.scrollTop = logPanel.scrollHeight;
+      }
+    };
+
+    // Initialize
+    collector = new SignalCollector({
+      containerSelector: '.game-play-area',
+      sessionId: 'demo_session_' + Date.now(),
+      studentId: 'demo_student',
+      templateId: 'demo_template'
+    });
+
+    function startNewProblem() {
+      problemCounter++;
+      var id = 'problem_' + problemCounter;
+      collector.startProblem(id, {
+        text: '38 + 25',
+        correct_answer: 63,
+        difficulty: 0.35
+      });
+      log('Started problem: ' + id);
+    }
+
+    function endCurrentProblem(correct) {
+      var id = 'problem_' + problemCounter;
+      var signals = collector.endProblem(id, {
+        correct: correct,
+        answer: correct ? 63 : 67
+      });
+      if (signals) {
+        displaySignals(signals);
+        log('Problem ended: ' + id + ' (correct: ' + correct + ')');
+      }
+    }
+
+    function selectOption(el) {
+      document.querySelectorAll('.option').forEach(function(o) { o.classList.remove('selected'); });
+      el.classList.add('selected');
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      e.target.textContent = '40';
+      e.target.style.borderColor = '#4A90D9';
+      e.target.style.color = '#4A90D9';
+    }
+
+    function showDebug() {
+      collector.debug();
+    }
+
+    function showSignals() {
+      var all = collector.getAllProblemSignals();
+      log('All problem signals:\n' + JSON.stringify(all, null, 2));
+    }
+
+    function displaySignals(signals) {
+      var el = document.getElementById('signalSummary');
+      var metrics = document.getElementById('signalMetrics');
+      el.style.display = 'block';
+      metrics.innerHTML =
+        '<span class="metric">First interaction: ' + signals.time_to_first_interaction_ms + 'ms</span>' +
+        '<span class="metric">Total time: ' + signals.total_response_time_ms + 'ms</span>' +
+        '<span class="metric">Interactions: ' + signals.total_interactions + '</span>' +
+        '<span class="metric">Hesitations: ' + signals.hesitation_points.length + '</span>' +
+        '<span class="metric">Velocity: ' + signals.interaction_velocity + '/s</span>' +
+        '<span class="metric">Frustration clicks: ' + signals.frustration_indicators.rapid_repeated_clicks + '</span>' +
+        '<span class="metric">Consistent pace: ' + signals.flow_indicators.consistent_pace + '</span>' +
+        '<span class="metric">Self-corrections: ' + signals.self_corrections + '</span>' +
+        '<span class="metric">Position: #' + signals.problem_position_in_session + '</span>';
+    }
+
+    function log(msg) {
+      logPanel.textContent += '> ' + msg + '\n';
+      logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    function clearLog() {
+      logPanel.textContent = '';
+    }
+
+    // Auto-start first problem
+    startNewProblem();
+  </script>
+</body>
+</html>

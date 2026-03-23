@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MathAI Helpers Demo</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        padding: 40px;
+        max-width: 1200px;
+        margin: 0 auto;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+
+      .card {
+        background: white;
+        padding: 30px;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      h1 {
+        margin-top: 0;
+        color: #270f36;
+      }
+
+      h2 {
+        color: #667eea;
+        margin-top: 0;
+      }
+
+      .button {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 5px;
+        transition: all 0.2s;
+      }
+
+      .button:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+
+      .button.secondary {
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+      }
+
+      .status {
+        background: #f0f0f0;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 15px 0;
+        font-family: monospace;
+        font-size: 14px;
+      }
+
+      .info {
+        background: #e8f4f8;
+        border-left: 4px solid #667eea;
+        padding: 15px;
+        margin: 15px 0;
+        border-radius: 4px;
+      }
+
+      code {
+        background: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "Courier New", monospace;
+        color: #e83e8c;
+      }
+
+      pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 20px;
+        border-radius: 8px;
+        overflow-x: auto;
+        font-size: 13px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        margin: 15px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>🛠️ MathAI Helpers Demo</h1>
+      <p>Consolidated helper utilities for common functionality.</p>
+
+      <div class="info">
+        <strong>ℹ️ Single Import:</strong><br />
+        Instead of importing each helper separately, just import the helpers package once and get access to all helpers.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Status</h2>
+      <div class="status" id="status">Loading helpers...</div>
+    </div>
+
+    <div class="card">
+      <h2>Visibility Tracker</h2>
+      <p>Track tab visibility and show popup when user becomes inactive.</p>
+
+      <div class="grid">
+        <button class="button" onclick="initVisibilityTracker()">
+          Initialize Tracker
+        </button>
+        <button class="button" onclick="startTracking()">Start Tracking</button>
+        <button class="button" onclick="stopTracking()">Stop Tracking</button>
+        <button class="button secondary" onclick="getTrackerState()">
+          Get State
+        </button>
+      </div>
+
+      <div class="info">
+        <strong>💡 Try it:</strong><br />
+        1. Click "Initialize Tracker"<br />
+        2. Click "Start Tracking"<br />
+        3. Switch to another tab for 5 seconds<br />
+        4. Come back to see the popup!
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>API Helper</h2>
+      <p>Handle communication with the MathAI Core API for game session management.</p>
+
+      <div class="grid">
+        <button class="button" onclick="initAPIHelper()">
+          Initialize API Helper
+        </button>
+        <button class="button" onclick="testAPISubmit()">Test API Submit</button>
+        <button class="button" onclick="testAPIStudentData()">Get Student Data</button>
+        <button class="button secondary" onclick="testAPIConfig()">
+          Get API Config
+        </button>
+      </div>
+
+      <div class="info">
+        <strong>💡 API Helper Features:</strong><br />
+        - Submit game session results to backend<br />
+        - Get student data from backend<br />
+        - Configurable API endpoints and headers<br />
+        - Error handling and timeout management
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Usage Code</h2>
+      <pre><code>&lt;!-- Single import for all helpers --&gt;
+&lt;script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+// Wait for helpers to load
+window.addEventListener('load', async function() {
+
+  // Access VisibilityTracker (loaded automatically)
+  VisibilityTracker.init({
+    inactiveTime: 5000, // 5 seconds
+    onBecomeInactive: function() {
+      console.log('User became inactive');
+    },
+    onBecomeActive: function() {
+      console.log('User became active');
+    }
+  });
+
+  VisibilityTracker.start();
+
+  // Or use via MathAIHelpers namespace
+  MathAIHelpers.VisibilityTracker.start();
+});
+&lt;/script&gt;</code></pre>
+    </div>
+
+    <!-- Include MathAI Helpers Package -->
+    <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+    <script>
+      function updateStatus(message) {
+        const status = document.getElementById("status");
+        const timestamp = new Date().toLocaleTimeString();
+        status.innerHTML = `[${timestamp}] ${message}`;
+        console.log(message);
+      }
+
+      // Wait for helpers to load
+      window.addEventListener("load", function () {
+        setTimeout(function () {
+          if (window.MathAIHelpers && window.VisibilityTracker && window.APIHelper) {
+            updateStatus("MathAI Helpers loaded successfully!");
+          } else {
+            updateStatus("Waiting for helpers to load...");
+            // Check again after a delay
+            setTimeout(function() {
+              if (window.MathAIHelpers && window.VisibilityTracker && window.APIHelper) {
+                updateStatus("MathAI Helpers loaded successfully!");
+              } else {
+                updateStatus("Error: Helpers failed to load");
+              }
+            }, 2000);
+          }
+        }, 500);
+      });
+
+      function initVisibilityTracker() {
+        try {
+          VisibilityTracker.init({
+            inactiveTime: 5000, // 5 seconds
+            onBecomeInactive: function () {
+              updateStatus("User became INACTIVE (popup should show)");
+            },
+            onBecomeActive: function () {
+              updateStatus("User became ACTIVE");
+            },
+          });
+          updateStatus("VisibilityTracker initialized");
+        } catch (e) {
+          updateStatus("Error: " + e.message);
+        }
+      }
+
+      function startTracking() {
+        try {
+          VisibilityTracker.start();
+          updateStatus("VisibilityTracker started - switch tabs to test!");
+        } catch (e) {
+          updateStatus("Error: " + e.message);
+        }
+      }
+
+      function stopTracking() {
+        try {
+          VisibilityTracker.stop();
+          updateStatus("VisibilityTracker stopped");
+        } catch (e) {
+          updateStatus("Error: " + e.message);
+        }
+      }
+
+      function getTrackerState() {
+        try {
+          const state = VisibilityTracker.getState();
+          console.log("Tracker State:", state);
+          updateStatus(
+            `State: ${state.isActive ? "Active" : "Inactive"}, Running: ${
+              state.isRunning
+            }`
+          );
+        } catch (e) {
+          updateStatus("Error: " + e.message);
+        }
+      }
+
+      // API Helper functions
+      let apiHelper = null;
+
+      function initAPIHelper() {
+        try {
+          apiHelper = new APIHelper({
+            baseUrl: 'http://localhost:4000',
+            timeout: 10000
+          });
+
+          apiHelper.onError((error) => {
+            updateStatus("API Error: " + error.message);
+          });
+
+          updateStatus("API Helper initialized successfully");
+        } catch (e) {
+          updateStatus("Error initializing API Helper: " + e.message);
+        }
+      }
+
+      function testAPISubmit() {
+        if (!apiHelper) {
+          updateStatus("Error: API Helper not initialized. Click 'Initialize API Helper' first.");
+          return;
+        }
+
+        try {
+          const testPayload = {
+            session_id: 'demo_session_' + Date.now(),
+            game_id: 'demo_game',
+            metrics: {
+              score: Math.floor(Math.random() * 100),
+              time: Math.floor(Math.random() * 300)
+            },
+            attempts: [
+              { question: 1, correct: true, time: 5 },
+              { question: 2, correct: false, time: 8 }
+            ],
+            completed_at: Date.now()
+          };
+
+          updateStatus("Submitting test results...");
+
+          apiHelper.submitResults(testPayload)
+            .then(response => {
+              updateStatus("✅ API submission successful: " + JSON.stringify(response));
+            })
+            .catch(error => {
+              updateStatus("❌ API submission failed: " + error.message);
+            });
+        } catch (e) {
+          updateStatus("Error testing API submit: " + e.message);
+        }
+      }
+
+
+      function testAPIStudentData() {
+        if (!apiHelper) {
+          updateStatus("Error: API Helper not initialized. Click 'Initialize API Helper' first.");
+          return;
+        }
+
+        try {
+          updateStatus("Fetching student data...");
+
+          apiHelper.getStudentData()
+            .then(response => {
+              updateStatus("✅ Student data retrieved: " + JSON.stringify(response));
+            })
+            .catch(error => {
+              updateStatus("❌ Failed to get student data: " + error.message);
+            });
+        } catch (e) {
+          updateStatus("Error testing student data: " + e.message);
+        }
+      }
+
+      function testAPIConfig() {
+        if (!apiHelper) {
+          updateStatus("Error: API Helper not initialized. Click 'Initialize API Helper' first.");
+          return;
+        }
+
+        try {
+          const config = apiHelper.getConfig();
+          updateStatus("API Configuration: " + JSON.stringify(config, null, 2));
+        } catch (e) {
+          updateStatus("Error getting API config: " + e.message);
+        }
+      }
+    </script>
+  </body>
+</html>

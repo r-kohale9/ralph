@@ -84,3 +84,7 @@ ScreenLayout.inject('app', {
 - [ ] `update()` called after each round with correct values
 - [ ] `destroy()` called in endGame cleanup
 - [ ] ScreenLayout has progressBar slot enabled
+
+## Source Code
+
+Full ProgressBarComponent implementation: `warehouse/packages/components/progress-bar/index.js`

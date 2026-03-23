@@ -170,3 +170,7 @@ font-family: var(--mathai-font-family);
 - [ ] Buttons use `--mathai-green`, `--mathai-blue`, `--mathai-red` for action colors
 - [ ] Text uses `--mathai-primary` or `--mathai-text-primary`
 - [ ] Font uses `var(--mathai-font-family)` or system font stack
+
+## Source Code
+
+Full CSS stylesheet with all variables and base layout classes: `warehouse/packages/styles/mathai-game-styles.css`

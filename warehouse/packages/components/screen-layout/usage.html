@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScreenLayoutComponent - Usage Example</title>
+  
+  <!-- Load CSS Variables -->
+  <link rel="stylesheet" href="https://storage.googleapis.com/test-dynamic-assets/packages/styles/mathai-game-styles.css">
+  
+  <!-- Load ScreenLayoutComponent -->
+  <script src="./index.js"></script>
+  
+  <style>
+    #demo-controls {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 10000;
+    }
+    
+    #demo-controls button {
+      display: block;
+      margin: 10px 0;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  
+  <div id="demo-controls">
+    <h3>ScreenLayout Demo</h3>
+    <button onclick="demo1()">Demo 1: Both Slots</button>
+    <button onclick="demo2()">Demo 2: Progress Only</button>
+    <button onclick="demo3()">Demo 3: Transition Only</button>
+    <button onclick="demo4()">Demo 4: No Slots</button>
+  </div>
+  
+  <script>
+    function demo1() {
+      const slotIds = ScreenLayout.inject('app', {
+        slots: {
+          progressBar: true,
+          transitionScreen: true
+        }
+      });
+      console.log('Demo 1 - Slot IDs:', slotIds);
+      document.getElementById('gameContent').innerHTML = '<h1>Game Content Area</h1><p>Both slots created</p>';
+    }
+    
+    function demo2() {
+      const slotIds = ScreenLayout.inject('app', {
+        slots: {
+          progressBar: true,
+          transitionScreen: false
+        }
+      });
+      console.log('Demo 2 - Slot IDs:', slotIds);
+      document.getElementById('gameContent').innerHTML = '<h1>Game Content Area</h1><p>Progress bar slot only</p>';
+    }
+    
+    function demo3() {
+      const slotIds = ScreenLayout.inject('app', {
+        slots: {
+          progressBar: false,
+          transitionScreen: true
+        }
+      });
+      console.log('Demo 3 - Slot IDs:', slotIds);
+      document.getElementById('gameContent').innerHTML = '<h1>Game Content Area</h1><p>Transition screen slot only</p>';
+    }
+    
+    function demo4() {
+      const slotIds = ScreenLayout.inject('app', {
+        slots: {
+          progressBar: false,
+          transitionScreen: false
+        }
+      });
+      console.log('Demo 4 - Slot IDs:', slotIds);
+      document.getElementById('gameContent').innerHTML = '<h1>Game Content Area</h1><p>No optional slots, just game content</p>';
+    }
+    
+    // Auto-run demo 1 on load
+    window.addEventListener('DOMContentLoaded', () => {
+      demo1();
+    });
+  </script>
+</body>
+</html>
+
+

@@ -1,0 +1,116 @@
+/* MathAI Game Styles - Central CSS Variables and Base Layout */
+
+/* ========== CSS Variables ========== */
+:root {
+  /* Layout */
+  --mathai-game-max-width: 480px;
+  --mathai-stack-gap: 10px;
+  --mathai-game-padding-top: 54px;
+  
+  /* Brand Colors */
+  --mathai-primary: #270f36;
+  --mathai-level-text: #270F63;
+  --mathai-purple: #9B51E0;
+  
+  /* Action Colors */
+  --mathai-green: #219653;
+  --mathai-blue: #667eea;
+  --mathai-red: #E35757;
+  --mathai-orange: #F2994A;
+  --mathai-yellow: #FFDE49;
+  
+  /* Neutral Colors */
+  --mathai-white: #ffffff;
+  --mathai-gray: #666666;
+  --mathai-light-gray: #f5f5f5;
+  --mathai-disabled-gray: #E0E0E0;
+  --mathai-text-primary: #4a4a4a;
+  --mathai-border-gray: #e0e0e0;
+  
+  /* Gameplay Cell Backgrounds */
+  --mathai-cell-bg-green: #D9F8D9;
+  --mathai-cell-bg-yellow: #FCF6D7;
+  --mathai-cell-bg-red: #FFD9D9;
+  --mathai-cell-bg-grey: #E0E0E0;
+  
+  /* Gameplay Cell Borders */
+  --mathai-cell-border-green: #27ae60;
+  --mathai-cell-border-red: #e74c3c;
+  
+  /* Component-Specific */
+  --mathai-progress-bg: #f8f8f8;
+  --mathai-progress-bar: #2563eb;
+  --mathai-progress-container-bg: #e5e7eb;
+  --mathai-transition-bg: #ffffff;
+  --mathai-transition-title: #270f36;
+  --mathai-transition-subtitle: #666666;
+  
+  /* Typography */
+  --mathai-font-family: 'Epilogue', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mathai-font-size-title: 32px;
+  --mathai-font-size-subtitle: 18px;
+  --mathai-font-size-button: 16px;
+  --mathai-font-size-progress: 16px;
+  
+  /* Spacing */
+  --mathai-padding-large: 56px 40px;
+  --mathai-padding-medium: 16px 24px;
+  --mathai-padding-small: 10px;
+  --mathai-border-radius: 24px;
+  --mathai-border-radius-small: 8px;
+  --mathai-border-radius-button: 10px;
+}
+
+/* ========== Base Layout ========== */
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #f6f6f6;
+  font-family: var(--mathai-font-family);
+}
+
+.page-center {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 100dvh;
+  box-sizing: border-box;
+}
+
+.game-wrapper {
+  width: 100vw;
+  max-width: var(--mathai-game-max-width);
+  box-sizing: border-box;
+  background: var(--mathai-white);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 100dvh;
+  padding-top: var(--mathai-game-padding-top);
+}
+
+.game-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mathai-stack-gap);
+  padding: 0 var(--mathai-stack-gap) 20px var(--mathai-stack-gap);
+  box-sizing: border-box;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.game-block {
+  padding: var(--mathai-padding-small);
+  margin-bottom: var(--mathai-stack-gap);
+  background: transparent;
+  border-radius: var(--mathai-border-radius-small);
+  box-sizing: border-box;
+}
+
+@media (min-width: 520px) {
+  .game-wrapper {
+    width: 100%;
+  }
+}
+
+

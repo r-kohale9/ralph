@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentry Config Package - Usage & Testing</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+
+    h1, h2, h3 {
+      margin-top: 1.5rem;
+      margin-bottom: 0.5rem;
+      color: #2c3e50;
+    }
+
+    h1 {
+      font-size: 2rem;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 0.5rem;
+    }
+
+    .section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+
+    .badge-success {
+      background: #27ae60;
+      color: white;
+    }
+
+    .badge-info {
+      background: #3498db;
+      color: white;
+    }
+
+    pre {
+      background: #2c3e50;
+      color: #ecf0f1;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 10px 0;
+      font-size: 0.9rem;
+    }
+
+    code {
+      background: #ecf0f1;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+    }
+
+    .button {
+      background: #3498db;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      margin: 5px;
+      transition: background 0.3s;
+    }
+
+    .button:hover {
+      background: #2980b9;
+    }
+
+    .button-danger {
+      background: #e74c3c;
+    }
+
+    .button-danger:hover {
+      background: #c0392b;
+    }
+
+    .button-success {
+      background: #27ae60;
+    }
+
+    .button-success:hover {
+      background: #229954;
+    }
+
+    .config-display {
+      background: #ecf0f1;
+      padding: 15px;
+      border-radius: 6px;
+      border-left: 4px solid #3498db;
+      margin: 10px 0;
+    }
+
+    .config-item {
+      margin: 8px 0;
+      font-family: monospace;
+    }
+
+    .list-item {
+      background: #fff;
+      padding: 8px 12px;
+      margin: 4px 0;
+      border-left: 3px solid #3498db;
+      border-radius: 4px;
+    }
+
+    .alert {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin: 10px 0;
+    }
+
+    .alert-info {
+      background: #d6eaf8;
+      border-left: 4px solid #3498db;
+      color: #21618c;
+    }
+
+    .alert-success {
+      background: #d5f4e6;
+      border-left: 4px solid #27ae60;
+      color: #145a32;
+    }
+
+    .alert-warning {
+      background: #fcf3cf;
+      border-left: 4px solid #f39c12;
+      color: #7d6608;
+    }
+
+    #output {
+      background: #2c3e50;
+      color: #2ecc71;
+      padding: 15px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      min-height: 100px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin: 10px 0;
+    }
+
+    .output-line {
+      margin: 4px 0;
+    }
+
+    .error-output {
+      color: #e74c3c;
+    }
+
+    .success-output {
+      color: #2ecc71;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔧 Sentry Config Package <span class="badge badge-info" id="version">v1.0.0</span></h1>
+
+  <div class="alert alert-info">
+    <strong>Purpose:</strong> Centralized Sentry configuration for all MathAI games. Update this package once to update ignore lists across ALL games (old and new).
+  </div>
+
+  <!-- Installation Section -->
+  <div class="section">
+    <h2>📦 Installation</h2>
+    <p>Load this package <strong>BEFORE</strong> the Sentry SDK in your game HTML:</p>
+    <pre><code>&lt;!-- 1. Load Sentry Config Package FIRST --&gt;
+&lt;script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"&gt;&lt;/script&gt;
+
+&lt;!-- 2. Load Sentry SDK and integrations --&gt;
+&lt;!-- Base Sentry bundle with tracing, replay, and feedback --&gt;
+&lt;script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"&gt;&lt;/script&gt;
+
+&lt;!-- Console capture integration --&gt;
+&lt;script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"&gt;&lt;/script&gt;
+
+&lt;!-- Browser profiling integration --&gt;
+&lt;script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"&gt;&lt;/script&gt;
+
+&lt;!-- Initialize Sentry after all scripts load --&gt;
+&lt;script&gt;
+  window.addEventListener('load', initSentry);
+&lt;/script&gt;</code></pre>
+  </div>
+
+  <!-- Usage Section -->
+  <div class="section">
+    <h2>🚀 Usage in Games</h2>
+    <pre><code>&lt;script&gt;
+function initSentry() {
+  // Check if Sentry is enabled via centralized config
+  if (!SentryConfig.enabled) {
+    console.log('⚠️ Sentry disabled via centralized config');
+    return;
+  }
+
+  Sentry.init({
+    // Use centralized DSN
+    dsn: SentryConfig.dsn,
+
+    // Use centralized environment and sampling rates
+    environment: SentryConfig.environment,
+    sampleRate: SentryConfig.sampleRate,
+    tracesSampleRate: SentryConfig.tracesSampleRate,
+
+    // Use centralized error filtering
+    beforeSend(event, hint) {
+      if (!SentryConfig.captureErrors) {
+        return null; // Don't send if error capture disabled
+      }
+
+      const error = hint.originalException;
+      const errorMessage = error?.message || event.message || '';
+
+      // Use centralized ignore list
+      if (SentryConfig.shouldIgnoreError(errorMessage)) {
+        console.log('🔇 Sentry: Ignoring benign error:', errorMessage);
+        return null;
+      }
+
+      return event;
+    },
+
+    integrations: [
+      // Browser profiling (optional)
+      SentryConfig.captureProfiling ? Sentry.browserProfilingIntegration() : null,
+
+      // Console error capture (optional)
+      SentryConfig.captureConsoleErrors ? Sentry.captureConsoleIntegration({ levels: ["error"] }) : null,
+
+      // Session replay (optional)
+      SentryConfig.captureReplay ? Sentry.replayIntegration({
+        beforeErrorSampling(event) {
+          const errorMessage = event.message || '';
+
+          // Use centralized replay ignore list
+          if (SentryConfig.shouldIgnoreReplay(errorMessage)) {
+            console.log('🔇 Sentry: Skipping replay for:', errorMessage);
+            return false;
+          }
+
+          return true;
+        },
+        maskAllText: false,
+        blockAllMedia: false,
+        maskAllInputs: true,
+
+        // Use centralized network detail URLs
+        networkDetailAllowUrls: SentryConfig.getNetworkDetailAllowUrls(),
+      }) : null
+    ].filter(Boolean),
+
+    // Use centralized replay sample rate
+    replaysOnErrorSampleRate: SentryConfig.captureReplay
+      ? SentryConfig.replaySampleRate
+      : 0.0,
+  });
+
+  console.log('✅ Sentry initialized with centralized config v' + SentryConfig.version);
+}
+&lt;/script&gt;</code></pre>
+  </div>
+
+  <!-- Current Configuration Section -->
+  <div class="section">
+    <h2>⚙️ Current Configuration</h2>
+    <div class="config-display">
+      <div class="config-item"><strong>Version:</strong> <span id="config-version">Loading...</span></div>
+      <div class="config-item"><strong>DSN:</strong> <span id="config-dsn">Loading...</span></div>
+      <div class="config-item"><strong>Ignored Errors:</strong> <span id="config-error-count">Loading...</span> patterns</div>
+      <div class="config-item"><strong>Ignore Replay:</strong> <span id="config-replay-count">Loading...</span> patterns</div>
+    </div>
+
+    <h3>Ignored Error Patterns:</h3>
+    <div id="ignored-errors-list"></div>
+
+    <h3>Ignore Replay Patterns:</h3>
+    <div id="ignore-replay-list"></div>
+  </div>
+
+  <!-- Testing Section -->
+  <div class="section">
+    <h2>🧪 Testing</h2>
+    <p>Test the configuration package functionality:</p>
+
+    <div>
+      <button class="button" onclick="testLoadConfig()">Load Config</button>
+      <button class="button button-success" onclick="testIgnoreError()">Test Error Filtering</button>
+      <button class="button button-success" onclick="testIgnoreReplay()">Test Replay Filtering</button>
+      <button class="button button-danger" onclick="clearOutput()">Clear Output</button>
+    </div>
+
+    <h3>Output:</h3>
+    <div id="output"></div>
+  </div>
+
+  <!-- Benefits Section -->
+  <div class="section">
+    <h2>✨ Benefits</h2>
+    <div class="alert alert-success">
+      <strong>✅ Update once, apply everywhere:</strong> Change ignore lists in this package → all games use new config on next load
+    </div>
+    <div class="alert alert-success">
+      <strong>✅ Browser caching:</strong> Config loaded once per browser session (like other packages)
+    </div>
+    <div class="alert alert-success">
+      <strong>✅ No game regeneration:</strong> Old games automatically get updates without changing HTML
+    </div>
+    <div class="alert alert-success">
+      <strong>✅ Version tracking:</strong> Easy to track config changes with version numbers
+    </div>
+    <div class="alert alert-success">
+      <strong>✅ Consistent architecture:</strong> Uses same pattern as FeedbackManager/Components/Helpers
+    </div>
+  </div>
+
+  <!-- How to Update Section -->
+  <div class="section">
+    <h2>🔄 How to Update Ignore Lists</h2>
+    <div class="alert alert-warning">
+      <strong>Steps to add new error patterns:</strong>
+      <ol style="margin-left: 20px; margin-top: 10px;">
+        <li>Edit <code>index.js</code> - add pattern to <code>ignoredErrors</code> or <code>ignoreReplay</code> array</li>
+        <li>Increment <code>version</code> number (e.g., 1.0.0 → 1.0.1)</li>
+        <li>Upload <code>index.js</code> to GCS bucket: <code>gs://test-dynamic-assets/packages/helpers/sentry/</code></li>
+        <li>All games will use new config on next page load (browser caches for 1 year)</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Load the Sentry Config Package -->
+  <script src="./index.js"></script>
+
+  <!-- Testing Scripts -->
+  <script>
+    // Display current configuration
+    function displayConfig() {
+      if (typeof SentryConfig === 'undefined') {
+        document.getElementById('config-version').textContent = 'Package not loaded!';
+        return;
+      }
+
+      const config = SentryConfig.getConfig();
+
+      document.getElementById('version').textContent = `v${config.version}`;
+      document.getElementById('config-version').textContent = config.version;
+      document.getElementById('config-dsn').textContent = config.dsn;
+      document.getElementById('config-error-count').textContent = config.ignoredErrorCount;
+      document.getElementById('config-replay-count').textContent = config.ignoreReplayCount;
+
+      // Display ignored errors list
+      const errorsContainer = document.getElementById('ignored-errors-list');
+      errorsContainer.innerHTML = '';
+      config.ignoredErrors.forEach(pattern => {
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        div.textContent = pattern;
+        errorsContainer.appendChild(div);
+      });
+
+      // Display ignore replay list
+      const replayContainer = document.getElementById('ignore-replay-list');
+      replayContainer.innerHTML = '';
+      config.ignoreReplay.forEach(pattern => {
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        div.textContent = pattern;
+        replayContainer.appendChild(div);
+      });
+    }
+
+    // Test functions
+    function logOutput(message, type = 'normal') {
+      const output = document.getElementById('output');
+      const line = document.createElement('div');
+      line.className = 'output-line';
+      if (type === 'error') line.classList.add('error-output');
+      if (type === 'success') line.classList.add('success-output');
+      line.textContent = message;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function clearOutput() {
+      document.getElementById('output').innerHTML = '';
+    }
+
+    function testLoadConfig() {
+      clearOutput();
+      logOutput('🔍 Testing config load...', 'normal');
+
+      if (typeof SentryConfig === 'undefined') {
+        logOutput('❌ ERROR: SentryConfig not loaded!', 'error');
+        return;
+      }
+
+      const config = SentryConfig.getConfig();
+      logOutput('✅ SentryConfig loaded successfully', 'success');
+      logOutput(`Version: ${config.version}`, 'normal');
+      logOutput(`DSN: ${config.dsn}`, 'normal');
+      logOutput(`Ignored Errors: ${config.ignoredErrorCount} patterns`, 'normal');
+      logOutput(`Ignore Replay: ${config.ignoreReplayCount} patterns`, 'normal');
+    }
+
+    function testIgnoreError() {
+      clearOutput();
+      logOutput('🧪 Testing error filtering...', 'normal');
+
+      const testCases = [
+        { msg: 'ResizeObserver loop limit exceeded', shouldIgnore: true },
+        { msg: 'Some other error message', shouldIgnore: false },
+        { msg: 'Script error.', shouldIgnore: true },
+        { msg: 'Network request failed', shouldIgnore: false },
+        { msg: 'Non-Error promise rejection captured', shouldIgnore: true },
+      ];
+
+      testCases.forEach(test => {
+        const result = SentryConfig.shouldIgnoreError(test.msg);
+        const expected = test.shouldIgnore;
+        const passed = result === expected;
+
+        if (passed) {
+          logOutput(`✅ PASS: "${test.msg}" → ${result ? 'IGNORED' : 'SENT'}`, 'success');
+        } else {
+          logOutput(`❌ FAIL: "${test.msg}" → Expected ${expected}, got ${result}`, 'error');
+        }
+      });
+    }
+
+    function testIgnoreReplay() {
+      clearOutput();
+      logOutput('🧪 Testing replay filtering...', 'normal');
+
+      const testCases = [
+        { msg: 'Audio autoplay prevented', shouldIgnore: true },
+        { msg: 'ResizeObserver loop detected', shouldIgnore: true },
+        { msg: 'Network request failed', shouldIgnore: true },
+        { msg: 'Some other error', shouldIgnore: false },
+        { msg: 'User validation failed', shouldIgnore: false },
+      ];
+
+      testCases.forEach(test => {
+        const result = SentryConfig.shouldIgnoreReplay(test.msg);
+        const expected = test.shouldIgnore;
+        const passed = result === expected;
+
+        if (passed) {
+          logOutput(`✅ PASS: "${test.msg}" → ${result ? 'NO REPLAY' : 'REPLAY'}`, 'success');
+        } else {
+          logOutput(`❌ FAIL: "${test.msg}" → Expected ${expected}, got ${result}`, 'error');
+        }
+      });
+    }
+
+    // Auto-display config on load
+    window.addEventListener('DOMContentLoaded', () => {
+      displayConfig();
+      logOutput('✅ Page loaded - ready for testing', 'success');
+    });
+  </script>
+</body>
+</html>

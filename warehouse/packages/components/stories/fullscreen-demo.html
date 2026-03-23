@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StoriesComponent - Fullscreen Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .landing-page {
+            text-align: center;
+            color: white;
+            max-width: 600px;
+        }
+
+        .landing-page h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .landing-page p {
+            font-size: 18px;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+
+        .btn-launch {
+            padding: 20px 50px;
+            font-size: 20px;
+            font-weight: 600;
+            color: #667eea;
+            background: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .btn-launch:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-launch:active {
+            transform: translateY(0);
+        }
+
+        /* Stories container is always visible */
+        #story-container {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Hide landing page by default */
+        .landing-page {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Landing Page -->
+    <div class="landing-page">
+        <h1>📱 Fullscreen Stories Demo</h1>
+        <p>
+            Click the button below to launch the StoriesComponent.<br>
+            It will fetch story data from GraphQL and take over the entire screen!
+        </p>
+        <button class="btn-launch" onclick="launchStories()">
+            Launch Stories Experience
+        </button>
+    </div>
+
+    <!-- Hidden Stories Container -->
+    <div id="story-container"></div>
+
+    <!-- Load FeedbackManager first (required for audio popup) -->
+    <script src="../../feedback-manager/index.js"></script>
+
+    <!-- Load Components Package -->
+    <script src="../index.js"></script>
+    <script src="../../helpers/visibility-tracker/index.js"></script>
+
+    <!-- Load Analytics Manager (config loads automatically) -->
+    <script src="../../helpers/analytics/index.js"></script>
+
+    <script>
+        let storiesComponent = null;
+        let analytics = null;
+
+        // Wait for all packages to load
+        async function waitForPackages() {
+            console.log('🔄 Waiting for packages to load...');
+
+            // Wait for FeedbackManager with timeout
+            let attempts = 0;
+            while (typeof FeedbackManager === 'undefined' && attempts < 100) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+
+            if (typeof FeedbackManager === 'undefined') {
+                throw new Error('FeedbackManager failed to load after 10 seconds');
+            }
+            console.log('✅ FeedbackManager loaded');
+
+            // Wait for StoriesComponent (check both window.StoriesComponent and window.MathAIComponents)
+            attempts = 0;
+            while (!window.StoriesComponent && !window.MathAIComponents?.StoriesComponent && attempts < 200) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+                attempts++;
+            }
+
+            if (!window.StoriesComponent && !window.MathAIComponents?.StoriesComponent) {
+                throw new Error('StoriesComponent failed to load after 10 seconds');
+            }
+            console.log('✅ StoriesComponent loaded');
+            console.log('📦 window.StoriesComponent:', typeof window.StoriesComponent);
+            console.log('📦 window.MathAIComponents:', window.MathAIComponents);
+
+            // Wait for AnalyticsManager
+            attempts = 0;
+            while (typeof AnalyticsManager === 'undefined' && attempts < 100) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+                attempts++;
+            }
+
+            if (typeof AnalyticsManager === 'undefined') {
+                console.warn('⚠️ AnalyticsManager not loaded, continuing without analytics');
+            } else {
+                console.log('✅ AnalyticsManager loaded');
+            }
+
+            return true;
+        }
+
+        // Initialize function
+        async function initialize() {
+            try {
+                console.log('🚀 Initializing...');
+
+                // Wait for packages
+                await waitForPackages();
+
+                console.log('✨ All packages ready, initializing StoriesComponent...');
+
+                // Initialize FeedbackManager first
+                await FeedbackManager.init();
+                console.log('✅ FeedbackManager initialized');
+
+                // Initialize Analytics if available
+                if (typeof AnalyticsManager !== 'undefined') {
+                    analytics = new AnalyticsManager();
+                    await analytics.init();
+                    console.log('✅ Analytics initialized');
+
+                    // Set global instance for StoriesComponent
+                    window.analyticsManager = analytics;
+
+                    // Identify user
+                    const traits = {
+                        id: 1554,
+                        mobile: '7875158990',
+                        name: 'rishabh',
+                        email: 'a@x.co'
+                    };
+                    analytics.identify(traits);
+                    console.log('✅ User identified:', traits);
+                }
+
+                // Initialize StoriesComponent with story block ID
+                // Use whichever is available (window.StoriesComponent or window.MathAIComponents.StoriesComponent)
+                const StoriesComponentClass = window.MathAIComponents?.StoriesComponent || window.StoriesComponent;
+                storiesComponent = new StoriesComponentClass('story-container', {
+                    storyBlockId: 263433, // Story block ID to fetch from GraphQL
+                    showProgress: true,
+                    trackDuration: true,
+                    enableAudio: true,
+                    analyticsContext: {
+                        activity_type: 'CHALLENGE',
+                        parent_id: 293273,
+                        parent_name: 'Rishabh kohale',
+                        logged_session_id: '0c2bfbf1-08de-4e8d-ad7c-fd3e9441d442',
+                        user_came_from: ['direct'],
+                        user_is_currently_on: 'direct'
+                    },
+                    onStoryChange: (index, direction, story) => {
+                        console.log('📖 Story changed:', story.name, 'Direction:', direction);
+                    },
+                    onButtonClick: (name, action, index) => {
+                        console.log('🔘 Button clicked:', name, 'at story index:', index);
+                    },
+                    onComplete: (data) => {
+                        console.log('🎉 Stories complete!', data);
+                    },
+                    onError: (error) => {
+                        console.error('❌ StoriesComponent error:', error);
+                    }
+                });
+
+                console.log('✅ StoriesComponent initialized successfully');
+            } catch (error) {
+                console.error('❌ Initialization failed:', error);
+                document.body.innerHTML = `
+                    <div style="padding: 40px; font-family: monospace;">
+                        <h1 style="color: red;">Initialization Error</h1>
+                        <p>${error.message}</p>
+                        <pre>${error.stack}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        // Run initialization - check if DOM is already loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initialize);
+        } else {
+            // DOM already loaded, run immediately
+            initialize();
+        }
+    </script>
+</body>
+</html>

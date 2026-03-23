@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProgressBarComponent - Usage Example</title>
+  
+  <!-- Load CSS Variables -->
+  <link rel="stylesheet" href="https://storage.googleapis.com/test-dynamic-assets/packages/styles/mathai-game-styles.css">
+  
+  <!-- Load ScreenLayout -->
+  <script src="../screen-layout/index.js"></script>
+  
+  <!-- Load ProgressBar -->
+  <script src="./index.js"></script>
+  
+  <style>
+    #demo-controls {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 10000;
+    }
+    
+    #demo-controls button {
+      display: block;
+      margin: 10px 0;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  
+  <div id="demo-controls">
+    <h3>ProgressBar Demo</h3>
+    <p id="status">Round: 0/5, Lives: 3/3</p>
+    <button onclick="nextRound()">Next Round</button>
+    <button onclick="loseLife()">Lose Life</button>
+    <button onclick="reset()">Reset</button>
+  </div>
+  
+  <script>
+    let progressBar;
+    let currentRound = 0;
+    let currentLives = 3;
+    const totalRounds = 5;
+    const totalLives = 3;
+    
+    function init() {
+      // Inject layout with progress bar slot
+      ScreenLayout.inject('app', {
+        slots: {
+          progressBar: true
+        }
+      });
+      
+      // Create progress bar
+      progressBar = new ProgressBarComponent({
+        autoInject: true,
+        totalRounds: totalRounds,
+        totalLives: totalLives
+      });
+      
+      // Add content to game area
+      document.getElementById('gameContent').innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+          <h1>Sample Game</h1>
+          <p>Use the controls on the right to test the progress bar</p>
+        </div>
+      `;
+    }
+    
+    function nextRound() {
+      if (currentRound < totalRounds) {
+        currentRound++;
+        progressBar.update(currentRound, currentLives);
+        updateStatus();
+      }
+    }
+    
+    function loseLife() {
+      if (currentLives > 0) {
+        currentLives--;
+        progressBar.update(currentRound, currentLives);
+        updateStatus();
+      }
+    }
+    
+    function reset() {
+      currentRound = 0;
+      currentLives = totalLives;
+      progressBar.update(currentRound, currentLives);
+      updateStatus();
+    }
+    
+    function updateStatus() {
+      document.getElementById('status').textContent = 
+        `Round: ${currentRound}/${totalRounds}, Lives: ${currentLives}/${totalLives}`;
+    }
+    
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
+
+
