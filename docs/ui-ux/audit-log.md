@@ -18,9 +18,21 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** Next approved game without full browser playthrough — associations #578 or addition-mcq #579 building now. After #578 completes: audit associations fresh generation.
-**Last completed:** stats-identify-class #573 — 2026-03-23 — 1 P0 + 3 HIGH + 4 MEDIUM — RE-QUEUE REQUIRED. P0: three-column flex-direction:row layout on 375px viewport (22px option buttons). HIGH: no #results-screen, no btn-restart testid, FeedbackManager no audio_content. GEN-MOBILE-STACK rule in progress. Re-queue after rule deployed.
+**Current task:** Next approved game without full browser playthrough — addition-mcq (pending build), or next stats game build.
+**Last completed:** stats-mean-direct #580 — 2026-03-23 — 0 P0 + 0 HIGH + 3 MEDIUM + 2 LOW — APPROVED. All 9 rounds functional, results screen position:fixed PASS, Play Again state reset PASS. M-001: window.nextRound harness timing (test gap). M-002: results missing rounds-completed metric (gen rule). M-003: aria-atomic absent on feedback (gen rule).
 **Waiting on:** —
+
+### Batch 20 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | stats-mean-direct | #580 | **full browser playthrough** 2026-03-23 — 0 P0 + 0 HIGH + 3 MEDIUM + 2 LOW + 1 CDN | APPROVED — no re-queue required. 9/9 rounds complete, results fixed, Play Again PASS. M-001 test gap (nextRound harness timing), M-002 gen rule (results rounds-completed), M-003 gen rule (aria-atomic). |
+
+### Batch 19 — Completed 2026-03-23
+
+| Priority | Game | Build ID | ui-ux.md state | Status |
+|----------|------|----------|----------------|--------|
+| 1 | associations | #578 | **full browser playthrough** 2026-03-23 — 1 P0 + 3 MEDIUM + 2 LOW | RE-QUEUE REQUIRED — timer.getTime is not a function in endGame() blocks results screen. Play Again crash FIXED. gameState.gameId FIXED. results-screen testid FIXED. |
 
 ### Batch 18 — Completed 2026-03-23
 

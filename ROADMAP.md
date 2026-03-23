@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-GEN-DOM-CACHE brace-depth scanner — replace `[^{}]*` regex with imperative function-body extractor (HIGH risk false negative: nested if/for before getElementById silently missed). Agent running. |
-| Status | 1223/1223 tests pass. GEN-DOM-CACHE DONE (713fd63) — T1 check + 8 function names + async. GEN-TIMER-GETTIME DONE (c68ef5a) — ban timer.getTime()/getCurrentTime(). GEN-MOBILE-STACK DONE (5753e01). GEN-TESTID-RESTART DONE (Sammit, 29137b3). GEN-PM-DUAL-PATH DONE (Sammit, 60fd1b3). GEN-ROUND-INDEX DONE (Sammit, 6786b87). MSG-001 DONE (Sammit, c4a9f44). GEN-PHASE-INIT+GEN-BTN-START DONE (Sammit, 7deb7c7). CR-087 DONE (Sammit, bfe9783). #580/#581 running. |
-| Waiting on | CR-GEN-DOM-CACHE agent; #580/#581 results (stats-mean-direct + stats-identify-class) |
+| Current task | GF8 blanket-ban rule text fix (agent a5cfd30 running) — clarify toBeVisible/toBeHidden banned entirely (not conditional). Then: gameover transition gen rule (50% game-flow failure — lives=0 → data-phase stays 'playing'). |
+| Status | 1225/1225 tests pass. #580 APPROVED (iter=3). #581 contract fix loop running (gameId undefined). GF8 blanket-ban fix agent running (a5cfd30). Backlog: HIGH-1 no #results-screen (stats-identify-class); HIGH-3 FeedbackManager audio; M-002 results rounds-completed; M-003 aria-atomic; gameover transition 50% game-flow failure. |
+| Waiting on | GF8 fix agent; #581 result |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
@@ -516,8 +516,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-GEN-DOM-CACHE complete — HIGH risk `[^{}]*` false negative: nested if/for before getElementById silently missed. Fix: imperative brace-depth scanner (Option A). Agent implementing. CR-GEN-MOBILE-STACK: PASS (5 findings: btn- over-broad in isKnownValid — minor). CR-086/087 by Sammit already reviewed via Code Review slot (deployed bfe9783). |
-| Waiting on | CR-GEN-DOM-CACHE brace-depth scanner agent |
+| Current task | CR-GEN-DOM-CACHE DONE (1741e83) — brace-depth scanner deployed. Next: review lib/prompts.js GF8 change (3c75c15) — verify WRONG/RIGHT examples are correct and GF8 rule not over-broad. |
+| Waiting on | none |
 | Blocked by | none |
 
 **Log:**
@@ -614,8 +614,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | #580 stats-mean-direct + #581 stats-identify-class running (Step 2, DOM snapshot). Worker has pulled bfe9783 (Sammit: GEN-TESTID-RESTART + GEN-PM-DUAL-PATH + GEN-ROUND-INDEX + MSG-001 + CR-087). Restart pending — will load all new code after builds complete. |
-| Waiting on | #580/#581 completion → worker restart → new code active |
+| Current task | #580 stats-mean-direct APPROVED. #581 still running (mechanics batch 2). After #581 completes: git pull + restart worker to load GF8 (3c75c15) + CR-GEN-DOM-CACHE (1741e83). Then verify GF8 active on next build. |
+| Waiting on | #581 completion → git pull → worker restart |
 | Blocked by | none |
 
 **Verification log:**
@@ -650,9 +650,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Monitor #580 stats-mean-direct (game-flow 0/3 iter 1 — fix loop running) + #581 stats-identify-class (warehouse-regen triggered after init failure). After approval: update stats-median/stats-mode/stats-which-measure (remaining Session 2 games) — specs written, ready to queue after stats-mean-direct/stats-identify-class are approved. |
-| Status | #580 running (Step 3 fix loop iter 2). #581 regenerating HTML (warehouse-regen). Server pulled bfe9783 (GEN-TESTID-RESTART + GEN-PM-DUAL-PATH + GEN-ROUND-INDEX). Worker restart pending after builds complete. |
-| Waiting on | #580/#581 results |
+| Current task | #580 stats-mean-direct APPROVED (iter=3, 26min, 2026-03-23). #581 stats-identify-class: game-flow 2/4 max iterations, mechanics skip_tests (GF8), level-progression fix loop running. After #581: restart worker + git pull (GF8 + CR-DOM-CACHE + brace-depth). Queue stats-median next (verify GEN-MOBILE-STACK fix). |
+| Status | stats-mean-direct ✅ approved #580. stats-identify-class 🔄 running #581 (LP fix-level-progression-1 in flight). Worker restart blocked until #581 completes. |
+| Waiting on | #581 completion |
 | Blocked by | nothing |
 
 | Task | Status | Notes |

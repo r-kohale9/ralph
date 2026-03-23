@@ -4,8 +4,8 @@
 
 | Game | Session | Bloom | Status | Build # | Iter | Build Time | UI/UX | Next Action |
 |------|---------|-------|--------|---------|------|------------|-------|-------------|
-| [stats-identify-class](stats-identify-class/index.md) | Stats 1/5 | L1 Remember | ✅ Approved | #573 | 0 | ~25min | ⚠️ 1 P0 + 9 findings (browser 2026-03-23) | RE-QUEUE: P0 flex-direction:row layout (22px buttons). GEN-MOBILE-STACK rule in progress. Queue after rule deployed. |
-| [stats-mean-direct](stats-mean-direct/index.md) | Stats 2/5 | L2-L3 Apply | 📝 Spec fixed | #575 failed | — | — | ✅ 2 findings | RE-QUEUE: T1 GEN-112 false positive fixed (8f1e41a), spec ProgressBar API fixed (5338de0). Queue after #578/#579 complete. |
+| [stats-identify-class](stats-identify-class/index.md) | Stats 1/5 | L1 Remember | 🔄 Re-queued | #581 running | — | — | ⚠️ 1 P0 + 9 findings (browser 2026-03-23) | #581 running (game-flow 2/4, mechanics running). GEN-MOBILE-STACK deployed. |
+| [stats-mean-direct](stats-mean-direct/index.md) | Stats 2/5 | L2-L3 Apply | ✅ Approved | #580 | 3 | ~26min | ✅ 0 P0 3 findings (browser 2026-03-23) | APPROVED. 9/9 rounds, results fixed, Play Again PASS. M-001 nextRound harness timing (test gap); M-002 results missing rounds-completed (gen rule); M-003 aria-atomic absent (gen rule). No re-queue. |
 | [stats-median](stats-median/index.md) | Stats 3/5 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
 | [stats-mode](stats-mode/index.md) | Stats 4/5 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
 | [stats-which-measure](stats-which-measure/index.md) | Stats 5/5 | L4 Analyze | 📝 Spec ready | — | — | — | ❌ Pending | Human review before queuing |
