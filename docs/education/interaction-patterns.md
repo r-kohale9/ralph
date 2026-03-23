@@ -336,3 +336,289 @@ The table from the prior section is updated to reflect statistics games:
 | L3 formula from table | Dual-mode 4-option MCQ (ungrouped Easy/Medium + grouped Hard) | dataType field controls render mode. |
 | L3 computation (must construct answer) | Typed numeric + immediate formula feedback | Use when MCQ guessing is unacceptable. |
 | L4 multi-step | Two-step MCQ + typed input, or three-step word problem | real-world-problem pattern (approved build #564). |
+
+---
+
+## Operational Pattern Guide — CDN Parts, Pitfalls, and Build Notes
+
+> **Added:** 2026-03-23. This section complements the taxonomy above with concrete CDN wiring, known pitfalls sourced from browser ui-ux audits, and build-verified lessons-learned references. Use this section when writing a new spec or debugging a failing build.
+
+---
+
+### Pattern A — MCQ (Multiple Choice Question)
+
+**CDN Parts**
+
+| Part | Role |
+|------|------|
+| PART-023 ProgressBarComponent | Round progress + lives. Use `{ slotId: 'mathai-progress-slot', totalRounds: N, totalLives: N }` |
+| PART-024 TransitionScreenComponent | Start screen, victory, game-over overlays |
+| PART-025 ScreenLayoutComponent | Injects `#mathai-progress-slot` and `#mathai-transition-slot` into DOM |
+| PART-013 Validation Fixed | String equality: `selectedOption === correctAnswer` |
+
+**Bloom Levels:** L1 (Remember) and L2 (Understand). Adding a worked-example panel on first wrong attempt pushes toward L2 (stats-identify-class pattern).
+
+**Example Games:** name-the-sides (#557), which-ratio (#561), stats-identify-class.
+
+**When to use:** Skill is recognition or classification. 3–4 options per round. Worked-example feedback panel on wrong answer adds L2 depth.
+
+**When to avoid:** Skill requires construction, computation, or open-ended reasoning. Answer space is continuous (use typed numeric input).
+
+**Known Pitfalls:**
+
+1. `syncDOMState()` must be called after every `gameState.phase =` assignment — init (`start`), round start (`playing`), feedback, and `endGame` (`results`). Missing call causes all `waitForPhase()` calls to timeout (Lesson 50; confirmed in virtually every audited game).
+
+2. `TransitionScreen.show()` must use object API — `transitionScreen.show('victory', {...})` string-mode renders a blank white screen. Always: `transitionScreen.show({ icons: ['🎉'], title: '...', subtitle: '...', buttons: [{...}] })` (ui-ux which-ratio #561 BROWSER-P0-001).
+
+3. `icons` array takes emoji strings only — passing `icons: ['<svg...>']` HTML-escapes the markup and renders raw SVG code covering the screen (ui-ux which-ratio #561 BROWSER-P0-002).
+
+4. `ProgressBar totalLives: 0` throws RangeError — omit `totalLives` or use a positive value for lives-free games. `totalLives: 0` causes `RangeError: Invalid count value: -N` on every round (ui-ux which-ratio #561, name-the-sides #557).
+
+5. `ProgressBarComponent slotId` must be exactly `'mathai-progress-slot'` — no `#` prefix, no `-bar-` infix. Wrong slot ID causes fallback mount (confirmed: real-world-problem #564 UI-RWP-003, find-triangle-side #549 UI-FTS-002, soh-cah-toa-worked-example #544 UI-SC-003).
+
+6. Correct feedback auto-dismiss minimum 1500ms — use a single constant `FEEDBACK_DURATION_MS = 1500`. Skip and correct paths must use the same constant (ui-ux which-ratio #561 Issues 5–6).
+
+7. No ARIA live regions — ARIA-001 confirmed in 20+ builds. Add `aria-live="polite"` to `#correct-feedback`, `#skip-note`, and all dynamic feedback elements.
+
+---
+
+### Pattern B — Worked Example + Faded (Scaffolded Learning)
+
+**CDN Parts**
+
+| Part | Role |
+|------|------|
+| PART-023 ProgressBarComponent | Round + lives display. Lives apply only to practice phase. |
+| PART-024 TransitionScreenComponent | Start / victory / game-over |
+| PART-025 ScreenLayoutComponent | Slot injection |
+| PART-013 Validation Fixed | MCQ string equality for faded and practice phases |
+
+No dedicated CDN WorkedExampleComponent — the three-phase layout (example → faded → practice) is custom JS + CSS panel toggling.
+
+**Bloom Levels:** L2 (Understand) and L3 (Apply). Cognitive load theory gradient: full scaffolding (Sweller & Cooper 1985) → partial scaffolding → independent work. Documented in soh-cah-toa-worked-example spec Section 1 Pedagogical Design Note.
+
+**Example Games:** soh-cah-toa-worked-example (#544), quadratic-formula-worked-example.
+
+**When to use:** Skill is a multi-step procedure learners frequently memorize without understanding. Place immediately before or after an MCQ classification game on the same concept.
+
+**When to avoid:** Pure recall/classification (use MCQ). More than 5 steps per worked example (exceeds mobile screen space).
+
+**Known Pitfalls:**
+
+1. Lives apply to practice sub-phase only, not example or faded. Wrong faded answers must show the correct step and allow retry — not deduct a life (soh-cah-toa-worked-example spec Section 1).
+
+2. `gameState.subPhase` must be explicitly tracked — values `'example' | 'faded' | 'practice'`. Tests verify sub-phase transitions. Ad hoc boolean flags are harder to test (soh-cah-toa-worked-example spec Section 3).
+
+3. `results-screen` must be `position: fixed` — confirmed `position:static` in soh-cah-toa-worked-example #544 (UI-SC-001). GEN-UX-001 rule is shipped; still missing in builds predating it.
+
+4. `ProgressBarComponent` options object must include `slotId` — confirmed missing in soh-cah-toa-worked-example #544 (UI-SC-003): options format correct but `slotId` key absent.
+
+5. Formula display is plain text (`font-family: Courier New`) — MathML is not available. Document as known accessibility limitation in spec (ui-ux soh-cah-toa-worked-example UI-SC-006).
+
+6. `window.nextRound` must be exposed — assign `window.nextRound = roundComplete` (or equivalent internal function) in DOMContentLoaded. 10+ confirmed missing instances.
+
+---
+
+### Pattern C — Spatial / Grid Puzzle
+
+**CDN Parts**
+
+| Part | Role |
+|------|------|
+| PART-025 ScreenLayoutComponent | Slot injection |
+| PART-023 ProgressBarComponent | Round/lives display (optional for single-round puzzles) |
+| PART-024 TransitionScreenComponent | Start / victory / game-over |
+
+Grid logic is entirely custom. `TimerComponent` CDN class does NOT exist (Lesson 87) — use `setInterval`/`setTimeout`.
+
+**Bloom Levels:** L3 (Apply) and L4 (Analyze).
+
+**Example Games:** light-up (#508), kakuro, futoshiki, queens.
+
+**When to use:** Skill involves spatial reasoning or constraint satisfaction. Single-puzzle-per-session design.
+
+**When to avoid:** Primary skill is numeric computation or algebraic manipulation. Grid requires scroll on mobile to see all cells — keep grids to 5×5 or smaller at 375px viewport.
+
+**Known Pitfalls:**
+
+1. `data-testid` on cells, not container — use `data-testid="game-grid"` on the grid wrapper and `data-testid="cell-R-C"` for individual cells. Using `data-testid="answer-input"` on the grid container (MCQ template artifact) breaks test selectors (ui-ux light-up #508 HIGH-3).
+
+2. `window.nextRound` must be exposed even for single-round games — assign `window.nextRound = function() {}` if no round advancement exists. Test harness warns silently if absent (ui-ux light-up #508 HIGH-1; 10+ confirmed instances).
+
+3. `TimerComponent` does not exist in CDN bundle — causes `ReferenceError: TimerComponent is not defined` crashing DOMContentLoaded before `#gameContent` is created. Blank page. All tests fail. Use `setInterval`/`clearInterval` (Lesson 87).
+
+4. `syncDOMState()` must write `data-phase='start_screen'` when the restart interstitial is shown — writing `'playing'` prematurely causes test harness to begin game assertions before the grid renders (ui-ux light-up #508 MEDIUM-3).
+
+5. Interactive cells must be `<button>` elements or `role="button" tabindex="0"` — plain `<div>` elements are inaccessible. Playwright clicks divs (tests pass), but WCAG compliance fails.
+
+---
+
+### Pattern D — Card Matching
+
+**CDN Parts**
+
+| Part | Role |
+|------|------|
+| PART-025 ScreenLayoutComponent | Slot injection |
+| PART-023 ProgressBarComponent | Round progress + lives |
+| PART-024 TransitionScreenComponent | Start / victory / game-over |
+
+Card matching is custom JS + CSS. No dedicated CDN card-matching component.
+
+**Bloom Levels:** L1 (Remember) and L2 (Understand). Face-memory = pure recognition (L1). match-the-cards and associations = associative recall/linking (L1–L2).
+
+**Example Games:** face-memory (#512), match-the-cards (#226), associations.
+
+**When to use:** Skill is associative recall — linking two items (term ↔ definition, equation ↔ graph). Short rounds (≤8 cards) to keep working memory load manageable.
+
+**When to avoid:** Skill requires procedural steps or computation. Large card sets requiring scroll to find a match.
+
+**Known Pitfalls:**
+
+1. Per-round match counters must reset in `renderRound()` — stale counters from the previous round cause premature round-end (frequent source of level-progression test failures).
+
+2. `isProcessing = true` during card reveal delay — for any timed reveal (show then hide), keep `isProcessing = true` until the timeout completes. Setting it `false` before the delay means a fast tap can answer during the reveal window (Lesson 109).
+
+3. ARIA roles required on card elements — `role="button"` and `aria-label` describing card content (or `aria-pressed` for toggled state). Plain `<div>` elements with click handlers are inaccessible (ui-ux face-memory #512 UI-FM-004).
+
+4. `aria-live="polite"` on match feedback — confirmed absent in face-memory #512 (UI-FM-002, 18th instance of ARIA-001).
+
+5. `SignalCollector.reset()` in `restartGame()` — the sealed instance from the first play records zero events for replayed sessions (ui-ux expression-completer UI-EC-007, real-world-problem UI-RWP-004 — same pattern).
+
+---
+
+### Pattern E — Two-Step Expression
+
+**CDN Parts**
+
+| Part | Role |
+|------|------|
+| PART-025 ScreenLayoutComponent | Slot injection |
+| PART-023 ProgressBarComponent | Round progress + lives |
+| PART-024 TransitionScreenComponent | Start / victory / game-over |
+| PART-013 Validation Fixed | String equality for each step |
+
+Both steps rendered simultaneously in DOM. Step 2 hidden until Step 1 is answered. Custom layout only — no CDN two-step component.
+
+**Bloom Levels:** L2 (Understand) and L3 (Apply).
+
+**Example Games:** expression-completer (#511).
+
+**When to use:** Round has two causally linked decisions (Step 2 depends on Step 1). Both steps are MCQ or short typed input.
+
+**When to avoid:** Two steps are independent (use separate rounds). Step 1 has 4+ options and Step 2 also has 4+ options (cognitive overload; split into two games).
+
+**Known Pitfalls:**
+
+1. `data-testid` must be namespaced per step — `data-testid="part1-option-N"` for Step 1, `data-testid="part2-option-N"` for Step 2. If both steps are in DOM simultaneously with shared testids, `querySelector('[data-testid="option-0"]')` always returns the Step 1 button; tests cannot reach Step 2 (ui-ux expression-completer #511 UI-EC-002 — HIGH, confirmed test-gap).
+
+2. `window.nextRound` not exposed — confirmed missing in expression-completer #511 (UI-EC-001). Game exposed `window.roundComplete` and `window.loadRound` but not `window.nextRound`. Always add `window.nextRound = nextRound` (or alias to the actual advancement function).
+
+3. Wrong answer on Step 1 behavior must be explicitly specced — either instructional-only (show feedback + retry, no life deduction) or life-deducting (advance). Expression-completer uses life-deduction; real-world-problem uses instructional-only for Steps 1–2. Spec must make this explicit.
+
+4. Step 2 panel uses CSS `hidden` class, not inline `display:none` — toggling `display:none` via inline style prevents CSS transitions. Use `classList.remove('hidden')` with a `hidden` class that sets `display:none`.
+
+---
+
+### Pattern F — Real-World Scenario
+
+**CDN Parts**
+
+| Part | Role |
+|------|------|
+| PART-025 ScreenLayoutComponent | Slot injection |
+| PART-023 ProgressBarComponent | Round progress + lives (lives only on Step 3) |
+| PART-024 TransitionScreenComponent | Start / victory / game-over |
+| PART-013 Validation Fixed | Steps 1 and 2 MCQ string equality |
+| PART-014 Validation Function | Step 3 typed numeric: `Math.abs(parseFloat(answer) - correct) <= tolerance` |
+| PART-027 Play Area Construction | Word-problem card (always visible) + SVG diagram (always visible) + step panels |
+
+**Bloom Levels:** L4 (Analyze). Learner constructs a mental model from a word description, selects the correct approach, and computes.
+
+**Example Games:** real-world-problem (#564, #565 — both approved).
+
+**When to use:** Skill is situational application. Prerequisites are solid. Session-plan position: last game in a session (highest Bloom level).
+
+**When to avoid:** As a first game in a session. When word problem requires domain knowledge not taught in the session.
+
+**Known Pitfalls:**
+
+1. Word-problem card + SVG diagram must always be visible — must remain on screen during all three steps. Hiding or replacing the problem context forces the learner to recall from memory (real-world-problem spec Section 2, PART-027 config).
+
+2. `game_complete` postMessage must fire on both victory and game-over paths — route both through `endGame()`. If game-over exits without calling `endGame()`, Session Planner never marks the game complete.
+
+3. `results-screen position:static` confirmed in #564 (UI-RWP-002) — GEN-UX-001 shipped but still missing. Verify position:fixed with browser playthrough before approving.
+
+4. `SignalCollector.reset()` in `restartGame()` — confirmed missing in real-world-problem #564 (UI-RWP-004): replay sessions emit zero events.
+
+5. `ProgressBarComponent` wrong slot ID — #564 used `'mathai-progress-bar-slot'` (wrong), causing fallback mount (UI-RWP-003). Must be `'mathai-progress-slot'`.
+
+6. Typed input needs Enter key binding — `#answer-input` (type="number") for Step 3 must bind `keydown` Enter: `input.addEventListener('keydown', e => { if (e.key === 'Enter') handleAnswerSubmit(); })` (real-world-problem #564 — 1st confirmed instance of this pattern).
+
+7. Lives apply only to Step 3 computation — Steps 1–2 MCQ are instructional; wrong answers show feedback and allow continuation, no life deduction. Mixing this causes pedagogically inappropriate punishment of misconceptions the game should be teaching.
+
+---
+
+### Pattern G — Timer Race
+
+**CDN Parts**
+
+| Part | Role |
+|------|------|
+| PART-006 TimerComponent | CAUTION — do NOT use this CDN class (Lesson 87: does not exist in CDN bundle, causes ReferenceError). Use `setInterval`/`setTimeout` instead. |
+| PART-023 ProgressBarComponent | Round progress + lives |
+| PART-024 TransitionScreenComponent | Start / level-transition / victory / game-over |
+| PART-025 ScreenLayoutComponent | Slot injection |
+
+**Bloom Levels:** L1 (Remember) and L2 (Understand). Timer pressure promotes automaticity, not analysis. Use only when automaticity is the explicit learning goal.
+
+**Example Games:** addition-mcq-blitz, adjustment-strategy (#385).
+
+**When to use:** Explicit goal is automaticity or speed drill. Learner already demonstrated conceptual mastery through non-timed games in the same session. Star metric is time-based.
+
+**When to avoid:** First exposure to a concept. L3+ Bloom levels. Games with worked-example panels (contradictory pedagogical intent).
+
+**Known Pitfalls:**
+
+1. `timer.start()` only in `renderRound()`, never in `setupGame()` or `DOMContentLoaded` — starting a timer in setup launches it during the start screen before the learner clicks "Let's go!" (verified correct pattern in adjustment-strategy #385).
+
+2. `timer` must be cleared and recreated in `restartGame()` — `clearInterval(timer); timer = null` then start fresh. Reusing a running timer interval causes level-time calculations to include the pause between sessions.
+
+3. Custom widget buttons also need `min-height: 44px` — GEN-UX-002 applies to `.game-btn` globally, but adjuster buttons (`.adj-btn`) set `height: 36px` explicitly and bypass the rule. Confirmed in adjustment-strategy #385 (ui-ux F1, F7): adjuster buttons 36px, reset button 30.5px. Every clickable button requires `min-height: 44px` with no exceptions.
+
+4. Button IDs must survive innerHTML rebuilds — if `updateAdjusterUI()` rebuilds inner HTML to show updated values, button IDs (`btn-a-minus`, `btn-a-plus`, etc.) must be re-injected in the new HTML string. Losing IDs causes all mechanics tests to fail (Lesson 59; adjustment-strategy spec CRITICAL note).
+
+5. Level-transition `TransitionScreen` requires `await transitionScreen.show(...)` — the `endGame('level-complete')` or equivalent path must `await` the transition screen and wire the "Continue" button action to `startLevel()` before calling it.
+
+6. `window.nextRound` not exposed — confirmed missing in adjustment-strategy #385 (ui-ux F6): game uses `loadRound()` internally. Add `window.nextRound = loadRound` alias.
+
+---
+
+### Cross-Pattern Issues (Affect All 7 Patterns)
+
+| Issue | Rule ID | Confirmed Instances |
+|-------|---------|---------------------|
+| `syncDOMState()` after every `gameState.phase =` | Lesson 50 | Virtually all games |
+| `results-screen` must be `position: fixed; inset: 0; z-index: 100` | GEN-UX-001 | 17+ builds |
+| All interactive buttons `min-height: 44px` | GEN-UX-002 | 8+ confirmed |
+| `aria-live="polite"` on all dynamic feedback elements | ARIA-001 / GEN-120 | 20+ builds |
+| `ProgressBarComponent slotId: 'mathai-progress-slot'` | GEN-UX-003 | 9+ builds |
+| `TransitionScreen` object API (never string mode) | GEN-TS-001 | 2 builds |
+| `TransitionScreen icons:` emoji only, not SVG strings | GEN-TS-002 | 2 builds |
+| `window.nextRound` exposed on `window` | GEN-WINDOW-EXPOSE | 10+ builds |
+| `TimerComponent` CDN class — use `setInterval` instead | Lesson 87 | Lesson 87 root cause |
+| `SignalCollector.reset()` in `restartGame()` | UI-RWP-004 | 4+ builds |
+| `data-testid` namespaced per step in multi-step games | GEN-TESTID-STEP | expression-completer #511 |
+
+**Source files for all pitfalls above:**
+- `games/which-ratio/ui-ux.md` (builds #560, #561)
+- `games/name-the-sides/ui-ux.md` (build #557)
+- `games/soh-cah-toa-worked-example/ui-ux.md` (build #544)
+- `games/real-world-problem/ui-ux.md` (build #564)
+- `games/expression-completer/ui-ux.md` (build #511)
+- `games/adjustment-strategy/ui-ux.md` (build #385)
+- `games/light-up/ui-ux.md` (build #508)
+- `games/face-memory/ui-ux.md` (build #512)
+- `games/find-triangle-side/ui-ux.md` (build #549)
+- `games/count-and-tap/ui-ux.md` (build #551)
+- `docs/lessons-learned.md` (Lessons 50, 59, 87, 109)

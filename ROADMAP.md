@@ -645,9 +645,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | Interaction Pattern Library agent running (a3736bd3) — 7 patterns being documented. Waiting: stats-identify-class #569 queued (verify CR-084), stats-mean-direct queued after approval. |
-| Status | 5-game CBSE Class 9/10 statistics session written — L1→L4 Bloom ladder, 43 min total, NCERT Ch 9–14 anchored, 4 misconceptions per game documented with Exa-sourced citations. |
-| Waiting on | Build #566 to complete (stats-identify-class) |
+| Current task | stats-identify-class re-queue pending CR-084 deploy (pipeline CSS strip bug fix) |
+| Status | Interaction Pattern Library done (2026-03-23) — 7 patterns documented in docs/education/interaction-patterns.md with CDN parts, Bloom levels, example games, when-to-use/avoid, and pitfalls sourced from 10 ui-ux audits + 4 lessons-learned entries. 5-game CBSE Class 9/10 statistics session written — L1→L4 Bloom ladder, 43 min total, NCERT Ch 9–14 anchored. |
+| Waiting on | CR-084 deploy confirmed + stats-identify-class build approval |
 | Blocked by | nothing |
 
 | Task | Status | Notes |
