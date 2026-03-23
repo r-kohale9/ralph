@@ -3497,3 +3497,126 @@ describe('GEN-SYNCDOMSTATE-ALLATTRS: syncDOMState() must write data-round and da
     );
   });
 });
+
+// ─── GEN-MOBILE-STACK: flex-direction:row on game container / MCQ options ────
+
+describe('GEN-MOBILE-STACK: flex-direction:row detection', () => {
+  // Helper: inject extra CSS into VALID_HTML's <style> block (before </style>)
+  // and optionally inject extra HTML into the #answers div.
+  function withCss(extraCss, extraHtml = '') {
+    let html = VALID_HTML.replace('</style>', `  ${extraCss}\n</style>`);
+    if (extraHtml) {
+      html = html.replace('<div id="answers"></div>', `<div id="answers"></div>\n  ${extraHtml}`);
+    }
+    return html;
+  }
+
+  it('GEN-MOBILE-STACK WARNING: warns when game-container uses flex-direction:row', () => {
+    // stats-identify-class #573 P0-1: three-column layout squeezes 375px viewport
+    const html = withCss('#game-container { display: flex; flex-direction: row; gap: 8px; }');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-MOBILE-STACK'),
+      `Expected GEN-MOBILE-STACK warning for game-container flex-direction:row but got: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK WARNING: warns when options-grid uses flex-direction:row', () => {
+    // MCQ options grid in row direction — each option becomes a narrow column
+    const html = withCss('.options-grid { display: flex; flex-direction: row; flex-wrap: wrap; }');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-MOBILE-STACK'),
+      `Expected GEN-MOBILE-STACK warning for options-grid flex-direction:row but got: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK ERROR: errors when .options-container uses flex-direction:row AND MCQ options present', () => {
+    // MCQ option container with row direction — confirmed P0: buttons 22px tall
+    const html = withCss(
+      '.options-container { display: flex; flex-direction: row; }',
+      `<div class="options-container">
+        <button class="option-btn" data-testid="option-0">A</button>
+        <button class="option-btn" data-testid="option-1">B</button>
+      </div>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected exit 1 (error) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-MOBILE-STACK'),
+      `Expected GEN-MOBILE-STACK error for .options-container flex-direction:row but got: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK: does NOT warn when game-container uses flex-direction:column', () => {
+    // Correct pattern: column stacking
+    const html = withCss('#game-container { display: flex; flex-direction: column; gap: 16px; }');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK warning for correct flex-direction:column: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK: does NOT warn for known-valid row patterns (.timer, .score)', () => {
+    // Timer + score bar in row direction is intentional and valid
+    const html = withCss(
+      '.timer { display: flex; flex-direction: row; align-items: center; }\n  .score { display: flex; flex-direction: row; gap: 4px; }',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK warning for valid .timer/.score flex-direction:row: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK: does NOT warn when HTML has no game-layout or MCQ selectors', () => {
+    // VALID_HTML has no game-container or options-grid CSS rules with flex-direction:row
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK warning for VALID_HTML: ${output}`,
+    );
+  });
+
+  // ─── GEN-DOM-CACHE tests ────────────────────────────────────────────────────
+  it('GEN-DOM-CACHE: warns when loadQuestion() calls document.getElementById() in its body', () => {
+    // Anti-pattern: getElementById called inside per-round function body
+    const html = VALID_HTML.replace(
+      'function showQuestion()',
+      `function loadQuestion(index) {
+        const questionEl = document.getElementById('question-text');
+        const optionsGrid = document.getElementById('options-grid');
+        questionEl.textContent = 'Question ' + index;
+        optionsGrid.innerHTML = '';
+      }
+      function showQuestion()`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-DOM-CACHE'),
+      `Expected GEN-DOM-CACHE warning when getElementById is inside loadQuestion() body but got: ${output}`,
+    );
+  });
+
+  it('GEN-DOM-CACHE: does NOT warn when loadQuestion() does not call getElementById()', () => {
+    // Correct pattern: uses cached module-scope references (no getElementById inside function body)
+    const html = VALID_HTML.replace(
+      'function showQuestion()',
+      `const questionEl = { textContent: '' };
+      const optionsGrid = { innerHTML: '' };
+      function loadQuestion(index) {
+        questionEl.textContent = 'Question ' + index;
+        optionsGrid.innerHTML = '';
+      }
+      function showQuestion()`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-DOM-CACHE'),
+      `Unexpected GEN-DOM-CACHE warning when loadQuestion() uses cached refs: ${output}`,
+    );
+  });
+});
