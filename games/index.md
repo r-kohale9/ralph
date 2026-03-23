@@ -10,7 +10,7 @@
 | [stats-mode](stats-mode/index.md) | Stats 4/4 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
 | [name-the-sides](name-the-sides/index.md) | Trig 1/5 | L2 Understand | ✅ Approved | #562 | 3 | ~35 min | ✅ 10 findings | — |
 | [which-ratio](which-ratio/index.md) | Trig 2/5 | L2 Understand | ✅ Approved | #561 | 3 | ~28 min | ⚠️ 8 issues | — |
-| [soh-cah-toa-worked-example](soh-cah-toa-worked-example/index.md) | Trig 3/5 | L2 Understand | ✅ Approved | #544 | 1 | ~28 min | ⏳ Browser audit | — |
+| [soh-cah-toa-worked-example](soh-cah-toa-worked-example/index.md) | Trig 3/5 | L2 Understand | ✅ Approved | #544 | 1 | ~28 min | ⚠️ P0+5 findings | GEN-UX-001 confirmed (results not fixed), UI-SC-007 retracted |
 | [find-triangle-side](find-triangle-side/index.md) | Trig 4/5 | L3 Apply | ✅ Approved | #549 | 1 | ~28 min | ⚠️ 10 findings | — |
 | [real-world-problem](real-world-problem/index.md) | Trig 5/5 | L4 Analyze | ✅ Approved | #564 | 2 | ~32 min | ✅ 8 findings | — |
 | [associations](associations/index.md) | Standalone | TBD | ✅ Approved | #472 | 2 | ~29 min | ✅ 5 findings | — |
@@ -24,7 +24,7 @@
 | [math-mcq-quiz](math-mcq-quiz/index.md) | Standalone | TBD | TBD | — | — | — | ❌ Pending | Check DB |
 | [mcq-addition-blitz](mcq-addition-blitz/index.md) | Standalone | TBD | TBD | — | — | — | ⚠️ 9 issues | Audited 2026-03-23 (6a 2b 1d) |
 
-*Updated: 2026-03-23 — UI/UX audit index synced: stats-mode ✅ 3 findings; name-the-sides ✅ 10 findings; associations ✅ 5 findings; quadratic-formula + soh-cah-toa browser audit in progress. Statistics Session 2 all 4 specs written; real-world-problem #564 APPROVED; name-the-sides re-approved #562; which-ratio APPROVED #561*
+*Updated: 2026-03-23 — soh-cah-toa-worked-example browser playthrough complete: P0 results screen not position:fixed confirmed; UI-SC-007 (hide/show TypeError) retracted — hide() takes selector strings (correct). Statistics Session 2 all 4 specs written; real-world-problem #564 APPROVED; name-the-sides re-approved #562; which-ratio APPROVED #561*
 
 ---
 

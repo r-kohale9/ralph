@@ -1,8 +1,6 @@
 # UI/UX Audit — SOH-CAH-TOA: Worked Example
 
-**Build:** #544  **Date:** 2026-03-23  **Auditor:** UI/UX slot (static analysis)
-
-> **STATUS: BROWSER PLAYTHROUGH REQUIRED** — This audit was static-analysis-only (batch 2). Active Audit Target as of 2026-03-23: full browser playthrough via `diagnostic.js` needed to confirm UI-SC-001 (results off-screen), UI-SC-007 (hide()/show() string selector TypeError), and runtime behavior of ProgressBarComponent without slotId. See `docs/ui-ux/audit-log.md` Active Audit Target section.
+**Build:** #544  **Static analysis:** 2026-03-23  **Browser playthrough:** 2026-03-23  **Auditor:** UI/UX slot
 
 ---
 
@@ -44,8 +42,8 @@ No `slotId` key in the options object. Without `slotId: 'mathai-progress-slot'`,
 **UI-SC-006 — Step card formulas have no math accessibility (WCAG SC 1.1.1)**
 `.step-formula` uses `font-family: 'Courier New', monospace`. Formulas like `x = (-b +/- sqrt(Delta)) / 2a` are plain text. No MathML, no `role="math"`, no `aria-label` providing the formula in human-readable form. Assistive technology reads the raw text literally. Classification: **(b) spec addition** — trig session should note that formula display accessibility is a known limitation until MathML support is added.
 
-**UI-SC-007 — hide()/show() called with string selectors in some locations**
-At line 921 area: `hide('#results-screen')` and `show('#results-screen')` pass CSS selector strings. But `const hide = (el) => el.classList.add('hidden')` expects a DOM element object — strings do not have `.classList`. This is a runtime TypeError if those string-argument calls execute. Other calls use `document.getElementById(...)` correctly. *Requires browser verification* to confirm whether this branch is actually reached. Classification: **(a) gen prompt rule** — `hide()`/`show()` helpers must always receive DOM element objects, not CSS selector strings.
+**UI-SC-007 — RETRACTED (browser playthrough 2026-03-23)**
+Static analysis incorrectly flagged `hide('#results-screen')` as a TypeError. Browser inspection confirmed: `hide = (selector) => document.querySelector(selector)?.classList.add('hidden')` — the helper takes CSS selector strings. `hide('#results-screen')` in `restartGame()` is correct. Zero TypeErrors observed during full playthrough. Not a gen rule issue.
 
 ### Low Priority / Observations
 
@@ -75,3 +73,57 @@ At line 921 area: `hide('#results-screen')` and `show('#results-screen')` pass C
   - UI-SC-006: Add note to trig session spec that formula display uses plain text monospace — log as known accessibility limitation; consider MathML requirement in future spec revision
 
 - **CDN-blocked (no action):** None identified
+- **UI-SC-007:** RETRACTED — hide() selector pattern confirmed correct by browser playthrough
+
+---
+
+## Browser Playthrough Audit
+
+**Date:** 2026-03-23  **Build:** #544  **Auditor:** UI/UX slot (Playwright MCP, localhost:7779, viewport 480×800)
+
+### Playthrough Status: COMPLETE
+
+Full path traversed: Start screen → Round 1 (SOH) Worked Example (4 steps) → Fill the Gap (correct) → Your Turn (correct) → Round 2 (CAH) Worked Example → Fill the Gap (correct) → Your Turn (wrong then correct — life deduction verified) → Round 3 (TOA) Worked Example → Fill the Gap (correct) → Your Turn (correct) → Results screen → Play Again → Start (second run state reset verified).
+
+### Console Log
+
+- 1 error: favicon 404 (not a game error)
+- 5 warnings: Sentry init failed (expected local env), FeedbackManager "No audio_content" ×4 (expected — game content has no audio_content field)
+- **Zero PAGEERRORs. Zero TypeErrors. Zero game-breaking errors.**
+
+### Critical Checklist
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| Start screen renders (`data-phase='start'`) | PASS | `data-phase="start"`, `data-lives="3"`, `data-round="0"` confirmed |
+| Game starts — phase transitions to `playing` | PASS | "Let's go!" click → `data-phase="playing"` immediately |
+| Worked Example sub-phase (step cards) | PASS | 4 steps reveal sequentially; answer shown after final step; "Got It" transitions correctly |
+| Fill the Gap sub-phase (faded MCQ) | PASS | Correct/wrong handling correct; buttons disabled post-selection; feedback visible |
+| Your Turn sub-phase (practice MCQ) | PASS | Wrong answer deducts 1 life; remaining options stay active until correct chosen |
+| MCQ options height ≥44px | PASS (marginal) | Measured 45px (padding 14px 24px); `minHeight: "auto"` — no explicit `min-height: 44px`. UI-SC-004 confirmed. |
+| Correct answer feedback visible | PASS | "Correct!" text and explanation appear in feedback box |
+| Wrong answer feedback + life deduction | PASS | ❤️❤️🤍 after 1 wrong; feedback shows; remaining options stay active |
+| Results screen `position: fixed` | **FAIL — P0** | `position: static`, `z-index: auto`, `rectTop: 144.5px`. Progress bar visible above results. UI-SC-001 confirmed by browser. |
+| Results screen covers full viewport | **FAIL** | `coversViewport: false`. Starts at y=144.5, x=20. On mobile with scroll, results card is partially hidden. |
+| Play Again button reachable | PASS | Visible and clickable; no scroll needed in 480×800 viewport |
+| Zero PAGEERRORs | PASS | favicon 404 only |
+| `restartGame()` full state reset | PASS (via startGame()) | `restartGame()` resets `phase='start'` only; `startGame()` (called when player clicks "Start" on transition screen) performs full reset — `lives=3`, `currentRound=0`, `score=0` confirmed on second play |
+| `hide()`/`show()` DOM vs string | PASS — UI-SC-007 RETRACTED | `hide()` is `(selector) => document.querySelector(selector)?.classList.add('hidden')` — CSS selector strings are correct usage. Zero TypeErrors. |
+| `data-phase` transitions | PASS | start → playing → results → start all correct |
+| aria-live on feedback areas | **FAIL** | `#faded-feedback` and `#practice-feedback` both `ariaLive: null`. Zero `[aria-live]` elements anywhere on page. UI-SC-002 confirmed. |
+| ProgressBarComponent `slotId` | **FAIL** | Missing from options. `#mathai-progress-slot` exists but empty after restart. UI-SC-003 confirmed. |
+
+### New Findings vs Static Analysis
+
+1. **UI-SC-001 — results screen non-coverage CONFIRMED by measurement:** `rectTop: 144.5`, `position: static`, `zIndex: auto`, `coversViewport: false`. P0.
+2. **UI-SC-002 — aria-live CONFIRMED by browser query:** Zero `[aria-live]` elements on page.
+3. **UI-SC-003 — ProgressBarComponent slotId CONFIRMED:** `#mathai-progress-slot` empty after restart (destroyed by `endGame()`).
+4. **UI-SC-007 RETRACTED:** `hide()` takes CSS selector strings — correct pattern, no TypeError. Static analysis was wrong about the function signature.
+5. **restartGame() gap window:** Between "Play Again" and "Start" clicks, `gameState.lives=2`, `currentRound=3` are stale — but transition screen hides game content during this window. Not player-visible. Not a bug.
+6. **Game flow quality: excellent.** 3-sub-phase structure (Worked Example → Fill the Gap → Your Turn) works exactly as specified across all 3 rounds. All animations, transitions, and state changes correct.
+
+### Updated Gen Quality Routing
+
+- **Ship GEN-UX-001 immediately:** `#results-screen { position: fixed; inset: 0; z-index: 100 }` — now browser-verified on #544. 4th confirmed instance.
+- **Remove UI-SC-007 from gen quality backlog** — retracted, hide() selector pattern is correct.
+- All other routing from static analysis section above remains valid.
