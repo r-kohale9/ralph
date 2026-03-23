@@ -4,6 +4,17 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 
 ---
 
+## Browser Audit Lessons (2026-03-23 batch)
+
+**Lesson 192: adjustment-strategy rendering toBeVisible failures are all CDN init failures** | Source: TE diagnosis 2026-03-23, build #381
+The "rendering" failure category (53 occurrences in DB) is almost entirely caused by `waitForPackages()` timeout=10000ms instead of 120000ms. On CDN cold-start, packages take 30-120s to load — the 10s timeout fires first, "Packages failed to load" aborts beforeEach, and EVERY test in EVERY batch fails with toBeVisible. Secondary: unawaited `transitionScreen.show()` corrupts CDN state machine — buttons stay visibility:hidden in subsequent calls. Diagnostic: if test_results=[] for a build, CDN never loaded. If ALL tests fail toBeVisible across all batches, check waitForPackages timeout first.
+
+**Lesson 193: transitionScreen.show() string mode ('victory', 'gameover') doesn't exist in CDN** | Source: which-ratio #561 browser audit, BROWSER-P0-001
+The CDN TransitionScreenComponent has no string-mode shorthand. `transitionScreen.show('victory', {...})` logs `{title: undefined, buttons: undefined}` and renders a completely blank screen — user stranded with no Play Again button. ALL transitionScreen.show() calls must use the object API: `transitionScreen.show({ icons: ['🎉'], title: '...', buttons: [{...}] })`. Rules shipped: GEN-TRANSITION-API, GEN-TRANSITION-ICONS, GEN-PROGRESSBAR-LIVES.
+
+**Lesson 194: SVG markup strings in icons[] are HTML-escaped by CDN** | Source: which-ratio #561, BROWSER-P0-002
+`icons: ['<svg ...>']` — the CDN inserts icons as textContent (not innerHTML), so SVG string renders as escaped text filling the screen. Use emoji only: `icons: ['🔺', '🎉']`. Never pass SVG, HTML, or file paths.
+
 ## Gen Rule Lessons (2026-03-23 batch — game-flow root cause analysis)
 
 **Lesson L-GF-001: Test-name trigger phrases cause `#mathai-transition-slot button` violations** | Source: game-flow analytics 2026-03-23, GF9-ENFORCEMENT commit 870c6d5
