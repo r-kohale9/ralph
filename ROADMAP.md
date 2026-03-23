@@ -217,9 +217,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-RESULTS-FIXED rule 54 in progress (agent a2b2affb401f85e88) — results screen must be position:fixed overlay (6 confirmed instances). GEN-ENDGAME-GUARD (rule 53) + GEN-DATA-LIVES-GUARD committed b66270a, deployed to GCP 2026-03-23. |
-| Status | GEN-ENDGAME-GUARD (rule 53) + GEN-DATA-LIVES-GUARD committed b66270a (1065/1065), deployed GCP 2026-03-23. GEN-RESULTS-FIXED (rule 54) agent running. |
-| Waiting on | GEN-RESULTS-FIXED commit to deploy |
+| Current task | GEN-RESULTS-FIXED (rule 54) DONE — committed 290e1d9, deployed GCP 2026-03-23. Next: CR-044 global-fix regression guard dead code (pipeline-fix-loop.js) + CR-045 originalT1Checks null guard bug. |
+| Status | Rules 53 (GEN-ENDGAME-GUARD), 53b (GEN-DATA-LIVES-GUARD b66270a), 54 (GEN-RESULTS-FIXED 290e1d9) all shipped + deployed GCP 2026-03-23. |
+| Waiting on | TE checkResultsScreenViewport tighten (ac3cc9c7dcc889383) — deploy when committed |
 | Blocked by | none |
 
 | Task | Status | Hypothesis | Expected Impact |
