@@ -118,7 +118,7 @@
 | Field | Value |
 |-------|-------|
 | Current task | ARIA-001 inline panels audit complete (2026-03-23): #faded-feedback and #practice-feedback already covered in BOTH CDN_CONSTRAINTS_BLOCK (line 122) and numbered rule 30 (lines 554-569) — no prompts.js change needed. GEN-CR-005 (generateSpec null guard) already DONE (commit 3508ef4). Next: pick next item from analytics — pending items: results-screen position:fixed test assertion, data-lives guard for non-lives games, canvas max-width viewport assertion (all marked pending in P6 table). |
-| Status | 988/988 tests pass. GF fix impact: ~70% of game-flow failures addressed. Awaiting next build to measure lift from 63% baseline. |
+| Status | 1012/1012 tests pass (988 + 15 new TE-RES-001 tests + 9 others). GF fix impact: ~70% of game-flow failures addressed. Awaiting next build to measure lift from 63% baseline. |
 | Waiting on | next approved build to confirm game-flow rate improvement |
 | Blocked by | none |
 
@@ -138,7 +138,7 @@
 | Human-run Playwright traces as gold standard | planned | — | Record --trace from a correct human test run; use trace viewer output as ground truth for test generation |
 | **Add unit tests for updateThreadOpener: 'running'/'APPROVED'/'FAILED' status branches** | **DONE — pre-existing (commit e905fd7)** | test/slack.test.js | 9 tests at slack.test.js line 465 cover: running/APPROVED/REJECTED/FAILED status emojis + labels, channel fallback, URL resolution, error handling, currentStep propagation. Confirmed 2026-03-23. |
 | **Add unit test: PART-028 empty/whitespace-only `<style></style>` block not caught** | **DONE — 2026-03-23 (commit 6af64e9)** | Logic was already fixed in 6eea578 (`if (stripped.length === 0)` — no second predicate). Whitespace-only test `<style>   </style>` was missing — added in 6af64e9. 989/989 tests pass. |
-| **Add assertion: results screen must have position:fixed or z-index>0** | **pending** | lib/prompts.js | Source: UI/UX audit name-the-sides (UI-NS-004 test gap). Tests only check `data-phase='results'` — game can "complete" with results screen scrolled off-screen (position:static, y=1037px on mobile). Add Playwright assertion in game-flow/contract tests verifying results screen has `position: fixed` or `z-index > 0` before asserting gameplay completion. |
+| **Add assertion: results screen must have position:fixed or z-index>0** | **DONE (TE-RES-001, 2026-03-23, commit 121ac01)** | lib/pipeline-test-gen.js, test/game-flow.test.js | Source: UI/UX audit name-the-sides (UI-NS-004 test gap). Added `checkResultsScreenViewport()` helper to shared Playwright boilerplate (pipeline-test-gen.js). Asserts position:fixed OR coversViewport (top<=0 && height>=innerHeight). Fails with diagnostic message showing position, rectTop, height, coversViewport. Also added test/game-flow.test.js (15 tests) validating assertion logic: pass/fail/skip cases, coversViewport math, error message format. 1012/1012 tests pass. Deployed to server. |
 | **Add assertion: page must have zero console PAGEERRORs during gameplay** | **done (2026-03-23, commit 1b783f1)** | lib/pipeline-test-gen.js | Source: UI/UX audit name-the-sides (UI-NS-007 test gap). `progressBar.update(-9)` fires PAGEERROR every round — tests pass while browser logs errors. Added `let pageErrors = [];` at module level in sharedBoilerplate; `page.on('pageerror')` now pushes to array; `test.afterEach()` throws if any errors collected. Deployed to server. |
 | **Add assertion: data-lives guards for non-lives games** | **pending** | lib/prompts.js test gen | Source: UI/UX audit word-pairs #529 (UI-WP-005). `data-lives` is hardcoded to 0 for non-lives games. Pipeline test assertions on data-lives will fail or pass incorrectly. Test gen must check `gameState.totalLives === 0` and skip lives assertions for those games. |
 | **Lives games must sync data-lives attribute on DOM element — getLives() reads DOM not gameState** | **pending** | lib/prompts.js gen prompt | Source: UI/UX audit addition-mcq-lives spec (F7). Games with totalLives > 0 that only track gameState.lives but never write data-lives to a DOM element cause getLives() to return undefined — all mechanics assertions on life decrements fail silently. Gen prompt must require: syncDOMState() sets setAttribute('data-lives', gameState.lives) on a visible DOM element. Complements the non-lives guard above. |
@@ -548,7 +548,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-STEP-001 + CR-013/008/009/012 (188bbaa) + CR-015 (3154415) + GF9-ENFORCEMENT + GF10 (870c6d5) + GEN-112 in CLI path (2d5721b) + CR-002 .answer-btn (870c6d5) — all deployed 2026-03-23. PAGEERROR listener added to sharedBoilerplate (1b783f1, deployed 2026-03-23). Waiting on next build to measure game-flow lift (63% → target 85%+). |
+| Current task | GEN-STEP-001 + CR-013/008/009/012 (188bbaa) + CR-015 (3154415) + GF9-ENFORCEMENT + GF10 (870c6d5) + GEN-112 in CLI path (2d5721b) + CR-002 .answer-btn (870c6d5) — all deployed 2026-03-23. PAGEERROR listener added to sharedBoilerplate (1b783f1, deployed 2026-03-23). results-screen viewport assertion added (TE-RES-001, 2026-03-23, commit 121ac01). Waiting on next build to measure game-flow lift (63% → target 85%+). |
 | Waiting on | Next approved build to verify game-flow category improvement |
 | Blocked by | none |
 
