@@ -18,9 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** stats-identify-class #573 — full browser playthrough (spec-only audit needs replacing now that build is APPROVED). Agent running 2026-03-23.
-**Last completed:** visual-memory #528 — 2026-03-23 — 1 P0 + 2 HIGH + 4 MEDIUM + 3 LOW + 1 CDN; full browser playthrough (Playwright MCP 375×812px); all 5 rounds played through; P0: endGame guard `(!isActive && lives>0)` blocks results screen on all-correct path (game frozen, gameEnded=false, 0 postMessages); HIGH: grid cells missing role/tabindex/aria-label (GEN-INTERACTIVE-DIV-ROLE), no aria-live regions (ARIA-001); MEDIUM: results-screen missing data-testid, position:static not fixed, syncDOMState only writes data-phase, transition buttons missing data-testid; LOW: waitForPackages 10s timeout, gameId not set, progress bar lags 1 round; RE-QUEUE REQUIRED.
-**stats-which-measure postMessage:** VERIFIED 2026-03-23 — has events/duration/attempts all present. Cross-consistency fix applied to 4 other stats specs (stats-identify-class, stats-mean-direct, stats-median, stats-mode) — all were missing `events: gameState.events`; added to both impl call and Section 8 doc block.
+**Current task:** Next approved game without full browser playthrough — associations #578 or addition-mcq #579 building now. After #578 completes: audit associations fresh generation.
+**Last completed:** stats-identify-class #573 — 2026-03-23 — 1 P0 + 3 HIGH + 4 MEDIUM — RE-QUEUE REQUIRED. P0: three-column flex-direction:row layout on 375px viewport (22px option buttons). HIGH: no #results-screen, no btn-restart testid, FeedbackManager no audio_content. GEN-MOBILE-STACK rule in progress. Re-queue after rule deployed.
 **Waiting on:** —
 
 ### Batch 18 — Completed 2026-03-23
