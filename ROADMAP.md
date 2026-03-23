@@ -508,7 +508,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | DONE — 2d4e717 (GEN-SIGNAL-RESET rule 50) + fad96d9 (T1 LOCAL-ASSETS/SVG-CONTRAST) + a3f0a4a (CR-024 totalLives regex fix) reviewed (2026-03-23). CR-030 [HIGH] signalCollector.reset() not in CDN API — unverified method; CR-031 [MED] totalLives regex fires on 0.5 (false positive) and misses -10+ via partial match; CR-032 [LOW] GEN-SVG-CONTRAST contrast rationale inaccurate (already CR-025 duplicate). Next: pick next lib/ commit. |
+| Current task | DONE — 2d4e717 (GEN-SIGNAL-RESET rule 50) + fad96d9 (T1 LOCAL-ASSETS/SVG-CONTRAST) + a3f0a4a (CR-024 totalLives regex fix) reviewed (2026-03-23). CR-030 [HIGH] RESOLVED 52d2666 — signalCollector.reset() confirmed absent from CDN; GEN-SIGNAL-RESET updated to re-instantiation pattern across all 3 prompt locations + NEVER list. CR-031 [MED] totalLives regex fires on 0.5 (false positive) and misses -10+ via partial match; CR-032 [LOW] GEN-SVG-CONTRAST contrast rationale inaccurate (already CR-025 duplicate). Next: pick next lib/ commit. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
