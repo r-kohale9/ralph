@@ -219,8 +219,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | **GF-NEW-1/2/3 DONE (commits 1f462b6 + 9c069f1, 2026-03-23)** — game-flow root cause fix: lives poll-before-read, banned-selector fix-loop hard-replace, step-panel no-hidden-precondition. Next: monitor game-flow pass rate on next 2 builds; target ≥50% (up from 29.2%). |
-| Status | 1135 tests pass. GF-NEW-1 added after GF7 (line ~2316): mandatory expect.poll before getLives() loop. GF9-ENFORCEMENT extended (line ~2355): 11 new trigger phrases + fix-loop hard-replace instruction. GF-NEW-3 added after GF10 (line ~2384): no .toBeHidden() precondition on step panels. |
+| Current task | **GF-NEW-1/2/3 DONE (commits 1f462b6 + 9c069f1, 2026-03-23)** — game-flow root cause fix: lives poll-before-read, banned-selector fix-loop hard-replace, step-panel no-hidden-precondition. Next: monitor game-flow pass rate on next 2 builds; target ≥50% (up from 29.2%). + GEN-SLOT-A11Y rule added (position-maximizer #507 UI/UX source) |
+| Status | 1138 tests pass. GF-NEW-1 added after GF7 (line ~2316): mandatory expect.poll before getLives() loop. GF9-ENFORCEMENT extended (line ~2355): 11 new trigger phrases + fix-loop hard-replace instruction. GF-NEW-3 added after GF10 (line ~2384): no .toBeHidden() precondition on step panels. GEN-SLOT-A11Y added to CDN_CONSTRAINTS_BLOCK, buildGenerationPrompt() rule 30 (sub-rule after ARIA-001), and buildCliGenPrompt(). |
 | Waiting on | none |
 | Blocked by | none |
 
