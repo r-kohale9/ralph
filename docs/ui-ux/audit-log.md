@@ -18,8 +18,8 @@ Track visual and interaction quality audits of generated games. Each entry recor
 
 ## Active Audit Target
 
-**Current task:** Batch 7 DONE: right-triangle-area #543. Batch 8 DONE: rapid-challenge #526. Next: sequence-builder #525
-**Last completed:** rapid-challenge #526 — 2026-03-23 — 2 P0 + 3 HIGH + 3 MEDIUM + 2 LOW; full browser playthrough (Playwright MCP, 375×812px); P0-A: results screen position:static (GEN-UX-001, 11th instance); P0-B: CSS entirely stripped (6th instance) — .visually-hidden fully visible, all buttons 21.5px, results card unstyled; HIGH: progressBar 10s deferred destroy races with restartGame() new instance (new pattern UI-RC-005); window.nextRound not exposed (test harness MISSING error); buttons 21.5px (CSS strip root cause); MEDIUM: waitForPackages 120s error message says "10s" (stale); no aria-live (ARIA-001, 14th instance); FeedbackManager subtitle/sticker warnings per round; Play Again PASS (state reset correct); all 9 rounds reachable; level transitions PASS; no re-queue required (systemic CSS issue, not game-specific)
+**Current task:** Batch 8 DONE: rapid-challenge #526 + sequence-builder #525. Next: identify-pairs-list #515
+**Last completed:** sequence-builder #525 — 2026-03-23 — 2 P0 + 3 HIGH + 2 MEDIUM + 1 LOW; full browser playthrough (Playwright MCP, 375×812px); P0-A: results screen position:static (GEN-UX-001, 12th instance); P0-B: CSS stripped (7th instance) — all buttons 21.5px; HIGH: progressBar 10s deferred destroy races with restartGame() (UI-SB-005, 3rd GEN-PROGRESSBAR-DESTROY-RACE instance); window.nextRound not exposed (test harness MISSING, 3rd nextRound instance); buttons 21.5px (CSS strip root); MEDIUM: syncDOMState targets #app only (LP-4, 4th instance); no aria-live (ARIA-001, 15th instance); LOW: playDynamicFeedback missing audio_content (5 warnings/game); gameState.gameId PASS ('game_sequence_builder'); all 5 rounds + 3-step chains PASS; Play Again state reset PASS; no re-queue required (systemic)
 **Waiting on:** —
 
 ### Batch 4 — Completed 2026-03-23
