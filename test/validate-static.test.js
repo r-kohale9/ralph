@@ -3680,6 +3680,25 @@ describe('GEN-MOBILE-STACK: flex-direction:row detection', () => {
     );
   });
 
+  it('GEN-MOBILE-STACK MED-3: when MCQ + .options-grid flex-direction:row, Block 1 fires ERROR — Block 2 does NOT add a duplicate WARNING', () => {
+    // Block 1 fires ERROR [GEN-MOBILE-STACK] for .options-grid + MCQ options present.
+    // Block 2 should skip the same selector to avoid a redundant WARNING for the same root cause.
+    const html = withCss(
+      '.options-grid { display:flex; flex-direction:row; gap:12px; }',
+      '<div class="options-container"><button class="option-btn" data-testid="option-0">A</button></div>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected exit 1 (error) from Block 1 but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR [GEN-MOBILE-STACK]'),
+      `Expected ERROR [GEN-MOBILE-STACK] from Block 1 but got: ${output}`,
+    );
+    assert.ok(
+      !output.includes('WARNING [GEN-MOBILE-STACK]'),
+      `Block 2 should not emit a duplicate WARNING [GEN-MOBILE-STACK] when Block 1 already fired ERROR: ${output}`,
+    );
+  });
+
   // ─── GEN-DOM-CACHE tests ────────────────────────────────────────────────────
   it('GEN-DOM-CACHE: warns when loadQuestion() calls document.getElementById() in its body', () => {
     // Anti-pattern: getElementById called inside per-round function body
