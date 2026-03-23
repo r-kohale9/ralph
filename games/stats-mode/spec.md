@@ -576,7 +576,7 @@ const fallbackContent = {
                     │         page loads                  │
                     │  gameState.phase = 'start'          │
                     │  syncDOMState()                     │
-                    │  transitionScreen.show('start')     │
+                    │  transitionScreen.show({...start...}) │
                     └───────────────┬─────────────────────┘
                                     │ [Play button clicked]
                                     ▼
@@ -602,11 +602,11 @@ const fallbackContent = {
                            │              endGame(false)
                     [round === 9]          phase='game_over'
                            │              syncDOMState()
-                    endGame(true)          transitionScreen.show('game_over')
+                    endGame(true)          transitionScreen.show({...game_over...})
                     phase='results'               │
                     syncDOMState()         [Restart button]
                     transitionScreen       restartGame()
-                    .show('victory')
+                    .show({...victory...})
 ```
 
 ### syncDOMState() — MANDATORY (GEN-PHASE-001)
@@ -625,10 +625,10 @@ function syncDOMState() {
 ```
 
 **Phase transitions (ALL MANDATORY):**
-- Page loads → `gameState.phase = 'start'` → `syncDOMState()` (before transitionScreen.show('start'))
+- Page loads → `gameState.phase = 'start'` → `syncDOMState()` (before transitionScreen.show({...start object...}))
 - `startGame()` → `gameState.phase = 'playing'` → `syncDOMState()` (before transitionScreen.hide())
-- `endGame(true)` → `gameState.phase = 'results'` → `syncDOMState()` (before transitionScreen.show('victory'))
-- `endGame(false)` → `gameState.phase = 'game_over'` → `syncDOMState()` (before transitionScreen.show('game_over'))
+- `endGame(true)` → `gameState.phase = 'results'` → `syncDOMState()` (before transitionScreen.show({...victory object...}))
+- `endGame(false)` → `gameState.phase = 'game_over'` → `syncDOMState()` (before transitionScreen.show({...game_over object...}))
 - Life lost (wrong or timeout) → `gameState.lives--` → `syncDOMState()` (before checking game_over condition)
 
 ---
@@ -952,9 +952,19 @@ function endGame(isVictory) {
 
   // Show transition screen
   if (isVictory) {
-    transitionScreen.show('victory');
+    transitionScreen.show({
+      title: 'Well done!',
+      subtitle: 'You identified every mode correctly.',
+      icons: ['🌟'],
+      buttons: [{ label: 'Play again', action: 'restart', style: 'primary' }]
+    });
   } else {
-    transitionScreen.show('game_over');
+    transitionScreen.show({
+      title: 'Game Over',
+      subtitle: 'Keep practising — spotting the mode gets easier with practice.',
+      icons: ['💔'],
+      buttons: [{ label: 'Try again', action: 'restart', style: 'primary' }]
+    });
   }
 }
 
@@ -1228,6 +1238,45 @@ progressBar = new ProgressBarComponent({
 **`slotId: 'mathai-progress-slot'` is MANDATORY.** The CDN injects the progress bar into the DOM slot with this ID. A missing or wrong `slotId` causes the progress bar to never render, and `progressBar.loseLife()` / `progressBar.setRound()` to throw.
 
 **`progressBar.update(currentRound, lives)` — NOT `progressBar.update(totalRounds, lives)`** — pass the current round number, not the total. This is the correct call signature: `progressBar.setRound(roundNumber)` where `roundNumber` is 1-based.
+
+---
+
+## 13b. TransitionScreen Configuration (GEN-TRANSITION-API — object form MANDATORY)
+
+**NEVER use `transitionScreen.show('string')` — the CDN has NO string-mode support. Always pass an object.**
+
+```javascript
+// Initialization (inside waitForPackages callback):
+transitionScreen = new TransitionScreenComponent({
+  onRestart: restartGame
+});
+
+// Show start screen (after content loaded):
+transitionScreen.show({
+  title: 'Find the Mode',
+  subtitle: 'Identify the most frequent value — 9 rounds, 3 lives',
+  icons: ['📊'],
+  buttons: [{ label: 'Play', action: 'restart', style: 'primary' }]
+});
+
+// Show in endGame(true) — victory:
+transitionScreen.show({
+  title: 'Well done!',
+  subtitle: 'You identified every mode correctly.',
+  icons: ['🌟'],
+  buttons: [{ label: 'Play again', action: 'restart', style: 'primary' }]
+});
+
+// Show in endGame(false) — game over:
+transitionScreen.show({
+  title: 'Game Over',
+  subtitle: 'Keep practising — spotting the mode gets easier with practice.',
+  icons: ['💔'],
+  buttons: [{ label: 'Try again', action: 'restart', style: 'primary' }]
+});
+```
+
+**`action: 'restart'` triggers `onRestart` (restartGame). Icons must be emoji strings only — never SVG.**
 
 ---
 

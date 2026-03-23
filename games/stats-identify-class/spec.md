@@ -676,8 +676,8 @@ function advanceRound() {
       livesRemaining: gameState.lives,
       isVictory: isVictory
     }, '*')
-- if (isVictory): transitionScreen.show('victory')
-  else:           transitionScreen.show('game_over')
+- if (isVictory): transitionScreen.show({ title: 'Well done!', subtitle: 'You identified every measure correctly.', icons: ['🌟'], buttons: [{ label: 'Play again', action: 'restart', style: 'primary' }] })
+  else:           transitionScreen.show({ title: 'Game Over', subtitle: 'Keep practising — knowing when to use Mean, Median, or Mode takes time.', icons: ['💔'], buttons: [{ label: 'Try again', action: 'restart', style: 'primary' }] })
 ```
 
 ### 6.9 restartGame()
@@ -733,10 +733,10 @@ function syncDOMState() {
 ```
 
 **Phase transitions (all MANDATORY):**
-- Page loads → `gameState.phase = 'start_screen'` → `syncDOMState()` (initial state — set before transitionScreen.show('start'))
+- Page loads → `gameState.phase = 'start_screen'` → `syncDOMState()` (initial state — set before transitionScreen.show({...start object...}))
 - `startGame()` → `gameState.phase = 'playing'` → `syncDOMState()` (before transitionScreen.hide())
-- `endGame(true)` → `gameState.phase = 'results'` → `syncDOMState()` (before transitionScreen.show('victory'))
-- `endGame(false)` → `gameState.phase = 'game_over'` → `syncDOMState()` (before transitionScreen.show('game_over'))
+- `endGame(true)` → `gameState.phase = 'results'` → `syncDOMState()` (before transitionScreen.show({...victory object...}))
+- `endGame(false)` → `gameState.phase = 'game_over'` → `syncDOMState()` (before transitionScreen.show({...game_over object...}))
 - Life lost (skip/wrong attempt 2) → `gameState.lives--` → `syncDOMState()` (before checking game_over condition)
 
 ### 7.1 Package Loading
@@ -782,27 +782,6 @@ document.addEventListener('DOMContentLoaded', () => {
       totalLives: 3
     });
     transitionScreen = new TransitionScreenComponent({
-      screens: {
-        start: {
-          title: 'Which Measure Fits Best?',
-          subtitle: 'Mean, Median, or Mode?',
-          description: 'Read each data scenario and pick the measure that best describes the typical value. 10 rounds — 3 lives.',
-          buttonText: 'Play'
-        },
-        victory: {
-          title: 'Well done!',
-          description: 'You can identify the right measure for any context.',
-          showScore: true,
-          showStars: true
-        },
-        game_over: {
-          title: 'Out of lives!',
-          description: 'Keep practising — knowing when to use Mean, Median, or Mode takes time.',
-          showScore: true,
-          showRestartButton: true
-        }
-      },
-      onStart: startGame,
       onRestart: restartGame
     });
 
@@ -816,7 +795,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load content (injected by pipeline or fallback)
     gameState.content = window.__gameContent || fallbackContent;
 
-    transitionScreen.show('start');
+    transitionScreen.show({
+      title: 'Which Measure Fits Best?',
+      subtitle: 'Mean, Median, or Mode? — 10 rounds, 3 lives',
+      icons: ['📊'],
+      buttons: [{ label: 'Play', action: 'restart', style: 'primary' }]
+    });
   });
 });
 ```
@@ -845,7 +829,7 @@ The LLM generating this game must check each item before finalising the HTML:
 3. **Do NOT forget `window.endGame = endGame; window.restartGame = restartGame; window.nextRound = nextRound`** — assign in DOMContentLoaded after function definitions. Also add `window.loadRound = function(n) { ... }` — required for test harness `__ralph.jumpToRound()`.
 4. **Do NOT use static HTML for context or data** — `#context-text` and `#data-display` MUST be updated dynamically in `renderRound()` from `round.context` and `round.data.join(', ')`. Hard-coded text that does not change between rounds is a bug.
 5. **Do NOT deduct lives** — this game has no lives system. Never call `progressBar.loseLife()` or decrement any lives variable. The game always ends in victory after 9 rounds.
-6. **Do NOT show a game-over screen** — there is no game-over in this game. `endGame()` always calls `transitionScreen.show('victory')`.
+6. **Do NOT show a game-over screen** — there is no game-over in this game. `endGame()` always calls `transitionScreen.show({...victory object...})`.
 7. **Do NOT skip the `isProcessing` guard** — fast taps can fire `handleOptionClick` twice. Set `isProcessing = true` at the start and `false` after each async completion.
 8. **Do NOT allow option buttons to remain enabled while the worked-example panel is visible** — buttons must be disabled when the panel is shown, to prevent second attempt before reading the explanation.
 9. **Do NOT forget to re-enable option buttons when "Got it — try again" is clicked** — if buttons stay disabled the learner cannot make their second attempt.
