@@ -1,6 +1,6 @@
 # Ralph Pipeline — Roadmap
 
-**Last updated:** March 23, 2026 (Session: CT9 transition-slot visibility ban + C1 timeout fix + RULE-003 transitionScreen try/catch (dc03155, 4e8fca8, 2026-03-23); PART-028 stripped-CSS T1 check + FIX-001 preserve-CSS rule + ARIA-001 feedback accessibility (dc03155); Slack parent message live updates at step boundaries (9101650); Cross-slot feed links — UI/UX findings route to R&D + test quality + education (4f96009); Cron 7 Slot Watchdog — idle slot detection every 5 min (c57447d); per-game docs consolidated into warehouse/templates/ (7935d5d); R&D slot ACTIVE: post-GEN-116/117/118 first-attempt approval rate measurement (2/5 data points); Education slot ACTIVE: which-ratio #560 re-queued after EACCES infra fix; UI/UX slot: match-the-cards #514 browser audit DONE — 0 P0 + 6 findings; next target: check DB for next unaudited approved game)
+**Last updated:** March 23, 2026 (Session: CT9 transition-slot visibility ban + C1 timeout fix + RULE-003 transitionScreen try/catch (dc03155, 4e8fca8, 2026-03-23); PART-028 stripped-CSS T1 check + FIX-001 preserve-CSS rule + ARIA-001 feedback accessibility (dc03155); Slack parent message live updates at step boundaries (9101650); Cross-slot feed links — UI/UX findings route to R&D + test quality + education (4f96009); Cron 7 Slot Watchdog — idle slot detection every 5 min (c57447d); per-game docs consolidated into warehouse/templates/ (7935d5d); R&D slot ACTIVE: post-GEN-116/117/118 first-attempt approval rate measurement (2/5 data points); Education slot ACTIVE: which-ratio #560 re-queued after EACCES infra fix; UI/UX slot: face-memory #512 browser audit DONE — 0 P0 + 6 findings (3 MEDIUM systemic, 3 LOW); next target: expression-completer #511)
 **Status legend:** done | in-progress | planned | blocked
 
 ---
@@ -219,8 +219,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GEN-WAITFOR-MATCH DONE (commit ab0c3fe, deployed GCP 2026-03-23). Next: T1 check — results screen position:fixed enforcement (6 live instances, no backstop). |
-| Status | GEN-WAITFOR-MATCH shipped: Check A (ERROR) FeedbackManager typeof without script; Checks B/C/D (WARNING) new X() without typeof in waitForPackages. 1084 tests pass. |
+| Current task | GEN-RESULTS-FIXED T1 WARNING DONE (2dee3b8, 2026-03-23) + GEN-TRANSITION-API-CALL T1 ERROR DONE + GEN-WAITFOR-MATCH DONE + GEN-DATA-LIVES-SYNC DONE. Next: (1) CR-024 [MED] expand GEN-CSS-TOKENS ban list to include --color-green, --color-success; (2) CR-014 [LOW] GEN-RESTART-RESET custom fields clarification. |
+| Status | All 4 rules deployed GCP 2026-03-23. 1090 tests pass. expression-completer #511 UI/UX audit in-progress. |
 | Waiting on | none |
 | Blocked by | none |
 
