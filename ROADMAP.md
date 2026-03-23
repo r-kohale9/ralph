@@ -117,9 +117,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | GF8 blanket-ban rule text fix (agent a5cfd30 running) — clarify toBeVisible/toBeHidden banned entirely (not conditional). Then: gameover transition gen rule (50% game-flow failure — lives=0 → data-phase stays 'playing'). |
-| Status | 1225/1225 tests pass. #580 APPROVED (iter=3). #581 contract fix loop running (gameId undefined). GF8 blanket-ban fix agent running (a5cfd30). Backlog: HIGH-1 no #results-screen (stats-identify-class); HIGH-3 FeedbackManager audio; M-002 results rounds-completed; M-003 aria-atomic; gameover transition 50% game-flow failure. |
-| Waiting on | GF8 fix agent; #581 result |
+| Current task | GEN-LIVES-EXHAUST + GEN-RESULTS-DOM + GEN-FEEDBACKMGR-AUDIO + GEN-TESTID-RESTART-CDN-patch agent running (abea02f63f5807b73). Pending: CR-GF8 contradictions in M16/GF10/GF-NEW-3/GF-EXACT/M20 RIGHT examples use banned toBeVisible() (WARN from CR-GF8 review) |
+| Status | 1229 tests pass. #581 stats-identify-class FAILED (0% game-flow, 58% overall, 59min). #582 stats-median running. Worker at 881285d. GEN-LIVES-EXHAUST/GEN-RESULTS-DOM/GEN-FEEDBACKMGR-AUDIO/GEN-TESTID-RESTART-CDN agent running. |
+| Waiting on | gen rules implementation agent abea02f63f5807b73 |
 | Blocked by | none |
 
 | Item | Status | File(s) | Notes |
@@ -516,7 +516,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-GEN-DOM-CACHE DONE (1741e83) — brace-depth scanner deployed. Next: review lib/prompts.js GF8 change (3c75c15) — verify WRONG/RIGHT examples are correct and GF8 rule not over-broad. |
+| Current task | CR-GF8 DONE (WARN) — prompts.js has 6+ "RIGHT" examples in M16/GF10/GF-NEW-3/GF-EXACT/M20 using banned toBeVisible()/toBeHidden(). Fix needed: replace those examples with compliant alternatives. Route to Gen Quality backlog. |
 | Waiting on | none |
 | Blocked by | none |
 
@@ -614,8 +614,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | #580 stats-mean-direct APPROVED. #581 still running (mechanics batch 2). After #581 completes: git pull + restart worker to load GF8 (3c75c15) + CR-GEN-DOM-CACHE (1741e83). Then verify GF8 active on next build. |
-| Waiting on | #581 completion → git pull → worker restart |
+| Current task | Worker restarted at 881285d. #582 stats-median queued to verify GEN-MOBILE-STACK active. After #582 completes: verify GEN-LIVES-EXHAUST + GEN-RESULTS-DOM in next build. |
+| Waiting on | #582 result |
 | Blocked by | none |
 
 **Verification log:**
@@ -650,9 +650,9 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | #580 stats-mean-direct APPROVED (iter=3, 26min, 2026-03-23). #581 stats-identify-class: game-flow 2/4 max iterations, mechanics skip_tests (GF8), level-progression fix loop running. After #581: restart worker + git pull (GF8 + CR-DOM-CACHE + brace-depth). Queue stats-median next (verify GEN-MOBILE-STACK fix). |
-| Status | stats-mean-direct ✅ approved #580. stats-identify-class 🔄 running #581 (LP fix-level-progression-1 in flight). Worker restart blocked until #581 completes. |
-| Waiting on | #581 completion |
+| Current task | #581 FAILED — #582 stats-median running (build started 09:42 UTC, Gemini 2.5 Pro HTML gen). After #582: run stats-mode. |
+| Status | stats-mean-direct ✅ approved #580. stats-identify-class ❌ FAILED #581 (game-flow 0%, mobile layout broken, gameover transition). stats-median 🔄 running #582 (09:42 UTC). Worker at 881285d with GEN-MOBILE-STACK active. |
+| Waiting on | #582 result |
 | Blocked by | nothing |
 
 | Task | Status | Notes |

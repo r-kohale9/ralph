@@ -4,9 +4,9 @@
 
 | Game | Session | Bloom | Status | Build # | Iter | Build Time | UI/UX | Next Action |
 |------|---------|-------|--------|---------|------|------------|-------|-------------|
-| [stats-identify-class](stats-identify-class/index.md) | Stats 1/5 | L1 Remember | 🔄 Re-queued | #581 running | — | — | ⚠️ 1 P0 + 9 findings (browser 2026-03-23) | #581 running (game-flow 2/4, mechanics running). GEN-MOBILE-STACK deployed. |
+| [stats-identify-class](stats-identify-class/index.md) | Stats 1/5 | L1 Remember | ❌ FAILED | #581 | 0 | ~60min | ⚠️ 1 P0 + 9 findings (browser 2026-03-23) | game-flow 0% (mobile layout P0, gameover transition) |
 | [stats-mean-direct](stats-mean-direct/index.md) | Stats 2/5 | L2-L3 Apply | ✅ Approved | #580 | 3 | ~26min | ✅ 0 P0 3 findings (browser 2026-03-23) | APPROVED. 9/9 rounds, results fixed, Play Again PASS. M-001 nextRound harness timing (test gap); M-002 results missing rounds-completed (gen rule); M-003 aria-atomic absent (gen rule). No re-queue. |
-| [stats-median](stats-median/index.md) | Stats 3/5 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
+| [stats-median](stats-median/index.md) | Stats 3/5 | L3 Apply | 🔄 Running | #582 | 0 | ~0min | ✅ 3 findings | HTML gen started 09:42 UTC — GEN-MOBILE-STACK + GF8 blanket-ban active |
 | [stats-mode](stats-mode/index.md) | Stats 4/5 | L3 Apply | 📝 Spec ready | — | — | — | ✅ 3 findings | Human review before queuing |
 | [stats-which-measure](stats-which-measure/index.md) | Stats 5/5 | L4 Analyze | 📝 Spec ready | — | — | — | ❌ Pending | Human review before queuing |
 | [name-the-sides](name-the-sides/index.md) | Trig 1/5 | L2 Understand | ✅ Approved | #562 | 3 | ~35 min | ✅ 10 findings | — |
