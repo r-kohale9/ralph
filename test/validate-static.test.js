@@ -4007,3 +4007,116 @@ describe('GEN-CORRECT-ANSWER-EXPOSURE: round string correct-answer field must be
     );
   });
 });
+
+// ─── GEN-WORKED-EXAMPLE-TEARDOWN ─────────────────────────────────────────────
+
+describe('GEN-WORKED-EXAMPLE-TEARDOWN: worked-example panel button re-enable check', () => {
+  it('warns when worked-example + gotIt handler present but no removeAttribute disabled', () => {
+    // Has worked-example panel and handleGotIt but never re-enables option buttons
+    const html = VALID_HTML.replace(
+      'function endGame() {',
+      'function handleGotIt() {\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "none";\n' +
+      '}\n' +
+      'function showWorkedExample() {\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "block";\n' +
+      '}\n' +
+      'function endGame() {',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('WARNING') && output.includes('GEN-WORKED-EXAMPLE-TEARDOWN'),
+      `Expected GEN-WORKED-EXAMPLE-TEARDOWN warning but got: ${output}`,
+    );
+  });
+
+  it('does NOT warn when worked-example + gotIt handler re-enables buttons with removeAttribute', () => {
+    // Correct pattern: handler re-enables buttons before hiding panel
+    const html = VALID_HTML.replace(
+      'function endGame() {',
+      'function handleGotIt() {\n' +
+      '  var optionBtns = document.querySelectorAll(".option-btn");\n' +
+      '  optionBtns.forEach(function(btn) { btn.removeAttribute("disabled"); });\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "none";\n' +
+      '}\n' +
+      'function showWorkedExample() {\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "block";\n' +
+      '}\n' +
+      'function endGame() {',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-WORKED-EXAMPLE-TEARDOWN'),
+      `Unexpected GEN-WORKED-EXAMPLE-TEARDOWN warning for correct pattern: ${output}`,
+    );
+  });
+
+  it('does NOT warn when HTML has no worked-example logic at all', () => {
+    // Plain MCQ game with no worked-example panel — check must be silent
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-WORKED-EXAMPLE-TEARDOWN'),
+      `Unexpected GEN-WORKED-EXAMPLE-TEARDOWN warning for HTML with no worked-example logic: ${output}`,
+    );
+  });
+});
+
+// ─── GEN-ISPROCESSING-RESET ───────────────────────────────────────────────────
+
+describe('GEN-ISPROCESSING-RESET: isProcessing must be reset to false', () => {
+  it('warns when isProcessing = true present but isProcessing = false is never set', () => {
+    // Sets isProcessing to true but never clears it — permanent deadlock
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function handleAnswer() {\n' +
+      '  if (gameState.isProcessing) return;\n' +
+      '  gameState.isProcessing = true;\n' +
+      '  checkAnswer(gameState.correct);\n' +
+      '}\n' +
+      'function checkAnswer(answer) {',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('WARNING') && output.includes('GEN-ISPROCESSING-RESET'),
+      `Expected GEN-ISPROCESSING-RESET warning but got: ${output}`,
+    );
+  });
+
+  it('does NOT warn when isProcessing = true and isProcessing = false are both present', () => {
+    // Correct pattern: isProcessing is set and cleared
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function handleAnswer() {\n' +
+      '  if (gameState.isProcessing) return;\n' +
+      '  gameState.isProcessing = true;\n' +
+      '  checkAnswer(gameState.correct);\n' +
+      '  gameState.isProcessing = false;\n' +
+      '}\n' +
+      'function checkAnswer(answer) {',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-ISPROCESSING-RESET'),
+      `Unexpected GEN-ISPROCESSING-RESET warning for correct pattern: ${output}`,
+    );
+  });
+
+  it('does NOT warn when HTML has no isProcessing usage at all', () => {
+    // Plain game with no isProcessing — check must be silent
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-ISPROCESSING-RESET'),
+      `Unexpected GEN-ISPROCESSING-RESET warning for HTML with no isProcessing: ${output}`,
+    );
+  });
+});
