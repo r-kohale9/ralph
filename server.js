@@ -817,7 +817,10 @@ function createApp(deps = {}) {
         };
       }
 
-      await transport.handleRequest(req, res, req.body);
+      // Thread caller identity from optional header into tool handlers
+      const { requestContext } = require('./lib/mcp');
+      const slackUserId = req.headers['x-ralph-notify-user'] || null;
+      await requestContext.run({ slackUserId }, () => transport.handleRequest(req, res, req.body));
 
       if (transport.sessionId && !mcpSessions.has(transport.sessionId)) {
         mcpSessions.set(transport.sessionId, transport);

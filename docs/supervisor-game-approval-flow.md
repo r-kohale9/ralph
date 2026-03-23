@@ -17,20 +17,47 @@ The supervisor runs this entirely inside **Claude Desktop**. Once a spec is regi
 
 ## Prerequisites
 
-Claude Desktop must have the Ralph MCP server connected. Add this to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+Claude Desktop must have the Ralph MCP server connected. Add this to `~/Library/Application Support/Claude/claude_desktop_config.json`.
 
+Replace `YOUR_SLACK_USER_ID` with your own Slack user ID (Settings -> Profile -> three-dot menu -> Copy member ID). The header is optional -- omit it if you do not want Slack notifications.
+
+**Mithilesh:**
 ```json
 {
   "mcpServers": {
     "ralph": {
       "command": "npx",
-      "args": ["mcp-remote", "http://34.93.153.206/mcp", "--allow-http"]
+      "args": [
+        "mcp-remote",
+        "http://34.93.153.206/mcp",
+        "--allow-http",
+        "--header",
+        "X-Ralph-Notify-User: U0242GULG48"
+      ]
     }
   }
 }
 ```
 
-No auth token required. After saving, quit Claude Desktop (Cmd+Q) and reopen it.
+**Harshvardhan:**
+```json
+{
+  "mcpServers": {
+    "ralph": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://34.93.153.206/mcp",
+        "--allow-http",
+        "--header",
+        "X-Ralph-Notify-User: YOUR_SLACK_USER_ID"
+      ]
+    }
+  }
+}
+```
+
+After saving, quit Claude Desktop (Cmd+Q) and reopen it.
 
 ---
 
