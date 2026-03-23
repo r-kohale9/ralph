@@ -2501,3 +2501,54 @@ This is the first complete Bloom L2→L4 learning session produced by the Ralph 
 **Rule added:** GEN-RESTART-RESET — restartGame() must reset ALL gameState fields. Two existing confirmed patterns also missed by static: ARIA live regions (ariaLive:null only visible in computed style) and ProgressBar slotId errors (slot-injection failure visible only in rendered DOM).
 
 **Process implication:** Every approved game needs a browser playthrough. "Static analysis only" audits miss the class of bugs that require a live DOM/CSS interaction. Prioritize browser audits over static-only audits when choosing audit targets.
+
+## Lesson 192 — signalCollector.reset() does not exist in CDN SignalCollector API (2026-03-23)
+
+**Source:** CR-030 code review, CDN source verification | **Build:** multiple
+
+**Problem:** Gen code calls `signalCollector.reset()` inside `restartGame()`. The CDN SignalCollector prototype does NOT expose a `reset()` method. Calling it throws `TypeError: signalCollector.reset is not a function` — same failure class as `signalCollector.trackEvent()` which causes a blank page.
+
+**CDN SignalCollector public API (confirmed):** `recordViewEvent`, `recordCustomEvent`, `startProblem`, `endProblem`, `seal()`, `pause()`, `resume()` — no `reset()`.
+
+**Correct pattern for restartGame():**
+```js
+signalCollector = new SignalCollector({
+  sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+  studentId: window.gameVariableState?.studentId || null,
+  templateId: gameState.gameId || null
+});
+```
+
+**Rule:** GEN-SIGNAL-RESET (rule 50) updated to use re-instantiation instead of reset().
+
+## Lesson 193 — syncDOMState sets data attributes on #app, not body — confirmed in 2+ games (2026-03-23)
+
+**Source:** UI/UX browser audits count-and-tap #551 + real-world-problem #564 | **Build:** #551, #564
+
+**Problem:** Gen produces `document.getElementById('app').dataset.phase = gameState.phase` instead of `document.body.dataset.phase = gameState.phase`. PART-003 spec requires body. All contract/game-flow test assertions on `body[data-phase]` return null when the game writes to `#app[data-phase]`.
+
+**Impact:** Every game-flow test that checks `body[data-phase]` fails silently or returns incorrect state — the game appears to be in the wrong phase during test execution even when rendering correctly for a human player.
+
+**Fix:** Gen rule GEN-SYNC-TARGET added — explicitly bans `#app.dataset.phase` with a WRONG/RIGHT example. T1 static check added to `validate-static.js` to catch `getElementById('app').dataset` at build time.
+
+## Lesson 194 — ProgressBar shows "N-1 of N" at victory — off-by-one on final round (2026-03-23)
+
+**Source:** count-and-tap #551 browser audit | **Build:** #551
+
+**Problem:** `renderRound(index)` calls `progressBar.update(index, lives)` where `index` is 0-based. After the player answers the last round, `endGame()` is called without a terminal `progressBar.update(totalRounds, lives)`. Victory screen shows "4/5 rounds completed" even when all 5 rounds were answered correctly.
+
+**Classification:** Gen rule gap — `endGame()` must call `progressBar.update(gameState.totalRounds, gameState.lives)` before `transitionScreen.show()`.
+
+**Affected scope:** Any game where `endGame()` is called immediately after the last round answer without a final progressBar sync. Pattern is present across multiple approved games.
+
+## Lesson 195 — CSS strip in build #551 — confirmed first style block replaced with comment (2026-03-23)
+
+**Source:** count-and-tap #551 browser audit | **Build:** #551
+
+**Problem:** First `<style>` block replaced with `/* [CSS stripped — 59 chars, not relevant to JS fix] */` during a fix iteration. The game's custom layout CSS is removed.
+
+**Why it still passes tests:** CDN `ScreenLayout` and `ProgressBar` components inject their own CSS via CDN at runtime. Interactive elements fall back to browser defaults — correct behavior but wrong visual presentation (no min-height, incorrect colors, unpolished touch targets).
+
+**Root cause:** Static validator in a fix iteration strips the style block, judging it irrelevant to the JS-only fix being applied. This is a recurring pattern — see also Lesson 156 (CSS stripped in fix loop).
+
+**Rule:** Fix-loop prompt must explicitly state: "Never remove or comment out `<style>` blocks. Preserve all CSS exactly as-is unless the fix specifically targets a CSS rule."
