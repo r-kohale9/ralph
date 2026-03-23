@@ -117,8 +117,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | PART-003+GEN-117 reinforced — adjustment-strategy root cause addressed (commit bfbe125, 2026-03-23). Added 4 WRONG/RIGHT/WHY evidence blocks with build #381/#376-#378 data. Tests 1012/1012. Deployed. Next: CR-014 (GEN-RESTART-RESET minimum reset set — "for any field set during setupGame()/startGame(), reset it in restartGame()"). |
-| Status | 1012/1012 tests pass (988 + 15 new TE-RES-001 tests + 9 others). GF fix impact: ~70% of game-flow failures addressed. Awaiting next build to measure lift from 63% baseline. |
+| Current task | GEN-SVG-CONTRAST (rule 48) + GEN-LOCAL-ASSETS (rule 49) shipped (2026-03-23, commit 2edf689). Rules added to CDN_CONSTRAINTS_BLOCK + buildGenerationPrompt() (numbered) + buildCliGenPrompt(). 1017/1017 tests pass. Deployed. Next: CR-014 (GEN-RESTART-RESET minimum reset clarification — "for any field set during setupGame()/startGame(), reset it in restartGame()"). |
+| Status | 1017/1017 tests pass. 49 gen rules active. find-triangle-side #549 audit fully addressed (UI-FTS-005 + UI-FTS-007). Awaiting next build to measure lift from 63% baseline. |
 | Waiting on | next approved build to confirm game-flow rate improvement |
 | Blocked by | none |
 
@@ -576,6 +576,7 @@
 | GEN-UX-003 (ProgressBar slotId options object) | #561 (which-ratio, baseline) | VERIFIED (rule text confirmed) | prompts.js lines 630–642 + 633–639. Baseline HTML (build #561) uses `new ProgressBarComponent({ autoInject: true, totalRounds: ..., totalLives: 0 })` — MISSING `slotId` key entirely. T1 check in validate-static.js (§5f11) catches positional-string form but NOT the missing-slotId-key form — gap noted. New builds with rule will emit correct `slotId: 'mathai-progress-slot'`. | 2026-03-23 |
 | GEN-UX-004 (alert() ban) | #561 (which-ratio, baseline) | VERIFIED (rule text confirmed; baseline clean) | prompts.js lines 212 + 644. No `alert(` found in build #561 HTML — baseline did not exhibit this violation. T1 check in validate-static.js: ABSENT — no regex for `alert(` calls. Gap: rule has no enforcement backstop. | 2026-03-23 |
 | GEN-UX-005 (SignalCollector constructor args) | #561 (which-ratio, baseline) | VERIFIED (rule text confirmed; baseline shows violation) | prompts.js lines 213 + 657–664. Baseline HTML (build #561) line 804: `signalCollector = new SignalCollector()` — no args, confirmed violation. Rule ships correct form with `{ sessionId, studentId, templateId }`. T1 check in validate-static.js: ABSENT for no-arg form — gap noted. | 2026-03-23 |
+| GEN-SVG-CONTRAST (rule 48, 2edf689) + GEN-LOCAL-ASSETS (rule 49, 2edf689) | find-triangle-side #549 | VERIFIED (rule text); T1 gap confirmed | Rules present in all 3 required locations: CDN_CONSTRAINTS_BLOCK lines 249-250, buildGenerationPrompt rules section line 929/950, buildCliGenPrompt compact rules lines 1124-1125. Server deployment confirmed (ssh grep matches same 4 lines). Known violations confirmed in #549 HTML: `stroke="#64748b"` at lines 23/25/27 (SVG contrast), `icons: ['assets/game_find_triangle_side_icon.svg']` at line 429 (local asset). T1 validator (validate-static.js) does NOT catch either pattern — no SVG-CONTRAST or LOCAL-ASSETS checks exist. GAP: both rules lack T1 enforcement backstop. | 2026-03-23 |
 
 ---
 
