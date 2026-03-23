@@ -117,8 +117,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CT-NEW-1/2/3 DONE (commit 802d161) — CT4/CT8 contradiction fixed (closure capture), CT-NEW-2 phase target, CT-NEW-3 bilateral CT9. Expected: contract 42% → 70-75%. Next: deploy + verify on next approved build. |
-| Status | 1150/1150 tests pass. CT-NEW-1: CT4/CT8 merged into unified closure-capture rule (~40% of CT failures). CT-NEW-2: phase-agnostic waitForPhase target (~13% of CT failures). CT9: strengthened to bilateral ban — both toBeVisible AND not.toBeVisible shown as WRONG. CT8 marked superseded. 6 new unit tests verify prompt content in pipeline-test-gen.test.js. |
+| Current task | CT-NEW-1/2/3/4 DONE (commit eea041e) — 4 CT rules + 2 T1 linter rules (CT_WRONG_PHASE, CT_STAR_EXACT). Patterns: closure-capture, phase-target, #results-screen proxy, exact-star-count. Expected: contract 42% → 70-75%. Next: verify on next approved build. |
+| Status | 1167/1167 tests pass. CT-NEW-1: closure-capture pattern replaces CT4+CT8 (~40% of CT failures). CT-NEW-2: phase-agnostic waitForPhase target (~13% of failures). CT-NEW-3: ban #results-screen as proxy selector. CT-NEW-4: ban exact star count (toBe(N)). CT_WRONG_PHASE T1 linter: catches waitForPhase('gameover'/'recall') in contract files. CT_STAR_EXACT T1 linter: catches .data.metrics.stars).toBe(N). 100-build RCA: 48% pass rate identified 4 distinct root causes. |
 | Waiting on | none |
 | Blocked by | none |
 
@@ -515,13 +515,14 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-056/055/059 reviewed — all three confirmed. CR-056 (GCP upload isolation) + CR-055 (fix-job pattern resolution) already present in file. CR-059 (buildQueue.close leak) fixed with try/finally, commit 989a82d, deployed to GCP (build #566 running — SCP only). Next: categorize-failure.js CR-058 (multiline diff format). |
+| Current task | **CR-058 DONE** — categorizeFailure() multi-line Playwright numeric diff fix (commit eea041e). File deployed to GCP (SCP only — build #567 running). 2 unit tests added (branch 15b). Next: backlog sweep or new finding. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
 **Log:**
 | Date | Files reviewed | Finding | Routed to |
 |------|---------------|---------|-----------|
+| 2026-03-23 | lib/categorize-failure.js | **CR-058 [FIXED] — categorizeFailure() missed multi-line Playwright numeric diff format.** The existing branch `/expected:\s*\d.*received:\s*\d/i` requires both values on one line. Playwright emits them on separate lines: `Expected: 2\nReceived: 1`. These fell through to `'unknown'`. Fix: added second branch `/expected:\s*[\d"'][\s\S]*?received:\s*[\d"']/i` using `[\s\S]*?` to span newlines. 2 unit tests added (branch 15b). Commit eea041e. Deployed to GCP (SCP only — build #567 running). 1167/1167 tests pass. | — |
 | 2026-03-23 | lib/prompts.js | **CR-072 [WARN] — GEN-TESTID-STEP (rule 57) + GEN-WINDOW-NEXTROUNDEXPOSED (rule 58) absent from buildGenerationPrompt numbered list:** Both rules are present in CDN_CONSTRAINTS_BLOCK (lines 313–314, inline one-liner form) and in buildCliGenPrompt (lines 1510, 1514 inline form). However, neither appears in the long numbered list (rules 1–58) inside `buildGenerationPrompt`'s ADDITIONAL GENERATION RULES section. Every other rule from GEN-RESTART-RESET, GEN-PHASE-ALL, GEN-TRANSITION-ICONS, GEN-MCQ-PHASE etc. appears in all three locations as a numbered entry. Rules 57 and 58 land in only 2/3 locations. Risk: LOW — CDN_CONSTRAINTS_BLOCK is included verbatim in buildGenerationPrompt via `${CDN_CONSTRAINTS_BLOCK}`, so the LLM does see both rules. But the numbered list is where reviewers check rule presence systematically. Recommendation: add rules 57 and 58 as numbered list entries. | Gen Quality backlog |
 | 2026-03-23 | lib/prompts.js | **CR-073 [WARN] — GEN-TESTID-STEP scope ambiguity (sequential-visibility vs. concurrent-DOM):** The rule triggers on "multiple sequential interactive steps that coexist in the DOM simultaneously" but the WRONG/RIGHT example shows step panels that are hidden/shown (display:none toggle), not truly concurrent. GEN-STEP-001 already mandates hiding all non-active panels. If a game follows GEN-STEP-001 correctly, only step1-panel is ever visible — yet GEN-TESTID-STEP still applies because ALL panels exist in the DOM at once (just with display:none). The current wording "coexist in the DOM simultaneously" is correct but could be read as "simultaneously visible". LLM may hesitate to apply the rule when panels are hidden. Fix needed: replace "coexist in the DOM simultaneously" with "exist in the DOM at the same time (regardless of display:none or visibility:hidden state) — querySelector always hits the first DOM match even when panels are hidden". | Gen Quality backlog |
 | 2026-03-23 | lib/prompts.js | **CR-074 [WARN] — GEN-WINDOW-NEXTROUNDEXPOSED no-op risk: rule says "single-round game OR no concept of next round → define window.nextRound = () => {}" — but provides no definition of "single-round". The LLM could interpret any non-advancing game (e.g. a worked-example with multiple question panels but no explicit "round" loop) as single-round and add a useless no-op, hiding a genuine missing-nextRound bug. LOW risk since adding a no-op is safe (harness calls it, nothing happens), but can mask real omissions. Recommendation: add a clarifying note: "If in doubt, expose the real advance function; only use no-op when the spec explicitly says the game ends after a single interaction sequence". | Gen Quality low-backlog |
@@ -666,6 +667,24 @@
 ---
 
 ## Analytics — Last Run
+
+**ANALYTICS UPDATE (2026-03-23 session-3 — failure_patterns resolve rates):**
+
+| Category | Unresolved | Resolve Rate |
+|---|---|---|
+| messaging | 4 | 56% ← LOWEST |
+| scoring | 4 | 75% |
+| rendering | 6 | 84% |
+| timing | 1 | 86% |
+| interaction/state/infra/unknown | 0 | 100% |
+
+**Top 5 unresolved (all contract.spec.js):** (1) postMessage payload undefined — `toBeDefined()` received undefined. (2) `button:has-text("Okay!")` timeout 15s — FeedbackManager audio popup blocking. (3) `.option-btn` not visible 5s. (4) `#mathai-transition-slot button` not found. (5) Game Over Low Score `button:has-text("Okay!")` timeout. Common thread: all 5 are contract.spec.js; 2+5 share same "Okay!" audio popup root cause.
+
+**First-attempt rate:** 47/94 (50.0%) — flat. Fix loop not rescuing bad generations (confirmed finding).
+
+**Build #567** (keep-track) running iter=0. **Slot routing:** Gen Quality → messaging 56% resolve rate — postMessage payload contract. Test Engineering → "Okay!" audio popup timeout in contract tests (2 occurrences). Gen Quality: CT-NEW-1/2/3 expected to close transition-slot button patterns (#4 above).
+
+---
 
 **ANALYTICS UPDATE (2026-03-23 session-2 schema-corrected — failure_patterns table):**
 
