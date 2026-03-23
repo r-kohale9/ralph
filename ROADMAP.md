@@ -118,7 +118,7 @@
 | Field | Value |
 |-------|-------|
 | Current task | M20 DONE (2026-03-23, see commit). CSS transition panel visibility timeout fix for mechanics tests. Added M20 CSS TRANSITION PANEL VISIBILITY (CRITICAL) to buildTestGenCategoryPrompt() mechanics section in lib/prompts.js immediately after M15. Covers `.toBeHidden()`/`.toBeVisible()` calls on panels that use CSS class transitions — requires `{ timeout: 15000 }` or expect.poll(). 1119/1120 tests pass (1 pre-existing server-integration failure unrelated to M20). Next: M19's worked-example-panel pattern eliminated + re-audit mechanics pass rate after 2 builds. |
-| Status | 1119/1120 tests pass. M20 deployed GCP (lib/prompts.js). Three root causes in mechanics 35.2% rate identified: (1) transition slot .not.toBeVisible() 5/30 batches → M19 fixed, (2) CSS transition panel visibility 5/30 batches → M20 fixed, (3) exact value assertions 8/30 batches → pending. |
+| Status | 1130/1130 tests pass. M20 deployed GCP (lib/prompts.js). Three root causes in mechanics 35.2% rate identified: (1) transition slot .not.toBeVisible() 5/30 batches → M19 fixed, (2) CSS transition panel visibility 5/30 batches → M20 fixed, (3) exact value assertions 8/30 batches → pending. |
 | Waiting on | none |
 | Blocked by | none |
 
@@ -627,8 +627,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | planSession() wired end-to-end with researchCurriculum context (commit TBD, 2026-03-23). Next: implement /api/session endpoint (POST → planSessionFromObjective → return session JSON). |
-| Status | Session Planner v1 Steps 1+2+3 wired. planSessionFromObjective() now accepts parsedGoalOverride + outputDir for deterministic testing. 5 integration tests added. 1130 total tests pass (0 failures). |
+| Current task | /api/session endpoint DONE (commit TBD, 2026-03-23). Next: add /api/session to MCP tools list in lib/mcp.js so Claude can trigger session planning via MCP. |
+| Status | Session Planner v1 Steps 1+2+3 wired. POST /api/session → planSessionFromObjective → return session JSON. planSessionFromObjective injectable via createApp(deps). 5 new integration tests added (200 valid, 400 missing/empty/non-string, 500 LLM error). 1135 total tests pass (0 failures). |
 | Waiting on | nothing — unblocked |
 | Blocked by | nothing |
 

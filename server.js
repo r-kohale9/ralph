@@ -11,7 +11,7 @@ const slack = require('./lib/slack');
 const logger = require('./lib/logger');
 const sentry = require('./lib/sentry');
 const metrics = require('./lib/metrics');
-const { buildSessionPlan } = require('./lib/session-planner');
+const { buildSessionPlan, planSessionFromObjective: _planSessionFromObjective } = require('./lib/session-planner');
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 const BULK_THRESHOLD = parseInt(process.env.RALPH_BULK_THRESHOLD || '5', 10);
@@ -67,6 +67,7 @@ function createApp(deps = {}) {
   const queue = deps.queue || null;
   const connection = deps.connection || null;
   const webhookSecret = deps.webhookSecret !== undefined ? deps.webhookSecret : process.env.GITHUB_WEBHOOK_SECRET;
+  const planSessionFromObjective = deps.planSessionFromObjective || _planSessionFromObjective;
 
   // ─── Per-app in-process rate limiter for build/fix endpoints ───────────────
   // State is scoped to each createApp() call so test instances are isolated.
@@ -712,6 +713,21 @@ function createApp(deps = {}) {
       return res.status(404).json(plan);
     }
     res.json(plan);
+  });
+
+  // ─── Session Planner API (Phase 2: LLM-driven objective → session JSON) ────
+  app.post('/api/session', async (req, res) => {
+    const { objective } = req.body;
+    if (!objective || typeof objective !== 'string' || objective.trim().length === 0) {
+      return res.status(400).json({ error: 'objective is required' });
+    }
+    try {
+      const session = await planSessionFromObjective(objective.trim());
+      res.json(session);
+    } catch (err) {
+      logger.error({ err }, 'Session planning failed');
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // ─── Slack Events API ──────────────────────────────────────────────────────

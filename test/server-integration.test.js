@@ -740,3 +740,67 @@ describe('Server integration: /api/fix queue error handling (CR-064)', () => {
     assert.equal(builds.status, 'failed', `Expected status='failed', got '${builds.status}'`);
   });
 });
+
+// ─── /api/session endpoint ───────────────────────────────────────────────────
+describe('Server integration: /api/session', () => {
+  const stubSession = {
+    parsedGoal: { topic: 'trigonometry', gradeLevel: 9, skillIds: [] },
+    sessionPlan: { sessionId: 'sess-001', games: [] },
+    sessionId: 'sess-001',
+    outputPath: '/tmp/sess-001',
+    filesWritten: [],
+  };
+
+  let server;
+
+  before((_, done) => {
+    const mockPlanSessionFromObjective = async (objectiveText) => {
+      if (objectiveText === 'throw-error') throw new Error('LLM unavailable');
+      return stubSession;
+    };
+    const app = createApp({
+      queue: createMockQueue(),
+      connection: createMockConnection(),
+      planSessionFromObjective: mockPlanSessionFromObjective,
+    });
+    server = app.listen(0, done);
+  });
+
+  after((_, done) => {
+    server.close(done);
+  });
+
+  it('POST /api/session returns 200 and session JSON for valid objective', async () => {
+    const res = await request(server, 'POST', '/api/session', {
+      objective: 'Teach students to find missing sides of right triangles',
+    });
+    assert.equal(res.status, 200);
+    assert.ok(res.body.sessionId, 'response must include sessionId');
+    assert.ok(res.body.parsedGoal, 'response must include parsedGoal');
+    assert.ok(res.body.sessionPlan, 'response must include sessionPlan');
+  });
+
+  it('POST /api/session returns 400 when objective is missing', async () => {
+    const res = await request(server, 'POST', '/api/session', {});
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, 'objective is required');
+  });
+
+  it('POST /api/session returns 400 when objective is empty string', async () => {
+    const res = await request(server, 'POST', '/api/session', { objective: '   ' });
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, 'objective is required');
+  });
+
+  it('POST /api/session returns 400 when objective is not a string', async () => {
+    const res = await request(server, 'POST', '/api/session', { objective: 42 });
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, 'objective is required');
+  });
+
+  it('POST /api/session returns 500 when planSessionFromObjective throws', async () => {
+    const res = await request(server, 'POST', '/api/session', { objective: 'throw-error' });
+    assert.equal(res.status, 500);
+    assert.equal(res.body.error, 'LLM unavailable');
+  });
+});
