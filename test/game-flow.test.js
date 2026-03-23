@@ -35,6 +35,10 @@ function assertResultsViewportCoverage(coverageCheck) {
     // Element exists but is not visible yet (display:none or zero-size) — skip assertion
     return { skipped: true };
   }
+  // TE-RES-002: coversViewport now requires rectTop <= 10 (rectTop guard).
+  // A position:relative element may have height >= innerHeight but be scrolled below the fold
+  // (rectTop=200px) — the button at the bottom would be off-screen. The guard prevents that
+  // false-pass. Mirrors the coversViewport computation in lib/pipeline-test-gen.js page.evaluate().
   const passes = coverageCheck.position === 'fixed' || coverageCheck.coversViewport;
   return {
     skipped: false,
@@ -147,6 +151,55 @@ describe('TE-RES-001: results-screen viewport coverage — assertion logic', () 
     assert.equal(result.passes, undefined, 'no pass/fail when skipped');
   });
 
+  // TE-RES-002: rectTop guard — false-pass prevention for scrolled-down relative screens
+  it('fails when height >= innerHeight but rectTop=200px (scrolled below fold — coversViewport=false)', () => {
+    // A position:relative element in a full-height flex parent may have height >= innerHeight
+    // but be pushed 200px below the viewport origin. Without the rectTop guard, an older
+    // coversViewport formula could incorrectly pass if it only checked height. Verifies the
+    // guard is enforced: coversViewport must be false when rectTop=200 > 10.
+    const result = assertResultsViewportCoverage({
+      found: true,
+      position: 'relative',
+      zIndex: 'auto',
+      rectTop: 200,
+      rectHeight: 667,
+      coversViewport: false, // rectTop=200 > 10 — coversViewport correctly false
+    });
+    assert.equal(result.skipped, false);
+    assert.equal(result.passes, false, 'rectTop=200 must fail even when height covers viewport');
+    assert.ok(result.message.includes('top=200px'), 'message shows scrolled-down rectTop');
+  });
+
+  it('passes when position:fixed and top=0 (standard fully-correct implementation)', () => {
+    // Canonical case: gen prompt shipped position:fixed; inset:0; z-index:100
+    const result = assertResultsViewportCoverage({
+      found: true,
+      position: 'fixed',
+      zIndex: '100',
+      rectTop: 0,
+      rectHeight: 844,
+      coversViewport: true,
+    });
+    assert.equal(result.skipped, false);
+    assert.equal(result.passes, true, 'position:fixed with top=0 must pass');
+    assert.equal(result.message, null);
+  });
+
+  it('passes when height >= innerHeight AND rectTop <= 10 (full-viewport relative with rectTop guard satisfied)', () => {
+    // position:absolute/relative with 100vh height and top within 10px tolerance is acceptable
+    const result = assertResultsViewportCoverage({
+      found: true,
+      position: 'absolute',
+      zIndex: '50',
+      rectTop: 5,
+      rectHeight: 844,
+      coversViewport: true, // rectTop=5 <= 10 AND height=844 >= innerHeight
+    });
+    assert.equal(result.skipped, false);
+    assert.equal(result.passes, true, 'height >= innerHeight with rectTop=5 within tolerance must pass');
+    assert.equal(result.message, null);
+  });
+
   // CR-019: SKIP cases — element exists but not yet visible (display:none or zero-size)
   it('skips when element exists but display:none (results screen hidden before game ends)', () => {
     // page.evaluate() returns skipped:true when getComputedStyle(el).display === 'none'
@@ -184,11 +237,15 @@ describe('TE-RES-001: results-screen viewport coverage — assertion logic', () 
 // ─── coversViewport computation logic ────────────────────────────────────────
 //
 // These tests validate the coversViewport flag logic as it would be computed
-// inside page.evaluate() in the browser. The flag is: rect.top <= 0 && rect.height >= window.innerHeight
+// inside page.evaluate() in the browser.
+// TE-RES-002: flag is: rect.top <= 10 && rect.height >= window.innerHeight
+// The <= 10 guard (was <= 0) prevents false-pass when a position:relative
+// element has height >= innerHeight but is scrolled below the fold (rectTop=200px).
 
 describe('TE-RES-001: coversViewport flag computation', () => {
   function computeCoversViewport(rectTop, rectHeight, viewportHeight) {
-    return rectTop <= 0 && rectHeight >= viewportHeight;
+    // Mirrors the page.evaluate() logic in lib/pipeline-test-gen.js (TE-RES-002)
+    return rectTop <= 10 && rectHeight >= viewportHeight;
   }
 
   it('coversViewport is true when top=0 and height equals viewport height (iPhone SE: 667px)', () => {
@@ -210,6 +267,17 @@ describe('TE-RES-001: coversViewport flag computation', () => {
 
   it('coversViewport is true when top is slightly negative (fixed element with top:-1px for hairline)', () => {
     assert.equal(computeCoversViewport(-1, 668, 667), true);
+  });
+
+  // TE-RES-002: rectTop guard boundary tests
+  it('coversViewport is true when top=10 and height covers viewport (10px tolerance boundary)', () => {
+    // Allows up to 10px of top offset — e.g. a 1px border or sub-pixel rounding
+    assert.equal(computeCoversViewport(10, 667, 667), true);
+  });
+
+  it('coversViewport is false when top=11 and height covers viewport (just outside tolerance)', () => {
+    // 11px > 10px tolerance — screen starts too far down, bottom of results would be off-fold
+    assert.equal(computeCoversViewport(11, 667, 667), false);
   });
 });
 
