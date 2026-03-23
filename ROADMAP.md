@@ -510,7 +510,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | DONE — server.js reviewed (2026-03-23). CR-060 [HIGH] no gameId sanitization (path traversal + injection possible). CR-061 [HIGH] Slack retry dedup missing (double builds on Slack retries). CR-062 [MED] MCP endpoint unauthenticated. CR-063 [MED] no rate limiting on /api/build. CR-064 [MED] /api/fix no queue-null guard on enqueue failure. CR-065 [LOW] /api/publish uses new Function() on extracted JS. Next: lib/pipeline.js review. |
+| Current task | DONE — CR-060 + CR-061 [HIGH] security fixes deployed to GCP (2026-03-23, commit f13ddd8). CR-060: gameId allowlist `/^[a-z0-9-]+$/` added to POST /api/build + POST /api/fix — blocks path traversal and shell injection. CR-061: `x-slack-retry-num` early-return added to createEventsHandler — prevents duplicate builds on Slack retries. 1073 tests pass. Next: lib/pipeline.js review. |
 | Waiting on | unblocked |
 | Blocked by | none |
 
