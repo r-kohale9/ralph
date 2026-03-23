@@ -1814,6 +1814,80 @@ describe('ARIA-002: aria-live=assertive without role=alert warning (W6)', () => 
   });
 });
 
+describe('GEN-CSS-TOKENS: banned CSS custom property tokens (W7)', () => {
+  it('emits GEN-CSS-TOKENS warning when --mathai-green is used', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--mathai-green);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--mathai-green'),
+      `Expected GEN-CSS-TOKENS warning for --mathai-green. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --color-red is used', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--color-red);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--color-red'),
+      `Expected GEN-CSS-TOKENS warning for --color-red. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --color-orange is used', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--color-orange);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--color-orange'),
+      `Expected GEN-CSS-TOKENS warning for --color-orange. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --color-green is used', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--color-green);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--color-green'),
+      `Expected GEN-CSS-TOKENS warning for --color-green. Output: ${output}`,
+    );
+  });
+
+  it('emits GEN-CSS-TOKENS warning when --color-success is used', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--color-success);');
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CSS-TOKENS') && output.includes('--color-success'),
+      `Expected GEN-CSS-TOKENS warning for --color-success. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-CSS-TOKENS warning when --mathai-success is used (valid token)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--mathai-success);');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CSS-TOKENS'),
+      `Unexpected GEN-CSS-TOKENS warning when using valid token --mathai-success. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-CSS-TOKENS warning when --mathai-error is used (valid token)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--mathai-error);');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CSS-TOKENS'),
+      `Unexpected GEN-CSS-TOKENS warning when using valid token --mathai-error. Output: ${output}`,
+    );
+  });
+
+  it('does NOT emit GEN-CSS-TOKENS warning when --mathai-warning is used (valid token)', () => {
+    const html = VALID_HTML.replace('background: #f0f0f0;', 'background: var(--mathai-warning);');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CSS-TOKENS'),
+      `Unexpected GEN-CSS-TOKENS warning when using valid token --mathai-warning. Output: ${output}`,
+    );
+  });
+});
+
 describe('GEN-UX-003 extension: ProgressBarComponent options object missing slotId key', () => {
   it('fails when ProgressBarComponent options object lacks slotId key', () => {
     const html = VALID_HTML.replace(
