@@ -12,58 +12,64 @@
 | | Count |
 |-|-------|
 | P0 (flow blocker) | 0 |
-| HIGH | 2 |
+| HIGH | 3 |
 | MEDIUM | 3 |
 | LOW | 2 |
-| PASS | 17 |
+| PASS | 18 |
 
-**Verdict:** No re-queue required (all issues are systemic gen prompt / accessibility / CDN warning issues, no flow blockers). All 3 rounds reachable end-to-end, results screen shows, Play Again resets correctly.
+**Verdict:** No re-queue required. All 3 rounds playable end-to-end. No flow blockers. Issues are systemic gen prompt patterns (gameId missing, aria-live absent, results-screen static) plus game-specific findings (data-phase initial value inconsistency, d-pad center button missing testid, FeedbackManager CDN warnings).
 
 ---
 
 ## Issues
 
-### UI-CM-001 — Maze cells are DIV elements without role/tabindex/aria-label (HIGH)
+### UI-CM-001 — `window.gameState.gameId` not set (HIGH)
 - **Category:** (a) gen prompt rule
-- **Observed:** All 6 maze cells are rendered as `<div class="maze-cell passable">` elements with `data-testid="option-N"` but no `role="button"`, no `tabindex`, and no `aria-label`. The cells have click handlers (`handleCellClick`) but are not keyboard accessible and are invisible to screen readers. Confirmed with `document.querySelectorAll('.maze-cell.passable')[0].getAttribute('role')` returning `null`.
-- **Expected:** Each interactive maze cell should have `role="button"`, `tabindex="0"`, and `aria-label` describing its value and position (e.g., `aria-label="Cell value 10, row 1 col 2"`).
-- **Action:** Routes to Gen Quality. This is the same `GEN-INTERACTIVE-DIV-ROLE` pattern established in keep-track #503 for interactive cup divs. Confirms 2nd instance. Rule should already be queued — confirm it is in the Gen Quality backlog.
+- **Observed:** `'gameId' in window.gameState` returns `false`. The key is entirely absent from the `gameState` object at all lifecycle stages — initial load, playing, results, post-restart. The key never appears; it is not set to `null` or `undefined` — it does not exist.
+- **Expected:** `window.gameState.gameId` should be set to a non-empty string (e.g. `'crazy-maze'`) at initialisation, consistent with the gen prompt contract. Tests that assert `gameState.gameId` will fail.
+- **Action:** Routes to Gen Quality. GEN-GAMEID rule already shipped. Confirmed absent in this build. Rule is not being applied consistently — escalate for investigation.
 
-### UI-CM-002 — window.gameState.gameId not set (HIGH)
+### UI-CM-002 — No aria-live regions anywhere in the game (HIGH)
 - **Category:** (a) gen prompt rule
-- **Observed:** `window.gameState.gameId` is `undefined`. The `gameState` object is initialized without a `gameId` field. In two places (`templateId: window.gameState?.gameId || null`) the field is referenced but never assigned, so `SignalCollector` receives `templateId: null`.
-- **Expected:** `window.gameState.gameId = 'crazy-maze'` set as part of the `gameState` initialization object.
-- **Action:** Routes to Gen Quality. GEN-GAMEID rule already shipped. This is the 8th+ confirmed browser instance. Rule is not being applied consistently — escalate to Gen Quality for investigation.
+- **Observed:** `document.querySelectorAll('[aria-live]').length` returns `0` at all phases. No live regions for target-sum announcements, collected-sum updates, round completions, or wrong-path feedback.
+- **Expected:** At minimum one `aria-live="polite"` region for collected sum changes and round advancement, to support screen readers.
+- **Action:** Routes to Gen Quality. ARIA-001 is the existing rule. Another confirmed browser instance — rule is already shipped but not applied here (build #481).
 
-### UI-CM-003 — results-screen position:static (MEDIUM)
+### UI-CM-003 — `data-phase` initial HTML value inconsistent with `gameState.phase` (HIGH)
 - **Category:** (a) gen prompt rule
-- **Observed:** `getComputedStyle(document.getElementById('results-screen')).position` returns `"static"`. The results screen is a flex child inside `#gameContent`, not a viewport-covering overlay. It renders correctly in this game because the game-screen is hidden via `display:none` when results show, but the rule mandates `position:fixed` regardless.
-- **Expected:** `position: fixed; z-index: 1000+` to overlay the entire viewport consistently.
-- **Action:** Routes to Gen Quality. GEN-UX-001 rule already shipped. This is the 22nd+ confirmed browser instance. Rule is not enforced consistently.
+- **Observed:** On initial page load, `#app[data-phase]` = `"start"` (hardcoded in the HTML attribute) but `window.gameState.phase` = `"start_screen"`. After `restartGame()` calls `syncDOMState()`, `#app[data-phase]` correctly becomes `"start_screen"`. The two representations diverge until the first `syncDOMState()` call. Tests checking `data-phase="start"` will pass on cold load but fail after Play Again, and vice versa — creating test fragility depending on whether the game is in first-run or restarted state.
+- **Expected:** The HTML `#app` element's initial `data-phase` attribute must match the initial `gameState.phase` value (`"start_screen"`). `syncDOMState()` should be called once at the end of initialisation so the DOM is always in sync from the first frame.
+- **Action:** Routes to Gen Quality. Add rule: initial HTML `data-phase` attribute must be `"start_screen"` to match the gameState initialisation value, OR `syncDOMState()` must be called immediately after `gameState` is defined. The current pattern of hardcoding `data-phase="start"` in HTML is incorrect.
 
-### UI-CM-004 — No aria-live regions anywhere in the game (MEDIUM)
+### UI-CM-004 — results-screen `position:static` (MEDIUM)
 - **Category:** (a) gen prompt rule
-- **Observed:** `document.querySelectorAll('[aria-live]').length` returns `0`. No live regions for maze navigation feedback, running total updates, correct/incorrect path announcements, or round progress.
-- **Expected:** At minimum one `aria-live="polite"` region for the running total display and feedback messages, to support screen readers.
-- **Action:** Routes to Gen Quality. ARIA-001 rule already shipped. This is the 20th+ confirmed browser instance.
+- **Observed:** `getComputedStyle(document.getElementById('results-screen')).position` returns `"static"`. Results card is a flex child inside `#gameContent`, not a viewport-covering overlay. It renders correctly here because the game screen is hidden when results show, but the rule mandates `position:fixed` regardless.
+- **Expected:** `position: fixed` with sufficient `z-index` to cover all game content, ensuring results card is always in viewport regardless of scroll position.
+- **Action:** Routes to Gen Quality. GEN-UX-001 is the existing rule. Another confirmed browser instance.
 
-### UI-CM-005 — data-lives attribute stale after Reset Path (MEDIUM)
-- **Category:** (d) test gap
-- **Observed:** After clicking "Reset Path" (which calls `handleReset()` and deducts a life), `#app[data-lives]` remains at the old value (e.g., "3") while `window.gameState.lives` correctly shows "2". The test harness `syncDOMState` patches `['roundComplete', 'endGame', 'loadRound', 'initGame', 'checkAnswer', 'handleSubmit']` but does not include `handleReset`. Any test asserting `data-lives` after a reset path action will see stale data.
-- **Expected:** `handleReset` should be in the harness `patchGameFunctions` list, or `handleReset` should call `syncDOMState` itself (which it does via `resetPath()` → but `resetPath` doesn't call `syncDOMState` after a life deduction).
-- **Action:** Routes to Test Engineering. The harness `patchGameFunctions` list should include `handleReset` and `resetPath` as candidates for wrapping, or the gen prompt should mandate that `handleReset` calls `syncDOMState()` after deducting a life.
+### UI-CM-005 — D-pad center button has no `data-testid` and no `id` (MEDIUM)
+- **Category:** (a) gen prompt rule
+- **Observed:** The five-button directional pad includes a center spacer `<button>` (class `dir-btn dir-btn-center`) with no `id`, no `data-testid`, and empty text content. The four directional buttons (`btn-up`, `btn-left`, `btn-right`, `btn-down`) all have correct `id` and `data-testid`, but the center button is unaddressable and is a focusable empty button — an accessibility violation.
+- **Expected:** The center placeholder should not be a `<button>` element. Use an inert `<div>` spacer instead. If a `<button>` is used for layout reasons, it must carry `aria-hidden="true"` and `tabindex="-1"` at minimum.
+- **Action:** Routes to Gen Quality. Add rule: d-pad center placeholder must not be a focusable `<button>` element. Use an inert `<div>` spacer. If a button is retained for layout, add `aria-hidden="true"` and `tabindex="-1"`.
 
-### UI-CM-006 — FeedbackManager subtitle/sticker components not initialized (LOW)
+### UI-CM-006 — `[FeedbackManager] Subtitle component not loaded` / `Sticker component not loaded` warnings per round (MEDIUM)
 - **Category:** (c) CDN constraint
-- **Observed:** `[FeedbackManager] Subtitle component not loaded, skipping` and `[FeedbackManager] Sticker component not loaded, skipping` warnings appear repeatedly during gameplay (on every correct/incorrect path). These fire because `FeedbackManager.sound.play()` and `playDynamicFeedback()` are called with `subtitle` and `sticker` params but `SubtitleComponent` and `StickerComponent` are not initialized before use.
-- **Expected:** Either components are initialized, or the subtitle/sticker params are omitted. Audio still plays correctly — cosmetic warnings only.
-- **Action:** Document only (CDN constraint). Same pattern as expression-completer, match-the-cards, and others.
+- **Observed:** Every round completion fires two console warnings: `[FeedbackManager] Subtitle component not loaded, skipping` and `[FeedbackManager] Sticker component not loaded, skipping`. Fires 6 times (2× per round × 3 rounds) plus 2 more on the end-game feedback call = 14 warnings total. `SubtitleComponent` and `StickerComponent` are listed as loaded in the CDN init log, suggesting the FeedbackManager's internal lookup is not finding the registered instances.
+- **Expected:** No warnings on component access. FeedbackManager should successfully resolve both components after CDN load.
+- **Action:** Document only (CDN constraint). Does not affect gameplay — audio feedback still plays successfully. Known CDN issue pattern.
 
-### UI-CM-007 — SignalCollector "Sealed — cannot record" warning on end (LOW)
-- **Category:** (c) CDN constraint
-- **Observed:** `[SignalCollector] Sealed — cannot recordViewEvent` warning fires after `endGame()` seals the collector. A `showResults()` call inside `endGame()` tries to `recordViewEvent('screen_transition', ...)` after `seal()` has been called at line 1079, because `showResults` is called at line 1103 (after `seal()`).
-- **Expected:** `signalCollector.recordViewEvent(...)` in `showResults` should be called before `signalCollector.seal()`, or the `showResults` internal `signalCollector.recordViewEvent` guard should check if collector is null/sealed.
-- **Action:** Routes to Gen Quality. Known pattern — 5th confirmed instance. The gen prompt should order `showResults(metrics, reason)` before `signalCollector.seal()`, or the `showResults` function should guard with `if (signalCollector && !signalCollector._sealed)`.
+### UI-CM-007 — SignalCollector "Sealed — cannot recordViewEvent" on endGame (LOW)
+- **Category:** (a) gen prompt rule
+- **Observed:** `[SignalCollector] Sealed — cannot recordViewEvent` fires after `endGame()`. The results `recordViewEvent` call is made after `signalCollector.seal()` because `showResults()` triggers an async feedback sequence whose `recordViewEvent` call runs after seal has been invoked.
+- **Expected:** All `recordViewEvent` calls for the results phase should complete before `signalCollector.seal()`.
+- **Action:** Routes to Gen Quality. Known pattern — documented in UI-ODD-004 (one-digit-doubles) and UI-EC-007 (expression-completer). 6th+ confirmed instance. Rule already shipped.
+
+### UI-CM-008 — "Let's go!" TransitionScreen button has no `data-testid` (LOW)
+- **Category:** (a) gen prompt rule
+- **Observed:** The TransitionScreen "Let's go!" start button has no `data-testid` attribute. `document.querySelector('button[data-testid="btn-start"]')` returns `null`. The button is rendered by the CDN TransitionScreen component; the gen code does not pass a `data-testid` in the button descriptor object passed to `transitionScreen.show()`.
+- **Expected:** The start button should have `data-testid="btn-start"` to allow test harnesses to reliably trigger game start without depending on button text content.
+- **Action:** Routes to Gen Quality. Add rule: TransitionScreen button config must include `data-testid: 'btn-start'` in the button descriptor object passed to `transitionScreen.show()`.
 
 ---
 
@@ -71,49 +77,50 @@
 
 | Check | Result |
 |-------|--------|
-| Game loads without PAGEERROR | PASS — 1 console error (favicon 404), no JS errors, no init failure |
-| Transition screen shows on load | PASS — "Crazy Maze" title, "Navigate the maze and collect the target sum!", "Let's go!" button |
-| data-phase on load | PASS — `#app[data-phase="start"]` (harness normalizes `start_screen` → `start`) |
-| All 3 rounds reachable | PASS — completed rounds 1–3 in sequence, each round loads correctly |
-| Round 1: Target Sum 50 | PASS — 4×4 grid, path 5+10+15+8+12+0=50 |
-| Round 2: Target Sum 80 | PASS — 5×5 grid, path 10+15+20+5+30+0=80 |
-| Round 3: Target Sum 120 | PASS — 5×6 grid, path 15+10+25+20+5+30+5+10+0=120 |
-| Results screen reachable after final round | PASS — "Great Job!" with 3 stars, 3/3 rounds, 3 lives, 100% accuracy |
-| data-phase after results | PASS — `#app[data-phase="results"]` after victory |
-| Play Again resets state | PASS — `currentRound=0`, `lives=3`, `gameEnded=false`, `score=0`, transition screen re-shown |
-| Second playthrough starts correctly | PASS — Let's go! triggers Round 1 of second play |
-| All interactive buttons >= 44px | PASS — direction buttons 44×52px, Reset Path and Play Again ≥ 44px |
-| Maze cells >= 48px | PASS — all maze cells 48×48px |
-| ProgressBar slotId = 'mathai-progress-slot' | PASS — `#mathai-progress-slot` present |
-| TransitionScreen uses object API | PASS — `transitionScreen.show({ icons, title, subtitle, buttons })` — single-argument object API |
-| syncDOMState updates #app data-phase | PASS — `#app[data-phase]` transitions: start → playing → results |
-| window.endGame exposed | PASS |
-| window.restartGame exposed | PASS |
-| window.nextRound exposed | PASS — aliased to `loadRound` |
-| window.startGame exposed | PASS |
-| data-testid on direction buttons | PASS — `btn-up`, `btn-down`, `btn-left`, `btn-right` |
-| data-testid on maze cells | PASS — `option-0` through `option-N` per cell index |
-| data-testid btn-restart on Play Again | PASS |
-| postMessage type: game_complete | PASS |
-| postMessage has events, attempts, metrics.duration_data | PASS — all present |
-| Stars = lives remaining (victory path) | PASS — 3 lives remaining → 3 stars |
-| Reset Path deducts a life | PASS — 3 → 2 lives after handleReset |
-| Wrong sum path deducts a life | PASS — lives decrease, path resets on wrong total |
-| Maze direction buttons disable when no valid move | PASS — disabled when path blocked or out-of-bounds |
-| Progress bar updates per round | PASS — "1/3 rounds completed" after round 1, "2/3" after round 2, "3/3" at results |
-| CDN packages load (0 404s) | PASS — all packages loaded successfully |
-| FeedbackManager audio preload | PASS — 2/2 sounds preloaded |
+| Game loads without PAGEERROR | PASS — 0 JS errors; 15 console warnings (all FeedbackManager CDN + 1 SignalCollector seal ordering) |
+| Packages all load successfully | PASS — FeedbackManager, ScreenLayout, TransitionScreen, ProgressBar, SignalCollector, VisibilityTracker, InteractionManager, StoriesComponent all confirmed loaded |
+| Start screen (TransitionScreen) renders | PASS — "maze" icon, "Crazy Maze" title, "Navigate the maze and collect the target sum!" subtitle, "Let's go!" button displayed correctly |
+| `data-phase` on load | PASS — `#app[data-phase="start"]` on initial page load |
+| Let's go! transitions to playing | PASS — `data-phase` transitions to `"playing"` after button click |
+| All 3 rounds reachable | PASS — completed rounds 1–3 in sequence via correct d-pad navigation |
+| Round 1 correct: Target Sum 50 | PASS — path 5+10+15+8+12 = 50, end cell reached |
+| Round 2 correct: Target Sum 80 | PASS — path 10+15+20+5+30 = 80, end cell reached |
+| Round 3 correct: Target Sum 120 | PASS — path 15+10+25+20+5+30+5+10 = 120, end cell reached |
+| Results screen reachable after final round | PASS — "Great Job!" results card shows with 3/3 rounds, 3 lives remaining, 100% accuracy, 3 stars |
+| `data-phase` at results | PASS — `#app[data-phase="results"]` after victory |
+| Play Again resets state | PASS — `currentRound=0`, `lives=3`, `gameEnded=false`, `score=0`; start screen re-displayed |
+| Second playthrough starts correctly | PASS — TransitionScreen re-shown; "Let's go!" triggers round 1 of second play |
+| `window.nextRound` exposed | PASS — `typeof window.nextRound === 'function'` |
+| `window.endGame` exposed | PASS — `typeof window.endGame === 'function'` |
+| `window.restartGame` exposed | PASS — `typeof window.restartGame === 'function'` |
+| `syncDOMState()` exposed and writes `#app[data-phase]` | PASS — function confirmed; body: `if (app) app.setAttribute('data-phase', gameState.phase)` |
+| `#mathai-transition-slot` present | PASS |
+| `#mathai-progress-slot` present | PASS — ProgressBarComponent rendered into it |
+| `data-testid` on directional buttons | PASS — `btn-up`, `btn-left`, `btn-right`, `btn-down`, `btn-reset` all have matching `id` and `data-testid` |
+| `data-testid` on maze cells | PASS — `option-0` through `option-5` (round 1, 6 cells); indices re-assigned correctly each round |
+| `data-testid="btn-restart"` on Play Again | PASS — `id="btn-restart"` and `data-testid="btn-restart"` both correct |
+| `data-testid` on results elements | PASS — `stars-display` and `lives-display` (result-lives) have correct testids |
+| Touch targets ≥ 44px | PASS — maze cells 48×48px; directional buttons 52×44px; Reset Path 291×45px; Play Again 291×44px+ |
+| `data-phase` transitions: start → playing → results | PASS — all three transitions observed and confirmed |
+| Directional buttons enable/disable correctly | PASS — only valid moves enabled at each position; disabled state updates on each move |
+| Target sum and collected sum display | PASS — Target Sum and Collected values update correctly at each step |
+| 3-star result for perfect run | PASS — 3/3 rounds, 3 lives remaining, 100% accuracy → 3 stars displayed |
+| Progress bar updates per round | PASS — "0/3" on load, "1/3" after round 1, "2/3" after round 2, "3/3" at results |
+| No network errors | PASS — 0 failed requests; all audio fetch calls return 200 |
 
 ---
 
 ## Flow Observations
 
-- **Grid-based navigation:** The game renders a partial maze grid (only passable cells at specific row/col positions) surrounded by wall cells. Players navigate by clicking direction buttons or clicking adjacent cells.
-- **Correct path validation:** When the player reaches the end cell (`isEnd: true`), the running total is compared to `targetSum`. If equal, the path flashes green and the round completes. If not equal, the path flashes red, a life is deducted, and the path resets.
-- **Reset Path:** Explicit reset button deducts a life and returns player to start of current round. With 3 lives total this is significant — 3 resets = game over.
-- **Stars = lives remaining:** Unique star-calculation approach (stars = `gameState.lives` at end of victory). Perfect run = 3 stars, each lost life = one fewer star.
-- **Game over vs victory:** `endGame('game_over')` sets `data-phase="gameover"`, `endGame('victory')` sets `data-phase="results"`. Results screen title changes accordingly ("Great Job!" vs "Game Over").
-- **No timer:** Game intentionally has no timer (comment in code: `let timer = null; // No timer logic in this game`). Pure move-count scoring.
+- **Interaction model:** D-pad navigation (up/left/right/down buttons). Player moves through a constrained grid, collecting numbered cells. Running total displayed as "Collected". Only valid connected moves are enabled at each position — invalid directions are greyed out (disabled). No free-form tapping of cells.
+- **Win condition:** Navigate from Start (S) cell to End (🏁) cell while accumulating exactly the target sum. Game confirms success when the end cell is reached with the correct sum.
+- **Grid structure:** Round 1 is a 4×4 grid (6 cells, 1 path); Round 2 is a 5×5 grid (8 cells, branching); Round 3 is a 5×6 grid (10 cells, multiple branches). Only one path sums to the target.
+- **Wrong-path behavior:** At branching points, choosing the wrong branch results in an incorrect running sum when the end cell is reached. When the end cell is reached with a wrong sum, a life is deducted and the path resets (inferred from spec; not directly triggered in this audit since d-pad disabling made branching choices unambiguous).
+- **Reset Path:** Explicit "Reset Path" button clears the current path and returns to start. Presumed to deduct a life per the spec.
+- **Round advancement:** Automatic on correct end-cell arrival. No confirmation required.
+- **Star rating:** Displayed at results; 3 stars shown for perfect run (3 lives remaining, 3/3 rounds, 100% accuracy).
+- **No timer:** The game has no timer component — pure accuracy/lives scoring.
+- **Restart rebuilds components:** `restartGame()` correctly re-initialises SignalCollector, ProgressBar, and VisibilityTracker.
 
 ---
 
@@ -121,6 +128,5 @@
 
 | Route | Issues |
 |-------|--------|
-| Gen Quality | UI-CM-002 (GEN-GAMEID #8+), UI-CM-003 (GEN-UX-001 #22+), UI-CM-004 (ARIA-001 #20+), UI-CM-007 (showResults-after-seal ordering) |
-| Test Engineering | UI-CM-001 (GEN-INTERACTIVE-DIV-ROLE #2 — maze cells no role/tabindex), UI-CM-005 (data-lives stale after handleReset — harness patchGameFunctions gap) |
-| CDN/Document only | UI-CM-006 (subtitle/sticker CDN warnings), UI-CM-007 (SignalCollector sealed race — also routes Gen Quality for ordering fix) |
+| Gen Quality | UI-CM-001 (GEN-GAMEID — gameId missing), UI-CM-002 (ARIA-001 — no aria-live), UI-CM-003 (data-phase initial value inconsistency — new rule needed), UI-CM-004 (GEN-UX-001 — results-screen position:static), UI-CM-005 (d-pad center button should be inert div), UI-CM-007 (seal-before-recordViewEvent ordering — rule already shipped), UI-CM-008 (Let's go! button missing data-testid="btn-start") |
+| CDN / Document only | UI-CM-006 (FeedbackManager Subtitle/Sticker component lookup warnings) |
