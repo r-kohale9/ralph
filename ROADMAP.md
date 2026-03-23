@@ -117,8 +117,8 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | M19 DONE (2026-03-23) — mechanics 35.2% root cause diagnosed. Top pattern: `#mathai-transition-slot button .not.toBeVisible()` in mechanics tests (5/30 failure batches = 17%). Added M19 TRANSITION SLOT GUARD (MECHANICS) to buildTestGenCategoryPrompt() mechanics section in lib/prompts.js. 1102/1102 tests pass. Next: diagnose worked-example-panel toBeHidden pattern (5/30 batches = 17%) — deferred hide timing issue. |
-| Status | 1102 tests pass. M19: mechanics tests must never assert transition slot visibility — use startGame() to dismiss intro screen, use expect.poll(getRound) to detect round completion. Three root causes identified: (1) transition slot .not.toBeVisible() 5/30 batches, (2) worked-example-panel timing 5/30 batches, (3) exact value assertions 8/30 batches. M19 fixes (1). |
+| Current task | M20 DONE (2026-03-23, see commit). CSS transition panel visibility timeout fix for mechanics tests. Added M20 CSS TRANSITION PANEL VISIBILITY (CRITICAL) to buildTestGenCategoryPrompt() mechanics section in lib/prompts.js immediately after M15. Covers `.toBeHidden()`/`.toBeVisible()` calls on panels that use CSS class transitions — requires `{ timeout: 15000 }` or expect.poll(). 1119/1120 tests pass (1 pre-existing server-integration failure unrelated to M20). Next: M19's worked-example-panel pattern eliminated + re-audit mechanics pass rate after 2 builds. |
+| Status | 1119/1120 tests pass. M20 deployed GCP (lib/prompts.js). Three root causes in mechanics 35.2% rate identified: (1) transition slot .not.toBeVisible() 5/30 batches → M19 fixed, (2) CSS transition panel visibility 5/30 batches → M20 fixed, (3) exact value assertions 8/30 batches → pending. |
 | Waiting on | none |
 | Blocked by | none |
 
@@ -219,7 +219,7 @@
 **Active slot state:**
 | Field | Value |
 |-------|-------|
-| Current task | CR-014 + GEN-TRANSITION-ICONS + GEN-PHASE-ALL DONE (72a189c, 2026-03-23). CR-060 already fixed (f13ddd8). Next: mechanics batch root cause trace — mechanics=35.2% is lowest per analytics (all-builds view). Review mechanics.spec.js test-gen pattern + recent failed mechanics batches to identify most common failure class. |
+| Current task | **P0 QUEUED: PART-003 wrong package names** — disappearing-numbers #509 audit found white screen: waitForPackages() checks `typeof Components`/`typeof Helpers` (never window globals) instead of `typeof ScreenLayout`/`typeof ProgressBarComponent`. Fix: (1) add T1 ERROR check for banned package names (Components, Helpers, Utils) in waitForPackages; (2) update PART-003 rule with explicit WRONG/RIGHT examples. Re-queue disappearing-numbers after fix. BLOCKED on M20 agent completing (both edit prompts.js). |
 | Status | 72a189c deployed GCP 2026-03-23. 1100 tests pass. GEN-RESTART-RESET updated (custom fields); GEN-TRANSITION-ICONS updated (local file paths banned); GEN-PHASE-ALL updated (card-matching added, "no exceptions" framing). All 3 rules updated in all occurrences. |
 | Waiting on | none |
 | Blocked by | none |
