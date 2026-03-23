@@ -721,7 +721,7 @@ const VALID_HTML = `<!DOCTYPE html>
     }
   }
 
-  window.loadRound = function(n) { gameState.round = n - 1; nextRound(); };
+  window.loadRound = function(n) { gameState.round = n - 1; }; // GEN-ROUND-INDEX: set index directly, no double-increment
 
   document.addEventListener('DOMContentLoaded', function() {
     initGame();

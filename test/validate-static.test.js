@@ -3123,4 +3123,93 @@ describe('GEN-PHASE-MCQ: MCQ/timed games must call syncDOMState() at all phase t
       `Unexpected GEN-TESTID-RESTART warning for correct btn-restart: ${output}`,
     );
   });
+
+  // ─── GEN-BTN-START tests ──────────────────────────────────────────────────
+
+  it('GEN-BTN-START: warns when TransitionScreen present but no data-testid="btn-start"', () => {
+    // Game with TransitionScreen but missing btn-start testid
+    const html = VALID_HTML.replace(
+      'function initGame()',
+      'function setupGame() { const transitionScreen = new TransitionScreenComponent(); } function initGame()',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-BTN-START'),
+      `Expected GEN-BTN-START warning when TransitionScreen present without btn-start: ${output}`,
+    );
+  });
+
+  it('GEN-BTN-START: warns when mathai-transition-slot present but no data-testid="btn-start"', () => {
+    const html = VALID_HTML.replace(
+      '<div id="gameContent">',
+      '<div id="mathai-transition-slot"></div>\n<div id="gameContent">',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-BTN-START'),
+      `Expected GEN-BTN-START warning when mathai-transition-slot present without btn-start: ${output}`,
+    );
+  });
+
+  it('GEN-BTN-START: does NOT warn when data-testid="btn-start" is present', () => {
+    const html = VALID_HTML.replace(
+      '<div id="gameContent">',
+      '<div id="mathai-transition-slot"><button data-testid="btn-start">Let\'s go!</button></div>\n<div id="gameContent">',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-BTN-START'),
+      `Unexpected GEN-BTN-START warning when btn-start present: ${output}`,
+    );
+  });
+
+  it('GEN-BTN-START: does NOT warn when no transition screen present', () => {
+    // VALID_HTML has no transition screen — GEN-BTN-START should not fire
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-BTN-START'),
+      `Unexpected GEN-BTN-START warning for non-transition game: ${output}`,
+    );
+  });
+
+  // ─── GEN-PHASE-INIT tests ─────────────────────────────────────────────────
+
+  it('GEN-PHASE-INIT: warns when #app data-phase="start" but gameState.phase="start_screen"', () => {
+    const html = VALID_HTML.replace(
+      '<div id="gameContent">',
+      '<div id="app" data-phase="start"></div>\n<div id="gameContent">',
+    ).replace(
+      'let gameState = {',
+      'let gameState = { phase: \'start_screen\',',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-PHASE-INIT'),
+      `Expected GEN-PHASE-INIT warning for data-phase/gameState.phase mismatch: ${output}`,
+    );
+  });
+
+  it('GEN-PHASE-INIT: does NOT warn when #app data-phase matches gameState.phase', () => {
+    const html = VALID_HTML.replace(
+      '<div id="gameContent">',
+      '<div id="app" data-phase="start_screen"></div>\n<div id="gameContent">',
+    ).replace(
+      'let gameState = {',
+      'let gameState = { phase: \'start_screen\',',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-PHASE-INIT'),
+      `Unexpected GEN-PHASE-INIT warning when data-phase matches gameState.phase: ${output}`,
+    );
+  });
+
+  it('GEN-PHASE-INIT: does NOT warn when #app has no data-phase', () => {
+    // No data-phase on #app → check does not apply
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-PHASE-INIT'),
+      `Unexpected GEN-PHASE-INIT warning for HTML without data-phase: ${output}`,
+    );
+  });
 });
