@@ -533,3 +533,97 @@ async function clickNextLevel(page) {
     assert.equal(hasRunnableTestCalls(content), false, 'Should return false when only helper functions are present');
   });
 });
+
+// ─── NO_LIVES_ASSERT lint rule ─────────────────────────────────────────────────
+// The NO_LIVES_ASSERT rule fires when gameFeatures indicates a non-lives game
+// (unlimitedLives: true OR hasLives: false) and getLives() appears in test bodies.
+
+describe('lintGeneratedTests — NO_LIVES_ASSERT: getLives() in non-lives game', () => {
+  // Boilerplate + describe block structure for tests below.
+  // The boilerplate defines getLives() — rule must NOT fire on the definition.
+  const boilerplateAndDescribe = `import { test, expect } from '@playwright/test';
+
+async function getLives(page) {
+  const val = await page.locator('#app').getAttribute('data-lives');
+  return val !== null ? parseInt(val, 10) : await page.evaluate(() => window.gameState?.lives ?? null);
+}
+
+test.describe('mechanics', () => {
+`;
+
+  it('flags getLives() in test body when unlimitedLives: true', () => {
+    const content = boilerplateAndDescribe + `
+  test('lives decrease on wrong answer', async ({ page }) => {
+    const livesBefore = await getLives(page);
+    await expect.poll(() => getLives(page), { timeout: 5000 }).toBe(livesBefore - 1);
+  });
+});
+`;
+    const gameFeatures = { unlimitedLives: true, hasLives: false };
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog, gameFeatures);
+    const noLivesViolations = violations.filter((v) => v.rule === 'NO_LIVES_ASSERT');
+    assert.ok(noLivesViolations.length > 0, 'Should flag NO_LIVES_ASSERT when getLives() used in non-lives game (unlimitedLives: true)');
+    assert.equal(noLivesViolations[0].category, 'mechanics');
+  });
+
+  it('flags getLives() in test body when hasLives: false (spec does not mention lives)', () => {
+    const content = boilerplateAndDescribe + `
+  test('check lives display', async ({ page }) => {
+    await expect.poll(() => getLives(page), { timeout: 3000 }).toBe(3);
+  });
+});
+`;
+    const gameFeatures = { unlimitedLives: false, hasLives: false };
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog, gameFeatures);
+    const noLivesViolations = violations.filter((v) => v.rule === 'NO_LIVES_ASSERT');
+    assert.ok(noLivesViolations.length > 0, 'Should flag NO_LIVES_ASSERT when getLives() used and spec has no lives mention');
+  });
+
+  it('does NOT flag getLives() when game has finite lives (hasLives: true)', () => {
+    const content = boilerplateAndDescribe + `
+  test('lives decrease on wrong answer', async ({ page }) => {
+    const livesBefore = await getLives(page);
+    await expect.poll(() => getLives(page), { timeout: 5000 }).toBe(livesBefore - 1);
+  });
+});
+`;
+    const gameFeatures = { unlimitedLives: false, hasLives: true };
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog, gameFeatures);
+    const noLivesViolations = violations.filter((v) => v.rule === 'NO_LIVES_ASSERT');
+    assert.equal(noLivesViolations.length, 0, 'Should NOT flag NO_LIVES_ASSERT when game has finite lives');
+  });
+
+  it('does NOT flag getLives() when no gameFeatures provided (rule disabled)', () => {
+    const content = boilerplateAndDescribe + `
+  test('lives check', async ({ page }) => {
+    const lives = getLives(page);
+  });
+});
+`;
+    // No gameFeatures argument — rule should be disabled
+    const { violations } = lintGeneratedTests({ mechanics: content }, silentLog);
+    const noLivesViolations = violations.filter((v) => v.rule === 'NO_LIVES_ASSERT');
+    assert.equal(noLivesViolations.length, 0, 'Should NOT flag NO_LIVES_ASSERT when gameFeatures not provided');
+  });
+
+  it('does NOT flag getLives() definition in boilerplate (only test bodies)', () => {
+    // The boilerplate defines getLives — this must not be flagged even for non-lives games
+    const boilerplateOnly = `import { test, expect } from '@playwright/test';
+
+async function getLives(page) {
+  const val = await page.locator('#app').getAttribute('data-lives');
+  return val !== null ? parseInt(val, 10) : await page.evaluate(() => window.gameState?.lives ?? null);
+}
+
+test.describe('mechanics', () => {
+  test('score increases on correct answer', async ({ page }) => {
+    await expect.poll(() => getScore(page), { timeout: 3000 }).toBeGreaterThan(0);
+  });
+});
+`;
+    const gameFeatures = { unlimitedLives: true, hasLives: false };
+    const { violations } = lintGeneratedTests({ mechanics: boilerplateOnly }, silentLog, gameFeatures);
+    const noLivesViolations = violations.filter((v) => v.rule === 'NO_LIVES_ASSERT');
+    assert.equal(noLivesViolations.length, 0, 'Should NOT flag getLives() in boilerplate helper definition');
+  });
+});
