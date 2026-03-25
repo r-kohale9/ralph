@@ -113,24 +113,33 @@
    * @param {number} options.hesitationThresholdMs - Pause duration to count as hesitation (default: 3000)
    * @param {number} options.frustrationClickMs - Window for detecting rapid repeated clicks (default: 1000)
    * @param {number} options.frustrationClickCount - Clicks in window to flag frustration (default: 3)
+   * @param {number} options.flushIntervalMs - Interval for batch-flushing events to parent (default: 5000). Set to 0 to disable.
    */
   function SignalCollector(options) {
     options = options || {};
 
     this.containerSelector = options.containerSelector || "body";
     this.maxBufferSize = options.maxBufferSize || 5000;
-    this.throttleMs = options.throttleMs || 100;
+    this.throttleMs = 500;
     this.sessionId = options.sessionId || null;
     this.studentId = options.studentId || null;
     this.templateId = options.templateId || null;
     this.hesitationThresholdMs = options.hesitationThresholdMs || 3000;
     this.frustrationClickMs = options.frustrationClickMs || 1000;
     this.frustrationClickCount = options.frustrationClickCount || 3;
+    this.flushIntervalMs = options.flushIntervalMs != null ? options.flushIntervalMs : 5000;
+    this.flushUrl = options.flushUrl || null;
+    this.playId = options.playId || null;
+    this.gameId = options.gameId || null;
+    this.contentSetId = options.contentSetId || null;
 
     // State
     this._sessionStartMs = Date.now();
     this._inputEvents = [];
     this._eventsTruncated = false;
+    this._lastFlushedIndex = 0;
+    this._batchNumber = 0;
+    this._flushTimer = null;
     this._currentProblemId = null;
     this._problemStates = {}; // problemId -> { startMs, firstInteractionMs, reviewingStartMs, state, events[], outcome, scratchWork, scaffoldInteractions }
     this._completedProblems = {}; // problemId -> computed signals
@@ -351,6 +360,10 @@
     if (this._inputEvents.length >= this.maxBufferSize) {
       this._inputEvents.shift();
       this._eventsTruncated = true;
+      // Adjust flush index since we removed the oldest event
+      if (this._lastFlushedIndex > 0) {
+        this._lastFlushedIndex--;
+      }
     }
     this._inputEvents.push(event);
 
@@ -1032,6 +1045,95 @@
   };
 
   // ============================================================
+  // Batch Flushing
+  // ============================================================
+
+  /**
+   * Start periodic flushing of new events to the parent window via postMessage.
+   * Each flush sends only events accumulated since the last flush.
+   */
+  SignalCollector.prototype.startFlushing = function () {
+    if (this._sealed || this._flushTimer) return;
+    if (!this.flushIntervalMs || this.flushIntervalMs <= 0) return;
+    if (!this.flushUrl) {
+      console.warn("[SignalCollector] No flushUrl configured, flushing disabled");
+      return;
+    }
+
+    var self = this;
+    this._flushTimer = setInterval(function () {
+      self._flush();
+    }, this.flushIntervalMs);
+
+    console.log("[SignalCollector] Flushing started — interval " + this.flushIntervalMs + "ms");
+  };
+
+  /**
+   * Stop periodic flushing.
+   */
+  SignalCollector.prototype.stopFlushing = function () {
+    if (this._flushTimer) {
+      clearInterval(this._flushTimer);
+      this._flushTimer = null;
+      console.log("[SignalCollector] Flushing stopped");
+    }
+  };
+
+  /**
+   * Flush new events since last flush to parent via postMessage.
+   * @returns {boolean} true if events were flushed
+   */
+  SignalCollector.prototype._flush = function () {
+    var newEvents = this._inputEvents.slice(this._lastFlushedIndex);
+    if (newEvents.length === 0) return false;
+    if (!this.flushUrl) return false;
+
+    this._batchNumber++;
+    this._lastFlushedIndex = this._inputEvents.length;
+
+    var batchData = {
+      batch_number: this._batchNumber,
+      session_id: this.sessionId,
+      student_id: this.studentId,
+      game_id: this.gameId,
+      content_set_id: this.contentSetId,
+      play_id: this.playId,
+      events: newEvents,
+      event_count: newEvents.length,
+      flushed_at: Date.now()
+    };
+
+    var gcsPath = "signal-events/" +
+      (this.studentId || "unknown") + "/" +
+      (this.sessionId || "unknown") + "/" +
+      (this.gameId || "unknown") + "/" +
+      (this.contentSetId || "unknown") + "/" +
+      (this.playId || "unknown") + "/" +
+      "batch-" + this._batchNumber + ".json";
+
+    var url = this.flushUrl;
+    try {
+      var controller = new AbortController();
+      var timeoutId = setTimeout(function () { controller.abort(); }, 10000);
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: gcsPath, data: batchData }),
+        signal: controller.signal
+      }).then(function () {
+        clearTimeout(timeoutId);
+      }).catch(function () {
+        clearTimeout(timeoutId);
+      });
+    } catch (e) {
+      // fire-and-forget
+    }
+
+    console.log("[SignalCollector] Flushed batch #" + this._batchNumber + " — " + newEvents.length + " events to " + gcsPath);
+    return true;
+  };
+
+  // ============================================================
   // Lifecycle
   // ============================================================
 
@@ -1043,6 +1145,10 @@
    */
   SignalCollector.prototype.seal = function () {
     if (this._sealed) return this._sealedPayload;
+
+    // Final flush before sealing
+    this._flush();
+    this.stopFlushing();
 
     this._sealed = true;
     this._removeAllListeners();
