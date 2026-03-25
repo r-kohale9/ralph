@@ -8,33 +8,110 @@
 A 3-step flow for approving new game specs before they enter the Ralph build pipeline.
 
 ```
-Clarification → Visualization → Register Spec
+Clarification -> Visualization -> Register Spec
 ```
 
-The supervisor runs this entirely inside **Claude Desktop**. Once a spec is registered, Ralph posts a summary to Slack for final build approval.
+The supervisor runs this entirely inside **Claude Desktop**. Once a spec is registered it is live in the warehouse and ready to queue for a build.
 
 ---
 
 ## Prerequisites
 
-Claude Desktop must have the Ralph MCP server connected:
+Claude Desktop must have the Ralph MCP server connected. Add this to `~/Library/Application Support/Claude/claude_desktop_config.json`.
 
+Two headers are required:
+- **`Authorization: Bearer <token>`** — authenticates you to the Ralph MCP endpoint. The token is shared by the team (stored in `/opt/ralph/.env` as `MCP_SECRET`).
+- **`X-Ralph-Notify-User: <slack-user-id>`** — tells Ralph which Slack user to notify for approvals and build updates. To find your Slack user ID: go to your Slack profile → click the three-dot menu → "Copy member ID".
+
+Each team member gets their own config file in `configs/claude-desktop/` in this repo (gitignored). Copy the relevant file to `~/Library/Application Support/Claude/claude_desktop_config.json`.
+
+**Mithilesh (U0242GULG48):**
 ```json
 {
   "mcpServers": {
     "ralph": {
-      "url": "http://34.93.153.206:3000/mcp",
-      "headers": {
-        "Authorization": "Bearer <MCP_SECRET>"
-      }
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://34.93.153.206/mcp",
+        "--allow-http",
+        "--header",
+        "Authorization: Bearer a71e5bfbd4f681455ad98d7bf1df7826466db8567b7eb7879b5351c451f35b0a",
+        "--header",
+        "X-Ralph-Notify-User: U0242GULG48"
+      ]
     }
   }
 }
 ```
 
+**Sammit (U06KHJU96Q4):**
+```json
+{
+  "mcpServers": {
+    "ralph": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://34.93.153.206/mcp",
+        "--allow-http",
+        "--header",
+        "Authorization: Bearer a71e5bfbd4f681455ad98d7bf1df7826466db8567b7eb7879b5351c451f35b0a",
+        "--header",
+        "X-Ralph-Notify-User: U06KHJU96Q4"
+      ]
+    }
+  }
+}
+```
+
+**Harshvardhan (UBWLNMXJA):**
+```json
+{
+  "mcpServers": {
+    "ralph": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://34.93.153.206/mcp",
+        "--allow-http",
+        "--header",
+        "Authorization: Bearer a71e5bfbd4f681455ad98d7bf1df7826466db8567b7eb7879b5351c451f35b0a",
+        "--header",
+        "X-Ralph-Notify-User: UBWLNMXJA"
+      ]
+    }
+  }
+}
+```
+
+**Rishabh (U02EVUX8A4Q):**
+```json
+{
+  "mcpServers": {
+    "ralph": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://34.93.153.206/mcp",
+        "--allow-http",
+        "--header",
+        "Authorization: Bearer a71e5bfbd4f681455ad98d7bf1df7826466db8567b7eb7879b5351c451f35b0a",
+        "--header",
+        "X-Ralph-Notify-User: U02EVUX8A4Q"
+      ]
+    }
+  }
+}
+```
+
+> **Slack user ID:** Go to your Slack profile → click the three-dot menu (⋯) → "Copy member ID".
+
+After saving, quit Claude Desktop (Cmd+Q) and reopen it.
+
 ---
 
-## Step 1 — Game Clarification
+## Step 1 -- Game Clarification
 
 **What the supervisor does:** Describe the game idea in plain language.
 
@@ -42,7 +119,7 @@ Claude Desktop must have the Ralph MCP server connected:
 ```
 I want to create a new math game. Here is my idea:
 
-[Describe the game — topic, grade level, what students do,
+[Describe the game -- topic, grade level, what students do,
 how they win/lose, how many rounds]
 ```
 
@@ -60,7 +137,7 @@ how they win/lose, how many rounds]
 
 ---
 
-## Step 2 — Visualization
+## Step 2 -- Visualization
 
 **What the supervisor does:** Ask Claude to show a preview.
 
@@ -84,11 +161,11 @@ Show me a visual preview of this game.
 - [ ] Is the difficulty appropriate for the target grade?
 - [ ] Are the example questions representative?
 
-**To revise:** Tell Claude what to change — it updates the preview in place.
+**To revise:** Tell Claude what to change -- it updates the preview in place.
 
 ---
 
-## Step 3 — Register Spec
+## Step 3 -- Register Spec
 
 **What the supervisor does:** Approve the spec and register it.
 
@@ -98,45 +175,43 @@ This looks good. Register the spec for [gameId].
 ```
 
 **What Claude does:**
-1. Calls `register_spec` MCP tool → writes final spec to `warehouse/templates/<gameId>/spec.md` on the Ralph server
-2. Posts a summary to Slack (channel `#ralph-builds`) tagging Mithilesh:
-   ```
-   📋 New spec registered: [Game Name] (#gameId)
-   Curriculum: [standard]
-   Rounds: N | Lives: Y/N | Mechanic: [description]
-   → Ready to queue build. Reply ✅ to proceed.
-   ```
-3. Returns a confirmation with the spec path and Slack link
+1. Calls `register_spec` MCP tool -- writes final spec to `warehouse/templates/<gameId>/spec.md` on the Ralph server
+2. Returns a confirmation with the spec path
 
-**Mithilesh approves on Slack** by reacting ✅ or replying — Ralph worker picks it up.
+The spec is now live in the warehouse and can be queued for a build.
 
 ---
 
 ## Example: Two Games
 
-### Game A — Stats: Identify the Class
+### Game A -- Adjustment Strategy
 
 **Clarification prompt:**
 ```
-I want a game where students see a dataset and identify whether
-it is ungrouped or grouped data. Grade 9, CBSE stats chapter.
-5 rounds, no lives, MCQ format.
+A mental addition game. Two numbers are shown with +/- buttons.
+Students adjust the numbers to make addition easier (e.g. 47+33
+becomes 50+30), then type the sum. 9 rounds, 3 lives, 3 difficulty
+levels. Grade 5-6.
 ```
 
-**Expected spec output:** `warehouse/templates/stats-identify-class/spec.md`
+**Expected spec output:** `warehouse/templates/adjustment-strategy/spec.md`
+
+> Real example: live at `games/adjustment-strategy/`.
 
 ---
 
-### Game B — Light-Up Puzzle
+### Game B -- Addition MCQ Blitz
 
 **Clarification prompt:**
 ```
-A logic puzzle game — students place light bulbs on a grid to
-illuminate all white cells. No lives, 1 puzzle per session,
-timer shown. For logic / reasoning, any grade.
+A multiple-choice addition quiz. Students see an addition problem
+and pick the correct answer from 4 options. 30-second countdown
+per question, 3 lives, 10 questions per session. Grade 3-4.
 ```
 
-**Expected spec output:** `warehouse/templates/light-up/spec.md`
+**Expected spec output:** `warehouse/templates/addition-mcq/spec.md`
+
+> Real example: live at `games/addition-mcq/`.
 
 ---
 
@@ -146,7 +221,7 @@ timer shown. For logic / reasoning, any grade.
 |------|--------|-----------|--------|
 | 1. Clarify | Describe game idea | Knowledge Graph MCP | Draft spec |
 | 2. Visualize | Ask for preview | Claude Artifacts | Interactive HTML prototype |
-| 3. Register | Approve + register | `register_spec` MCP tool | Spec file + Slack notification |
+| 3. Register | Approve + register | `register_spec` MCP tool | Spec file in warehouse |
 
 ---
 
@@ -154,18 +229,16 @@ timer shown. For logic / reasoning, any grade.
 
 | Tool | Description | Status |
 |------|-------------|--------|
-| `list_games` | List all games with status | ✅ live |
-| `get_spec` | Read a game's current spec | ✅ live |
-| `register_spec` | Write spec to warehouse + notify Slack | ✅ live (commit 152d636) |
-| `queue_build` | Queue a build for a gameId | ✅ live |
-| `plan_session` | Plan a full session from a teaching objective | ✅ live (commit 152d636) |
-
-All tools are live. The supervisor flow is fully operational.
+| `list_games` | List all games with status | live |
+| `get_spec` | Read a game's current spec | live |
+| `register_spec` | Write spec to warehouse | live |
+| `queue_build` | Queue a build for a gameId | live |
+| `plan_session` | Plan a full session from a teaching objective | live |
 
 ---
 
 ## Notes for Supervisor
 
-- **You can correct at any step** — if the spec draft is wrong, just say what to fix. Claude will update and re-show.
-- **Visualization is a sketch, not the final game** — the actual Ralph build will produce a fully polished version following all CDN rules and the complete spec.
-- **Slack approval is the final gate** — the build does not queue until Mithilesh reacts ✅ in Slack.
+- **You can correct at any step** -- if the spec draft is wrong, just say what to fix. Claude will update and re-show.
+- **Visualization is a sketch, not the final game** -- the actual Ralph build will produce a fully polished version following all CDN rules and the complete spec.
+- **Register spec is the final step** -- once registered, the spec is ready to queue for a build via `queue_build`.

@@ -12,7 +12,8 @@
     "lint": "eslint *.js lib/*.js",
     "lint:fix": "eslint --fix *.js lib/*.js",
     "format": "prettier --write '*.js' 'lib/*.js' 'test/*.js'",
-    "format:check": "prettier --check '*.js' 'lib/*.js' 'test/*.js'"
+    "format:check": "prettier --check '*.js' 'lib/*.js' 'test/*.js'",
+    "publish:spec": "node scripts/publish-spec.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",

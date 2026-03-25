@@ -2824,6 +2824,62 @@ describe('GEN-RESULTS-FIXED: #results-screen must have position:fixed (GEN-UX-00
   });
 });
 
+describe('GEN-RESULTS-ROUNDS: multi-round games must have rounds-completed element', () => {
+  it('does not warn when totalRounds + results-screen + rounds-completed are all present', () => {
+    // Correct pattern: multi-round game with rounds-completed element in results screen
+    const html = VALID_HTML.replace(
+      'let gameState = { score: 0, total: 0, currentQuestion: 0, totalQuestions: 10 };',
+      'let gameState = { score: 0, currentRound: 0, totalRounds: 9, totalQuestions: 10 };',
+    ).replace(
+      '</div>\n<script>',
+      `</div>
+  <div id="results-screen"><p id="final-score">Score: 0</p><p id="rounds-completed">Rounds: 0/9</p></div>
+<script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-RESULTS-ROUNDS'),
+      `Unexpected GEN-RESULTS-ROUNDS warning when rounds-completed is present: ${output}`,
+    );
+  });
+
+  it('warns when totalRounds + results-screen present but no rounds-completed element', () => {
+    // Bad pattern: multi-round game missing rounds-completed element
+    const html = VALID_HTML.replace(
+      'let gameState = { score: 0, total: 0, currentQuestion: 0, totalQuestions: 10 };',
+      'let gameState = { score: 0, currentRound: 0, totalRounds: 9, totalQuestions: 10 };',
+    ).replace(
+      '</div>\n<script>',
+      `</div>
+  <div id="results-screen"><p id="final-score">Score: 0</p></div>
+<script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-RESULTS-ROUNDS'),
+      `Expected GEN-RESULTS-ROUNDS warning when rounds-completed missing but got: ${output}`,
+    );
+  });
+
+  it('does not warn when no totalRounds present (lives-only game carve-out)', () => {
+    // Lives-only games have no totalRounds — rule does not apply
+    const html = VALID_HTML.replace(
+      '</div>\n<script>',
+      `</div>
+  <div id="results-screen"><p id="final-score">Score: 0</p></div>
+<script>`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-RESULTS-ROUNDS'),
+      `Unexpected GEN-RESULTS-ROUNDS warning for lives-only game (no totalRounds): ${output}`,
+    );
+  });
+});
+
 describe('GEN-TRANSITION-API-CALL: transitionScreen.show() string-mode API check (5h2)', () => {
   it('emits ERROR when transitionScreen.show() is called with single-quote string first arg', () => {
     // String-mode call: transitionScreen.show('victory', ...) — no string API in CDN
@@ -3522,9 +3578,9 @@ describe('GEN-MOBILE-STACK: flex-direction:row detection', () => {
     );
   });
 
-  it('GEN-MOBILE-STACK WARNING: warns when options-grid uses flex-direction:row', () => {
-    // MCQ options grid in row direction — each option becomes a narrow column
-    const html = withCss('.options-grid { display: flex; flex-direction: row; flex-wrap: wrap; }');
+  it('GEN-MOBILE-STACK WARNING: warns when options-grid uses flex-direction:row without flex-wrap', () => {
+    // MCQ options grid in row direction without flex-wrap — each option becomes a narrow column
+    const html = withCss('.options-grid { display: flex; flex-direction: row; gap: 8px; }');
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
     assert.ok(
@@ -3578,6 +3634,68 @@ describe('GEN-MOBILE-STACK: flex-direction:row detection', () => {
     assert.ok(
       !output.includes('GEN-MOBILE-STACK'),
       `Unexpected GEN-MOBILE-STACK warning for VALID_HTML: ${output}`,
+    );
+  });
+
+  // ─── GEN-MOBILE-STACK FLEX-WRAP sub-rule tests ──────────────────────────────
+  it('GEN-MOBILE-STACK FLEX-WRAP: warns when options-grid uses flex-direction:row with NO flex-wrap and no @media 480px', () => {
+    // stats-identify-class #581 P0-1: 3-column flex row, no flex-wrap → overflow at 480px
+    const html = withCss('.options-grid { display:flex; flex-direction:row; gap:12px; }');
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-MOBILE-STACK'),
+      `Expected GEN-MOBILE-STACK warning for options-grid flex-direction:row without flex-wrap but got: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK FLEX-WRAP: does NOT warn when options-grid uses flex-direction:row WITH flex-wrap:wrap', () => {
+    // Correct: flex-wrap:wrap present → graceful wrapping on mobile
+    const html = withCss('.options-grid { display:flex; flex-direction:row; flex-wrap:wrap; gap:12px; }');
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK warning when flex-wrap:wrap is present: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK FLEX-WRAP: does NOT warn when @media max-width:480px override is present', () => {
+    // Correct: @media 480px override present → stacks on mobile even without flex-wrap
+    const html = withCss(
+      '.options-grid { display:flex; flex-direction:row; gap:12px; }\n  @media(max-width:480px) { .options-grid { flex-direction:column; } }',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK warning when @media max-width:480px is present: ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK FLEX-WRAP: does NOT warn when HTML has no options-grid at all', () => {
+    // No option container CSS at all → no warning
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-MOBILE-STACK'),
+      `Unexpected GEN-MOBILE-STACK FLEX-WRAP warning for VALID_HTML (no options-grid): ${output}`,
+    );
+  });
+
+  it('GEN-MOBILE-STACK MED-3: when MCQ + .options-grid flex-direction:row, Block 1 fires ERROR — Block 2 does NOT add a duplicate WARNING', () => {
+    // Block 1 fires ERROR [GEN-MOBILE-STACK] for .options-grid + MCQ options present.
+    // Block 2 should skip the same selector to avoid a redundant WARNING for the same root cause.
+    const html = withCss(
+      '.options-grid { display:flex; flex-direction:row; gap:12px; }',
+      '<div class="options-container"><button class="option-btn" data-testid="option-0">A</button></div>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected exit 1 (error) from Block 1 but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('ERROR [GEN-MOBILE-STACK]'),
+      `Expected ERROR [GEN-MOBILE-STACK] from Block 1 but got: ${output}`,
+    );
+    assert.ok(
+      !output.includes('WARNING [GEN-MOBILE-STACK]'),
+      `Block 2 should not emit a duplicate WARNING [GEN-MOBILE-STACK] when Block 1 already fired ERROR: ${output}`,
     );
   });
 
@@ -3756,6 +3874,273 @@ describe('GEN-TIMER-GETTIME: banned CDN timer methods', () => {
     assert.ok(
       !output.includes('GEN-TIMER-GETTIME'),
       `Unexpected GEN-TIMER-GETTIME error on valid timer.stop()/destroy() but got: ${output}`,
+    );
+  });
+});
+
+describe('GEN-CORRECT-ANSWER-EXPOSURE: round string correct-answer field must be exposed on gameState', () => {
+  it('no warning when game uses round.correctOption AND sets gameState.correctAnswer', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; gameState.correctAnswer = round.correctOption; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Unexpected GEN-CORRECT-ANSWER-EXPOSURE warning when gameState.correctAnswer is set: ${output}`,
+    );
+  });
+
+  it('warns when game uses round.correctOption but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; syncDOMState(); }\nfunction renderOptions() { options.forEach(o => { if (o === round.correctOption) o.selected = true; }); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning when round.correctOption used but gameState.correctAnswer not set, got: ${output}`,
+    );
+  });
+
+  it('warns when game uses round.correctAnswer but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const label = round.correctAnswer; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning when round.correctAnswer used but gameState.correctAnswer not set, got: ${output}`,
+    );
+  });
+
+  it('no warning when game has no round.correctOption or similar field', () => {
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Unexpected GEN-CORRECT-ANSWER-EXPOSURE warning on game with no round.correctOption: ${output}`,
+    );
+  });
+
+  it('warns when game uses round.correctValue but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const label = round.correctValue; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for round.correctValue, got: ${output}`,
+    );
+  });
+
+  it('warns when game uses round.solution but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const correct = round.solution; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for round.solution, got: ${output}`,
+    );
+  });
+
+  it('warns when game uses round.correctWord but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const word = round.correctWord; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for round.correctWord, got: ${output}`,
+    );
+  });
+
+  it('warns when game uses round.correctItem but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const item = round.correctItem; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for round.correctItem, got: ${output}`,
+    );
+  });
+
+  it('warns when game uses optional-chaining round?.correctOption but gameState.correctAnswer is never set', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; const opt = round?.correctOption; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for round?.correctOption (optional chaining), got: ${output}`,
+    );
+  });
+
+  it('no warning for text-input game that sets gameState.answer = round.answer', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; gameState.answer = round.answer; syncDOMState(); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Unexpected GEN-CORRECT-ANSWER-EXPOSURE warning when gameState.answer is set (text-input carve-out): ${output}`,
+    );
+  });
+
+  it('warns for MCQ game with round.correctOption + gameState.answer set (no gameState.correctAnswer)', () => {
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function loadRound() { const round = rounds[gameState.currentRound]; gameState.answer = userInput; syncDOMState(); }\nfunction renderOptions() { options.forEach(o => { if (o === round.correctOption) o.selected = true; }); }\nfunction checkAnswer(answer) {',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('GEN-CORRECT-ANSWER-EXPOSURE'),
+      `Expected GEN-CORRECT-ANSWER-EXPOSURE warning for MCQ game with round.correctOption + gameState.answer but no gameState.correctAnswer, got: ${output}`,
+    );
+  });
+});
+
+// ─── GEN-WORKED-EXAMPLE-TEARDOWN ─────────────────────────────────────────────
+
+describe('GEN-WORKED-EXAMPLE-TEARDOWN: worked-example panel button re-enable check', () => {
+  it('warns when worked-example + gotIt handler present but no removeAttribute disabled', () => {
+    // Has worked-example panel and handleGotIt but never re-enables option buttons
+    const html = VALID_HTML.replace(
+      'function endGame() {',
+      'function handleGotIt() {\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "none";\n' +
+      '}\n' +
+      'function showWorkedExample() {\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "block";\n' +
+      '}\n' +
+      'function endGame() {',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('WARNING') && output.includes('GEN-WORKED-EXAMPLE-TEARDOWN'),
+      `Expected GEN-WORKED-EXAMPLE-TEARDOWN warning but got: ${output}`,
+    );
+  });
+
+  it('does NOT warn when worked-example + gotIt handler re-enables buttons with removeAttribute', () => {
+    // Correct pattern: handler re-enables buttons before hiding panel
+    const html = VALID_HTML.replace(
+      'function endGame() {',
+      'function handleGotIt() {\n' +
+      '  var optionBtns = document.querySelectorAll(".option-btn");\n' +
+      '  optionBtns.forEach(function(btn) { btn.removeAttribute("disabled"); });\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "none";\n' +
+      '}\n' +
+      'function showWorkedExample() {\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "block";\n' +
+      '}\n' +
+      'function endGame() {',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-WORKED-EXAMPLE-TEARDOWN'),
+      `Unexpected GEN-WORKED-EXAMPLE-TEARDOWN warning for correct pattern: ${output}`,
+    );
+  });
+
+  it('does NOT warn when HTML has no worked-example logic at all', () => {
+    // Plain MCQ game with no worked-example panel — check must be silent
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-WORKED-EXAMPLE-TEARDOWN'),
+      `Unexpected GEN-WORKED-EXAMPLE-TEARDOWN warning for HTML with no worked-example logic: ${output}`,
+    );
+  });
+
+  it('suppressed when btn.disabled = false used to re-enable buttons', () => {
+    // Correct pattern using property assignment instead of removeAttribute
+    const html = VALID_HTML.replace(
+      'function endGame() {',
+      'function handleGotIt() {\n' +
+      '  var optionBtns = document.querySelectorAll(".option-btn");\n' +
+      '  optionBtns.forEach(function(btn) { btn.disabled = false; });\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "none";\n' +
+      '}\n' +
+      'function showWorkedExample() {\n' +
+      '  var workedExamplePanel = document.getElementById("worked-example-panel");\n' +
+      '  workedExamplePanel.style.display = "block";\n' +
+      '}\n' +
+      'function endGame() {',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-WORKED-EXAMPLE-TEARDOWN'),
+      `Unexpected GEN-WORKED-EXAMPLE-TEARDOWN warning when btn.disabled = false used: ${output}`,
+    );
+  });
+});
+
+// ─── GEN-ISPROCESSING-RESET ───────────────────────────────────────────────────
+
+describe('GEN-ISPROCESSING-RESET: isProcessing must be reset to false', () => {
+  it('warns when isProcessing = true present but isProcessing = false is never set', () => {
+    // Sets isProcessing to true but never clears it — permanent deadlock
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function handleAnswer() {\n' +
+      '  if (gameState.isProcessing) return;\n' +
+      '  gameState.isProcessing = true;\n' +
+      '  checkAnswer(gameState.correct);\n' +
+      '}\n' +
+      'function checkAnswer(answer) {',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass (warning only) but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('WARNING') && output.includes('GEN-ISPROCESSING-RESET'),
+      `Expected GEN-ISPROCESSING-RESET warning but got: ${output}`,
+    );
+  });
+
+  it('does NOT warn when isProcessing = true and isProcessing = false are both present', () => {
+    // Correct pattern: isProcessing is set and cleared
+    const html = VALID_HTML.replace(
+      'function checkAnswer(answer) {',
+      'function handleAnswer() {\n' +
+      '  if (gameState.isProcessing) return;\n' +
+      '  gameState.isProcessing = true;\n' +
+      '  checkAnswer(gameState.correct);\n' +
+      '  gameState.isProcessing = false;\n' +
+      '}\n' +
+      'function checkAnswer(answer) {',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-ISPROCESSING-RESET'),
+      `Unexpected GEN-ISPROCESSING-RESET warning for correct pattern: ${output}`,
+    );
+  });
+
+  it('does NOT warn when HTML has no isProcessing usage at all', () => {
+    // Plain game with no isProcessing — check must be silent
+    const { exitCode, output } = runValidator(VALID_HTML);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      !output.includes('GEN-ISPROCESSING-RESET'),
+      `Unexpected GEN-ISPROCESSING-RESET warning for HTML with no isProcessing: ${output}`,
     );
   });
 });

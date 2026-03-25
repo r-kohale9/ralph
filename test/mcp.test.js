@@ -280,4 +280,202 @@ describe('mcp', () => {
       }
     });
   });
+
+  describe('LOW-5: notify_slack_user validation', () => {
+    const notifyRegex = /^U[A-Z0-9]{6,11}$/;
+
+    it('valid Slack user ID passes notify_slack_user validation', () => {
+      const validIds = ['U0242GULG48', 'UABCDEFG', 'U1234567890A'];
+      for (const id of validIds) {
+        assert.ok(notifyRegex.test(id), `"${id}" should be accepted by notify_slack_user validation`);
+      }
+    });
+
+    it('invalid notify_slack_user values are rejected and fall back to null', () => {
+      const invalidIds = ['bad value', '<@U123> @everyone', '@everyone', 'u0242gulg48', 'U123', ''];
+      for (const id of invalidIds) {
+        assert.ok(!notifyRegex.test(id), `"${id}" should be rejected by notify_slack_user validation`);
+      }
+      // Verify fallback: invalid input → validatedNotifyUser is null
+      for (const id of invalidIds) {
+        const validated = notifyRegex.test(id) ? id : null;
+        assert.equal(validated, null, `"${id}" should produce null validatedNotifyUser`);
+      }
+    });
+  });
+
+  describe('warehouse tools', () => {
+    // Each test creates its own isolated tmpDir as the repoDir so warehouse reads
+    // are fully controlled without touching the real warehouse directory.
+
+    function makeFakeWarehouse(partsFiles = {}, manifestJson = null) {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-mcp-wh-'));
+      const partsDir = path.join(dir, 'warehouse', 'parts');
+      fs.mkdirSync(partsDir, { recursive: true });
+      for (const [name, content] of Object.entries(partsFiles)) {
+        fs.writeFileSync(path.join(partsDir, name), content, 'utf-8');
+      }
+      if (manifestJson !== null) {
+        fs.writeFileSync(path.join(dir, 'warehouse', 'parts', 'manifest.json'), manifestJson, 'utf-8');
+      }
+      return dir;
+    }
+
+    function callTool(server, toolName, args) {
+      const tool = server._registeredTools[toolName];
+      assert.ok(tool, `tool "${toolName}" should be registered`);
+      return tool.handler(args);
+    }
+
+    // ── read_parts_batch ─────────────────────────────────────────────────────
+
+    it('read_parts_batch: valid part ID returns content', async () => {
+      if (!mcpAvailable) return;
+      const repoDir = makeFakeWarehouse({ 'PART-001-boilerplate.md': '# Boilerplate\nContent here.' });
+      const server = createMcpServer({ db, queue: null, repoDir });
+
+      const result = await callTool(server, 'read_parts_batch', { part_ids: ['PART-001-boilerplate'] });
+      assert.ok(!result.isError, 'should not be an error');
+      assert.ok(result.content[0].text.includes('Boilerplate'), 'should include part content');
+
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+
+    it('read_parts_batch: unknown part ID returns inline not-found message (not isError)', async () => {
+      if (!mcpAvailable) return;
+      const repoDir = makeFakeWarehouse({ 'PART-001-boilerplate.md': '# Boilerplate' });
+      const server = createMcpServer({ db, queue: null, repoDir });
+
+      const result = await callTool(server, 'read_parts_batch', { part_ids: ['PART-999-ghost'] });
+      assert.ok(!result.isError, 'unknown part should NOT set isError — it returns inline not-found message');
+      assert.ok(result.content[0].text.includes('not found'), 'should say not found inline');
+
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+
+    it('read_parts_batch: path traversal attempt returns not-found inline (not isError)', async () => {
+      if (!mcpAvailable) return;
+      const repoDir = makeFakeWarehouse({ 'safe.md': '# Safe part' });
+      const server = createMcpServer({ db, queue: null, repoDir });
+
+      const result = await callTool(server, 'read_parts_batch', { part_ids: ['../../etc/passwd'] });
+      assert.ok(!result.isError, 'path traversal should NOT throw — returns inline not-found');
+      assert.ok(result.content[0].text.includes('not found'), 'should say not found inline');
+
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+
+    it('read_parts_batch: readdirSync failure degrades gracefully — returns not-found for all', async () => {
+      if (!mcpAvailable) return;
+      // Use a repoDir whose warehouse/parts does not exist — readdirSync will throw
+      const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-mcp-noparts-'));
+      // Do NOT create the parts dir — readdirSync will throw ENOENT
+      const server = createMcpServer({ db, queue: null, repoDir });
+
+      const result = await callTool(server, 'read_parts_batch', { part_ids: ['PART-001-boilerplate'] });
+      assert.ok(!result.isError, 'readdirSync failure should degrade gracefully, not crash');
+      assert.ok(result.content[0].text.includes('not found'), 'should return not-found message for all parts');
+
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+
+    it('read_parts_batch: empty array [] fails Zod validation (min:1)', async () => {
+      if (!mcpAvailable) return;
+      const repoDir = makeFakeWarehouse();
+      const server = createMcpServer({ db, queue: null, repoDir });
+      const tool = server._registeredTools['read_parts_batch'];
+
+      await assert.rejects(
+        () => server.validateToolInput(tool, { part_ids: [] }, 'read_parts_batch'),
+        (err) => {
+          assert.ok(err.message.includes('too_small') || err.message.includes('least 1'), 'should report min:1 violation');
+          return true;
+        },
+      );
+
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+
+    it('read_parts_batch: >40 parts fails Zod validation (max:40)', async () => {
+      if (!mcpAvailable) return;
+      const repoDir = makeFakeWarehouse();
+      const server = createMcpServer({ db, queue: null, repoDir });
+      const tool = server._registeredTools['read_parts_batch'];
+      const oversized = Array.from({ length: 41 }, (_, i) => `PART-${String(i).padStart(3, '0')}-x`);
+
+      await assert.rejects(
+        () => server.validateToolInput(tool, { part_ids: oversized }, 'read_parts_batch'),
+        (err) => {
+          assert.ok(err.message.includes('too_big') || err.message.includes('most 40'), 'should report max:40 violation');
+          return true;
+        },
+      );
+
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+
+    // ── read_warehouse_part ──────────────────────────────────────────────────
+
+    it('read_warehouse_part: valid part ID returns content', async () => {
+      if (!mcpAvailable) return;
+      const repoDir = makeFakeWarehouse({ 'PART-006-timer.md': '# Timer\nUse setInterval.' });
+      const server = createMcpServer({ db, queue: null, repoDir });
+
+      const result = await callTool(server, 'read_warehouse_part', { part_id: 'PART-006-timer' });
+      assert.ok(!result.isError, 'should not be an error');
+      assert.ok(result.content[0].text.includes('Timer'), 'should return part content');
+
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+
+    it('read_warehouse_part: unknown part returns isError: true with helpful message', async () => {
+      if (!mcpAvailable) return;
+      const repoDir = makeFakeWarehouse({ 'PART-006-timer.md': '# Timer' });
+      const server = createMcpServer({ db, queue: null, repoDir });
+
+      const result = await callTool(server, 'read_warehouse_part', { part_id: 'PART-999-missing' });
+      assert.equal(result.isError, true, 'unknown part should set isError: true');
+      assert.ok(result.content[0].text.includes('not found'), 'should include not found message');
+      assert.ok(result.content[0].text.includes('list_warehouse_parts'), 'should suggest list_warehouse_parts');
+
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+
+    // ── list_warehouse_parts ─────────────────────────────────────────────────
+
+    it('list_warehouse_parts: returns JSON list of parts from manifest', async () => {
+      if (!mcpAvailable) return;
+      const manifest = JSON.stringify({
+        parts: [
+          { id: 'PART-001-boilerplate', name: 'Boilerplate', category: 'core', condition: 'MANDATORY', file: 'PART-001-boilerplate.md' },
+          { id: 'PART-006-timer', name: 'Timer', category: 'ui', condition: 'CONDITIONAL', file: 'PART-006-timer.md' },
+        ],
+      });
+      const repoDir = makeFakeWarehouse({}, manifest);
+      const server = createMcpServer({ db, queue: null, repoDir });
+
+      const result = await callTool(server, 'list_warehouse_parts', {});
+      assert.ok(!result.isError, 'should not be an error');
+      const parsed = JSON.parse(result.content[0].text);
+      assert.ok(Array.isArray(parsed), 'result text should parse to an array');
+      assert.equal(parsed.length, 2, 'should return both parts');
+      assert.equal(parsed[0].id, 'PART-001-boilerplate');
+      assert.equal(parsed[1].id, 'PART-006-timer');
+
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+
+    it('list_warehouse_parts: missing manifest returns isError: true', async () => {
+      if (!mcpAvailable) return;
+      // No manifest.json written
+      const repoDir = makeFakeWarehouse();
+      const server = createMcpServer({ db, queue: null, repoDir });
+
+      const result = await callTool(server, 'list_warehouse_parts', {});
+      assert.equal(result.isError, true, 'missing manifest should set isError: true');
+      assert.ok(result.content[0].text.includes('not found'), 'should say manifest not found');
+
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+  });
 });

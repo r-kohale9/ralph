@@ -2677,3 +2677,23 @@ Both games AND the test harness use `#app`. The pattern is CONSISTENT — no bug
 **Pattern for elapsed time:** `(Date.now() - gameState.startTime) / 1000` — use startTime tracked in gameState.
 
 **Rule:** T1 ERROR [GEN-TIMER-GETTIME] now bans timer.getTime(), timer.getCurrentTime(), timer.getElapsed() etc. in all generated HTML. Any build using these hallucinated methods fails static validation before tests run.
+
+## Lesson 207 — 52% game-flow failure rate root cause: gameState.correctAnswer never set (2026-03-23)
+
+**Source:** stats-identify-class #581 root cause diagnosis | **Fix:** commit 0dd9186 (GEN-CORRECT-ANSWER-EXPOSURE)
+
+**Problem:** Games that store the correct answer in a round object field (e.g. `round.correctOption`, `round.correctAnswer`, `round.correctValue`) but never assign it to `gameState.correctAnswer`. The test harness `answer(page, true)` reads `gameState.correctAnswer` to find which button to click — if undefined, it falls back through `gameState.answer → round.correctIndex → round.correct → 0` (button index 0). Since most rounds have the correct answer at a different index, this submits the wrong answer every round → game stays stuck at `data-phase='playing'` → 0% correct submissions → all 3 game-flow tests timeout.
+
+**Rule:** Gen prompt rule 62 (GEN-CORRECT-ANSWER-EXPOSURE): Every game that stores the correct answer as a string field on the round object MUST also assign `gameState.correctAnswer = round.correctOption` (or the appropriate field name) BEFORE calling `syncDOMState()` in `renderRound()` / `loadRound()`. T1 WARNING fires if the pattern is detected but assignment is absent.
+
+**Carve-out:** Text-input games that set `gameState.answer = round.answer` are exempt — harness uses `gameState.answer` as the fallback for typed-input games.
+
+**Optional chaining:** T1 regex updated to match `round?.correctOption` in addition to `round.correctOption` (initial regex missed the `?.` form).
+
+## Lesson 208 — GF-ROUND-START test bug: getRound() > 0 fails because data-round is 0-indexed (2026-03-23)
+
+**Source:** stats-identify-class #581 start-transition test failure | **Fix:** commit a0e00ed (GF-ROUND-START)
+
+**Problem:** The test harness writes `data-round` as a 0-indexed value derived from `currentRound` (e.g. `currentRound=0` at round 1 → `data-round="0"`). Generated start-transition tests that assert `expect(await getRound()).toBeGreaterThan(0)` immediately after `startGame()` fail on a working game — the harness returns 0 (correct), but the assertion requires >0.
+
+**Rule:** Test-gen rule (GF-ROUND-START): Start-transition tests MUST NOT assert `getRound() > 0`, `getScore() > 0`, or `getLives() > 0` immediately after `startGame()`. Round 1 is represented as 0 in the data-round attribute. Use `toBeGreaterThanOrEqual(0)` or skip initial round assertions. Only assert that `data-phase` transitioned to `'playing'`.

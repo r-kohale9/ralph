@@ -4,6 +4,8 @@
 
 | Game | Session | Bloom | Status | Build # | Iter | Build Time | UI/UX | Next Action |
 |------|---------|-------|--------|---------|------|------------|-------|-------------|
+| [geo-angle-id](geo-angle-id/index.md) | Geo 1/4 | L1 Remember | 📝 Spec ready | — | — | — | ❌ Pending | Human review before queuing |
+| [geo-triangle-sort](geo-triangle-sort/index.md) | Geo 2/4 | L1–L2 Remember→Understand | 📝 Spec ready | — | — | — | ❌ Pending | Human review before queuing |
 | [stats-identify-class](stats-identify-class/index.md) | Stats 1/5 | L1 Remember | ❌ FAILED | #581 | 0 | ~60min | ⚠️ 1 P0 + 9 findings (browser 2026-03-23) | game-flow 0% (mobile layout P0, gameover transition) |
 | [stats-mean-direct](stats-mean-direct/index.md) | Stats 2/5 | L2-L3 Apply | ✅ Approved | #580 | 3 | ~26min | ✅ 0 P0 3 findings (browser 2026-03-23) | APPROVED. 9/9 rounds, results fixed, Play Again PASS. M-001 nextRound harness timing (test gap); M-002 results missing rounds-completed (gen rule); M-003 aria-atomic absent (gen rule). No re-queue. |
 | [stats-median](stats-median/index.md) | Stats 3/5 | L3 Apply | 🔄 Running | #582 | 0 | ~0min | ✅ 3 findings | HTML gen started 09:42 UTC — GEN-MOBILE-STACK + GF8 blanket-ban active |
@@ -40,6 +42,20 @@
 ---
 
 ## Sessions
+
+### Geometry (4 games, Bloom L1→L3) — 📝 Specs 1–3 written (2026-03-23)
+
+*Session goal: learner progresses from angle type identification (L1) through triangle and quadrilateral classification (L1–L2) → angle-sum computation (L3). Prerequisite: Statistics Session. Session plan: docs/education/geometry-session.md.*
+*Specs for Game 1 (geo-angle-id), Game 2 (geo-triangle-sort), and Game 3 (geo-quad-match) written. Game 4 spec pending geo-quad-match approval.*
+
+| # | Game | Bloom | Status | Notes |
+|---|------|-------|--------|-------|
+| 1 | [geo-angle-id](geo-angle-id/index.md) | L1 Remember | 📝 Spec ready | Visual MCQ: classify angle from CSS diagram; 9 rounds 3 tiers; no lives (learning mode); 3★≥7/9 |
+| 2 | [geo-triangle-sort](geo-triangle-sort/index.md) | L1–L2 Remember→Understand | 📝 Spec ready | Dual-axis MCQ: angles + sides + both; 9 rounds 3 tiers; CSS clip-path triangles; 6 misconceptions; no lives; 3★≥7/9 |
+| 3 | [geo-quad-match](geo-quad-match/index.md) | L2 Understand | 📝 Spec ready | Tri-mode MCQ: name→shape, shape→name, property→name; 9 rounds 3 tiers; CSS clip-path quads; 6 misconceptions; no lives; 3★≥7/9 |
+| 4 | geo-angle-sum | L3 Apply | 📝 Planned | Computation MCQ: find missing angle; spec pending geo-quad-match approval |
+
+---
 
 ### Statistics (5 games, Bloom L1→L4) — 📝 Specs written (2026-03-23)
 

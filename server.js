@@ -62,6 +62,12 @@ function getNextMidnight(timezone) {
   return now.getTime() + (msUntilMidnight < 60000 ? msUntilMidnight + 86400000 : msUntilMidnight);
 }
 
+// ─── gameId validation (exported for unit tests) ────────────────────────────
+const GAME_ID_REGEX = /^[a-z0-9-]{2,50}$/;
+function isValidGameId(gameId) {
+  return typeof gameId === 'string' && GAME_ID_REGEX.test(gameId);
+}
+
 // ─── Create Express app (testable without Redis) ────────────────────────────
 function createApp(deps = {}) {
   const queue = deps.queue || null;
@@ -247,8 +253,8 @@ function createApp(deps = {}) {
       return res.status(400).json({ error: 'gameId is required' });
     }
 
-    if (!/^[a-z0-9-]+$/.test(gameId)) {
-      return res.status(400).json({ error: 'Invalid gameId: must match [a-z0-9-]+' });
+    if (!isValidGameId(gameId)) {
+      return res.status(400).json({ error: 'Invalid gameId format' });
     }
 
     if (specUrl && specPath) {
@@ -817,7 +823,12 @@ function createApp(deps = {}) {
         };
       }
 
-      await transport.handleRequest(req, res, req.body);
+      // Thread caller identity from optional header into tool handlers
+      // Validate to Slack user ID format only (U + 6-11 alphanumeric chars) — prevents header injection
+      const { requestContext } = require('./lib/mcp');
+      const rawUserId = req.headers['x-ralph-notify-user'] || '';
+      const slackUserId = /^U[A-Z0-9]{6,11}$/.test(rawUserId) ? rawUserId : null;
+      await requestContext.run({ slackUserId }, () => transport.handleRequest(req, res, req.body));
 
       if (transport.sessionId && !mcpSessions.has(transport.sessionId)) {
         mcpSessions.set(transport.sessionId, transport);
@@ -955,4 +966,4 @@ if (require.main === module) {
   process.on('SIGINT', shutdown);
 }
 
-module.exports = { createApp, extractChangedSpecs, getNextMidnight };
+module.exports = { createApp, extractChangedSpecs, getNextMidnight, isValidGameId };
