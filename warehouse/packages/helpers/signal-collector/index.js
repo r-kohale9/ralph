@@ -106,14 +106,14 @@
    * @param {Object} options
    * @param {string} options.containerSelector - CSS selector for event delegation (default: '.game-play-area')
    * @param {number} options.maxBufferSize - Max input events in ring buffer (default: 5000)
-   * @param {number} options.throttleMs - Throttle interval for pointermove (default: 100)
+   * @param {number} options.throttleMs - (deprecated, ignored) Throttle interval is hardcoded to 500ms.
    * @param {string} options.sessionId - Session identifier
    * @param {string} options.studentId - Student identifier
    * @param {string} options.templateId - Game template identifier
    * @param {number} options.hesitationThresholdMs - Pause duration to count as hesitation (default: 3000)
    * @param {number} options.frustrationClickMs - Window for detecting rapid repeated clicks (default: 1000)
    * @param {number} options.frustrationClickCount - Clicks in window to flag frustration (default: 3)
-   * @param {number} options.flushIntervalMs - Interval for batch-flushing events to parent (default: 5000). Set to 0 to disable.
+   * @param {number} options.flushIntervalMs - (deprecated, ignored) Flush interval is hardcoded to 5000ms.
    */
   function SignalCollector(options) {
     options = options || {};
@@ -127,7 +127,7 @@
     this.hesitationThresholdMs = options.hesitationThresholdMs || 3000;
     this.frustrationClickMs = options.frustrationClickMs || 1000;
     this.frustrationClickCount = options.frustrationClickCount || 3;
-    this.flushIntervalMs = options.flushIntervalMs != null ? options.flushIntervalMs : 5000;
+    this.flushIntervalMs = 5000;
     this.flushUrl = options.flushUrl || null;
     this.playId = options.playId || null;
     this.gameId = options.gameId || null;

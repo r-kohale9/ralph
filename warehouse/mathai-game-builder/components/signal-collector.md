@@ -40,10 +40,35 @@ window.addEventListener('DOMContentLoaded', async () => {
   const signalCollector = new SignalCollector({
     sessionId: gameState.sessionId,
     studentId: gameState.studentId,
-    templateId: gameState.gameId
+    templateId: gameState.gameId,
+    gameId: gameState.gameId,
+    contentSetId: gameState.contentSetId
   });
   window.signalCollector = signalCollector;
+  // Flushing starts when game_init arrives with signalConfig.flushUrl
 });
+```
+
+### Receiving signal config from harness
+
+The parent harness sends a `game_init` postMessage that includes `signalConfig` with the cloud function URL and metadata. Handle it in your postMessage listener:
+
+```javascript
+function handlePostMessage(event) {
+  if (!event.data || event.data.type !== 'game_init') return;
+  var d = event.data.data;
+  gameState.content = d.content;
+  gameState.signalConfig = d.signalConfig || {};
+
+  // Configure SignalCollector with harness-provided metadata
+  if (signalCollector && gameState.signalConfig.flushUrl) {
+    signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+    signalCollector.playId = gameState.signalConfig.playId || null;
+    signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+    signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+    signalCollector.startFlushing();
+  }
+}
 ```
 
 ## Constructor Options
@@ -52,13 +77,18 @@ window.addEventListener('DOMContentLoaded', async () => {
 |--------|------|---------|-------------|
 | `containerSelector` | string | `'body'` | CSS selector for event delegation target. Default `body` captures all events including transition screens and overlays. |
 | `maxBufferSize` | number | `5000` | Max events in ring buffer |
-| `throttleMs` | number | `100` | Throttle interval for pointermove events |
+| `throttleMs` | number | `500` | **Hardcoded** — throttle interval for pointermove is always 500ms. This option is ignored. |
 | `sessionId` | string | `null` | Session identifier |
 | `studentId` | string | `null` | Student identifier |
 | `templateId` | string | `null` | Game template identifier (e.g., gameId) |
 | `hesitationThresholdMs` | number | `3000` | Pause duration to count as hesitation |
 | `frustrationClickMs` | number | `1000` | Time window for detecting rapid clicks |
 | `frustrationClickCount` | number | `3` | Clicks in window to flag frustration |
+| `flushIntervalMs` | number | `5000` | **Hardcoded** — flush interval is always 5000ms. This option is ignored. |
+| `flushUrl` | string | `null` | Cloud function URL for batch uploads. If null, flushing is disabled. Typically set from `signalConfig.flushUrl` received via `game_init`. |
+| `playId` | string | `null` | UUID for this game play session. Set from `signalConfig.playId`. |
+| `gameId` | string | `null` | Game identifier. Used in GCS batch path. |
+| `contentSetId` | string | `null` | Content set identifier. Used in GCS batch path. |
 
 ## Methods
 
@@ -208,11 +238,31 @@ Returns map of all completed problem signals: `{ problemId: signals, ... }`
 
 Returns collection metadata: version, counts, truncation flag, device context.
 
+### Batch Flushing
+
+#### `startFlushing()`
+
+Start periodic batch-streaming of new events directly to the cloud function via `fetch()`. Events accumulated since the last flush are sent every `flushIntervalMs` (default 5s). Requires `flushUrl` to be set (no-op otherwise). Each batch is written to GCS at `signal-events/{studentId}/{sessionId}/{gameId}/{contentSetId}/{playId}/batch-{N}.json`.
+
+```javascript
+signalCollector.startFlushing();
+```
+
+#### `stopFlushing()`
+
+Stop periodic flushing. Called automatically by `seal()`.
+
+```javascript
+signalCollector.stopFlushing();
+```
+
+**Note:** `seal()` automatically performs a final flush and stops the timer, so you don't need to call `stopFlushing()` manually before `seal()`.
+
 ### Lifecycle
 
 #### `seal()` → `{ events, signals, metadata }`
 
-Finalize the collector at game end. Detaches listeners, computes final signals, returns the complete payload. **Idempotent** — calling again returns the cached payload. Data stays readable after seal; all write methods warn and no-op.
+Finalize the collector at game end. Performs a **final flush** of any remaining events, stops the flush timer, detaches listeners, computes final signals, returns the complete payload. **Idempotent** — calling again returns the cached payload. Data stays readable after seal; all write methods warn and no-op.
 
 ```javascript
 const payload = signalCollector.seal();
