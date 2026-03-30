@@ -7,6 +7,18 @@
 ## Code
 
 ```javascript
+// Helper — compute per-round try counts (deduplicated)
+function computeTriesPerRound(attempts) {
+  var rounds = {};
+  attempts.forEach(function(a) {
+    var r = a.metadata.round;
+    rounds[r] = (rounds[r] || 0) + 1;
+  });
+  return Object.keys(rounds).map(function(r) {
+    return { round: Number(r), triesCount: rounds[r] };
+  });
+}
+
 function endGame() {
   if (!gameState.isActive) return;
   gameState.isActive = false;
@@ -23,8 +35,18 @@ function endGame() {
     time: timeTaken,
     stars,
     attempts: gameState.attempts,
-    duration_data: gameState.duration_data
+    duration_data: gameState.duration_data,
+    totalLives: gameState.totalLives || 1,
+    tries: computeTriesPerRound(gameState.attempts)
   };
+
+  // If game has restart mechanism, include session history
+  if (gameState.sessionHistory && gameState.sessionHistory.length > 0) {
+    metrics.sessionHistory = [
+      ...gameState.sessionHistory,
+      { totalLives: gameState.totalLives || 1, tries: computeTriesPerRound(gameState.attempts) }
+    ];
+  }
 
   console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
   console.log('Attempt History:', JSON.stringify(gameState.attempts, null, 2));
@@ -37,8 +59,8 @@ function endGame() {
     gameState.pendingEndProblem = null;
   }
 
-  // Seal SignalCollector — performs final flush, stops flush timer, detaches listeners, computes final signals (PART-010)
-  const signalPayload = signalCollector ? signalCollector.seal() : { events: [], signals: {}, metadata: {} };
+  // Seal SignalCollector — final flush to GCS, stop flush timer, detach listeners (PART-010)
+  if (signalCollector) signalCollector.seal();
 
   // Show results (PART-019)
   showResults(metrics);
@@ -49,7 +71,6 @@ function endGame() {
     data: {
       metrics,
       attempts: gameState.attempts,
-      ...signalPayload,  // { events, signals, metadata }
       completedAt: Date.now()
     }
   }, '*');
@@ -75,6 +96,9 @@ Global scope function (RULE-001).
 | `stars` | number | 0-3 star rating |
 | `attempts` | array | Full attempt history (from PART-009) |
 | `duration_data` | object | Full timing breakdown |
+| `totalLives` | integer | Initial lives count. Default `1` for non-lives games. |
+| `tries` | array | Per-round attempt count: `[{round: 1, triesCount: 2}, ...]` |
+| `sessionHistory` | array (optional) | Present when game has restart mechanism. Each entry: `{totalLives, tries}` for that session. |
 
 ## Star Calculation (Default — Accuracy-Based)
 
@@ -124,9 +148,9 @@ The `endGame()` function exists in every game, but it only works if something **
 - Log metrics with `JSON.stringify` (RULE-004)
 - Fire `game_end` trackEvent BEFORE signal sealing
 - Flush deferred `endProblem` before sealing (PART-010)
-- Seal SignalCollector before postMessage — `seal()` detaches listeners and is idempotent
+- Seal SignalCollector before postMessage — `seal()` performs final flush to GCS, detaches listeners, and is idempotent
 - Call `showResults()` to display results screen (PART-019)
-- Send postMessage with `...signalPayload` spread (includes `events`, `signals`, `metadata`) BEFORE cleanup (PART-008)
+- Send postMessage with `metrics`, `attempts`, `completedAt` BEFORE cleanup (PART-008). Signal data is streamed to GCS via batch flushing — NOT included in postMessage.
 - Cleanup ALL components LAST (RULE-005)
 - Data stays readable after seal — console inspection works on game complete screen
 
@@ -140,6 +164,13 @@ If the game supports restarting (via TransitionScreen "Try again!" button), the 
 
 ```javascript
 function restartGame() {
+  // Push session snapshot BEFORE resetting (for sessionHistory in metrics)
+  if (!gameState.sessionHistory) gameState.sessionHistory = [];
+  gameState.sessionHistory.push({
+    totalLives: gameState.totalLives || 1,
+    tries: computeTriesPerRound(gameState.attempts)
+  });
+
   // Reset gameState
   window.gameState.currentRound = 0;
   window.gameState.score = 0;
@@ -177,11 +208,15 @@ function restartGame() {
 - [ ] Logs `'Attempt History:'` with JSON.stringify
 - [ ] Fires `game_end` trackEvent before signal sealing
 - [ ] Flushes deferred `endProblem` before sealing
-- [ ] Calls `signalCollector.seal()` before postMessage
+- [ ] Calls `signalCollector.seal()` before postMessage (final flush to GCS)
 - [ ] Calls `showResults(metrics)`
-- [ ] Sends `game_complete` postMessage with `...signalPayload` spread
-- [ ] postMessage `data` includes: `metrics`, `attempts`, `events`, `signals`, `metadata`
+- [ ] Sends `game_complete` postMessage with `metrics`, `attempts`, `completedAt`
+- [ ] Signal data is NOT in postMessage (streamed to GCS via batch flushing)
 - [ ] Destroys timer (if exists)
 - [ ] Destroys visibilityTracker
 - [ ] Stops all audio and streams
+- [ ] `metrics.totalLives` set (default `1` for non-lives games)
+- [ ] `metrics.tries` computed via `computeTriesPerRound(gameState.attempts)`
+- [ ] `computeTriesPerRound` helper exists in global scope
+- [ ] Restart pattern pushes `{totalLives, tries}` to `gameState.sessionHistory` before reset
 - [ ] Restart pattern recreates SignalCollector

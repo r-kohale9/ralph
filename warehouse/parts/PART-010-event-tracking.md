@@ -303,7 +303,7 @@ Add `data-signal-id` to important interactive elements for clear signal identifi
 
 ## Seal & Game Complete
 
-Handled in PART-011. Use `seal()` to finalize and include signal data in the submission payload. `seal()` performs a final flush of any remaining events, stops the flush timer, detaches listeners, and computes final signals. See PART-011 for the `endGame()` integration.
+Handled in PART-011. Call `seal()` in `endGame()` to perform a final flush of any remaining events to GCS, stop the flush timer, detach listeners, and compute final signals. Signal data is **not** included in the `game_complete` postMessage — it is delivered to GCS via batch flushing. See PART-011 for the `endGame()` integration.
 
 ## Batch Flushing
 

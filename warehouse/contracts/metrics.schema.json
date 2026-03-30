@@ -40,6 +40,46 @@
     },
     "duration_data": {
       "$ref": "duration-data.schema.json"
+    },
+    "totalLives": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "How many lives the user started with. Default 1 for non-lives games."
+    },
+    "tries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["round", "triesCount"],
+        "properties": {
+          "round": { "type": "integer", "description": "Round number" },
+          "triesCount": { "type": "integer", "minimum": 1, "description": "Number of attempts for this round" }
+        }
+      },
+      "description": "Per-round attempt count, deduplicated by round."
+    },
+    "sessionHistory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["totalLives", "tries"],
+        "properties": {
+          "totalLives": { "type": "integer", "minimum": 1 },
+          "tries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["round", "triesCount"],
+              "properties": {
+                "round": { "type": "integer" },
+                "triesCount": { "type": "integer", "minimum": 1 }
+              }
+            }
+          }
+        }
+      },
+      "description": "Optional — present when game has restart mechanism. Each entry stores totalLives and tries for that session."
     }
   },
   "additionalProperties": true
