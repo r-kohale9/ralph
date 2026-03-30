@@ -177,8 +177,8 @@ async function endGame() {
   if (gameState.gameEnded) return;
   gameState.gameEnded = true;
   const metrics = { score: gameState.score, accuracy: 100, time: 30, stars: calcStars(), livesRemaining: 3, attempts: [], duration_data: {} };
-  const signalPayload = { events: [], signals: {}, metadata: {} };
-  window.parent.postMessage({ type: 'game_complete', data: { metrics, attempts: gameState.attempts, ...signalPayload, completedAt: Date.now() } }, '*');
+  if (signalCollector) signalCollector.seal();
+  window.parent.postMessage({ type: 'game_complete', data: { metrics, attempts: gameState.attempts, completedAt: Date.now() } }, '*');
 }
 window.endGame = endGame;
 function initGame() { gameState = { score: 0, phase: 'playing' }; }

@@ -17,8 +17,11 @@ window.addEventListener("DOMContentLoaded", async () => {
       sessionId: window.gameVariableState?.sessionId || "session_" + Date.now(),
       studentId: window.gameVariableState?.studentId || null,
       templateId: gameState.gameId || null,
+      gameId: gameState.gameId,
+      contentSetId: gameState.contentSetId,
     });
     window.signalCollector = signalCollector;
+    // Flushing starts when game_init arrives with signalConfig.flushUrl
     // {{IF PART-025 selected: ScreenLayout.inject() + clone template into #gameContent HERE}}
 
     // {{IF PART-006 selected: TimerComponent creation here}}

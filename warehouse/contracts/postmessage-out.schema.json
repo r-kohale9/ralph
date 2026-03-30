@@ -11,17 +11,10 @@
     },
     "data": {
       "type": "object",
-      "required": ["metrics", "events", "completedAt"],
+      "required": ["metrics", "completedAt"],
       "properties": {
         "metrics": {
           "$ref": "metrics.schema.json"
-        },
-        "events": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["type", "target", "timestamp"]
-          }
         },
         "completedAt": {
           "type": "number",

@@ -68,9 +68,12 @@ Handled in PART-004. SignalCollector is created after `FeedbackManager.init()`, 
 signalCollector = new SignalCollector({
   sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
   studentId: window.gameVariableState?.studentId || null,
-  templateId: gameState.gameId || null
+  templateId: gameState.gameId || null,
+  gameId: gameState.gameId,
+  contentSetId: gameState.contentSetId
 });
 window.signalCollector = signalCollector;
+// Flushing starts when game_init arrives with signalConfig.flushUrl
 ```
 
 ## Constructor Options
@@ -79,13 +82,16 @@ window.signalCollector = signalCollector;
 |--------|------|---------|-------------|
 | `containerSelector` | string | `'body'` | CSS selector for event delegation target |
 | `maxBufferSize` | number | `5000` | Max events in ring buffer |
-| `throttleMs` | number | `100` | Throttle interval for pointermove events |
 | `sessionId` | string | `null` | Session identifier |
 | `studentId` | string | `null` | Student identifier |
-| `templateId` | string | `null` | Game template identifier |
+| `templateId` | string | `null` | Game template identifier (e.g., gameId) |
 | `hesitationThresholdMs` | number | `3000` | Pause duration to count as hesitation |
 | `frustrationClickMs` | number | `1000` | Time window for detecting rapid clicks |
 | `frustrationClickCount` | number | `3` | Clicks in window to flag frustration |
+| `flushUrl` | string | `null` | Cloud function URL for batch uploads. If null, flushing is disabled. Typically set from `signalConfig.flushUrl` received via `game_init`. |
+| `playId` | string | `null` | UUID for this game play session. Set from `signalConfig.playId`. |
+| `gameId` | string | `null` | Game identifier. Used in GCS batch path. |
+| `contentSetId` | string | `null` | Content set identifier. Used in GCS batch path. |
 
 ## Problem Lifecycle
 
@@ -297,7 +303,33 @@ Add `data-signal-id` to important interactive elements for clear signal identifi
 
 ## Seal & Game Complete
 
-Handled in PART-011. Use `seal()` to finalize and include signal data in the submission payload. See PART-011 for the `endGame()` integration.
+Handled in PART-011. Call `seal()` in `endGame()` to perform a final flush of any remaining events to GCS, stop the flush timer, detach listeners, and compute final signals. Signal data is **not** included in the `game_complete` postMessage — it is delivered to GCS via batch flushing. See PART-011 for the `endGame()` integration.
+
+## Batch Flushing
+
+The SignalCollector can stream events to a cloud function in real time. Flushing is configured via the `game_init` postMessage from the parent harness:
+
+```javascript
+function handlePostMessage(event) {
+  if (!event.data || event.data.type !== 'game_init') return;
+  var d = event.data.data;
+  gameState.content = d.content;
+  gameState.signalConfig = d.signalConfig || {};
+
+  // Configure SignalCollector with harness-provided metadata
+  if (signalCollector && gameState.signalConfig.flushUrl) {
+    signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+    signalCollector.playId = gameState.signalConfig.playId || null;
+    signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+    signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+    signalCollector.startFlushing();
+  }
+}
+```
+
+Events are sent every 5s to `flushUrl` and stored in GCS at `signal-events/{studentId}/{sessionId}/{gameId}/{contentSetId}/{playId}/batch-{N}.json`.
+
+`seal()` automatically performs a final flush and stops the timer — no need to call `stopFlushing()` manually before `seal()`.
 
 ## Data Access Methods
 
@@ -314,9 +346,11 @@ Handled in PART-011. Use `seal()` to finalize and include signal data in the sub
 
 | Method | Description |
 |--------|-------------|
-| `seal()` | Finalize at game end. Detaches listeners, returns `{ events, signals, metadata }`. Idempotent. |
+| `seal()` | Finalize at game end. Performs final flush, stops flush timer, detaches listeners, returns `{ events, signals, metadata }`. Idempotent. |
 | `pause()` | Pause signal collection (use with VisibilityTracker) |
 | `resume()` | Resume signal collection |
+| `startFlushing()` | Start periodic batch-streaming of events to `flushUrl`. Requires `flushUrl` to be set. |
+| `stopFlushing()` | Stop periodic flushing. Called automatically by `seal()`. |
 
 ## Rules
 
@@ -341,7 +375,7 @@ Handled in PART-011. Use `seal()` to finalize and include signal data in the sub
 - [ ] Game-specific interaction events fired
 
 ### SignalCollector
-- [ ] SignalCollector initialized in PART-004 with sessionId, studentId, templateId
+- [ ] SignalCollector initialized in PART-004 with sessionId, studentId, templateId, gameId, contentSetId
 - [ ] `window.signalCollector` assigned
 - [ ] `startProblem` called at each round/question start
 - [ ] Deferred `endProblem` pattern used (via `gameState.pendingEndProblem`)
