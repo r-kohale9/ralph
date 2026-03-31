@@ -31,7 +31,7 @@
   // ============================================================
   // Flush thresholds
   // ============================================================
-  var MIN_FLUSH_SIZE = 10;      // Don't flush fewer than this many events...
+  var MIN_FLUSH_SIZE = 100;      // Don't flush fewer than this many events...
   var MAX_FLUSH_AGE_MS = 30000; // ...unless the oldest event is older than 30s
 
   // ============================================================
