@@ -88,7 +88,6 @@ window.gameState = {
   sameDifferentAnswer: null,      // 'same' or 'different' — kid's judgment
   ruleAnswer: { item1Count: null, item2Count: null },  // kid's rule numbers from sentence builder
   roundData: null,                // Current round's content data
-  pendingEndProblem: null         // Deferred endProblem data for SignalCollector (PART-010)
 };
 
 let visibilityTracker = null;
@@ -922,7 +921,6 @@ The game has 3 stages with different interaction flows:
    - Call setupRound()
 
 3. **setupRound()** runs:
-   - Flush deferred endProblem from previous round
    - Get roundData = gameState.content.rounds[gameState.currentRound]
    - Set gameState.roundData = roundData
    - Set gameState.currentStage = roundData.stage
@@ -985,7 +983,7 @@ The game has 3 stages with different interaction flows:
    - **If Stage 1/2 (post-judgment rule check):**
      - Show feedback area with summary
      - trackEvent('round_complete', 'game', { round, judgmentCorrect, ruleCorrect })
-     - Defer endProblem
+     - Record round outcome via `signalCollector.recordCustomEvent('round_solved', ...)`
      - After 1500ms delay -> nextRound()
 
 6. **nextRound()**:
@@ -1013,10 +1011,10 @@ The game has 3 stages with different interaction flows:
        });
      } catch(e) { console.error('Feedback error:', JSON.stringify({ error: e.message }, null, 2)); }
      ```
-   - Flush deferred endProblem, seal SignalCollector (PART-010)
+   - Seal SignalCollector (PART-010): `if (signalCollector) signalCollector.seal()`
    - Update results screen: #result-score, #result-accuracy, #stars-display
    - Show #results-screen, hide #game-screen
-   - Send postMessage with `...signalPayload`, cleanup
+   - Send postMessage (signal data streamed to GCS — not included), cleanup
 
 8. **restartGame()** — Reset all state, recreate components, show start screen:
    - Reset all gameState fields to defaults (currentRound=0, score=0, correctCount=0, etc.)
@@ -1046,25 +1044,7 @@ The game has 3 stages with different interaction flows:
 - setupRound()
 
 **setupRound()**
-- Flush deferred endProblem from previous round:
-  ```javascript
-  if (signalCollector && gameState.pendingEndProblem) {
-    signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
-    gameState.pendingEndProblem = null;
-  }
-  ```
 - Get roundData = gameState.content.rounds[gameState.currentRound]
-- Start signal collection for this round:
-  ```javascript
-  if (signalCollector) {
-    signalCollector.startProblem('round_' + (gameState.currentRound + 1), {
-      round_number: gameState.currentRound + 1,
-      question_text: `Compare scenes: ${roundData.sceneA.description} vs ${roundData.sceneB.description}`,
-      correct_answer: { type: roundData.type, rule: roundData.rule },
-      difficulty: roundData.stage === 1 ? 'easy' : roundData.stage === 2 ? 'medium' : 'hard'
-    });
-  }
-  ```
 - Set gameState.roundData = roundData
 - Set gameState.currentStage = roundData.stage
 - Set gameState.sameDifferentAnswer = null
@@ -1162,7 +1142,7 @@ The game has 3 stages with different interaction flows:
 - **If Stage 3:** This is the second interaction (judgment comes after rule). Proceed directly:
   - Show feedback summary
   - trackEvent('round_complete', 'game', { round: gameState.currentRound + 1 })
-  - Defer endProblem
+  - Record round outcome via `signalCollector.recordCustomEvent('round_solved', ...)`
   - After 1500ms -> nextRound()
 - **If Stage 1/2:** Judgment is first interaction. Now show sentence builder:
   - Show sentence-builder
@@ -1228,12 +1208,8 @@ The game has 3 stages with different interaction flows:
     - gameState.isProcessing = false
   - return (do not call nextRound — wait for judgment)
 - **If Stage 1/2 (post-judgment rule check) or Stage 3 post-judgment:**
-  - Defer endProblem:
+  - Record round outcome:
     ```javascript
-    gameState.pendingEndProblem = {
-      id: 'round_' + (gameState.currentRound + 1),
-      outcome: { correct: ruleCorrect, answer: { judgment: gameState.sameDifferentAnswer, rule: gameState.ruleAnswer } }
-    };
     if (signalCollector) {
       signalCollector.recordCustomEvent('round_solved', { correct: ruleCorrect, round: gameState.currentRound + 1 });
     }
@@ -1287,13 +1263,6 @@ The game has 3 stages with different interaction flows:
     });
   } catch(e) { console.error('Feedback error:', JSON.stringify({ error: e.message }, null, 2)); }
   ```
-- Flush deferred endProblem:
-  ```javascript
-  if (signalCollector && gameState.pendingEndProblem) {
-    signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
-    gameState.pendingEndProblem = null;
-  }
-  ```
 - Update results screen:
   ```javascript
   document.getElementById('result-score').textContent = `${gameState.correctCount}/10`;
@@ -1302,9 +1271,12 @@ The game has 3 stages with different interaction flows:
   starsDisplay.innerHTML = Array(3).fill(0).map((_, i) => `<span class="${i < stars ? 'star-filled' : 'star-empty'}">${i < stars ? '⭐' : '☆'}</span>`).join('');
   ```
 - Show #results-screen, hide #game-screen
-- Seal SignalCollector and send postMessage:
+- Seal SignalCollector (fires sendBeacon to flush all events to GCS, stops flush timer, detaches listeners):
   ```javascript
-  const signalPayload = signalCollector ? signalCollector.seal() : {};
+  if (signalCollector) signalCollector.seal();
+  ```
+- Send postMessage (signal data streamed to GCS via batch flushing — NOT included in postMessage):
+  ```javascript
   const payload = {
     type: 'game_end',
     data: {
@@ -1316,8 +1288,7 @@ The game has 3 stages with different interaction flows:
       totalTime,
       attempts: gameState.attempts,
       events: gameState.events,
-      duration_data: gameState.duration_data,
-      ...signalPayload
+      duration_data: gameState.duration_data
     }
   };
   window.parent.postMessage(payload, '*');
@@ -1339,14 +1310,14 @@ The game has 3 stages with different interaction flows:
 - gameState.gameEnded = false
 - gameState.isProcessing = false
 - gameState.phase = 'start'; syncDOMState()
-- gameState.pendingEndProblem = null
 - gameState.duration_data = { startTime: null, preview: [], attempts: [], evaluations: [], inActiveTime: [], totalInactiveTime: 0, currentTime: null }
 - Recreate SignalCollector (endGame destroyed it via seal):
   ```javascript
   signalCollector = new SignalCollector({
     sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
     studentId: window.gameVariableState?.studentId || null,
-    templateId: gameState.gameId || null
+    gameId: gameState.gameId || null,
+    contentSetId: gameState.contentSetId || null
   });
   window.signalCollector = signalCollector;
   ```

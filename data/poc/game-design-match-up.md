@@ -77,7 +77,6 @@ window.gameState = {
   totalLives: 3,
   roundData: null,           // Current round content
   currentStage: 1,           // 1=Easy, 2=Mixed, 3=Hard
-  pendingEndProblem: null
 };
 ```
 
@@ -521,9 +520,10 @@ Game HTML is placed inside a `<template>` element and cloned into `#gameContent`
      - `accuracy > 0` → 1 star
      - else → 0 stars
    - `await FeedbackManager.playDynamicFeedback({ audio_content: 'Great job! You scored ' + gameState.score + ' out of ' + gameState.totalRounds + '!', subtitle: 'Well done!', sticker: TROPHY_LOTTIE_URL })`
+   - Seal SignalCollector: `if (signalCollector) signalCollector.seal()` (PART-010)
    - Show victory transition screen via `TransitionScreen`
    - After transition callback → `showResults()`
-   - Post metrics via PART-008 postMessage
+   - Post metrics via PART-008 postMessage (signal data streamed to GCS — not included)
 
 9. **showResults():**
    - Hide `#game-screen`, show `#results-screen`
@@ -824,13 +824,16 @@ async function endGame() {
     sticker: 'https://cdn.mathai.ai/mathai-assets/lottie/trophy.json'
   });
 
+  // Seal SignalCollector — fires sendBeacon to flush all events to GCS, stops flush timer, detaches listeners (PART-010)
+  if (signalCollector) signalCollector.seal();
+
   transitionScreen.show('victory', {
     title: 'Victory!',
     subtitle: stars + ' Stars!',
     callback: () => showResults()
   });
 
-  // Post metrics (PART-008)
+  // Post metrics (PART-008) — signal data streamed to GCS via batch flushing, NOT included in postMessage
   window.parent.postMessage({
     type: 'GAME_COMPLETE',
     payload: {
@@ -888,8 +891,16 @@ function restartGame() {
   gameState.phase = 'start';
   gameState.roundData = null;
   gameState.currentStage = 1;
-  gameState.pendingEndProblem = null;
   gameState.startTime = null;
+
+  // Recreate SignalCollector (endGame destroyed it via seal)
+  signalCollector = new SignalCollector({
+    sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+    studentId: window.gameVariableState?.studentId || null,
+    gameId: gameState.gameId || null,
+    contentSetId: gameState.contentSetId || null
+  });
+  window.signalCollector = signalCollector;
 
   // Hide results, show start transition
   document.getElementById('results-screen').style.display = 'none';

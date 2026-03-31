@@ -500,31 +500,85 @@ async function publishGame(gameId, buildId, gameDir, report, { specPath: externa
     const contentSets = [];
     const generatedSets = report.generatedContentSets || [];
 
-    // Fallback: load content-*.json files from disk if pipeline data missing
+    // Fallback: load content sets from disk if pipeline data missing
     if (generatedSets.length === 0) {
       try {
-        const files = fs.readdirSync(gameDir).filter((f) => /^content-(?:set-)?\d+(?:-\w+)?\.json$/i.test(f)).sort();
-        for (const f of files) {
+        // Check for a single content-sets.json (array of sets — agent's preferred format)
+        const bulkFile = path.join(gameDir, 'content-sets.json');
+        if (fs.existsSync(bulkFile)) {
           try {
-            const content = JSON.parse(fs.readFileSync(path.join(gameDir, f), 'utf-8'));
-            const diffMatch = f.match(/content-(?:set-)?\d+-(\w+)\.json/);
-            generatedSets.push({
-              name: f.replace('.json', ''),
-              difficulty: diffMatch ? diffMatch[1] : 'medium',
-              grade: 4,
-              concepts: [],
-              content,
-            });
-          } catch {}
-        }
-        if (generatedSets.length > 0) {
-          console.log(`[publish] Loaded ${generatedSets.length} content set(s) from disk files`);
+            const parsed = JSON.parse(fs.readFileSync(bulkFile, 'utf-8'));
+            const sets = Array.isArray(parsed) ? parsed : [parsed];
+            for (const cs of sets) {
+              if (cs.content && typeof cs.content === 'object') {
+                generatedSets.push({
+                  name: cs.name || 'Default',
+                  difficulty: cs.difficulty || 'medium',
+                  grade: cs.grade || 5,
+                  concepts: cs.concepts || [],
+                  content: cs.content,
+                });
+              }
+            }
+            if (generatedSets.length > 0) {
+              console.log(`[publish] Loaded ${generatedSets.length} content set(s) from content-sets.json`);
+            }
+          } catch (e) {
+            console.warn(`[publish] content-sets.json exists but could not be parsed: ${e.message}`);
+          }
         }
       } catch {}
+
+      // Also check for individual content-N.json / content-set-N.json files
+      if (generatedSets.length === 0) {
+        try {
+          const files = fs.readdirSync(gameDir).filter((f) => /^content-(?:set-)?\d+(?:-\w+)?\.json$/i.test(f)).sort();
+          for (const f of files) {
+            try {
+              const content = JSON.parse(fs.readFileSync(path.join(gameDir, f), 'utf-8'));
+              const diffMatch = f.match(/content-(?:set-)?\d+-(\w+)\.json/);
+              generatedSets.push({
+                name: f.replace('.json', ''),
+                difficulty: diffMatch ? diffMatch[1] : 'medium',
+                grade: 4,
+                concepts: [],
+                content,
+              });
+            } catch {}
+          }
+          if (generatedSets.length > 0) {
+            console.log(`[publish] Loaded ${generatedSets.length} content set(s) from disk files`);
+          }
+        } catch {}
+      }
+    }
+
+    // Fallback: if no content sets from agent or disk, create a default from fallbackContent
+    if (generatedSets.length === 0) {
+      console.warn('[publish] No content sets from agent/disk — creating default from fallbackContent');
+      const fb = _extractFallbackContent(htmlContent);
+      if (fb) {
+        try {
+          const vm = require('vm');
+          const fbContent = vm.runInNewContext(`(${fb.objectLiteral})`, Object.create(null));
+          generatedSets.push({
+            name: 'Default',
+            difficulty: 'medium',
+            grade: 5,
+            concepts: [],
+            content: fbContent,
+          });
+          console.log(`[publish] ✅ Created default content set from fallbackContent`);
+        } catch (e) {
+          console.warn(`[publish] ⚠️  Could not parse fallbackContent for default set: ${e.message}`);
+        }
+      } else {
+        console.warn('[publish] ⚠️  No fallbackContent found — cannot create default content set');
+      }
     }
 
     if (generatedSets.length === 0) {
-      console.warn('[publish] ⚠️  No content sets available — pipeline content-gen step may have failed');
+      console.warn('[publish] ⚠️  No content sets available at all — game will not be playable via link');
     } else {
       console.log(`[publish] Creating ${generatedSets.length} content set(s) via core API...`);
 

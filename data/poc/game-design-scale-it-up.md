@@ -115,7 +115,6 @@ window.gameState = {
   totalLives: 3,
   currentStage: 1,
   roundData: null,          // Current round's content object
-  pendingEndProblem: null    // Deferred endProblem for SignalCollector (PART-010)
 };
 
 let visibilityTracker = null;
@@ -538,17 +537,6 @@ let transitionScreen = null;
    - Store in gameState.roundData
    - Display scenario text from roundData.context.scenario
    - Display base ratio card: "For every [a] [item1], there are [b] [item2]"
-   - Start signal problem for this round:
-     ```javascript
-     if (signalCollector) {
-       signalCollector.startProblem('round_' + (gameState.currentRound + 1), {
-         round_number: gameState.currentRound + 1,
-         question_text: roundData.context.scenario,
-         correct_answer: roundData.roundType === 'typeA' ? roundData.correctAnswer : roundData.isProportional,
-         difficulty: 'stage_' + roundData.stage
-       });
-     }
-     ```
    - If roundType === 'typeA':
      - Show #type-a-area, hide #type-b-area
      - Show the scaled card with one value displayed and one blank
@@ -619,12 +607,15 @@ let transitionScreen = null;
      - trackEvent('type_a_answer', 'game', { correct: false, answer: userAnswer, round: gameState.currentRound + 1 })
      - trackEvent('life_lost', 'game', { lives: gameState.lives, round: gameState.currentRound + 1 })
      - progressBar.update(gameState.currentRound, gameState.lives)
-   - Defer endProblem:
+   - Record round outcome:
      ```javascript
-     gameState.pendingEndProblem = {
-       id: 'round_' + (gameState.currentRound + 1),
-       outcome: { correct: isCorrect, answer: userAnswer }
-     };
+     if (signalCollector) {
+       signalCollector.recordCustomEvent('round_solved', {
+         round: gameState.currentRound + 1,
+         correct: isCorrect,
+         answer: userAnswer
+       });
+     }
      ```
    - Lives check: if (gameState.lives <= 0) handleGameOver() else nextRound()
    - gameState.isProcessing = false
@@ -676,7 +667,7 @@ let transitionScreen = null;
      - trackEvent('life_lost', 'game', { lives: gameState.lives, round: gameState.currentRound + 1 })
      - progressBar.update(gameState.currentRound, gameState.lives)
      - recordAttempt({ userAnswer: sameChosen ? 'same' : 'different', correct: false, question: roundData.context.scenario, correctAnswer: roundData.isProportional ? 'same' : 'different', validationType: 'function' })
-   - Defer endProblem (same pattern as Type A)
+   - Record round outcome via `signalCollector.recordCustomEvent('round_solved', ...)`
    - Lives check: if (gameState.lives <= 0) handleGameOver() else nextRound()
    - gameState.isProcessing = false
 
@@ -704,21 +695,11 @@ let transitionScreen = null;
      ```
      - gameState.score++ (judgment was correct -- wrong reason does NOT cost a life or prevent scoring)
      - recordAttempt({ userAnswer: 'different_reason_' + index, correct: false, question: roundData.context.scenario, correctAnswer: 'different_reason_' + roundData.correctReasonIndex, validationType: 'function' })
-   - Defer endProblem
+   - Record round outcome via `signalCollector.recordCustomEvent('round_solved', ...)`
    - nextRound()
    - gameState.isProcessing = false
 
 8. **nextRound():**
-   - Flush pending endProblem:
-     ```javascript
-     if (gameState.pendingEndProblem && signalCollector) {
-       signalCollector.endProblem(
-         gameState.pendingEndProblem.id,
-         gameState.pendingEndProblem.outcome
-       );
-       gameState.pendingEndProblem = null;
-     }
-     ```
    - gameState.currentRound++
    - trackEvent('round_complete', 'game', { round: gameState.currentRound, score: gameState.score })
    - If gameState.currentRound >= gameState.totalRounds: endGame()
@@ -728,7 +709,7 @@ let transitionScreen = null;
      - Else: setupRound()
 
 9. **handleGameOver():**
-   - Flush pending endProblem
+   - Seal SignalCollector: `if (signalCollector) signalCollector.seal()`
    - gameState.gameEnded = true
    - gameState.isActive = false
    ```javascript
@@ -742,7 +723,7 @@ let transitionScreen = null;
    - Send postMessage with game results (PART-008)
 
 10. **endGame():**
-    - Flush pending endProblem
+    - Seal SignalCollector: `if (signalCollector) signalCollector.seal()`
     - gameState.gameEnded = true
     - gameState.isActive = false
     - Calculate stars: 9-10 correct -> 3 stars, 6-8 -> 2 stars, 1-5 -> 1 star
@@ -789,8 +770,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     await sound.preload(['correct_tap', 'wrong_tap']);
 
     // PART-010: SignalCollector
-    signalCollector = new SignalCollector({ gameId: 'scale-it-up' });
+    signalCollector = new SignalCollector({
+      sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+      studentId: window.gameVariableState?.studentId || null,
+      gameId: gameState.gameId,
+      contentSetId: gameState.contentSetId || null
+    });
     window.signalCollector = signalCollector;
+    // Flushing starts when game_init arrives with signalConfig.flushUrl
 
     // PART-025: ScreenLayout
     ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } });
@@ -857,7 +844,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 - Set #base-b textContent = roundData.baseRatio.b
 - Set #base-item1 textContent = roundData.context.item1Name
 - Set #base-item2 textContent = roundData.context.item2Name
-- Start signal problem (see Section 8 step 4)
+- Record content_render view event (see Section 8 step 4)
 - If roundData.roundType === 'typeA':
   - Show #type-a-area, hide #type-b-area
   - Build scaled text: show the known value, leave blank for blankField
@@ -913,12 +900,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 - See Section 8 step 11 for full logic.
 
 **handlePostMessage(event)** (PART-008)
-- If event.data.type === 'GAME_CONTENT': gameState.content = event.data.content
+- If event.data.type === 'game_init':
+  - gameState.content = event.data.data.content
+  - gameState.signalConfig = event.data.data.signalConfig || {}
+  - Configure SignalCollector flushing:
+    ```javascript
+    if (signalCollector && gameState.signalConfig.flushUrl) {
+      signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+      signalCollector.playId = gameState.signalConfig.playId || null;
+      signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+      signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+      signalCollector.startFlushing();
+    }
+    ```
 - If event.data.type === 'START_GAME': startGame()
 
 **trackEvent(name, category, data)** (PART-010)
 - Push to gameState.events array with timestamp
-- If signalCollector: signalCollector.recordInteraction(name, data)
+- If signalCollector: signalCollector.recordCustomEvent(name, data)
 
 **recordAttempt(attemptData)** (PART-009)
 - Push to gameState.attempts with timestamp, duration, round info

@@ -449,7 +449,17 @@ If registration fails (non-2xx), log the error and stop.
 ═══════════════════════════════════════
 STEP 3: Generate 2-6 content sets
 ═══════════════════════════════════════
-Generate varied content sets for this game:
+CRITICAL: You MUST create at least ONE content set. Without content sets, the game link is useless — nothing will render.
+
+**Default content set (MANDATORY):**
+First, create a "Default" content set using the EXACT fallbackContent from the HTML file. This is your guaranteed-working baseline:
+- Read the fallbackContent object from the game HTML
+- Use it directly as the content JSON (it's already in the correct format)
+- Set difficulty: "medium", give it a descriptive name like "<Game Title> — Default"
+- This set is guaranteed to work since the game already runs with it
+
+**Additional content sets (2-5 more):**
+Generate varied content sets beyond the default:
 - Consider axes of variation: difficulty, target numbers, grid size, theme, grade level, speed, etc.
 - Each set: descriptive name, difficulty (easy/medium/hard), grade (1-12), concept tags, and the content JSON
 - Content must be mathematically correct and educationally sound

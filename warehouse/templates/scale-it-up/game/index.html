@@ -1,0 +1,1806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Scale It Up</title>
+
+  <!-- CRITICAL: Load Sentry config + SDK BEFORE all other packages -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script
+    src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js"
+    crossorigin="anonymous"
+  ></script>
+
+  <!-- Then game packages in normal order -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    /* === CSS Variables (PART-020) === */
+    :root {
+      --mathai-green: #219653;
+      --mathai-light-green: #D9F8D9;
+      --mathai-red: #E35757;
+      --mathai-light-red: #FFD9D9;
+      --mathai-blue: #2563eb;
+      --mathai-light-blue: #EBF0FF;
+      --mathai-gray: #828282;
+      --mathai-light-gray: #F2F2F2;
+      --mathai-border-gray: #E0E0E0;
+      --mathai-white: #FFFFFF;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mathai-font-size-title: 24px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-label: 14px;
+      --mathai-font-size-small: 13px;
+      --mathai-orange: #F2994A;
+      --mathai-purple: #9B51E0;
+    }
+
+    /* === Reset === */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-light-gray);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100dvh;
+    }
+
+    /* === Game Block === */
+    .game-block {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      gap: 14px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* === Scenario Text === */
+    .scenario-text {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary);
+      line-height: 1.5;
+      text-align: center;
+      width: 100%;
+      max-width: 340px;
+      padding: 0 4px;
+    }
+
+    /* === Ratio Card === */
+    .ratio-card {
+      background: var(--mathai-light-blue);
+      border: 2px solid var(--mathai-blue);
+      border-radius: 16px;
+      padding: 16px 20px;
+      width: 100%;
+      max-width: 340px;
+      text-align: center;
+      animation: fadeInUp 0.3s ease;
+    }
+
+    .ratio-text {
+      font-size: var(--mathai-font-size-body);
+      line-height: 1.6;
+      color: var(--mathai-text-primary);
+    }
+
+    .ratio-count {
+      font-weight: 700;
+      font-size: 20px;
+      color: var(--mathai-blue);
+      background: var(--mathai-white);
+      padding: 2px 10px;
+      border-radius: 8px;
+      display: inline-block;
+      min-width: 32px;
+    }
+
+    /* === Scaled Card === */
+    .scaled-card {
+      background: var(--mathai-white);
+      border: 2px solid var(--mathai-border-gray);
+      border-radius: 16px;
+      padding: 16px 20px;
+      width: 100%;
+      max-width: 340px;
+      text-align: center;
+      animation: fadeInUp 0.35s ease;
+    }
+
+    .scaled-header {
+      font-size: var(--mathai-font-size-label);
+      color: #666666;
+      margin-bottom: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .scaled-text {
+      font-size: var(--mathai-font-size-body);
+      line-height: 1.6;
+      color: var(--mathai-text-primary);
+      margin-bottom: 12px;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .input-label {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary);
+      font-weight: 500;
+    }
+
+    /* === Number Input === */
+    .ratio-input {
+      width: 72px;
+      height: 48px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      font-family: var(--mathai-font-family);
+      border: 2px solid var(--mathai-blue);
+      border-radius: 12px;
+      background: var(--mathai-light-blue);
+      color: var(--mathai-blue);
+      outline: none;
+      -moz-appearance: textfield;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .ratio-input::-webkit-inner-spin-button,
+    .ratio-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    .ratio-input:focus {
+      border-color: var(--mathai-blue);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    }
+
+    /* === Buttons (PART-022) === */
+    .btn-container {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      width: 100%;
+      max-width: 340px;
+      margin: 0 auto;
+    }
+
+    .game-btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 12px;
+      font-size: var(--mathai-font-size-body);
+      font-weight: 600;
+      font-family: var(--mathai-font-family);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-height: 48px;
+      min-width: 44px;
+      flex: 1;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-primary {
+      background: #1a8347;
+      color: var(--mathai-white);
+    }
+    .btn-primary:hover { filter: brightness(0.9); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary:active { transform: scale(0.97); }
+
+    .btn-secondary {
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      border: 2px solid var(--mathai-border-gray);
+    }
+    .btn-secondary:hover { background: var(--mathai-light-gray); }
+    .btn-secondary:active { transform: scale(0.97); }
+
+    .btn-same {
+      background: var(--mathai-green);
+      color: var(--mathai-white);
+    }
+    .btn-same:active { transform: scale(0.97); }
+
+    .btn-different {
+      background: var(--mathai-orange);
+      color: var(--mathai-white);
+    }
+    .btn-different:active { transform: scale(0.97); }
+
+    /* Submit button standalone */
+    .btn-submit {
+      max-width: 340px;
+      width: 100%;
+    }
+
+    /* === Reason Buttons === */
+    .reason-prompt {
+      font-size: var(--mathai-font-size-body);
+      font-weight: 600;
+      color: var(--mathai-text-primary);
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .reason-btn {
+      display: block;
+      width: 100%;
+      max-width: 340px;
+      margin: 0 auto 8px auto;
+      text-align: left;
+      padding: 14px 16px;
+      font-size: var(--mathai-font-size-label);
+      line-height: 1.4;
+    }
+
+    #reason-area {
+      width: 100%;
+      max-width: 340px;
+      animation: fadeInUp 0.3s ease;
+    }
+
+    /* === Type A / Type B areas === */
+    #type-a-area, #type-b-area {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    /* === Feedback Area === */
+    .feedback-area {
+      background: var(--mathai-light-green);
+      border: 2px solid var(--mathai-green);
+      border-radius: 12px;
+      padding: 14px 16px;
+      width: 100%;
+      max-width: 340px;
+      text-align: center;
+      animation: fadeInUp 0.3s ease;
+    }
+
+    .feedback-area.wrong {
+      background: var(--mathai-light-red);
+      border-color: var(--mathai-red);
+    }
+
+    .feedback-text {
+      font-size: var(--mathai-font-size-label);
+      line-height: 1.5;
+      color: var(--mathai-text-primary);
+    }
+
+    /* === Results Screen (PART-019) === */
+    #results-screen {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 100;
+      background: var(--mathai-light-gray);
+      overflow-y: auto;
+      justify-content: center;
+    }
+
+    .results-card {
+      background: var(--mathai-white);
+      border-radius: 16px;
+      padding: 32px 24px;
+      text-align: center;
+      max-width: 360px;
+      width: 100%;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .results-title {
+      font-size: var(--mathai-font-size-title);
+      margin-bottom: 24px;
+      color: var(--mathai-text-primary);
+    }
+
+    .stars-display {
+      font-size: 40px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .results-metrics {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--mathai-light-gray);
+    }
+
+    .metric-label {
+      color: var(--mathai-gray);
+      font-size: var(--mathai-font-size-label);
+    }
+
+    .metric-value {
+      font-weight: 700;
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary);
+    }
+
+    /* === Multiplier Badge === */
+    .multiplier-badge {
+      display: inline-block;
+      background: var(--mathai-purple);
+      color: var(--mathai-white);
+      font-weight: 700;
+      font-size: 14px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-left: 6px;
+    }
+
+    /* === Animations === */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    .animate-in {
+      animation: fadeInUp 0.35s ease;
+    }
+
+    /* === Scaled values display === */
+    .scaled-values-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin: 8px 0;
+      flex-wrap: wrap;
+    }
+
+    .scaled-value-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .scaled-value-number {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--mathai-text-primary);
+      background: var(--mathai-light-gray);
+      padding: 6px 16px;
+      border-radius: 10px;
+      min-width: 48px;
+      text-align: center;
+    }
+
+    .scaled-value-number.blank {
+      background: var(--mathai-light-blue);
+      border: 2px dashed var(--mathai-blue);
+      color: var(--mathai-blue);
+    }
+
+    .scaled-value-number.highlight {
+      background: var(--mathai-light-green);
+      border: 2px solid var(--mathai-green);
+      color: var(--mathai-green);
+    }
+
+    .scaled-value-number.wrong-highlight {
+      background: var(--mathai-light-red);
+      border: 2px solid var(--mathai-red);
+      color: var(--mathai-red);
+    }
+
+    .scaled-value-label {
+      font-size: var(--mathai-font-size-small);
+      color: #666666;
+      max-width: 100px;
+      text-align: center;
+    }
+
+    .colon-separator {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--mathai-gray);
+    }
+
+    /* === Stage indicator === */
+    .stage-badge {
+      display: inline-block;
+      background: var(--mathai-blue);
+      color: var(--mathai-white);
+      font-size: var(--mathai-font-size-small);
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <template id="game-template">
+    <div id="game-screen" class="game-block">
+      <!-- Scenario -->
+      <p class="scenario-text" id="scenario-text"></p>
+
+      <!-- Base Ratio Card -->
+      <div class="ratio-card" id="ratio-card">
+        <p class="ratio-text">For every <span class="ratio-count" id="base-a"></span> <span id="base-item1"></span>, there are <span class="ratio-count" id="base-b"></span> <span id="base-item2"></span></p>
+      </div>
+
+      <!-- Type A: Scaled scenario with blank -->
+      <div id="type-a-area" style="display:none;">
+        <div class="scaled-card">
+          <p class="scaled-header">Scaled up!</p>
+          <p class="scaled-text" id="scaled-text-a"></p>
+          <div class="scaled-values-row" id="scaled-values-a"></div>
+          <div class="input-row">
+            <span class="input-label" id="scaled-label"></span>
+            <input type="number" id="answer-input" class="ratio-input" min="1" max="36" inputmode="numeric" pattern="[0-9]*" data-signal-id="answer-input">
+            <span class="input-label" id="scaled-unit"></span>
+          </div>
+        </div>
+        <button class="game-btn btn-primary btn-submit" id="btn-submit-a" data-signal-id="btn-submit" onclick="handleTypeASubmit()">Submit</button>
+      </div>
+
+      <!-- Type B: Changed scenario + Same/Different -->
+      <div id="type-b-area" style="display:none;">
+        <div class="scaled-card">
+          <p class="scaled-header">Someone changed it!</p>
+          <p class="scaled-text" id="scaled-text-b"></p>
+          <div class="scaled-values-row" id="scaled-values-b"></div>
+        </div>
+        <p style="font-size:var(--mathai-font-size-body);font-weight:600;text-align:center;color:var(--mathai-text-primary);">Will it work the same?</p>
+        <div class="btn-container" id="judgment-buttons">
+          <button class="game-btn btn-same" id="btn-same-outcome" data-signal-id="btn-same" onclick="handleTypeBJudgment(true)">Same outcome</button>
+          <button class="game-btn btn-different" id="btn-diff-outcome" data-signal-id="btn-different" onclick="handleTypeBJudgment(false)">Different outcome</button>
+        </div>
+        <!-- Reason selection (shown after "Different" is chosen correctly) -->
+        <div id="reason-area" style="display:none;">
+          <p class="reason-prompt">Why is it different?</p>
+          <button class="game-btn btn-secondary reason-btn" id="reason-0" data-signal-id="reason-0" onclick="handleReasonChoice(0)"></button>
+          <button class="game-btn btn-secondary reason-btn" id="reason-1" data-signal-id="reason-1" onclick="handleReasonChoice(1)"></button>
+        </div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="feedback-area" id="feedback-area" style="display:none;">
+        <p class="feedback-text" id="feedback-text"></p>
+      </div>
+    </div>
+
+    <div id="results-screen" class="game-block">
+      <div class="results-card">
+        <div id="stars-display" class="stars-display"></div>
+        <h2 class="results-title">Game Complete!</h2>
+        <div class="results-metrics">
+          <div class="metric-row"><span class="metric-label">Score</span><span class="metric-value" id="result-score">0/10</span></div>
+          <div class="metric-row"><span class="metric-label">Lives</span><span class="metric-value" id="result-lives">0</span></div>
+          <div class="metric-row"><span class="metric-label">Accuracy</span><span class="metric-value" id="result-accuracy">0%</span></div>
+        </div>
+        <button class="game-btn btn-primary" id="btn-restart" data-signal-id="restart-button" onclick="restartGame()">Play Again</button>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    // === Sentry Initialization (PART-030) ===
+    function initSentry() {
+      if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled) {
+        Sentry.init({
+          dsn: SentryConfig.dsn,
+          environment: SentryConfig.environment,
+          release: "scale-it-up@1.0.0",
+          tracesSampleRate: SentryConfig.tracesSampleRate,
+          sampleRate: SentryConfig.sampleRate,
+          maxBreadcrumbs: 50,
+          ignoreErrors: [
+            "ResizeObserver loop limit exceeded",
+            "ResizeObserver loop completed with undelivered notifications",
+            "Non-Error promise rejection captured",
+            "Script error.",
+            "Load failed",
+            "Failed to fetch",
+          ],
+        });
+      }
+    }
+    window.addEventListener('load', initSentry);
+
+    // Global error handlers
+    window.addEventListener("error", (event) => {
+      if (typeof Sentry !== 'undefined') {
+        Sentry.captureException(event.error || new Error(event.message), {
+          tags: { errorType: "unhandled", severity: "critical" },
+          contexts: {
+            errorEvent: { message: event.message, filename: event.filename, lineno: event.lineno }
+          }
+        });
+      }
+    });
+
+    window.addEventListener("unhandledrejection", (event) => {
+      if (typeof Sentry !== 'undefined') {
+        Sentry.captureException(event.reason || new Error("Unhandled promise rejection"), {
+          tags: { errorType: "unhandled-promise", severity: "critical" }
+        });
+      }
+    });
+
+    // === Game State (PART-007) ===
+    window.gameState = {
+      gameId: 'scale-it-up',
+      currentRound: 0,
+      totalRounds: 10,
+      score: 0,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      gameEnded: false,
+      phase: 'start',
+      isProcessing: false,
+      content: null,
+      contentSetId: null,
+      duration_data: {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0,
+        currentTime: null
+      },
+      lives: 3,
+      totalLives: 3,
+      currentStage: 1,
+      roundData: null,
+      signalConfig: {}
+    };
+
+    let visibilityTracker = null;
+    let signalCollector = null;
+    let progressBar = null;
+    let transitionScreen = null;
+    let content = null;
+
+    // === Fallback Content ===
+    const fallbackContent = {
+      rounds: [
+        {
+          roundType: "typeA",
+          stage: 1,
+          context: { scenario: "Snack time! For every batch of cookies, you need some glasses of milk.", item1Name: "cookies", item2Name: "glasses of milk" },
+          baseRatio: { a: 2, b: 1 },
+          multiplier: 2,
+          scaledValues: { a: 4, b: 2 },
+          blankField: "b",
+          correctAnswer: 2,
+          feedbackCorrect: "That's right! 2 cookies : 1 milk. x2 means 4 cookies : 2 milk. You multiplied both sides by 2!",
+          feedbackWrong: "Not quite. The ratio is 2 cookies for every 1 milk. If cookies doubled to 4, milk must double too: 1 x 2 = 2."
+        },
+        {
+          roundType: "typeA",
+          stage: 1,
+          context: { scenario: "Planting flowers! For every row, you plant some seeds.", item1Name: "rows", item2Name: "seeds" },
+          baseRatio: { a: 1, b: 3 },
+          multiplier: 3,
+          scaledValues: { a: 3, b: 9 },
+          blankField: "b",
+          correctAnswer: 9,
+          feedbackCorrect: "Yes! 1 row : 3 seeds. x3 means 3 rows : 9 seeds. Every row still gets 3 seeds!",
+          feedbackWrong: "Remember, 1 row needs 3 seeds. With 3 rows, you need 3 x 3 = 9 seeds, not 6. Multiply, don't add!"
+        },
+        {
+          roundType: "typeA",
+          stage: 1,
+          context: { scenario: "Building a tower! For every layer, you use some blocks.", item1Name: "layers", item2Name: "blocks" },
+          baseRatio: { a: 1, b: 4 },
+          multiplier: 2,
+          scaledValues: { a: 2, b: 8 },
+          blankField: "b",
+          correctAnswer: 8,
+          feedbackCorrect: "Correct! 1 layer : 4 blocks. x2 means 2 layers : 8 blocks. Each layer still uses 4 blocks!",
+          feedbackWrong: "Think again. 1 layer uses 4 blocks. For 2 layers, multiply: 4 x 2 = 8 blocks, not 5 or 6."
+        },
+        {
+          roundType: "typeA",
+          stage: 2,
+          context: { scenario: "Mom's special recipe: for every few spoons of flour, add some spoons of sugar.", item1Name: "spoons of flour", item2Name: "spoons of sugar" },
+          baseRatio: { a: 2, b: 3 },
+          multiplier: 3,
+          scaledValues: { a: 6, b: 9 },
+          blankField: "b",
+          correctAnswer: 9,
+          feedbackCorrect: "Right! 2 flour : 3 sugar. x3 gives 6 flour : 9 sugar. Both sides tripled!",
+          feedbackWrong: "Careful! 2 flour : 3 sugar. If flour went from 2 to 6 (x3), sugar must also x3: 3 x 3 = 9, not 7."
+        },
+        {
+          roundType: "typeB",
+          stage: 2,
+          context: { scenario: "Mixing paint: for every scoop of white, add some scoops of blue to get sky-blue.", item1Name: "scoops of white", item2Name: "scoops of blue" },
+          baseRatio: { a: 1, b: 3 },
+          multiplier: 3,
+          scaledValues: { a: 3, b: 5 },
+          isProportional: false,
+          breakReason: "Blue was not scaled properly -- should be 9 but only 5 were used.",
+          reasonOptions: [
+            "Too little blue paint -- should be 9 scoops",
+            "Too much white paint -- should be 1 scoop"
+          ],
+          correctReasonIndex: 0,
+          feedbackCorrect: "Good eye! 1 white : 3 blue. With 3 white, you need 3 x 3 = 9 blue, not 5. The colour would be wrong!",
+          feedbackWrong: "Look closely. White went from 1 to 3 (x3). Blue should also x3: 3 x 3 = 9. But only 5 blue were used -- that's not enough!"
+        },
+        {
+          roundType: "typeA",
+          stage: 2,
+          context: { scenario: "Making friendship bracelets: for every few red beads, add some yellow beads.", item1Name: "red beads", item2Name: "yellow beads" },
+          baseRatio: { a: 3, b: 4 },
+          multiplier: 3,
+          scaledValues: { a: 9, b: 12 },
+          blankField: "a",
+          correctAnswer: 9,
+          feedbackCorrect: "Yes! 3 red : 4 yellow. x3 means 9 red : 12 yellow. The pattern stays the same!",
+          feedbackWrong: "Think about it: 4 yellow became 12 yellow (x3). So red must also x3: 3 x 3 = 9 red, not 7."
+        },
+        {
+          roundType: "typeB",
+          stage: 2,
+          context: { scenario: "Making trail mix: for every cup of nuts, add some cups of raisins.", item1Name: "cups of nuts", item2Name: "cups of raisins" },
+          baseRatio: { a: 2, b: 3 },
+          multiplier: 4,
+          scaledValues: { a: 8, b: 7 },
+          isProportional: false,
+          breakReason: "Raisins were increased additively (+4) instead of multiplicatively (x4).",
+          reasonOptions: [
+            "Raisins should be 12, not 7 -- they added 4 instead of multiplying by 4",
+            "Nuts should be 6, not 8 -- they used too many nuts"
+          ],
+          correctReasonIndex: 0,
+          feedbackCorrect: "Exactly! 2 nuts : 3 raisins. Nuts x4 = 8. Raisins should also x4: 3 x 4 = 12, not 3 + 4 = 7. That's the additive trap!",
+          feedbackWrong: "Look at nuts: 2 x 4 = 8. Now raisins should also x4: 3 x 4 = 12. But 7 was used -- someone added 4 instead of multiplying. The mix would taste different!"
+        },
+        {
+          roundType: "typeA",
+          stage: 3,
+          context: { scenario: "Planning a garden: for every row of tomatoes, plant some rows of basil.", item1Name: "rows of tomatoes", item2Name: "rows of basil" },
+          baseRatio: { a: 3, b: 2 },
+          multiplier: 4,
+          scaledValues: { a: 12, b: 8 },
+          blankField: "b",
+          correctAnswer: 8,
+          feedbackCorrect: "Right! 3 tomato rows : 2 basil rows. x4 gives 12 tomato : 8 basil. The companion planting ratio holds!",
+          feedbackWrong: "3 tomato : 2 basil. Tomatoes went to 12 (x4). Basil must also x4: 2 x 4 = 8, not 6. Multiply, don't add!"
+        },
+        {
+          roundType: "typeB",
+          stage: 3,
+          context: { scenario: "Lemonade stand: for every cup of lemon juice, add some cups of water.", item1Name: "cups of lemon juice", item2Name: "cups of water" },
+          baseRatio: { a: 2, b: 5 },
+          multiplier: 3,
+          scaledValues: { a: 6, b: 15 },
+          isProportional: true,
+          feedbackCorrect: "Correct! 2 lemon : 5 water. Both x3 gives 6 lemon : 15 water. It'll taste the same -- perfect lemonade!",
+          feedbackWrong: "Check the math: 2 x 3 = 6 lemon, 5 x 3 = 15 water. Both sides multiplied by the same number, so the taste stays the same!"
+        },
+        {
+          roundType: "typeB",
+          stage: 3,
+          context: { scenario: "Setting up a classroom: for every table, arrange some chairs.", item1Name: "tables", item2Name: "chairs" },
+          baseRatio: { a: 3, b: 7 },
+          multiplier: 2,
+          scaledValues: { a: 6, b: 12 },
+          isProportional: false,
+          breakReason: "Chairs should be 14 (7x2) but only 12 were placed -- 2 chairs short.",
+          reasonOptions: [
+            "Not enough chairs -- should be 14, not 12",
+            "Too many tables -- should be 5, not 6"
+          ],
+          correctReasonIndex: 0,
+          feedbackCorrect: "Sharp! 3 tables : 7 chairs. x2 means 6 tables : 14 chairs. Only 12 chairs means some kids won't have seats!",
+          feedbackWrong: "Tables doubled: 3 x 2 = 6. Chairs should also double: 7 x 2 = 14. But only 12 chairs were set up -- that's 2 short!"
+        }
+      ]
+    };
+
+    // === waitForPackages (PART-003) ===
+    async function waitForPackages() {
+      const timeout = 10000;
+      const start = Date.now();
+      try {
+        while (typeof FeedbackManager === 'undefined') {
+          if (Date.now() - start > timeout) throw new Error('Package timeout: FeedbackManager');
+          await new Promise(r => setTimeout(r, 50));
+        }
+        while (typeof VisibilityTracker === 'undefined') {
+          if (Date.now() - start > timeout) throw new Error('Package timeout: VisibilityTracker');
+          await new Promise(r => setTimeout(r, 50));
+        }
+        while (typeof SignalCollector === 'undefined') {
+          if (Date.now() - start > timeout) throw new Error('Package timeout: SignalCollector');
+          await new Promise(r => setTimeout(r, 50));
+        }
+        console.log('All packages loaded');
+        if (typeof Sentry !== 'undefined') {
+          Sentry.addBreadcrumb({ category: "package-loading", message: "All packages loaded", level: "info", data: { loadTime: Date.now() - start } });
+        }
+      } catch (error) {
+        console.error('Package loading failed:', JSON.stringify({ error: error.message }, null, 2));
+        if (typeof Sentry !== 'undefined') {
+          Sentry.captureException(error, {
+            tags: { phase: 'package-loading', severity: 'critical' },
+            contexts: { packages: { feedbackManager: typeof FeedbackManager !== 'undefined' } }
+          });
+        }
+        document.body.innerHTML = '<div style="padding:20px;text-align:center;">Failed to load. Please refresh.</div>';
+        throw error;
+      }
+    }
+
+    // === syncDOMState ===
+    function syncDOMState() {
+      const app = document.getElementById('app');
+      if (app) {
+        app.dataset.phase = gameState.phase;
+        app.dataset.round = gameState.currentRound;
+        app.dataset.score = gameState.score;
+        app.dataset.lives = gameState.lives;
+      }
+    }
+
+    // === trackEvent (PART-010) ===
+    function trackEvent(name, category, data = {}) {
+      gameState.events.push({ type: name, target: category, timestamp: Date.now(), ...data });
+      if (signalCollector) {
+        try { signalCollector.recordCustomEvent(name, data); } catch(e) {}
+      }
+    }
+
+    // === recordAttempt (PART-009) ===
+    function recordAttempt(data) {
+      const attempt = {
+        attempt_timestamp: new Date().toISOString(),
+        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) / 1000 : 0,
+        input_of_user: data.userAnswer,
+        attempt_number: gameState.attempts.length + 1,
+        correct: data.correct,
+        metadata: {
+          round: gameState.currentRound + 1,
+          question: data.question,
+          correctAnswer: data.correctAnswer,
+          validationType: data.validationType || 'function'
+        }
+      };
+      gameState.attempts.push(attempt);
+      gameState.duration_data.attempts.push({
+        startTime: new Date().toISOString(),
+        time_to_first_attempt: (Date.now() - gameState.startTime) / 1000,
+        duration: 0
+      });
+      console.log('Attempt:', JSON.stringify(attempt, null, 2));
+    }
+
+    // === startGame ===
+    function startGame() {
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      content = gameState.content || fallbackContent;
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = 3;
+      gameState.currentStage = 1;
+      gameState.gameEnded = false;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.phase = 'playing-typeA';
+      syncDOMState();
+
+      trackEvent('game_start', 'game');
+
+      // Hide transition screen, show game screen
+      if (transitionScreen) transitionScreen.hide();
+      const gameScreen = document.getElementById('game-screen');
+      const resultsScreen = document.getElementById('results-screen');
+      if (gameScreen) gameScreen.style.display = 'flex';
+      if (resultsScreen) resultsScreen.style.display = 'none';
+
+      setupRound();
+    }
+
+    // === setupRound ===
+    function setupRound() {
+      if (gameState.gameEnded) return;
+      const roundData = content.rounds[gameState.currentRound];
+      if (!roundData) { endGame(); return; }
+      gameState.roundData = roundData;
+      gameState.currentStage = roundData.stage;
+      gameState.isProcessing = false;
+
+      // Clear previous state
+      const feedbackArea = document.getElementById('feedback-area');
+      if (feedbackArea) feedbackArea.style.display = 'none';
+      const answerInput = document.getElementById('answer-input');
+      if (answerInput) answerInput.value = '';
+      const reasonArea = document.getElementById('reason-area');
+      if (reasonArea) reasonArea.style.display = 'none';
+
+      // Set scenario
+      document.getElementById('scenario-text').textContent = roundData.context.scenario;
+
+      // Set base ratio
+      document.getElementById('base-a').textContent = roundData.baseRatio.a;
+      document.getElementById('base-b').textContent = roundData.baseRatio.b;
+      document.getElementById('base-item1').textContent = roundData.context.item1Name;
+      document.getElementById('base-item2').textContent = roundData.context.item2Name;
+
+      // Animate ratio card
+      const ratioCard = document.getElementById('ratio-card');
+      ratioCard.classList.remove('animate-in');
+      void ratioCard.offsetWidth;
+      ratioCard.classList.add('animate-in');
+
+      if (roundData.roundType === 'typeA') {
+        setupTypeA(roundData);
+      } else {
+        setupTypeB(roundData);
+      }
+
+      // Update progress bar
+      if (progressBar) progressBar.update(gameState.currentRound, gameState.lives);
+
+      // Record view event
+      if (signalCollector) {
+        try {
+          signalCollector.recordViewEvent('content_render', {
+            screen: 'gameplay',
+            content_snapshot: {
+              type: roundData.roundType,
+              round: gameState.currentRound + 1,
+              stage: roundData.stage,
+              base_ratio: roundData.baseRatio,
+              trigger: 'round_start'
+            },
+            components: {
+              progress: { current: gameState.currentRound + 1, total: gameState.totalRounds }
+            }
+          });
+        } catch(e) {}
+      }
+
+      syncDOMState();
+    }
+
+    // === setupTypeA ===
+    function setupTypeA(roundData) {
+      const typeAArea = document.getElementById('type-a-area');
+      const typeBArea = document.getElementById('type-b-area');
+      typeAArea.style.display = 'flex';
+      typeBArea.style.display = 'none';
+
+      const scaledTextA = document.getElementById('scaled-text-a');
+      const scaledValuesA = document.getElementById('scaled-values-a');
+      const inputRow = typeAArea.querySelector('.input-row');
+      const scaledLabel = document.getElementById('scaled-label');
+      const scaledUnit = document.getElementById('scaled-unit');
+
+      // Build scaled text
+      if (roundData.blankField === 'b') {
+        scaledTextA.textContent = 'Now with ' + roundData.scaledValues.a + ' ' + roundData.context.item1Name + ', how many ' + roundData.context.item2Name + '?';
+        scaledValuesA.innerHTML =
+          '<div class="scaled-value-box"><span class="scaled-value-number">' + roundData.scaledValues.a + '</span><span class="scaled-value-label">' + roundData.context.item1Name + '</span></div>' +
+          '<span class="colon-separator">:</span>' +
+          '<div class="scaled-value-box"><span class="scaled-value-number blank">?</span><span class="scaled-value-label">' + roundData.context.item2Name + '</span></div>';
+        scaledLabel.textContent = '';
+        scaledUnit.textContent = roundData.context.item2Name;
+      } else {
+        scaledTextA.textContent = 'Now with ' + roundData.scaledValues.b + ' ' + roundData.context.item2Name + ', how many ' + roundData.context.item1Name + '?';
+        scaledValuesA.innerHTML =
+          '<div class="scaled-value-box"><span class="scaled-value-number blank">?</span><span class="scaled-value-label">' + roundData.context.item1Name + '</span></div>' +
+          '<span class="colon-separator">:</span>' +
+          '<div class="scaled-value-box"><span class="scaled-value-number">' + roundData.scaledValues.b + '</span><span class="scaled-value-label">' + roundData.context.item2Name + '</span></div>';
+        scaledLabel.textContent = '';
+        scaledUnit.textContent = roundData.context.item1Name;
+      }
+
+      // Focus input
+      const answerInput = document.getElementById('answer-input');
+      answerInput.value = '';
+      setTimeout(() => answerInput.focus(), 100);
+
+      // Enable submit button
+      document.getElementById('btn-submit-a').disabled = false;
+
+      gameState.phase = 'playing-typeA';
+    }
+
+    // === setupTypeB ===
+    function setupTypeB(roundData) {
+      const typeAArea = document.getElementById('type-a-area');
+      const typeBArea = document.getElementById('type-b-area');
+      typeAArea.style.display = 'none';
+      typeBArea.style.display = 'flex';
+
+      const scaledTextB = document.getElementById('scaled-text-b');
+      const scaledValuesB = document.getElementById('scaled-values-b');
+
+      scaledTextB.textContent = 'Someone used ' + roundData.scaledValues.a + ' ' + roundData.context.item1Name + ' and ' + roundData.scaledValues.b + ' ' + roundData.context.item2Name + '.';
+
+      scaledValuesB.innerHTML =
+        '<div class="scaled-value-box"><span class="scaled-value-number">' + roundData.scaledValues.a + '</span><span class="scaled-value-label">' + roundData.context.item1Name + '</span></div>' +
+        '<span class="colon-separator">:</span>' +
+        '<div class="scaled-value-box"><span class="scaled-value-number">' + roundData.scaledValues.b + '</span><span class="scaled-value-label">' + roundData.context.item2Name + '</span></div>';
+
+      // Show judgment buttons, hide reason area
+      document.getElementById('judgment-buttons').style.display = 'flex';
+      document.getElementById('reason-area').style.display = 'none';
+
+      // Enable buttons
+      document.getElementById('btn-same-outcome').disabled = false;
+      document.getElementById('btn-diff-outcome').disabled = false;
+
+      gameState.phase = 'playing-typeB-judge';
+    }
+
+    // === handleTypeASubmit ===
+    async function handleTypeASubmit() {
+      if (gameState.isProcessing) return;
+      gameState.isProcessing = true;
+
+      const roundData = gameState.roundData;
+      const answerInput = document.getElementById('answer-input');
+      const userAnswer = parseInt(answerInput.value, 10);
+
+      if (isNaN(userAnswer) || answerInput.value.trim() === '') {
+        showFeedback('Please enter a number!', false);
+        gameState.isProcessing = false;
+        return;
+      }
+
+      const isCorrect = (userAnswer === roundData.correctAnswer);
+
+      // Record attempt
+      recordAttempt({
+        userAnswer: userAnswer,
+        correct: isCorrect,
+        question: roundData.context.scenario,
+        correctAnswer: roundData.correctAnswer,
+        validationType: 'function'
+      });
+
+      // Disable submit
+      document.getElementById('btn-submit-a').disabled = true;
+
+      if (isCorrect) {
+        // Update scaled value display to show correct answer
+        updateScaledValueDisplay(roundData, userAnswer, true);
+
+        try {
+          const sound = FeedbackManager.sound;
+          await sound.play('correct_tap', {
+            subtitle: roundData.feedbackCorrect,
+            sticker: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-30.gif'
+          });
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: roundData.feedbackCorrect,
+            subtitle: roundData.feedbackCorrect
+          });
+        } catch(e) {
+          console.error('Feedback error:', e.message);
+        }
+
+        gameState.score++;
+        trackEvent('type_a_answer', 'game', { correct: true, answer: userAnswer, round: gameState.currentRound + 1 });
+      } else {
+        // Update display to show wrong answer
+        updateScaledValueDisplay(roundData, userAnswer, false);
+
+        try {
+          const sound = FeedbackManager.sound;
+          await sound.play('wrong_tap', {
+            subtitle: roundData.feedbackWrong,
+            sticker: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-49.gif'
+          });
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: roundData.feedbackWrong,
+            subtitle: roundData.feedbackWrong
+          });
+        } catch(e) {
+          console.error('Feedback error:', e.message);
+        }
+
+        gameState.lives--;
+        trackEvent('type_a_answer', 'game', { correct: false, answer: userAnswer, round: gameState.currentRound + 1 });
+        trackEvent('life_lost', 'game', { lives: gameState.lives, round: gameState.currentRound + 1 });
+        if (progressBar) progressBar.update(gameState.currentRound, gameState.lives);
+      }
+
+      // Show feedback text
+      showFeedback(isCorrect ? roundData.feedbackCorrect : roundData.feedbackWrong, isCorrect);
+
+      // Record round outcome
+      if (signalCollector) {
+        try {
+          signalCollector.recordCustomEvent('round_solved', {
+            round: gameState.currentRound + 1,
+            correct: isCorrect,
+            answer: userAnswer
+          });
+        } catch(e) {}
+      }
+
+      gameState.isProcessing = false;
+
+      // Check lives then advance
+      if (gameState.lives <= 0) {
+        await handleGameOver();
+      } else {
+        setTimeout(() => nextRound(), 1200);
+      }
+    }
+
+    // === handleTypeBJudgment ===
+    async function handleTypeBJudgment(sameChosen) {
+      if (gameState.isProcessing) return;
+      gameState.isProcessing = true;
+
+      const roundData = gameState.roundData;
+      const correct = (sameChosen === roundData.isProportional);
+
+      trackEvent('type_b_judgment', 'game', { sameChosen, correct, round: gameState.currentRound + 1 });
+
+      // Disable judgment buttons
+      document.getElementById('btn-same-outcome').disabled = true;
+      document.getElementById('btn-diff-outcome').disabled = true;
+
+      if (correct && !roundData.isProportional) {
+        // Correctly identified "Different" -- ask for reason
+        try {
+          const sound = FeedbackManager.sound;
+          await sound.play('correct_tap', {
+            subtitle: 'Correct! Now tell me why it is different.',
+            sticker: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-30.gif'
+          });
+        } catch(e) {
+          console.error('Feedback error:', e.message);
+        }
+
+        // Hide judgment, show reason
+        document.getElementById('judgment-buttons').style.display = 'none';
+        const reasonArea = document.getElementById('reason-area');
+        reasonArea.style.display = 'block';
+        document.getElementById('reason-0').textContent = roundData.reasonOptions[0];
+        document.getElementById('reason-1').textContent = roundData.reasonOptions[1];
+        document.getElementById('reason-0').disabled = false;
+        document.getElementById('reason-1').disabled = false;
+
+        gameState.phase = 'playing-typeB-reason';
+        syncDOMState();
+        gameState.isProcessing = false;
+        return; // Wait for reason choice
+      }
+
+      if (correct && roundData.isProportional) {
+        // Correctly identified "Same"
+        try {
+          const sound = FeedbackManager.sound;
+          await sound.play('correct_tap', {
+            subtitle: roundData.feedbackCorrect,
+            sticker: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-30.gif'
+          });
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: roundData.feedbackCorrect,
+            subtitle: roundData.feedbackCorrect
+          });
+        } catch(e) {
+          console.error('Feedback error:', e.message);
+        }
+
+        gameState.score++;
+        recordAttempt({
+          userAnswer: 'same',
+          correct: true,
+          question: roundData.context.scenario,
+          correctAnswer: 'same',
+          validationType: 'function'
+        });
+
+        showFeedback(roundData.feedbackCorrect, true);
+      } else {
+        // Wrong judgment
+        try {
+          const sound = FeedbackManager.sound;
+          await sound.play('wrong_tap', {
+            subtitle: roundData.feedbackWrong,
+            sticker: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-49.gif'
+          });
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: roundData.feedbackWrong,
+            subtitle: roundData.feedbackWrong
+          });
+        } catch(e) {
+          console.error('Feedback error:', e.message);
+        }
+
+        gameState.lives--;
+        trackEvent('life_lost', 'game', { lives: gameState.lives, round: gameState.currentRound + 1 });
+        if (progressBar) progressBar.update(gameState.currentRound, gameState.lives);
+
+        recordAttempt({
+          userAnswer: sameChosen ? 'same' : 'different',
+          correct: false,
+          question: roundData.context.scenario,
+          correctAnswer: roundData.isProportional ? 'same' : 'different',
+          validationType: 'function'
+        });
+
+        showFeedback(roundData.feedbackWrong, false);
+      }
+
+      // Record round outcome
+      if (signalCollector) {
+        try {
+          signalCollector.recordCustomEvent('round_solved', {
+            round: gameState.currentRound + 1,
+            correct: correct,
+            answer: sameChosen ? 'same' : 'different'
+          });
+        } catch(e) {}
+      }
+
+      gameState.isProcessing = false;
+
+      if (gameState.lives <= 0) {
+        await handleGameOver();
+      } else {
+        setTimeout(() => nextRound(), 1200);
+      }
+    }
+
+    // === handleReasonChoice ===
+    async function handleReasonChoice(index) {
+      if (gameState.isProcessing) return;
+      gameState.isProcessing = true;
+
+      const roundData = gameState.roundData;
+
+      // Disable reason buttons
+      document.getElementById('reason-0').disabled = true;
+      document.getElementById('reason-1').disabled = true;
+
+      trackEvent('type_b_reason', 'game', { chosenIndex: index, correctIndex: roundData.correctReasonIndex, round: gameState.currentRound + 1 });
+
+      if (index === roundData.correctReasonIndex) {
+        // Correct reason
+        try {
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: roundData.feedbackCorrect,
+            subtitle: roundData.feedbackCorrect,
+            sticker: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-30.gif'
+          });
+        } catch(e) {
+          console.error('Feedback error:', e.message);
+        }
+
+        gameState.score++;
+        recordAttempt({
+          userAnswer: 'different_reason_' + index,
+          correct: true,
+          question: roundData.context.scenario,
+          correctAnswer: 'different_reason_' + roundData.correctReasonIndex,
+          validationType: 'function'
+        });
+
+        showFeedback(roundData.feedbackCorrect, true);
+      } else {
+        // Wrong reason -- still scores (judgment was correct), no life lost
+        const correctReason = roundData.reasonOptions[roundData.correctReasonIndex];
+        try {
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: 'The correct reason is: ' + correctReason,
+            subtitle: 'The correct reason is: ' + correctReason
+          });
+        } catch(e) {
+          console.error('Feedback error:', e.message);
+        }
+
+        gameState.score++;
+        recordAttempt({
+          userAnswer: 'different_reason_' + index,
+          correct: false,
+          question: roundData.context.scenario,
+          correctAnswer: 'different_reason_' + roundData.correctReasonIndex,
+          validationType: 'function'
+        });
+
+        showFeedback('The correct reason is: ' + correctReason, false);
+      }
+
+      // Record round outcome
+      if (signalCollector) {
+        try {
+          signalCollector.recordCustomEvent('round_solved', {
+            round: gameState.currentRound + 1,
+            correct: index === roundData.correctReasonIndex,
+            answer: 'reason_' + index
+          });
+        } catch(e) {}
+      }
+
+      gameState.isProcessing = false;
+
+      setTimeout(() => nextRound(), 1200);
+    }
+
+    // === nextRound ===
+    function nextRound() {
+      if (gameState.gameEnded) return;
+      gameState.currentRound++;
+      trackEvent('round_complete', 'game', { round: gameState.currentRound, score: gameState.score });
+
+      if (gameState.currentRound >= gameState.totalRounds) {
+        endGame();
+        return;
+      }
+
+      // Check for stage transition
+      const newRoundData = content.rounds[gameState.currentRound];
+      if (!newRoundData) { endGame(); return; }
+      const newStage = newRoundData.stage;
+      const oldStage = gameState.currentStage;
+
+      if (newStage !== oldStage) {
+        // Show stage transition
+        gameState.phase = 'transition';
+        syncDOMState();
+        if (transitionScreen) {
+          document.getElementById('game-screen').style.display = 'none';
+          transitionScreen.show({
+            icons: ['📐'],
+            iconSize: 'large',
+            title: 'Stage ' + newStage,
+            subtitle: getStageSubtitle(newStage),
+            buttons: [{
+              text: 'Continue',
+              type: 'primary',
+              action: () => {
+                transitionScreen.hide();
+                document.getElementById('game-screen').style.display = 'flex';
+                setupRound();
+              }
+            }]
+          });
+        } else {
+          setupRound();
+        }
+      } else {
+        setupRound();
+      }
+    }
+
+    // === getStageSubtitle ===
+    function getStageSubtitle(stage) {
+      if (stage === 2) return 'Bigger numbers and trickier changes ahead!';
+      if (stage === 3) return 'Can you spot the subtle traps?';
+      return 'Keep going!';
+    }
+
+    // === handleGameOver ===
+    async function handleGameOver() {
+      if (signalCollector) {
+        try { signalCollector.seal(); } catch(e) {}
+      }
+
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = 'gameover';
+      syncDOMState();
+
+      try {
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: 'Keep practicing! Ratios get easier with practice!',
+          subtitle: 'Keep practicing! Ratios get easier with practice!'
+        });
+      } catch(e) {
+        console.error('Feedback error:', e.message);
+      }
+
+      // Send game results
+      sendGameResults();
+
+      // Record screen transition
+      if (signalCollector) {
+        try {
+          signalCollector.recordViewEvent('screen_transition', {
+            screen: 'gameover',
+            metadata: { transition_from: 'gameplay' }
+          });
+        } catch(e) {}
+      }
+
+      // Show game-over transition screen
+      document.getElementById('game-screen').style.display = 'none';
+      if (transitionScreen) {
+        transitionScreen.show({
+          icons: ['💪'],
+          iconSize: 'large',
+          title: 'Game Over',
+          subtitle: 'You scored ' + gameState.score + ' out of ' + gameState.totalRounds + '. Keep practicing!',
+          buttons: [{
+            text: 'Try Again',
+            type: 'primary',
+            action: () => restartGame()
+          }]
+        });
+      } else {
+        // Fallback: show results screen directly
+        document.getElementById('result-score').textContent = gameState.score + '/' + gameState.totalRounds;
+        document.getElementById('result-lives').textContent = '0';
+        document.getElementById('result-accuracy').textContent = Math.round((gameState.score / gameState.totalRounds) * 100) + '%';
+        const starsDisplay = document.getElementById('stars-display');
+        starsDisplay.innerHTML = '';
+        const stars = gameState.score >= 9 ? 3 : gameState.score >= 6 ? 2 : 1;
+        for (let i = 0; i < 3; i++) starsDisplay.innerHTML += i < stars ? '⭐' : '☆';
+        document.getElementById('results-screen').style.display = 'flex';
+      }
+    }
+
+    // === endGame ===
+    async function endGame() {
+      if (gameState.gameEnded) return;
+
+      if (signalCollector) {
+        try { signalCollector.seal(); } catch(e) {}
+      }
+
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = 'results';
+      gameState.duration_data.currentTime = new Date().toISOString();
+      syncDOMState();
+
+      // Calculate stars: 9-10 -> 3 stars, 6-8 -> 2 stars, 1-5 -> 1 star
+      const stars = gameState.score >= 9 ? 3 : gameState.score >= 6 ? 2 : 1;
+      const accuracy = (gameState.score / gameState.totalRounds * 100).toFixed(0) + '%';
+
+      trackEvent('game_end', 'game', { score: gameState.score, totalRounds: gameState.totalRounds, accuracy, stars, lives: gameState.lives });
+
+      try {
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: 'Great work! You scaled ' + gameState.score + ' out of 10 correctly!',
+          subtitle: 'Great work! You scaled ' + gameState.score + ' out of 10 correctly!',
+          sticker: 'https://cdn.mathai.ai/mathai-assets/lottie/trophy.json'
+        });
+      } catch(e) {
+        console.error('Feedback error:', e.message);
+      }
+
+      // Update results screen
+      document.getElementById('result-score').textContent = gameState.score + '/' + gameState.totalRounds;
+      document.getElementById('result-lives').textContent = gameState.lives;
+      document.getElementById('result-accuracy').textContent = accuracy;
+
+      const starsDisplay = document.getElementById('stars-display');
+      starsDisplay.innerHTML = '';
+      for (let i = 0; i < 3; i++) {
+        starsDisplay.innerHTML += i < stars ? '⭐' : '☆';
+      }
+
+      // Show results, hide game
+      document.getElementById('game-screen').style.display = 'none';
+      document.getElementById('results-screen').style.display = 'flex';
+
+      if (progressBar) progressBar.update(gameState.totalRounds, gameState.lives);
+
+      // Record screen transition
+      if (signalCollector) {
+        try {
+          signalCollector.recordViewEvent('screen_transition', {
+            screen: 'results',
+            metadata: { transition_from: 'gameplay' }
+          });
+        } catch(e) {}
+      }
+
+      sendGameResults();
+    }
+
+    // === sendGameResults ===
+    function sendGameResults() {
+      const totalTime = Math.round((Date.now() - gameState.startTime) / 1000);
+      const accuracy = Math.round((gameState.score / gameState.totalRounds) * 100);
+      const stars = gameState.score >= 9 ? 3 : gameState.score >= 6 ? 2 : 1;
+
+      const metrics = {
+        accuracy,
+        time: totalTime,
+        stars,
+        attempts: gameState.attempts,
+        duration_data: { ...gameState.duration_data, currentTime: new Date().toISOString() },
+        livesRemaining: gameState.lives
+      };
+
+      const signalPayload = signalCollector ? (signalCollector.getPayload ? signalCollector.getPayload() : { events: [], signals: {}, metadata: {} }) : { events: [], signals: {}, metadata: {} };
+
+      window.parent.postMessage({
+        type: 'game_complete',
+        data: {
+          metrics,
+          attempts: gameState.attempts,
+          ...signalPayload,
+          completedAt: Date.now()
+        }
+      }, '*');
+
+      console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
+    }
+
+    // === restartGame ===
+    function restartGame() {
+      gameState.score = 0;
+      gameState.lives = 3;
+      gameState.currentRound = 0;
+      gameState.currentStage = 1;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.gameEnded = false;
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.phase = 'start';
+      gameState.duration_data = {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0,
+        currentTime: null
+      };
+
+      // Clear UI
+      const answerInput = document.getElementById('answer-input');
+      if (answerInput) answerInput.value = '';
+
+      // Hide results
+      document.getElementById('results-screen').style.display = 'none';
+      document.getElementById('game-screen').style.display = 'none';
+
+      // Re-create SignalCollector
+      if (typeof SignalCollector !== 'undefined') {
+        signalCollector = new SignalCollector({
+          sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+          studentId: window.gameVariableState?.studentId || null,
+          templateId: gameState.gameId || null
+        });
+        window.signalCollector = signalCollector;
+      }
+
+      // Re-create ProgressBar
+      if (progressBar) {
+        try { progressBar.destroy(); } catch(e) {}
+      }
+      if (typeof ProgressBarComponent !== 'undefined') {
+        progressBar = new ProgressBarComponent({
+          autoInject: true,
+          totalRounds: 10,
+          totalLives: 3,
+          slotId: 'mathai-progress-slot'
+        });
+        progressBar.update(0, 3);
+      }
+
+      // Show start screen
+      if (transitionScreen) {
+        transitionScreen.show({
+          icons: ['📐'],
+          iconSize: 'large',
+          title: 'Scale It Up',
+          subtitle: 'See a ratio, then predict what happens when quantities change!',
+          buttons: [{ text: 'Start!', type: 'primary', action: () => startGame() }]
+        });
+      }
+    }
+
+    // === showFeedback ===
+    function showFeedback(text, isCorrect) {
+      const feedbackArea = document.getElementById('feedback-area');
+      const feedbackText = document.getElementById('feedback-text');
+      feedbackText.textContent = text;
+      feedbackArea.style.display = 'block';
+      feedbackArea.className = 'feedback-area' + (isCorrect ? '' : ' wrong');
+      // Re-trigger animation
+      feedbackArea.classList.remove('animate-in');
+      void feedbackArea.offsetWidth;
+      feedbackArea.classList.add('animate-in');
+      gameState.phase = 'feedback';
+      syncDOMState();
+    }
+
+    // === updateScaledValueDisplay ===
+    function updateScaledValueDisplay(roundData, userAnswer, isCorrect) {
+      const scaledValuesA = document.getElementById('scaled-values-a');
+      if (!scaledValuesA) return;
+
+      const blankBoxes = scaledValuesA.querySelectorAll('.scaled-value-number.blank');
+      if (blankBoxes.length > 0) {
+        const blankBox = blankBoxes[0];
+        blankBox.textContent = userAnswer;
+        blankBox.classList.remove('blank');
+        blankBox.classList.add(isCorrect ? 'highlight' : 'wrong-highlight');
+      }
+    }
+
+    // === handlePostMessage (PART-008) ===
+    function handlePostMessage(event) {
+      if (!event.data) return;
+
+      if (event.data.type === 'game_init') {
+        try {
+          const data = event.data.data || event.data.payload || {};
+          gameState.content = data.content;
+          if (data.gameId) gameState.gameId = data.gameId;
+          gameState.signalConfig = data.signalConfig || {};
+
+          // Configure SignalCollector flushing
+          if (signalCollector && gameState.signalConfig.flushUrl) {
+            signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+            signalCollector.playId = gameState.signalConfig.playId || null;
+            signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+            signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+            signalCollector.startFlushing();
+          }
+
+          if (typeof Sentry !== 'undefined') {
+            Sentry.setUser({ id: data.studentId, sessionId: data.sessionId });
+            Sentry.setContext("game", { gameId: data.gameId, sessionId: data.sessionId, contentSetId: data.contentSetId });
+            Sentry.addBreadcrumb({ category: "postmessage", message: "game_init received", level: "info" });
+          }
+
+          console.log('Content received:', JSON.stringify(gameState.content, null, 2));
+
+          // Update content and show start
+          content = gameState.content;
+          if (transitionScreen) {
+            transitionScreen.show({
+              icons: ['📐'],
+              iconSize: 'large',
+              title: 'Scale It Up',
+              subtitle: 'See a ratio, then predict what happens when quantities change!',
+              buttons: [{ text: 'Start!', type: 'primary', action: () => startGame() }]
+            });
+          }
+        } catch(e) {
+          console.error('PostMessage error:', JSON.stringify({ error: e.message }, null, 2));
+          if (typeof Sentry !== 'undefined') {
+            Sentry.captureException(e, { tags: { phase: 'postmessage', severity: 'high' } });
+          }
+        }
+      }
+
+      if (event.data.type === 'START_GAME') {
+        startGame();
+      }
+    }
+
+    // === Allow Enter key to submit Type A ===
+    function handleInputKeydown(e) {
+      if (e.key === 'Enter' && gameState.phase === 'playing-typeA') {
+        e.preventDefault();
+        handleTypeASubmit();
+      }
+    }
+
+    // === DOMContentLoaded (PART-004) ===
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        await waitForPackages();
+
+        // PART-017: Init feedback
+        await FeedbackManager.init();
+
+        // Audio preload
+        try {
+          await FeedbackManager.sound.preload([
+            { id: 'correct_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501597903.mp3' },
+            { id: 'wrong_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501956470.mp3' }
+          ]);
+        } catch(e) {
+          console.error('Sound preload error:', JSON.stringify({ error: e.message }, null, 2));
+          if (typeof Sentry !== 'undefined') {
+            Sentry.captureException(e, { tags: { phase: 'audio-preload', component: 'FeedbackManager', severity: 'medium' } });
+          }
+        }
+
+        // PART-010: SignalCollector
+        signalCollector = new SignalCollector({
+          sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+          studentId: window.gameVariableState?.studentId || null,
+          templateId: gameState.gameId || null
+        });
+        window.signalCollector = signalCollector;
+
+        // PART-025: ScreenLayout
+        const layout = ScreenLayout.inject('app', {
+          slots: { progressBar: true, transitionScreen: true }
+        });
+
+        // Clone game template into #gameContent
+        const gameContentEl = document.getElementById('gameContent');
+        const template = document.getElementById('game-template');
+        gameContentEl.appendChild(template.content.cloneNode(true));
+
+        // Attach Enter key handler to answer input
+        const answerInput = document.getElementById('answer-input');
+        if (answerInput) {
+          answerInput.addEventListener('keydown', handleInputKeydown);
+        }
+
+        // PART-023: ProgressBar
+        progressBar = new ProgressBarComponent({
+          autoInject: true,
+          totalRounds: 10,
+          totalLives: 3,
+          slotId: 'mathai-progress-slot'
+        });
+        progressBar.update(0, 3);
+
+        // PART-024: TransitionScreen
+        transitionScreen = new TransitionScreenComponent({
+          autoInject: true
+        });
+
+        // PART-005: VisibilityTracker
+        visibilityTracker = new VisibilityTracker({
+          onInactive: () => {
+            const inactiveStart = Date.now();
+            gameState.duration_data.inActiveTime.push({ start: inactiveStart });
+            if (signalCollector) {
+              try {
+                signalCollector.pause();
+                signalCollector.recordCustomEvent('visibility_hidden', {});
+              } catch(e) {}
+            }
+            try { FeedbackManager.sound.pause(); } catch(e) {}
+            try { FeedbackManager.stream.pauseAll(); } catch(e) {}
+            trackEvent('game_paused', 'system');
+          },
+          onResume: () => {
+            const lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+            if (lastInactive && !lastInactive.end) {
+              lastInactive.end = Date.now();
+              gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
+            }
+            if (signalCollector) {
+              try {
+                signalCollector.resume();
+                signalCollector.recordCustomEvent('visibility_visible', {});
+              } catch(e) {}
+            }
+            try { FeedbackManager.sound.resume(); } catch(e) {}
+            try { FeedbackManager.stream.resumeAll(); } catch(e) {}
+            trackEvent('game_resumed', 'system');
+          },
+          popupProps: {
+            title: 'Game Paused',
+            description: 'Click Resume to continue.',
+            primaryText: 'Resume'
+          }
+        });
+
+        // PostMessage listener (PART-008)
+        window.addEventListener('message', handlePostMessage);
+
+        // Fallback content
+        if (!gameState.content) {
+          gameState.content = fallbackContent;
+          content = fallbackContent;
+        }
+
+        // Show start screen
+        transitionScreen.show({
+          icons: ['📐'],
+          iconSize: 'large',
+          title: 'Scale It Up',
+          subtitle: 'See a ratio, then predict what happens when quantities change!',
+          buttons: [{ text: 'Start!', type: 'primary', action: () => startGame() }]
+        });
+
+        // Set initial DOM state
+        syncDOMState();
+
+        // Window exposure (GEN-WINDOW-EXPOSE)
+        window.endGame = endGame;
+        window.restartGame = restartGame;
+        window.nextRound = nextRound;
+        window.startGame = startGame;
+        window.handleTypeASubmit = handleTypeASubmit;
+        window.handleTypeBJudgment = handleTypeBJudgment;
+        window.handleReasonChoice = handleReasonChoice;
+        window.gameState = gameState;
+        window.loadRound = function(n) {
+          gameState.currentRound = n - 1;
+          gameState.gameEnded = false;
+          gameState.isProcessing = false;
+          setupRound();
+        };
+
+        // Debug functions (PART-012)
+        window.debugGame = () => JSON.parse(JSON.stringify(gameState));
+        window.debugAudio = () => { try { return FeedbackManager.getState(); } catch(e) { return { error: e.message }; } };
+        window.testAudio = async () => { try { await FeedbackManager.sound.play('test'); } catch(e) { console.error('Test audio error:', e.message); } };
+        window.testPause = () => { if (visibilityTracker) visibilityTracker.triggerInactive(); };
+        window.testResume = () => { if (visibilityTracker) visibilityTracker.triggerResume(); };
+
+        // Sentry debug (PART-030)
+        window.verifySentry = function() {
+          const checks = {
+            sdkLoaded: typeof Sentry !== 'undefined',
+            initialized: typeof Sentry !== 'undefined' && Sentry.getClient() !== undefined,
+            dsn: typeof Sentry !== 'undefined' && Sentry.getClient() ? Sentry.getClient().getDsn()?.toString() : null
+          };
+          console.log('Sentry Status:', JSON.stringify(checks, null, 2));
+          return checks;
+        };
+
+        window.testSentry = function() {
+          try {
+            throw new Error('Test error from testSentry()');
+          } catch (error) {
+            if (typeof Sentry !== 'undefined') {
+              Sentry.captureException(error, { tags: { test: true } });
+            }
+            console.log('Test error sent to Sentry. Check dashboard.');
+          }
+        };
+
+      } catch (error) {
+        console.error('Initialization error:', JSON.stringify({ error: error.message, stack: error.stack }, null, 2));
+        if (typeof Sentry !== 'undefined') {
+          Sentry.captureException(error, { tags: { phase: 'initialization', severity: 'critical' } });
+        }
+      }
+    });
+  </script>
+</body>
+</html>
