@@ -16,7 +16,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     signalCollector = new SignalCollector({
       sessionId: window.gameVariableState?.sessionId || "session_" + Date.now(),
       studentId: window.gameVariableState?.studentId || null,
-      templateId: gameState.gameId || null,
       gameId: gameState.gameId,
       contentSetId: gameState.contentSetId,
     });

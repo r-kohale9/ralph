@@ -179,9 +179,9 @@ visibilityTracker.destroy();
 ```javascript
 const signalCollector = new SignalCollector({ gameId: 'game_my_game' });
 
-signalCollector.startProblem({ roundIndex: 0, prompt: 'Solve...' });
-signalCollector.endProblem(problemId, { correct: true, timeMs: 5000 });
-// Captures raw input events (clicks, taps, drags), computes engagement/process signals.
+signalCollector.recordViewEvent('content_render', { screen: 'gameplay', content_snapshot: { question_text: 'Solve...', round: 1 } });
+signalCollector.recordCustomEvent('round_solved', { correct: true, answer: 42 });
+// Captures raw input events (clicks, taps, drags, touch gestures), flushes batches to GCS.
 ```
 
 ### InteractionManager

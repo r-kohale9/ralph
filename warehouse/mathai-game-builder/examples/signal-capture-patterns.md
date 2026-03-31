@@ -27,7 +27,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const signalCollector = new SignalCollector({
     sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
     studentId: window.gameVariableState?.studentId || null,
-    templateId: gameState.gameId || null
+    gameId: gameState.gameId || null
   });
   window.signalCollector = signalCollector;
 
@@ -52,47 +52,46 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 ```
 
-## Pattern 3: Problem Lifecycle (Round/Question)
+## Pattern 3: Round Lifecycle (View Events + Custom Events)
 
-**Important — deferred endProblem:** Don't call `endProblem` immediately on solve. Defer it to the next `startProblem` call so transition screen events stay tagged to the previous problem. Otherwise events during transitions get `problem_id: null` and are lost from problem-level analysis.
+Use `recordViewEvent()` to capture what content is rendered, and `recordCustomEvent()` to log game-specific outcomes. SignalCollector v3 captures all raw input events automatically — no lifecycle methods needed.
 
 ```javascript
 function startRound(roundNumber) {
   const roundData = gameContent.rounds[roundNumber - 1];
 
-  // Flush deferred endProblem from previous round (transition events stay tagged)
-  if (signalCollector && gameState.pendingEndProblem) {
-    signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
-    gameState.pendingEndProblem = null;
-  }
-
-  // Start signal collection for this round
-  signalCollector.startProblem('round_' + roundNumber, {
-    round_number: roundNumber,
-    question_text: roundData.question,
-    correct_answer: roundData.answer,
-    difficulty: roundData.difficulty || null
-  });
-
   // Render the round UI
   renderQuestion(roundData);
   questionStartTime = Date.now();
+
+  // Record what content is now visible on screen
+  signalCollector.recordViewEvent('content_render', {
+    screen: 'gameplay',
+    content_snapshot: {
+      question_text: roundData.question,
+      round: roundNumber,
+      options: roundData.options || null,
+      trigger: 'round_start'
+    },
+    components: {
+      timer: timer ? { value: timer.getCurrentTime(), state: 'running' } : null,
+      progress: { current: roundNumber, total: gameState.totalRounds }
+    }
+  });
 }
 
 function submitAnswer(userAnswer) {
-  const roundId = 'round_' + gameState.currentRound;
   const isCorrect = validateAnswer(userAnswer);
 
-  // Defer endProblem — will be called at next startRound or endGame
-  gameState.pendingEndProblem = {
-    id: roundId,
-    outcome: { correct: isCorrect, answer: userAnswer, correct_answer: gameContent.rounds[gameState.currentRound - 1].answer }
-  };
+  // Log the outcome as custom event
+  signalCollector.recordCustomEvent('round_solved', {
+    round: gameState.currentRound,
+    correct: isCorrect,
+    answer: userAnswer,
+    correct_answer: gameContent.rounds[gameState.currentRound - 1].answer
+  });
 
-  // Log the outcome as custom event (problem stays active through transition)
-  signalCollector.recordCustomEvent('round_solved', { correct: isCorrect, answer: userAnswer });
-
-  // Build attempt history entry (signals are kept separate — NOT merged here)
+  // Build attempt history entry (signals stream to GCS separately — NOT merged here)
   const attempt = {
     attempt_number: gameState.currentRound,
     start_timestamp: new Date(questionStartTime).toISOString(),
@@ -129,46 +128,51 @@ function submitAnswer(userAnswer) {
 }
 ```
 
-## Pattern 4: updateCurrentAnswer (Multi-Input Games)
+## Pattern 4: Multi-Input Answer Tracking (View Events)
 
-For games where the answer is spread across multiple inputs (grids, drag-drop, matching):
+For games where the answer is spread across multiple inputs (grids, drag-drop, matching), use `recordViewEvent('visual_update', ...)` to capture each change:
 
 ```javascript
-// Single-input games: current_answer is auto-captured from input.value — no action needed
-
-// Multi-input games (e.g., Kakuro grid): call updateCurrentAnswer after each change
+// Multi-input games (e.g., Kakuro grid): record visual update after each change
 function handleCellInput(row, col, value) {
   const key = `${row}-${col}`;
   gameState.userValues[key] = value;
-
-  // Update signal collector with full answer state
-  signalCollector.updateCurrentAnswer(gameState.userValues);
-  // e.g., {"1-1": 3, "1-2": 7} — student's work in progress
-
   renderGrid();
+
+  // Record the visual change with current answer state
+  signalCollector.recordViewEvent('visual_update', {
+    screen: 'gameplay',
+    content_snapshot: {
+      type: 'number_entered',
+      cell: { row: row, col: col },
+      value_entered: value,
+      user_values: gameState.userValues,
+      cells_filled: Object.keys(gameState.userValues).length,
+      cells_total: gameState.totalInputCells
+    }
+  });
 }
 
 // Drag-and-drop matching game:
 function handleDrop(sourceId, targetId) {
   gameState.matches[targetId] = sourceId;
 
-  signalCollector.updateCurrentAnswer(gameState.matches);
-  // e.g., {"slot-1": "item-a", "slot-2": "item-c"}
+  signalCollector.recordViewEvent('visual_update', {
+    screen: 'gameplay',
+    content_snapshot: {
+      type: 'drop_placed',
+      source: sourceId,
+      target: targetId,
+      matches: gameState.matches
+    }
+  });
 }
 ```
-
-**Note:** `current_answer` = student's live state, not the correct answer. Correct answer goes in `startProblem(problemData.correct_answer)` and `endProblem(outcome)`.
 
 ## Pattern 5: game_complete with Signals
 
 ```javascript
 function completeGame() {
-  // Flush any deferred endProblem before sealing
-  if (signalCollector && gameState.pendingEndProblem) {
-    signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
-    gameState.pendingEndProblem = null;
-  }
-
   const metrics = {
     total_rounds: gameState.totalRounds,
     correct_rounds: gameState.correctRounds,
@@ -177,29 +181,30 @@ function completeGame() {
     completed: true
   };
 
-  // seal() detaches listeners, computes final signals, returns complete payload
-  // Data stays readable after seal — console inspection works on game complete screen
-  const payload = signalCollector.seal();
+  // seal() fires sendBeacon to flush all buffered events to GCS, detaches listeners
+  // Returns { event_count, metadata } — signal data streams to GCS, NOT in postMessage
+  const result = signalCollector.seal();
 
   window.parent.postMessage({
     type: 'game_complete',
     data: {
       metrics: metrics,
       attempts: window.gameVariableState.attemptHistory,
-      ...payload  // { events, signals, metadata }
+      signal_event_count: result.event_count,
+      signal_metadata: result.metadata
     }
   }, '*');
 }
 ```
 
-**seal() replaces flush + destroy + manual assembly.** No cleanup needed — data is immutable and accessible until iframe teardown.
+**Signal data streams to GCS via batch flushing — do NOT spread seal() result into postMessage.** The `seal()` call fires `sendBeacon` immediately (survives iframe destruction), then attempts `fetch` with retry as a bonus path.
 
 ## Pattern 6: API Submission with Signals
 
 ```javascript
 async function submitResults() {
   const summary = tracker.getSummary();
-  const payload = signalCollector.seal(); // idempotent — safe to call again
+  const result = signalCollector.seal(); // idempotent — safe to call again
 
   await api.submitResults({
     session_id: tracker.getSessionId(),
@@ -211,7 +216,8 @@ async function submitResults() {
       correct_attempts: summary.correctAttempts
     },
     attempts: window.gameVariableState.attemptHistory,
-    ...payload  // { events, signals, metadata }
+    signal_event_count: result.event_count,
+    signal_metadata: result.metadata
   });
 }
 ```
@@ -253,7 +259,6 @@ window.debugSignals = function() {
   console.log('=== Signal Collector Debug ===');
   signalCollector.debug();
   console.log('Input events:', signalCollector.getInputEvents().length);
-  console.log('Problem signals:', signalCollector.getAllProblemSignals());
   console.log('Current view:', signalCollector.getCurrentView());
   console.log('Metadata:', signalCollector.getMetadata());
 };

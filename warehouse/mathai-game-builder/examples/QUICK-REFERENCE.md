@@ -639,15 +639,9 @@ const signalCollector = new SignalCollector({
   containerSelector: '.game-play-area',
   sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
   studentId: window.gameVariableState?.studentId || null,
-  templateId: gameState.gameId || null
+  gameId: gameState.gameId || null
 });
 window.signalCollector = signalCollector;
-
-// When round starts:
-signalCollector.startProblem('round_' + roundNumber, { question_text, correct_answer });
-
-// After validation:
-signalCollector.endProblem('round_' + roundNumber, { correct: isCorrect, answer: userAnswer });
 
 // MANDATORY: Record view events for ALL visual changes
 // Screen transitions:
@@ -659,11 +653,11 @@ signalCollector.recordViewEvent('feedback_display', { screen: 'gameplay', conten
 // Cell/option visual updates:
 signalCollector.recordViewEvent('visual_update', { screen: 'gameplay', content_snapshot: { type: 'cell_selected', selected_cell, user_values } });
 
-// On game complete — seal() finalizes and returns complete payload:
-const payload = signalCollector.seal();
+// On game complete — seal() flushes to GCS via sendBeacon, returns { event_count, metadata }:
+const result = signalCollector.seal();
 window.parent.postMessage({
   type: 'game_complete',
-  data: { metrics, attempts: attemptHistory, ...payload }
+  data: { metrics, attempts: attemptHistory, signal_event_count: result.event_count, signal_metadata: result.metadata }
 }, '*');
 ```
 

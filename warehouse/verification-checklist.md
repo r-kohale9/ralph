@@ -86,10 +86,9 @@ Ralph runs this as a loop (max 5 iterations) after HTML generation, before Playw
 
 ## 7. SignalCollector
 
-- [ ] SignalCollector initialized with `sessionId`, `studentId`, `templateId`
+- [ ] SignalCollector initialized with `sessionId`, `studentId`, `gameId`
 - [ ] `window.signalCollector` assigned
-- [ ] `startProblem()` called at each round/question start
-- [ ] Deferred `endProblem` pattern used (via `gameState.pendingEndProblem`)
+- [ ] `recordViewEvent('content_render', ...)` called when each round/question renders
 - [ ] `recordViewEvent()` called in functions that modify visible DOM
 - [ ] `data-signal-id` attributes on important interactive elements
 - [ ] `seal()` called in `endGame()` before postMessage

@@ -32,7 +32,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   const signalCollector = new SignalCollector({
     sessionId: gameState.sessionId,
     studentId: gameState.studentId,
-    templateId: gameState.gameId,
     gameId: gameState.gameId,
     contentSetId: gameState.contentSetId
   });
@@ -69,10 +68,9 @@ function handlePostMessage(event) {
 | `containerSelector` | string | `'body'` | CSS selector for event delegation target |
 | `sessionId` | string | `null` | Session identifier |
 | `studentId` | string | `null` | Student identifier |
-| `templateId` | string | `null` | Game template identifier (e.g., gameId) |
+| `gameId` | string | `null` | Game identifier. Also accepts `templateId` for backward compatibility. Used in GCS batch path and event `template_id` field. |
 | `flushUrl` | string | `null` | Cloud function URL for batch uploads. If null, flushing is disabled. Typically set from `signalConfig.flushUrl`. |
 | `playId` | string | `null` | UUID for this game play session. Used in GCS path + server deduplication. |
-| `gameId` | string | `null` | Game identifier. Used in GCS batch path. |
 | `contentSetId` | string | `null` | Content set identifier. Used in GCS batch path. |
 
 ## Methods

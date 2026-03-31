@@ -62,7 +62,6 @@ window.debugSignals = function() {
   console.log('=== Signal Collector Debug ===');
   signalCollector.debug();
   console.log('Input events:', signalCollector.getInputEvents().length);
-  console.log('Problem signals:', JSON.stringify(signalCollector.getAllProblemSignals(), null, 2));
   console.log('Current view:', JSON.stringify(signalCollector.getCurrentView(), null, 2));
   console.log('Metadata:', JSON.stringify(signalCollector.getMetadata(), null, 2));
 };

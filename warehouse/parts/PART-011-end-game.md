@@ -53,13 +53,7 @@ function endGame() {
 
   trackEvent('game_end', 'game', { metrics });
 
-  // Flush deferred endProblem before sealing (PART-010)
-  if (signalCollector && gameState.pendingEndProblem) {
-    signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
-    gameState.pendingEndProblem = null;
-  }
-
-  // Seal SignalCollector — final flush to GCS, stop flush timer, detach listeners (PART-010)
+  // Seal SignalCollector — fires sendBeacon to flush all events to GCS, stops flush timer, detaches listeners (PART-010)
   if (signalCollector) signalCollector.seal();
 
   // Show results (PART-019)
@@ -184,7 +178,7 @@ function restartGame() {
   signalCollector = new SignalCollector({
     sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
     studentId: window.gameVariableState?.studentId || null,
-    templateId: gameState.gameId || null
+    gameId: gameState.gameId || null
   });
   window.signalCollector = signalCollector;
   timer = new TimerComponent('timer-container', { /* same config as initial */ });

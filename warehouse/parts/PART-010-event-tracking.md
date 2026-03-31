@@ -68,7 +68,6 @@ Handled in PART-004. SignalCollector is created after `FeedbackManager.init()`, 
 signalCollector = new SignalCollector({
   sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
   studentId: window.gameVariableState?.studentId || null,
-  templateId: gameState.gameId || null,
   gameId: gameState.gameId,
   contentSetId: gameState.contentSetId
 });
@@ -81,82 +80,49 @@ window.signalCollector = signalCollector;
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `containerSelector` | string | `'body'` | CSS selector for event delegation target |
-| `maxBufferSize` | number | `5000` | Max events in ring buffer |
 | `sessionId` | string | `null` | Session identifier |
 | `studentId` | string | `null` | Student identifier |
-| `templateId` | string | `null` | Game template identifier (e.g., gameId) |
-| `hesitationThresholdMs` | number | `3000` | Pause duration to count as hesitation |
-| `frustrationClickMs` | number | `1000` | Time window for detecting rapid clicks |
-| `frustrationClickCount` | number | `3` | Clicks in window to flag frustration |
+| `gameId` | string | `null` | Game identifier. Also accepts `templateId` for backward compatibility. Used in GCS batch path and event `template_id` field. |
 | `flushUrl` | string | `null` | Cloud function URL for batch uploads. If null, flushing is disabled. Typically set from `signalConfig.flushUrl` received via `game_init`. |
 | `playId` | string | `null` | UUID for this game play session. Set from `signalConfig.playId`. |
-| `gameId` | string | `null` | Game identifier. Used in GCS batch path. |
 | `contentSetId` | string | `null` | Content set identifier. Used in GCS batch path. |
 
-## Problem Lifecycle
+## Round Lifecycle (v3)
 
-### startProblem(problemId, problemData)
-
-Call when a new question/round begins. Starts tracking input events for this problem.
-
-```javascript
-signalCollector.startProblem('round_' + roundNumber, {
-  round_number: roundNumber,
-  question_text: roundData.question,
-  correct_answer: roundData.answer,
-  difficulty: roundData.difficulty || null
-});
-```
-
-### endProblem(problemId, outcome) → signals
-
-Call after validation completes. Computes and returns Tier 2-4 signals.
-
-```javascript
-const signals = signalCollector.endProblem('round_1', {
-  correct: true,
-  answer: 63
-});
-```
-
-### Deferred endProblem Pattern
-
-**Important:** Don't call `endProblem` immediately on solve. Defer it to the next `startProblem` call so transition screen events stay tagged to the previous problem. Otherwise events during transitions get `problem_id: null` and are lost from problem-level analysis.
+SignalCollector v3 captures all raw input events automatically. Use `recordViewEvent()` for visual state changes and `recordCustomEvent()` for game-specific outcomes. No problem lifecycle methods needed.
 
 ```javascript
 function startRound(roundNumber) {
   const roundData = gameContent.rounds[roundNumber - 1];
 
-  // Flush deferred endProblem from previous round (transition events stay tagged)
-  if (signalCollector && gameState.pendingEndProblem) {
-    signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
-    gameState.pendingEndProblem = null;
-  }
-
-  // Start signal collection for this round
-  signalCollector.startProblem('round_' + roundNumber, {
-    round_number: roundNumber,
-    question_text: roundData.question,
-    correct_answer: roundData.answer,
-    difficulty: roundData.difficulty || null
-  });
-
   // Render the round UI
   renderQuestion(roundData);
+
+  // Record what content is now visible
+  signalCollector.recordViewEvent('content_render', {
+    screen: 'gameplay',
+    content_snapshot: {
+      question_text: roundData.question,
+      round: roundNumber,
+      options: roundData.options || null,
+      trigger: 'round_start'
+    },
+    components: {
+      timer: timer ? { value: timer.getCurrentTime(), state: 'running' } : null,
+      progress: { current: roundNumber, total: gameState.totalRounds }
+    }
+  });
 }
 
 function submitAnswer(userAnswer) {
-  const roundId = 'round_' + gameState.currentRound;
   const isCorrect = validateAnswer(userAnswer);
 
-  // Defer endProblem — will be called at next startRound or endGame
-  gameState.pendingEndProblem = {
-    id: roundId,
-    outcome: { correct: isCorrect, answer: userAnswer }
-  };
-
-  // Log the outcome as custom event (problem stays active through transition)
-  signalCollector.recordCustomEvent('round_solved', { correct: isCorrect, answer: userAnswer });
+  // Log outcome as custom event
+  signalCollector.recordCustomEvent('round_solved', {
+    round: gameState.currentRound,
+    correct: isCorrect,
+    answer: userAnswer
+  });
 
   // Continue game flow...
 }
@@ -167,12 +133,18 @@ function submitAnswer(userAnswer) {
 For multi-input games (grids, drag-drop, matching) where the answer is spread across multiple inputs:
 
 ```javascript
-// Single-input games: current_answer is auto-captured from input.value — no action needed
-
-// Multi-input games: call updateCurrentAnswer after each change
+// Multi-input games: record visual update after each change
 gameState.userValues[cellKey] = value;
-signalCollector.updateCurrentAnswer(gameState.userValues);
-// e.g., {"1-1": 3, "1-2": 7} — student's work in progress, NOT the correct answer
+signalCollector.recordViewEvent('visual_update', {
+  screen: 'gameplay',
+  content_snapshot: {
+    type: 'number_entered',
+    cell: cellKey,
+    value_entered: value,
+    user_values: gameState.userValues,
+    cells_filled: Object.keys(gameState.userValues).length
+  }
+});
 ```
 
 ### recordCustomEvent(type, data)
@@ -346,7 +318,7 @@ Events are sent every 5s to `flushUrl` and stored in GCS at `signal-events/{stud
 
 | Method | Description |
 |--------|-------------|
-| `seal()` | Finalize at game end. Performs final flush, stops flush timer, detaches listeners, returns `{ events, signals, metadata }`. Idempotent. |
+| `seal()` | Finalize at game end. Fires sendBeacon to flush all events to GCS, stops flush timer, detaches listeners, returns `{ event_count, metadata }`. Idempotent. |
 | `pause()` | Pause signal collection (use with VisibilityTracker) |
 | `resume()` | Resume signal collection |
 | `startFlushing()` | Start periodic batch-streaming of events to `flushUrl`. Requires `flushUrl` to be set. |
@@ -355,12 +327,11 @@ Events are sent every 5s to `flushUrl` and stored in GCS at `signal-events/{stud
 ## Rules
 
 - Initialize SignalCollector in PART-004 after `FeedbackManager.init()`
-- Call `startProblem` before rendering each question — captures reading time
-- Use deferred `endProblem` pattern — defer to next `startProblem` or `endGame`
+- Call `recordViewEvent('content_render', ...)` when each round/question renders
 - Call `recordViewEvent` in EVERY function that changes visible DOM content
 - Add `data-signal-id` to all important interactive elements in HTML
-- Use `updateCurrentAnswer` for multi-input games (grids, drag-drop)
-- Signals are kept SEPARATE from `attempt_history` — never merge into attempt metadata
+- Use `recordViewEvent('visual_update', ...)` to capture multi-input state changes
+- Signal data streams to GCS via batch flushing — NOT included in game_complete postMessage
 - Integrate with VisibilityTracker for pause/resume (PART-005)
 - Call `seal()` in `endGame()` before postMessage (PART-011)
 
@@ -375,13 +346,12 @@ Events are sent every 5s to `flushUrl` and stored in GCS at `signal-events/{stud
 - [ ] Game-specific interaction events fired
 
 ### SignalCollector
-- [ ] SignalCollector initialized in PART-004 with sessionId, studentId, templateId, gameId, contentSetId
+- [ ] SignalCollector initialized in PART-004 with sessionId, studentId, gameId, contentSetId
 - [ ] `window.signalCollector` assigned
-- [ ] `startProblem` called at each round/question start
-- [ ] Deferred `endProblem` pattern used (via `gameState.pendingEndProblem`)
+- [ ] `recordViewEvent('content_render', ...)` called when each round/question renders
 - [ ] `recordViewEvent` called in every DOM-modifying function
 - [ ] `data-signal-id` attributes on important interactive elements
-- [ ] `updateCurrentAnswer` used for multi-input games
+- [ ] `recordViewEvent('visual_update', ...)` used for multi-input state changes
 - [ ] `seal()` called in endGame before postMessage
 - [ ] Signals separate from attempt_history
 - [ ] Integrated with VisibilityTracker (PART-005)

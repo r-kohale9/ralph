@@ -71,10 +71,8 @@ During development:
 [ ] Attempts include metadata - VERIFY: correct (boolean), validationType, timestamp, responseTime
 [ ] Response time tracked - VERIFY: Timestamp captured on submit, elapsed time calculated
 [ ] Game analytics events integrated - VERIFY: All 7 events tracked at correct points (see components/game-analytics-events.md)
-[ ] `signalCollector.endProblem()` called after validation completes - VERIFY: Called with outcome { correct, answer } (see components/signal-collector.md)
 [ ] Validation feedback emits view events - VERIFY: correct/incorrect cell coloring, error messages, status text changes call `signalCollector.recordViewEvent('feedback_display', { screen, content_snapshot: { feedback_type, correct_cells, incorrect_cells, message } })` (see examples/signal-capture-patterns.md Pattern 9)
-[ ] Signal data kept separate from attempt_history - VERIFY: Signals are NOT merged into attempt metadata; sent as separate `problem_signals`, `input_events`, `signal_metadata` fields (see examples/signal-capture-patterns.md Pattern 4-5)
-[ ] Signal data included in game_complete payload - VERIFY: `problem_signals`, `input_events`, and `signal_metadata` sent via postMessage and/or api.submitResults() (see examples/signal-capture-patterns.md Pattern 4-5)
+[ ] Signal data streams to GCS via batch flushing - VERIFY: signal data is NOT spread into game_complete postMessage. Only `signal_event_count` and `signal_metadata` from `seal()` are included (see examples/signal-capture-patterns.md Pattern 5)
 ```
 
 **Wait for user "start" confirmation before proceeding to Step 0.5.**

@@ -195,7 +195,7 @@ Ready to start? (Reply "start")
 [ ] SignalCollector initialized after waitForPackages() - VERIFY: `new SignalCollector({ containerSelector: '.game-play-area', sessionId, studentId })` called, `window.signalCollector` exposed globally (see components/signal-collector.md)
 [ ] SignalCollector integrated with VisibilityTracker - VERIFY: pause()/resume() called in onInactive/onResume callbacks
 [ ] `data-signal-id` attributes added to key interactive elements (options, inputs, submit button, scaffolds) for clear signal identification
-[ ] `signalCollector.startProblem()` called when each round/question renders (before user can interact)
+[ ] `signalCollector.recordViewEvent('content_render', ...)` called when each round/question renders (before user can interact) — see components/signal-collector.md "View Events" section
 [ ] View events emitted for ALL visual changes - VERIFY: Every function that modifies the DOM in a way that changes what is visible on screen calls `signalCollector.recordViewEvent()` with appropriate viewType (see components/signal-collector.md "View Events" section and examples/signal-capture-patterns.md Pattern 9)
 [ ] View events include trigger field - VERIFY: `'user_action'`, `'timer_reshuffle'`, or `'round_start'` distinguishes cause of visual change
 [ ] Timer-driven content changes emit view events - VERIFY: setInterval/setTimeout callbacks that change visible content call `recordViewEvent` with `trigger:'timer_reshuffle'`
@@ -399,7 +399,7 @@ Write({
 [ ] SignalCollector initialized after waitForPackages() - VERIFY: `new SignalCollector({ containerSelector: '.game-play-area', sessionId, studentId })` called, `window.signalCollector` exposed globally (see components/signal-collector.md)
 [ ] SignalCollector integrated with VisibilityTracker - VERIFY: pause()/resume() called in onInactive/onResume callbacks
 [ ] `data-signal-id` attributes added to key interactive elements (options, inputs, submit button, scaffolds)
-[ ] `signalCollector.startProblem()` called when each round/question renders
+[ ] `signalCollector.recordViewEvent('content_render', ...)` called when each round/question renders (before user can interact) — see components/signal-collector.md "View Events" section
 [ ] View events emitted for ALL visual changes - VERIFY: Every function that modifies the DOM in a way that changes what is visible on screen calls `signalCollector.recordViewEvent()` (see components/signal-collector.md and examples/signal-capture-patterns.md Pattern 9)
 [ ] View events include trigger field - VERIFY: `'user_action'`, `'timer_reshuffle'`, or `'round_start'` distinguishes cause
 [ ] Timer-driven content changes emit view events - VERIFY: setInterval/setTimeout that change content call `recordViewEvent` with `trigger:'timer_reshuffle'`
