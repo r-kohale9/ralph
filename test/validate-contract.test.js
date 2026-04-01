@@ -322,6 +322,42 @@ function initGame() { gameState = { score: 0, phase: 'playing' }; }
         `Expected signalConfig/flushUrl warning, got: ${errors.join(', ')}`,
       );
     });
+
+    it('fails when signalCollector.playId assignment is missing', () => {
+      const html = CDN_HTML_NESTED.replace(/signalCollector\.playId\s*=\s*[^;]+;/, '');
+      const errors = validateSignalCollectorContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('playId') && e.includes('missing')),
+        `Expected playId missing error, got: ${errors.join(', ')}`,
+      );
+    });
+
+    it('fails when signalCollector.sessionId assignment is missing', () => {
+      const html = CDN_HTML_NESTED.replace(/signalCollector\.sessionId\s*=\s*[^;]+;/, '');
+      const errors = validateSignalCollectorContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('sessionId') && e.includes('missing')),
+        `Expected sessionId missing error, got: ${errors.join(', ')}`,
+      );
+    });
+
+    it('fails when signalConfig is never extracted from event data', () => {
+      // Remove all signalConfig extraction patterns (both var and gameState forms)
+      const html = CDN_HTML_NESTED
+        .replace(/var\s+signalConfig\s*=\s*[^;]+;/, '')
+        .replace(/gameState\.signalConfig\s*=\s*[^;]+;/, '');
+      const errors = validateSignalCollectorContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('signalConfig') && e.includes('never extracted')),
+        `Expected signalConfig extraction error, got: ${errors.join(', ')}`,
+      );
+    });
+
+    it('does not false-positive when signalCollector is not used', () => {
+      // VALID_HTML has no signalCollector references — should return no errors
+      const errors = validateSignalCollectorContract(VALID_HTML);
+      assert.equal(errors.length, 0, `Expected no errors for HTML without signalCollector, got: ${errors.join(', ')}`);
+    });
   });
 });
 

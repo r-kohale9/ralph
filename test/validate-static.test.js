@@ -2163,6 +2163,56 @@ describe('GEN-UX-005: SignalCollector must not be called with no args', () => {
     );
   });
 
+  // ─── GEN-PM-SIGNALCONFIG tests ──────────────────────────────────────────────
+  it('GEN-PM-SIGNALCONFIG: fails when signalCollector + handlePostMessage exist but property assignments missing', () => {
+    // Add signalCollector + handlePostMessage without the 6 property assignments
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+var signalCollector = new SignalCollector({ sessionId: 's', studentId: 's', gameId: 'g', contentSetId: 'c' });
+window.signalCollector = signalCollector;
+function handlePostMessage(event) {
+  if (!event.data || event.data.type !== 'game_init') return;
+  gameState.content = event.data.data.content;
+}`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-PM-SIGNALCONFIG'),
+      `Expected GEN-PM-SIGNALCONFIG error but got: ${output}`,
+    );
+  });
+
+  it('GEN-PM-SIGNALCONFIG: passes when all 6 signalCollector properties are assigned', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+var signalCollector = new SignalCollector({ sessionId: 's', studentId: 's', gameId: 'g', contentSetId: 'c' });
+window.signalCollector = signalCollector;
+function handlePostMessage(event) {
+  if (!event.data || event.data.type !== 'game_init') return;
+  var d = event.data.data;
+  gameState.content = d.content;
+  gameState.signalConfig = d.signalConfig || {};
+  if (signalCollector && gameState.signalConfig.flushUrl) {
+    signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+    signalCollector.playId = gameState.signalConfig.playId || null;
+    signalCollector.gameId = gameState.signalConfig.gameId || signalCollector.gameId;
+    signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+    signalCollector.contentSetId = gameState.signalConfig.contentSetId || signalCollector.contentSetId;
+    signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+    signalCollector.startFlushing();
+  }
+}`,
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('GEN-PM-SIGNALCONFIG'),
+      `Unexpected GEN-PM-SIGNALCONFIG error: ${output}`,
+    );
+  });
+
   // ─── GEN-LOCAL-ASSETS tests ─────────────────────────────────────────────────
   it('GEN-LOCAL-ASSETS: fires ERROR for src="assets/icon.svg"', () => {
     const html = VALID_HTML.replace(

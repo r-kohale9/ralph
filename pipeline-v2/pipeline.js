@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 const { createSession } = require('./agent');
+const { validateContract } = require('../lib/validate-contract');
 
 // ─── Step definitions ─────────────────────────────────────────────────────────
 
@@ -629,6 +630,11 @@ function _validateSpec(specContent) {
     warnings.push(`Only ${headerCount} section header(s) — spec may lack detail`);
   }
 
+  // Check for handlePostMessage implementation (PART-008/010 critical pattern)
+  if (!/handlePostMessage/i.test(specContent) && !/signalConfig/i.test(specContent)) {
+    warnings.push('Spec does not include handlePostMessage or signalConfig — verify signalCollector setup in generated HTML');
+  }
+
   return { valid: errors.length === 0, warnings, errors };
 }
 
@@ -749,6 +755,20 @@ async function runPipeline({
     report.htmlSize = htmlSize;
 
     await progress({ type: 'pipeline-step', step: STEPS.GENERATE, status: 'done', htmlSize, turns: genResult.turns, toolUses: genResult.toolUses, toolNames: genResult.toolNames });
+
+    // ── Step 1.5: Deterministic contract validation ─────────────────────────
+    const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
+    const contractErrors = validateContract(htmlContent);
+    if (contractErrors.length > 0) {
+      logger.warn(`[pipeline] Contract validation: ${contractErrors.length} issue(s)`);
+      report.contractValidation = { errors: contractErrors };
+      const errorList = contractErrors.map((e) => `- ${e}`).join('\n');
+      await session.send(
+        'deterministic-fix',
+        `DETERMINISTIC VALIDATION found ${contractErrors.length} contract error(s) in the generated HTML. Fix ALL of these before proceeding:\n\n${errorList}\n\nRead ${htmlPath}, fix each issue, and save.`
+      );
+      logger.info('[pipeline] Deterministic fix step completed');
+    }
 
     // ── Step 2: Validate ────────────────────────────────────────────────────
     await progress({ type: 'pipeline-step', step: STEPS.VALIDATE, status: 'running' });
