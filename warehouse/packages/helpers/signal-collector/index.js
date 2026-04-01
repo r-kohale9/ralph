@@ -333,8 +333,6 @@
     while (i < this._events.length) {
       var chunk = this._events.slice(i, i + CHUNK);
       i += CHUNK;
-      this._batchNumber++;
-
       var payload = this._buildPayload(chunk);
       var body = JSON.stringify(payload);
 
