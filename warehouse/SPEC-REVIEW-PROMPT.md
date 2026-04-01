@@ -116,11 +116,38 @@ Flag anything left undefined or ambiguous:
 
 ---
 
-### Step 6 — Input Schema & Content Set Readiness
+### Step 6 — UI/UX & Responsiveness
+
+The game will run inside an iframe on devices ranging from small phones (320px wide) to large desktop monitors (1920px+). Check that the spec describes a layout that works across this full range.
+
+#### 6a — Desktop / Large Screen Layout
+
+1. **Is the game content constrained to a reasonable max-width?** Games should not stretch to fill the full viewport on wide screens. Look for `max-width` on the game wrapper (typically 480px–600px). If the spec uses `width: 100vw` on any container, flag it — this causes the game to take full width on desktop, which looks broken.
+2. **Is the game wrapper centered on larger screens?** The spec should describe centering (e.g., `.page-center` with `justify-content: center`) so the game sits in the middle of the viewport on desktop, not pinned to the left edge.
+3. **Do interactive elements have hover states for mouse users?** Buttons, draggable items, and clickable cells should have `:hover` styles (e.g., `transform`, `box-shadow`, `filter: brightness`) for desktop users who use a mouse.
+
+#### 6b — Mobile Layout
+
+1. **Does the layout use `100dvh` (not `100vh`) for full-height containers?** `100vh` causes content to be hidden behind the mobile browser's address bar. `100dvh` accounts for dynamic viewport changes.
+2. **Are touch targets at least 44×44px?** Buttons, grid cells, and interactive elements must be large enough for finger taps. Flag any element described as smaller than this.
+3. **Are touch interactions explicitly described?** For drag-and-drop games: does the spec describe both HTML5 drag events (desktop) AND touch events with floating clone (mobile)? HTML5 drag does not work on mobile Safari/Chrome.
+4. **Is `touch-action: none` set on draggable elements?** Without this, the browser will scroll instead of allowing the drag on mobile.
+
+#### 6c — Cross-Viewport Consistency
+
+1. **Does the game render the same content and functionality on all screen sizes?** The game should not hide essential elements or change core mechanics based on viewport width. Responsive adjustments should be cosmetic (spacing, font size), not functional.
+2. **Are there media queries or responsive breakpoints if needed?** If the game has elements that need different sizing at different widths (e.g., grid cells, tag clusters), check that the spec defines how they adapt.
+3. **Does scrolling work correctly when content exceeds the viewport?** For games with grids + tag clusters or long content, the spec should allow vertical scrolling. For drag-and-drop games, auto-scroll behavior when dragging near edges should be described.
+
+Flag any layout issues as **⚠️ Warning · Interaction** (if it breaks usability) or **ℹ️ Info · Completeness** (if it's a missing detail that could cause visual issues).
+
+---
+
+### Step 7 — Input Schema & Content Set Readiness
 
 The spec must provide enough information for the pipeline to generate an `inputSchema.json` and multiple content sets without guessing. Check both:
 
-#### 6a — Input Schema
+#### 7a — Input Schema
 
 Look for a section in the spec that describes **what data the game accepts as input** — i.e., what is parameterized and what is hardcoded. Specifically:
 
@@ -131,7 +158,7 @@ Look for a section in the spec that describes **what data the game accepts as in
 
 If input schema information is **missing or vague**, emit a **⚠️ Warning · Completeness** finding. In the "Suggested fix" field, propose a concrete schema outline based on what the spec's game mechanics imply should be parameterized (round structure, answer data, difficulty knobs, display text, etc.).
 
-#### 6b — Content Set Generation
+#### 7b — Content Set Generation
 
 Look for a section that describes **how to generate multiple content sets** at different difficulty levels. Specifically:
 
@@ -144,28 +171,28 @@ If content set generation guidance is **missing or vague**, emit a **⚠️ Warn
 
 ---
 
-### Step 7 — Feedback Asset Completeness
+### Step 8 — Feedback Asset Completeness
 
 If the spec describes audio or visual feedback, check that the required assets are actually specified.
 
-#### 7a — Static Audio URLs
+#### 8a — Static Audio URLs
 
 Look for any mention of playing pre-loaded sounds (e.g., `sound.play`, `FeedbackManager.sound.play`, `preload`, sound IDs like `correct_tap`, `wrong_tap`, `all_correct`, etc.).
 
 - If the spec says a sound should play but **does not provide the audio URL** for that sound (or reference a standard sound ID from PART-017), emit a **⚠️ Warning · Completeness** finding. The generator cannot preload audio without a URL.
 - This does **NOT** apply to dynamic/TTS audio (`playDynamicFeedback`, `audio_content`). Dynamic audio only needs text content, not a URL.
 
-#### 7b — Sticker URLs
+#### 8b — Sticker URLs
 
 Look for any mention of showing stickers during feedback (e.g., `sticker`, `IMAGE_GIF`, sticker on correct/incorrect, etc.).
 
 - If the spec says a sticker should appear but **does not provide the sticker image URL** (or reference a standard sticker from PART-017), emit a **⚠️ Warning · Completeness** finding. The generator cannot show a sticker without a URL.
 
-For both 7a and 7b: if the spec references standard asset IDs (e.g., "use the standard correct/incorrect sounds and stickers") without explicit URLs, that is acceptable — the standard URLs are defined in PART-017. The warning is only for cases where the spec invents custom feedback moments without providing the corresponding asset URLs.
+For both 8a and 8b: if the spec references standard asset IDs (e.g., "use the standard correct/incorrect sounds and stickers") without explicit URLs, that is acceptable — the standard URLs are defined in PART-017. The warning is only for cases where the spec invents custom feedback moments without providing the corresponding asset URLs.
 
 ---
 
-### Step 8 — Audio Sequence Audit
+### Step 9 — Audio Sequence Audit
 
 Extract every audio moment from the spec and present them in a single table for the user to approve. For each moment, determine whether the game **awaits** the audio (blocks further interaction until sound finishes) or **fires and forgets** (does not wait — may be overlapped or cut short by the next sound).
 

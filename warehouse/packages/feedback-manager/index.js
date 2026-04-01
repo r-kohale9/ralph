@@ -287,7 +287,9 @@
       }
     },
     showFeedback: function (options, audioDuration) {
-      var feedbackDuration = Math.min(audioDuration || 10, 10);
+      // If audioDuration is Infinity or "stream", don't auto-hide — caller is responsible for hiding via hideAll()
+      var isManualHide = audioDuration === Infinity || audioDuration === "stream";
+      var feedbackDuration = isManualHide ? 86400 : Math.min(audioDuration || 10, 10);
       if (options.subtitle) {
         this.showSubtitle({
           text: options.subtitle.text || options.subtitle,
@@ -1626,9 +1628,10 @@
       var feedbackResult = null;
       if (options.subtitle || options.sticker) {
         try {
+          // Pass Infinity — subtitle stays visible until stream onComplete/onError calls hideAll()
           feedbackResult = FeedbackComponentsManager.showFeedback(
             { subtitle: options.subtitle, sticker: options.sticker },
-            10
+            Infinity
           );
         } catch (e) {}
       }
@@ -2103,32 +2106,63 @@
             return;
           }
 
-          // Play the stream
-          var playSuccess = _stream.play(
-            streamId,
-            {
-              complete: function () {
-                console.log("[FeedbackManager] Dynamic stream completed");
-                _stream.remove(streamId);
+          // Play the stream — wrap in Promise so await waits for audio to finish
+          // Safety timeout: if stream breaks (network error, chunks stop arriving),
+          // resolve after 60s to prevent hanging forever
+          await new Promise(function (resolve, reject) {
+            var settled = false;
+            var safetyTimer = setTimeout(function () {
+              if (!settled) {
+                settled = true;
+                console.warn("[FeedbackManager] Stream safety timeout (60s) — resolving to prevent hang");
+                try { _stream.remove(streamId); } catch (_) {}
                 if (self._currentDynamicId === streamId) {
                   self._currentDynamicId = null;
                   self._currentDynamicType = null;
                 }
-              },
-              error: function (msg) {
-                console.error("[FeedbackManager] Stream error:", msg);
-                if (self._currentDynamicId === streamId) {
-                  self._currentDynamicId = null;
-                  self._currentDynamicType = null;
-                }
-              },
-            },
-            feedbackOptions
-          );
+                FeedbackComponentsManager.hideAll();
+                resolve();
+              }
+            }, 60000);
 
-          if (!playSuccess) {
-            throw new Error("Failed to start stream playback");
-          }
+            var playSuccess = _stream.play(
+              streamId,
+              {
+                complete: function () {
+                  if (settled) return;
+                  settled = true;
+                  clearTimeout(safetyTimer);
+                  console.log("[FeedbackManager] Dynamic stream completed");
+                  _stream.remove(streamId);
+                  if (self._currentDynamicId === streamId) {
+                    self._currentDynamicId = null;
+                    self._currentDynamicType = null;
+                  }
+                  resolve();
+                },
+                error: function (msg) {
+                  if (settled) return;
+                  settled = true;
+                  clearTimeout(safetyTimer);
+                  console.error("[FeedbackManager] Stream error:", msg);
+                  if (self._currentDynamicId === streamId) {
+                    self._currentDynamicId = null;
+                    self._currentDynamicType = null;
+                  }
+                  reject(new Error(msg || "Stream playback error"));
+                },
+              },
+              feedbackOptions
+            );
+
+            if (!playSuccess) {
+              if (!settled) {
+                settled = true;
+                clearTimeout(safetyTimer);
+                reject(new Error("Failed to start stream playback"));
+              }
+            }
+          });
         }
       } catch (error) {
         console.error(

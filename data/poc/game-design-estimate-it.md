@@ -35,7 +35,7 @@
 | PART-012 | Debug Functions | YES | — |
 | PART-013 | Validation Fixed | NO | — |
 | PART-014 | Validation Function | YES | Accuracy tier check (deterministic): within 10% = spot-on, within 25% = close, else = far off |
-| PART-015 | Validation LLM | YES | Evaluates reasoning quality via MathAIHelpers.SubjectiveEvaluation |
+| PART-015 | Validation LLM | YES | Evaluates reasoning quality via `subjectiveEvaluation()` (global from subjective-evaluation package) |
 | PART-016 | StoriesComponent | NO | — |
 | PART-017 | Feedback Integration | YES | Audio: correct_tap, wrong_tap. Stickers: correct/incorrect GIFs, trophy Lottie. Dynamic TTS for reasoning feedback + end-game. |
 | PART-018 | Case Converter | NO | — |
@@ -527,6 +527,37 @@ The game receives content via `postMessage` (`game_init` -> `event.data.data.con
 - Contexts should be familiar real-world scenarios: food, nature, classroom, sports, crafts, home items.
 - Each content set should use unique scenarios — do not repeat the same emoji or context within a set.
 - Stage progression must be maintained: Stage 1 first, then Stage 2, then Stage 3.
+
+---
+
+## 5b. Package Script Order (PART-002)
+
+Scripts MUST be loaded in this exact order in the `<head>`:
+
+```html
+<!-- Sentry (PART-030) — must be first -->
+<script src="https://browser.sentry-cdn.com/10.23.0/bundle.min.js" crossorigin="anonymous"></script>
+
+<!-- Package Scripts (PART-002) — use bundle files, NOT individual component files -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+```
+
+**CRITICAL — Correct global names exported by these bundles:**
+
+| Bundle | Globals exported to `window` |
+|--------|------------------------------|
+| `feedback-manager/index.js` | `FeedbackManager` |
+| `components/index.js` | `ScreenLayout`, `ScreenLayoutComponent`, `ProgressBarComponent`, `TransitionScreenComponent`, `TimerComponent`, `PopupComponent`, `SubtitleComponent`, `StickerComponent`, `StoriesComponent` |
+| `helpers/index.js` | `VisibilityTracker`, `SignalCollector`, `subjectiveEvaluation`, `createEvaluator`, `APIHelper`, `InteractionManager` |
+
+**Common mistakes to avoid:**
+- Do NOT use individual component URLs like `components/screen-layout.js` — they don't exist. Use the bundle `components/index.js`.
+- Do NOT use `helpers/visibility-tracker/index.js` or `helpers/signal-collector/index.js` directly — use the bundle `helpers/index.js`.
+- The TransitionScreen constructor is `TransitionScreenComponent` (NOT `TransitionScreen`).
+- The ScreenLayout constructor is `ScreenLayout` (alias: `ScreenLayoutComponent`).
+- The subjective evaluation function is `subjectiveEvaluation` (global function, NOT `MathAIHelpers.SubjectiveEvaluation`).
 
 ---
 
@@ -1047,14 +1078,14 @@ Each round awards up to 3 points:
 ### Flow Steps
 
 1. **Page loads** → DOMContentLoaded fires:
-   - `waitForPackages()`
+   - `waitForPackages([FeedbackManager, ScreenLayout, ProgressBarComponent, TransitionScreenComponent, VisibilityTracker, SignalCollector, subjectiveEvaluation])` — checks these globals exist before proceeding (10s timeout, fallback on failure)
    - `FeedbackManager.init()`
    - Audio preload: `correct_tap`, `wrong_tap`
    - SignalCollector created (PART-010) and assigned to `window.signalCollector`
    - `ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } })`
    - Clone `<template id="game-template">` into `#gameContent`
-   - ProgressBar created (totalRounds: 10, totalLives: 0)
-   - TransitionScreen created
+   - `progressBar = new ProgressBarComponent({ autoInject: true, totalRounds: 10, totalLives: 0, slotId: 'mathai-progress-slot' })`
+   - `transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' })`
    - VisibilityTracker created
    - Attach `input` listener on `#reasoning-input` to update `#char-count`
    - Register `window.addEventListener('message', handlePostMessage)` for game_init
@@ -1234,12 +1265,13 @@ Each round awards up to 3 points:
          });
        }
        ```
-     - **Play dynamic TTS with reveal explanation:**
+     - **Play dynamic TTS with API feedback (evaluation-controlled):**
        ```javascript
        try {
+         const feedbackText = result.feedback || gameState.roundData.hints.revealExplanation;
          await FeedbackManager.playDynamicFeedback({
-           audio_content: gameState.roundData.hints.revealExplanation,
-           subtitle: gameState.roundData.hints.revealExplanation
+           audio_content: feedbackText,
+           subtitle: feedbackText
          });
        } catch(e) { console.error('Feedback error:', JSON.stringify({ error: e.message }, null, 2)); }
        ```
@@ -1269,6 +1301,50 @@ Each round awards up to 3 points:
            accuracyTier: gameState.accuracyTier,
            reasoningScore: gameState.reasoningScore,
            roundPoints: roundPoints
+         });
+       }
+       ```
+     - Set `gameState.phase = 'feedback'`; `syncDOMState()`
+   - **catch (error):**
+     - Log error: `console.error('Reasoning evaluation failed:', error)`
+     - Report to Sentry if available
+     - **CRITICAL — Ensure game never gets stuck:** If the try block threw before showing the feedback UI, show a minimal fallback:
+       ```javascript
+       // Fallback: if feedback area is still hidden, force-show it with fallback content
+       if (document.getElementById('feedback-area').style.display === 'none') {
+         // Calculate points with 0 reasoning (graceful degradation)
+         let accuracyPts = 0;
+         if (gameState.accuracyTier === 'spot-on') accuracyPts = 2;
+         else if (gameState.accuracyTier === 'close') accuracyPts = 1;
+         const roundPoints = accuracyPts; // 0 reasoning points on error
+         gameState.totalPoints += roundPoints;
+         gameState.accuracyPoints += accuracyPts;
+
+         document.getElementById('feedback-estimate').textContent = gameState.estimateAnswer + ' ' + (gameState.accuracyTier === 'spot-on' ? '🎯' : gameState.accuracyTier === 'close' ? '👍' : '📐');
+         document.getElementById('feedback-actual').textContent = gameState.roundData.actualValue + ' ' + gameState.roundData.unit;
+         document.getElementById('feedback-reasoning').textContent = 'We couldn\'t evaluate your reasoning this time.';
+         document.getElementById('feedback-points').textContent = roundPoints + '/3 points';
+
+         document.getElementById('estimate-area').style.display = 'none';
+         document.getElementById('reasoning-area').style.display = 'none';
+         document.getElementById('accuracy-feedback').style.display = 'none';
+         document.getElementById('feedback-area').style.display = '';
+         document.getElementById('btn-next-round').style.display = '';
+
+         recordAttempt({
+           input_of_user: { estimate: gameState.estimateAnswer, reasoning: gameState.reasoningText },
+           correct: false,
+           metadata: {
+             round: gameState.currentRound + 1,
+             question: gameState.roundData.scenario.question,
+             correctAnswer: gameState.roundData.actualValue,
+             accuracyTier: gameState.accuracyTier,
+             reasoningScore: 0,
+             roundPoints: roundPoints,
+             validationType: 'hybrid',
+             llmFeedback: '',
+             error: error.message
+           }
          });
        }
        ```
@@ -1520,28 +1596,43 @@ function computeTriesPerRound(attempts) {
 ```javascript
 async function validateAnswerLLM(userAnswer, question, rubric) {
   try {
-    const result = await MathAIHelpers.SubjectiveEvaluation.evaluate({
+    const result = await subjectiveEvaluation({
       components: [
         {
           component_id: 'q_' + gameState.currentRound,
-          evaluation_prompt: `Question: "${question}"\nStudent's reasoning: "${userAnswer}"\nRubric: ${rubric}\n\nEvaluate whether the student's reasoning demonstrates a deliberate estimation strategy (not just random guessing). The answer can be wrong — focus on whether the REASONING shows thoughtful strategy.\n\nIMPORTANT: Begin your evaluation with exactly one of these verdicts:\n- "GOOD_REASONING:" if the student shows a deliberate strategy\n- "WEAK_REASONING:" if the student just guessed or gave an incoherent answer\n\nThen explain your evaluation.`,
-          feedback_prompt: 'Based on {{evaluation}}, provide a short (1-2 sentence) encouraging feedback for the student about their reasoning approach. If the reasoning was weak, gently suggest a better strategy.'
+          evaluation_prompt: `Question: "${question}"\nStudent's reasoning: "${userAnswer}"\nRubric: ${rubric}\n\nEvaluate whether the student's reasoning demonstrates a deliberate estimation strategy (not just random guessing). The answer can be wrong — focus on whether the REASONING shows thoughtful strategy.\n\nReturn exactly one word from these options:\n- "good_reasoning" if the student shows a deliberate strategy (grouping, benchmarking, spatial reasoning, rounding, etc.)\n- "weak_reasoning" if the student just guessed randomly or gave an incoherent/irrelevant answer`,
+          feedback_prompt: `You are a friendly math tutor. The student was asked to estimate a quantity and explain their reasoning.\n\nQuestion: "${question}"\nStudent's reasoning: "${userAnswer}"\nEvaluation: {{evaluation}}\n\nProvide a short (1-2 sentence) encouraging feedback about their reasoning approach.\n- If evaluation is "good_reasoning": acknowledge their strategy and encourage them\n- If evaluation is "weak_reasoning": gently suggest a better strategy like grouping, benchmarking, or spatial reasoning\n\nKeep it warm and age-appropriate for a Grade 5 student.`
         }
       ],
+      onComplete: (response) => {
+        console.log('Subjective evaluation complete:', JSON.stringify(response, null, 2));
+      },
+      onError: (error) => {
+        console.error('Subjective evaluation error:', JSON.stringify({ error: error.message }, null, 2));
+      },
       timeout: 30000
     });
 
+    // Guard against malformed API response
+    if (!result || !result.data || !result.data[0]) {
+      console.error('Subjective evaluation returned malformed response:', JSON.stringify(result, null, 2));
+      return { correct: false, evaluation: '', feedback: 'We couldn\'t evaluate your reasoning this time. Keep using strategies!' };
+    }
+
     const componentResult = result.data[0];
-    const evalText = (componentResult.evaluation || '').trim();
-    const isGoodReasoning = evalText.startsWith('GOOD_REASONING');
+    const evalText = (componentResult.evaluation || '').trim().toLowerCase();
+    const isGoodReasoning = evalText === 'good_reasoning';
 
     return {
       correct: isGoodReasoning,
-      evaluation: componentResult.evaluation,
+      evaluation: componentResult.evaluation || '',
       feedback: componentResult.feedback || ''
     };
   } catch (error) {
     console.error('LLM validation error:', JSON.stringify({ error: error.message }, null, 2));
+    if (typeof Sentry !== 'undefined') {
+      Sentry.captureException(error, { tags: { phase: 'llm-evaluation', component: 'SubjectiveEvaluation', severity: 'high' } });
+    }
     return { correct: false, evaluation: '', feedback: 'We couldn\'t evaluate your reasoning this time. Keep using strategies!' };
   }
 }
@@ -1571,7 +1662,7 @@ trophy: https://cdn.mathai.ai/mathai-assets/lottie/trophy.json (Lottie)
 - **Estimate submit — spot-on:** `await FeedbackManager.sound.play('correct_tap', { subtitle: '🎯 Spot on!', sticker: CORRECT_STICKER })`
 - **Estimate submit — close:** `await FeedbackManager.sound.play('correct_tap', { subtitle: '👍 Really close!', sticker: CORRECT_STICKER })`
 - **Estimate submit — far off:** `await FeedbackManager.sound.play('wrong_tap', { subtitle: '📐 A bit off — let\'s see why.', sticker: INCORRECT_STICKER })`
-- **Reasoning evaluated + reveal:** `await FeedbackManager.playDynamicFeedback()` with `revealExplanation` as TTS — walks through the best strategy
+- **Reasoning evaluated + feedback:** `await FeedbackManager.playDynamicFeedback()` with API's `result.feedback` as TTS — personalized feedback from LLM evaluation (falls back to `revealExplanation` if API feedback unavailable)
 - **End game:** `await FeedbackManager.playDynamicFeedback()` with trophy sticker — announces total points and breakdown
 
 ---
@@ -1583,7 +1674,7 @@ trophy: https://cdn.mathai.ai/mathai-assets/lottie/trophy.json (Lottie)
 | 1 | Estimate submitted — spot-on | handleEstimateSubmit (spot-on) | Static + Sticker | `await FeedbackManager.sound.play('correct_tap')` + correct sticker | ✅ Awaited | 🎯 badge shown; blocks until sound ends |
 | 2 | Estimate submitted — close | handleEstimateSubmit (close) | Static + Sticker | `await FeedbackManager.sound.play('correct_tap')` + correct sticker | ✅ Awaited | 👍 badge shown |
 | 3 | Estimate submitted — far off | handleEstimateSubmit (far-off) | Static + Sticker | `await FeedbackManager.sound.play('wrong_tap')` + incorrect sticker | ✅ Awaited | 📐 badge shown |
-| 4 | Reveal explanation | After reasoning evaluated | Dynamic TTS | `await FeedbackManager.playDynamicFeedback()` with revealExplanation | ✅ Awaited* | Walks through best strategy; streaming may resolve early |
+| 4 | Reasoning feedback | After reasoning evaluated | Dynamic TTS | `await FeedbackManager.playDynamicFeedback()` with API's `result.feedback` (fallback: `revealExplanation`) | ✅ Awaited* | Personalized LLM feedback on reasoning strategy; streaming may resolve early |
 | 5 | Game end | endGame() | Dynamic TTS + Sticker | `await FeedbackManager.playDynamicFeedback()` + trophy sticker | ✅ Awaited* | Points breakdown TTS; streaming may resolve early |
 
 **Notes:**
@@ -1599,11 +1690,13 @@ trophy: https://cdn.mathai.ai/mathai-assets/lottie/trophy.json (Lottie)
 
 - **Info — Hybrid validation:** Each round uses TWO validation systems: deterministic accuracy checking (PART-014) for the numerical estimate, and LLM evaluation (PART-015) for the reasoning text. This is reflected in the `validationType: 'hybrid'` in attempt records.
 
+- **Info — Subjective Evaluation API:** Uses `subjectiveEvaluation()` global function from the subjective-evaluation package (NOT `MathAIHelpers.SubjectiveEvaluation`). The API controls BOTH evaluation (clean verdict: `"good_reasoning"` / `"weak_reasoning"`) AND feedback (personalized response generated via `feedback_prompt` with `{{evaluation}}` substitution). The TTS audio plays the API's feedback text, falling back to `revealExplanation` only if the API response has no feedback.
+
 - **Info — No lives:** This game uses no lives (totalLives: 0, reported as 1 per PART-011 convention). The ProgressBar shows round progress only. The scoring system (points, not lives) encourages exploration and risk-taking with estimates.
 
 - **Info — Evaluation loading state:** When the LLM evaluates reasoning, the Submit button is disabled and shows "Evaluating..." text. This prevents double-submission and gives visual feedback that processing is happening. The button is re-enabled on both success and error via try/finally (PART-015 rules).
 
-- **Warning — LLM latency:** The `validateAnswerLLM` call may take 2-10 seconds depending on API load. The 30-second timeout in PART-015 covers worst-case scenarios. If the API fails, a graceful fallback message is shown and the kid gets 0 reasoning points (no crash).
+- **Warning — LLM latency:** The `validateAnswerLLM` call via `subjectiveEvaluation()` may take 2-10 seconds depending on API load. The 30-second timeout covers worst-case scenarios. If the API fails, a graceful fallback message is shown and the kid gets 0 reasoning points (no crash). Uses `onComplete`/`onError` callbacks for logging.
 
 - **Info — Emoji layout rendering:** The `emojiLayout` field uses monospace rendering (`font-family: 'Courier New'`) with `white-space: pre` to preserve spatial arrangement. Content creators MUST verify emoji counts match `actualValue` exactly — programmatically count non-space, non-distractor emojis and assert equality.
 

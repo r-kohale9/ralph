@@ -26,7 +26,7 @@
 | PART-007 | Game State Object                | YES             | Custom fields: selectedLeftIndex, currentRoundData, matchedPairs, lives, totalLives                                                                                                                                            |
 | PART-008 | PostMessage Protocol             | YES             | —                                                                                                                                                                                                                              |
 | PART-009 | Attempt Tracking                 | YES             | —                                                                                                                                                                                                                              |
-| PART-010 | Event Tracking & SignalCollector | YES             | Custom events: select_number, correct_match, wrong_match, round_complete, life_lost. SignalCollector integrated: startProblem/endProblem per round, recordViewEvent on all DOM changes, data-signal-id on interactive elements |
+| PART-010 | Event Tracking & SignalCollector | YES             | v3 API — Custom events: select_number, correct_match, wrong_match, round_complete, life_lost. SignalCollector integrated: recordViewEvent on all DOM changes, recordCustomEvent for game logic, startFlushing + seal lifecycle, data-signal-id on interactive elements |
 | PART-011 | End Game & Metrics               | YES             | Custom star logic: ≤60s = 3★, ≤90s = 2★, >90s = 1★                                                                                                                                                                             |
 | PART-012 | Debug Functions                  | YES             | —                                                                                                                                                                                                                              |
 | PART-013 | Validation Fixed                 | NO              | —                                                                                                                                                                                                                              |
@@ -59,6 +59,8 @@
 window.gameState = {
   // MANDATORY (from PART-007):
   gameId: 'game_matching_doubles',
+  contentSetId: null, // From game_init postMessage
+  signalConfig: null, // From game_init postMessage — { flushUrl, playId }
   currentRound: 0,
   totalRounds: 9,
   score: 0,
@@ -70,6 +72,7 @@ window.gameState = {
   isProcessing: false,
   phase: 'start',
   content: null,
+  sessionHistory: [], // Array of session snapshots for restart tracking (PART-011 v3)
   duration_data: {
     startTime: null,
     preview: [],
@@ -87,7 +90,6 @@ window.gameState = {
   currentRoundData: null, // { numbers: [...], doubles: [...] } for current round
   matchedPairs: new Set(), // Set of left indices that have been correctly matched
   wrongAttempts: 0, // Total wrong attempts across all rounds
-  pendingEndProblem: null, // Deferred endProblem for SignalCollector (PART-010)
 };
 
 let timer = null;
@@ -535,7 +537,7 @@ body {
    - `waitForPackages()` — **defined inline in the `<script>` block** (PART-003). Polls every 50ms (10s timeout) until all package globals exist: `ScreenLayout`, `ProgressBarComponent`, `TransitionScreenComponent`, `TimerComponent`, `FeedbackManager`, `VisibilityTracker`, `SignalCollector`. This function cannot come from an external package since its purpose is to wait for those packages to load.
    - FeedbackManager.init()
    - Preload sounds: `FeedbackManager.sound.preload([...])` — see Section 11 for full list (level_1-3, round_1-3, rounds_sound_effect, tap_sound, correct_sound_effect, incorrect_sound_effect, new_cards, all_correct, game_over_sound_effect, game_over, game_complete_sound_effect, game_complete_1_star, game_complete_2_star, victory_sound_effect, victory, restart)
-   - SignalCollector created with sessionId, studentId, templateId (PART-010)
+   - SignalCollector created with gameId, contentSetId (PART-010 v3)
    - ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } })
    - Clone `<template id="game-template">` into `#gameContent`
    - TimerComponent created (increase, startTime: 0, endTime: 100000, autoStart: false, format: 'min')
@@ -569,9 +571,7 @@ body {
    - After both audios finish → auto-dismiss transition → loadRound()
 
 5. **loadRound()** runs:
-   - Flush deferred endProblem from previous round (if any)
    - Get round data from gameState.content.rounds[gameState.currentRound]
-   - Start SignalCollector problem tracking for this round
    - Set gameState.currentRoundData = round
    - Set gameState.matchedPairs = new Set()
    - Set gameState.selectedLeftIndex = null
@@ -619,9 +619,9 @@ body {
        - recordAttempt with correct: false
        - trackEvent('wrong_match')
        - trackEvent('life_lost')
-       - After 600ms: remove .wrong, deselect left cell, reset selectedLeftIndex
-       - Disable all unmatched right cells
-       - If lives <= 0 → endGame('game_over')
+       - Immediately: deselect left cell, reset selectedLeftIndex, disable all unmatched right cells, release isProcessing
+       - 600ms red flash is purely cosmetic (setTimeout to remove .wrong class) — does NOT block interaction
+       - If lives <= 0 → endGame('game_over') called immediately (no delay)
 
 7. **roundComplete():**
    - Play `all_correct` (await) with sticker `question_audio_all_correct` and subtitle `"Good job! All cards matched!"`
@@ -635,14 +635,15 @@ body {
 8. **endGame(reason):**
    - gameState.isActive = false
    - timer.pause()
-   - Calculate metrics + stars based on time
-   - Flush deferred endProblem before sealing (PART-010)
-   - Seal SignalCollector → signalPayload
-   - If game_over: show game over screen → play `game_over_sound_effect` (await) → play `game_over` (await, clear on retry click) with sticker `question_audio_game_over`
+   - Calculate metrics + stars based on time (including `totalLives`, `tries` from `computeTriesPerRound()`, `sessionHistory`)
+   - Record `screen_transition` to results via `recordViewEvent` BEFORE sealing (PART-010 v3)
+   - Seal SignalCollector (signals already streamed to GCS via batch flushing)
+   - Show results screen
+   - If game_over: play `game_over_sound_effect` (await) → play `game_over` (await, clear on retry click) with sticker `question_audio_game_over`
    - If victory with 3★: play `victory_sound_effect` (await) → play `victory` (await) with sticker `question_audio_victory`
    - If victory with 1★: play `game_complete_sound_effect` (await) → play `game_complete_1_star` (await) with sticker `question_audio_game_complete`
    - If victory with 2★: play `game_complete_sound_effect` (await) → play `game_complete_2_star` (await) with sticker `question_audio_game_complete`
-   - Send postMessage with ...signalPayload
+   - Send postMessage `game_complete` with metrics (NO signal payload — signals stream via GCS)
    - **Component cleanup guarded by `gameState.gameEnded`:** Only destroy timer/progressBar/visibilityTracker and call `stopAll()` if `gameState.gameEnded` is still `true`. This prevents a race condition where `restartGame()` is called during end-game audio — `restartGame` sets `gameEnded = false` and recreates components, so the lingering async cleanup must not destroy them.
    - **IMPORTANT — showResults visibility:** Use `classList.add('hidden')` / `classList.remove('hidden')` to toggle screens, NOT `style.display`. The `.hidden` CSS class uses `display: none !important` which overrides inline styles.
 
@@ -700,12 +701,7 @@ body {
 
 **loadRound()**
 
-- // Flush deferred endProblem from previous round
-- if (signalCollector && gameState.pendingEndProblem) { signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome); gameState.pendingEndProblem = null; }
 - const round = gameState.content.rounds[gameState.currentRound]
-- const roundNumber = gameState.currentRound + 1
-- // Start signal collection for this round
-- if (signalCollector) { signalCollector.startProblem('round\_' + roundNumber, { round_number: roundNumber, question_text: `Match ${round.numbers.length} numbers with their doubles`, correct_answer: round.numbers.map(n => n \* 2), difficulty: round.numbers.length <= 3 ? 'easy' : round.numbers.length <= 4 ? 'medium' : 'hard' }); }
 - gameState.currentRoundData = round
 - gameState.matchedPairs = new Set()
 - gameState.selectedLeftIndex = null
@@ -825,19 +821,16 @@ body {
   - if (signalCollector) { signalCollector.recordViewEvent('feedback_display', { screen: 'gameplay', content_snapshot: { feedback_type: 'incorrect', message: 'Try again!', number, selectedDouble: double, correctDouble: number \* 2, lives_remaining: gameState.lives } }); }
   - // Record visual update for wrong flash
   - if (signalCollector) { signalCollector.recordViewEvent('visual_update', { screen: 'gameplay', content_snapshot: { type: 'wrong_flash', right_index: rightIndex, lives_remaining: gameState.lives } }); }
+  - // Reset selection and release isProcessing IMMEDIATELY so user can keep tapping
+  - leftEl.classList.remove('selected')
+  - gameState.selectedLeftIndex = null
+  - disableRightCells()
+  - gameState.isProcessing = false
+  - // 600ms red flash is purely cosmetic — does NOT block interaction
+  - setTimeout(() => { rightEl.classList.remove('wrong'); }, 600)
   - If gameState.lives <= 0:
-    - // Defer endProblem for game-over (will be flushed in endGame)
-    - gameState.pendingEndProblem = { id: 'round\_' + (gameState.currentRound + 1), outcome: { correct: false, answer: { number, selectedDouble: double } } }
     - if (signalCollector) { signalCollector.recordCustomEvent('round_solved', { correct: false, reason: 'lives_exhausted' }); }
-    - setTimeout(() => { rightEl.classList.remove('wrong'); gameState.isProcessing = false; endGame('game_over'); }, 600)
-  - Else:
-    - setTimeout(() => {
-      rightEl.classList.remove('wrong')
-      leftEl.classList.remove('selected')
-      gameState.selectedLeftIndex = null
-      disableRightCells()
-      gameState.isProcessing = false
-      }, 600)
+    - endGame('game_over')
 
 **async roundComplete()**
 
@@ -849,8 +842,6 @@ body {
 - gameState.score++
 - progressBar.update(gameState.currentRound, gameState.lives)
 - trackEvent('round_complete', 'game', { round: gameState.currentRound, livesRemaining: gameState.lives })
-- // Defer endProblem — will be flushed at next loadRound or endGame
-- gameState.pendingEndProblem = { id: 'round\_' + gameState.currentRound, outcome: { correct: true, answer: { matched_all: true, round: gameState.currentRound } } }
 - if (signalCollector) { signalCollector.recordCustomEvent('round_solved', { correct: true, round: gameState.currentRound }); }
 - If gameState.currentRound >= gameState.totalRounds → endGame('victory')
 - Else if gameState.currentRound % 3 === 0 → showLevelTransition() // New level (round 3→4 or 6→7)
@@ -873,16 +864,17 @@ body {
   - stars = totalTime <= 60 ? 3 : totalTime <= 90 ? 2 : 1
 - else:
   - stars = 0
-- const metrics = { accuracy, time: totalTime, stars, attempts: gameState.attempts, duration_data: { ...gameState.duration_data, currentTime: new Date().toISOString() }, roundsCompleted: gameState.currentRound, wrongAttempts: gameState.wrongAttempts, livesRemaining: gameState.lives, reason }
+- const tries = computeTriesPerRound()
+- const metrics = { accuracy, time: totalTime, stars, attempts: gameState.attempts, duration_data: { ...gameState.duration_data, currentTime: new Date().toISOString() }, totalLives: gameState.totalLives, tries, sessionHistory: gameState.sessionHistory, roundsCompleted: gameState.currentRound, wrongAttempts: gameState.wrongAttempts, livesRemaining: gameState.lives, reason }
 - console.log('Final Metrics:', JSON.stringify(metrics, null, 2))
 - console.log('Attempt History:', JSON.stringify(gameState.attempts, null, 2))
 - trackEvent('game_end', 'game', { reason, roundsCompleted: gameState.currentRound, accuracy, stars, time: totalTime })
 - if (typeof Sentry !== 'undefined') { Sentry.addBreadcrumb({ category: 'state', message: 'Game complete', level: 'info', data: { score: accuracy, stars, reason } }); }
 
-- // Flush deferred endProblem before sealing (PART-010)
-- if (signalCollector && gameState.pendingEndProblem) { signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome); gameState.pendingEndProblem = null; }
-- // Seal SignalCollector — detaches listeners, computes final signals (PART-010)
-- const signalPayload = signalCollector ? signalCollector.seal() : { events: [], signals: {}, metadata: {} }
+- // Record screen transition to results BEFORE sealing (PART-010 v3 — cannot record after seal)
+- if (signalCollector) { signalCollector.recordViewEvent('screen_transition', { screen: 'results', metadata: { transition_from: 'gameplay', reason } }); }
+- // Seal SignalCollector — fires sendBeacon to flush remaining events to GCS, stops flush timer, detaches listeners (PART-010 v3)
+- if (signalCollector) { signalCollector.seal(); }
 
 - If reason === 'game_over':
   - showResults(metrics, reason)
@@ -902,18 +894,17 @@ body {
   - else: // 1 star
     - try { await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-25.gif', duration: 3, type: 'IMAGE_GIF' } }); } catch(e) { console.error('complete_sfx error:', e.message); }
     - try { await FeedbackManager.sound.play('game_complete_1_star'); } catch(e) { console.error('1star audio error:', e.message); }
-- window.parent.postMessage({ type: 'game_complete', data: { metrics, attempts: gameState.attempts, ...signalPayload, completedAt: Date.now() } }, '\*')
+- window.parent.postMessage({ type: 'game_complete', data: { metrics, attempts: gameState.attempts, completedAt: Date.now() } }, '\*')
 - // Guard: only destroy components if restartGame() has NOT been called during audio playback
 - // restartGame sets gameEnded = false and recreates components — must not destroy the new ones
 - if (gameState.gameEnded) { if (timer) { timer.destroy(); timer = null; } if (progressBar) { progressBar.destroy(); progressBar = null; } if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; } try { FeedbackManager.sound.stopAll(); FeedbackManager.stream.stopAll(); } catch(e) {} }
 
 **showResults(metrics, reason)**
 
-- // Record screen transition
-- if (signalCollector) { signalCollector.recordViewEvent('screen_transition', { screen: 'results', metadata: { transition_from: 'gameplay', reason } }); }
+- // NOTE: recordViewEvent('screen_transition') for results is called in endGame() BEFORE seal()
 - // IMPORTANT: use classList, NOT inline style.display — .hidden uses !important which overrides inline styles
 - document.getElementById('game-screen').classList.add('hidden')
-- const resultsScreen = document.getElementById('results-screen'); resultsScreen.classList.remove('hidden'); resultsScreen.style.display = 'flex'
+- const resultsScreen = document.getElementById('results-screen'); resultsScreen.classList.remove('hidden')
 - document.getElementById('results-title').textContent = reason === 'victory' ? 'Great Job!' : 'Game Over'
 - document.getElementById('result-time').textContent = formatTime(metrics.time)
 - document.getElementById('result-rounds').textContent = `${gameState.currentRound}/${gameState.totalRounds}`
@@ -935,6 +926,10 @@ body {
 - try { FeedbackManager.sound.stopAll(); FeedbackManager.stream.stopAll(); } catch(e) {}
 - // Play restart audio with sticker (fire-and-forget)
 - FeedbackManager.sound.play('restart', { sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif', duration: 2, type: 'IMAGE_GIF' } }).catch(e => console.error('restart audio error:', e.message))
+- // Push session snapshot to sessionHistory before resetting (PART-011 v3)
+- gameState.sessionHistory.push({ totalLives: gameState.totalLives, tries: computeTriesPerRound() })
+- // Preserve content, contentSetId, signalConfig, sessionHistory across restart
+- const preserved = { content: gameState.content, contentSetId: gameState.contentSetId, signalConfig: gameState.signalConfig, sessionHistory: gameState.sessionHistory }
 - gameState.currentRound = 0
 - gameState.score = 0
 - gameState.lives = 3
@@ -950,24 +945,49 @@ body {
 - gameState.isProcessing = false
 - gameState.phase = 'start'
 - gameState.duration_data = { startTime: null, preview: [], attempts: [], evaluations: [], inActiveTime: [], totalInactiveTime: 0, currentTime: null }
-- gameState.pendingEndProblem = null
+- // Restore preserved state
+- gameState.content = preserved.content
+- gameState.contentSetId = preserved.contentSetId
+- gameState.signalConfig = preserved.signalConfig
+- gameState.sessionHistory = preserved.sessionHistory
 - // Recreate destroyed components (endGame nulls these)
-- signalCollector = new SignalCollector({ sessionId: window.gameVariableState?.sessionId || 'session\_' + Date.now(), studentId: window.gameVariableState?.studentId || null, templateId: gameState.gameId || null })
+- signalCollector = new SignalCollector({ gameId: gameState.gameId, contentSetId: gameState.contentSetId, flushUrl: gameState.signalConfig?.flushUrl, playId: gameState.signalConfig?.playId })
 - window.signalCollector = signalCollector
+- signalCollector.startFlushing()
 - timer = new TimerComponent('timer-container', { timerType: 'increase', format: 'min', startTime: 0, endTime: 100000, autoStart: false })
 - progressBar = new ProgressBarComponent({ autoInject: true, totalRounds: 9, totalLives: 3, slotId: 'mathai-progress-slot' })
 - visibilityTracker = new VisibilityTracker({ onInactive: () => { const inactiveStart = Date.now(); gameState.duration_data.inActiveTime.push({ start: inactiveStart }); if (signalCollector) { signalCollector.pause(); signalCollector.recordCustomEvent('visibility_hidden', {}); } if (timer) timer.pause({ fromVisibilityTracker: true }); FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); trackEvent('game_paused', 'system'); }, onResume: () => { const lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1]; if (lastInactive && !lastInactive.end) { lastInactive.end = Date.now(); gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start); } if (signalCollector) { signalCollector.resume(); signalCollector.recordCustomEvent('visibility_visible', {}); } if (timer?.isPaused) timer.resume({ fromVisibilityTracker: true }); FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); trackEvent('game_resumed', 'system'); }, popupProps: { title: 'Game Paused', description: 'Click Resume to continue.', primaryText: 'Resume' } })
 - // IMPORTANT: use classList, NOT inline style.display — .hidden uses !important which overrides inline styles
 - document.getElementById('results-screen').classList.add('hidden')
-- const gameScreen = document.getElementById('game-screen'); gameScreen.classList.remove('hidden'); gameScreen.style.display = 'flex'
+- document.getElementById('game-screen').classList.remove('hidden')
 - transitionScreen.show({ icons: ['✖️', '2️⃣'], iconSize: 'large', title: 'Matching Doubles', subtitle: 'Match numbers with their doubles!', buttons: [{ text: "Let's go!", type: 'primary', action: () => startGame() }] })
+
+**computeTriesPerRound()**
+
+- // Groups attempts by round and counts tries per round (PART-011 v3)
+- const triesMap = {}
+- gameState.attempts.forEach(a => {
+  const round = a.metadata?.round || 1
+  triesMap[round] = (triesMap[round] || 0) + 1
+  })
+- return Object.entries(triesMap).map(([round, triesCount]) => ({ round: Number(round), triesCount }))
 
 **handlePostMessage(event)**
 
 - if (!event.data || event.data.type !== 'game_init') return
 - try:
-  - gameState.content = event.data.data.content
+  - const { gameId, content, contentSetId, signalConfig } = event.data.data
+  - gameState.content = content
+  - if (gameId) gameState.gameId = gameId
+  - if (contentSetId) gameState.contentSetId = contentSetId
+  - if (signalConfig) gameState.signalConfig = signalConfig
   - console.log('Content received:', JSON.stringify(gameState.content, null, 2))
+  - // Configure SignalCollector with received signalConfig (PART-010 v3)
+  - if (signalConfig && signalCollector) {
+    signalCollector = new SignalCollector({ gameId: gameState.gameId, contentSetId: gameState.contentSetId, flushUrl: signalConfig.flushUrl, playId: signalConfig.playId });
+    window.signalCollector = signalCollector;
+    signalCollector.startFlushing();
+    }
   - if (typeof Sentry !== 'undefined') { Sentry.addBreadcrumb({ category: 'postmessage', message: 'game_init received', level: 'info' }); }
 - catch(e):
   - console.error('PostMessage error:', JSON.stringify({ error: e.message }, null, 2))
@@ -1129,11 +1149,10 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    // SignalCollector (PART-010)
+    // SignalCollector (PART-010 v3) — initial creation with gameId only; flushUrl/playId/contentSetId configured in handlePostMessage after game_init
     signalCollector = new SignalCollector({
-      sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
-      studentId: window.gameVariableState?.studentId || null,
-      templateId: gameState.gameId || null,
+      gameId: gameState.gameId,
+      contentSetId: gameState.contentSetId,
     });
     window.signalCollector = signalCollector;
 
@@ -1328,12 +1347,9 @@ window.testSentry = function () {
 | round_complete | game   | All pairs in round matched                    | { round, livesRemaining }                                        |
 | life_lost      | game   | Wrong match costs a life                      | { livesRemaining }                                               |
 
-### SignalCollector Events (PART-010)
+### SignalCollector Events (PART-010 v3)
 
-**Problem Lifecycle (per round):**
-
-- `startProblem('round_N', {...})` — called at start of each `loadRound()`, with round_number, question_text, correct_answer (array of doubles), difficulty
-- `endProblem('round_N', {...})` — deferred via `gameState.pendingEndProblem`, flushed at next `loadRound()` or in `endGame()` before seal
+> **Note:** v3 uses `recordViewEvent()` and `recordCustomEvent()` only — no `startProblem()`/`endProblem()` lifecycle. Signals stream to GCS via batch flushing (`startFlushing()`), NOT included in `game_complete` postMessage.
 
 **recordViewEvent types:**
 
@@ -1353,7 +1369,7 @@ window.testSentry = function () {
 - `'visibility_visible'` — VisibilityTracker onResume
 - `'round_solved'` — roundComplete(), with { correct: true, round }
 
-**seal()** — called in endGame() before postMessage, signalPayload spread into postMessage data
+**seal()** — called in endGame() AFTER `recordViewEvent('screen_transition')` to results and BEFORE postMessage. Fires sendBeacon to flush remaining events to GCS. Signal data is NOT included in postMessage.
 
 ---
 
@@ -1538,13 +1554,15 @@ ACTIONS:
   wait for selected state
   click .right-cell[data-right-index="0"]  (double 10, WRONG: 2×2=4≠10)
 ASSERT:
-  .right-cell[data-right-index="0"] has class "wrong" (red flash)
-  after 600ms, "wrong" class removed
+  .right-cell[data-right-index="0"] has class "wrong" (red flash — cosmetic, 600ms)
   gameState.lives == 2
   gameState.wrongAttempts == 1
   progressBar shows 2 hearts
-  .left-cell[data-left-index="0"] no longer has "selected" class
-  all unmatched .right-cell elements have "disabled" class
+  .left-cell[data-left-index="0"] no longer has "selected" class (deselected immediately)
+  gameState.selectedLeftIndex == null (reset immediately)
+  all unmatched .right-cell elements have "disabled" class (disabled immediately)
+  gameState.isProcessing == false (released immediately — user can tap again without waiting)
+  after 600ms, .right-cell[data-right-index="0"] "wrong" class removed (cosmetic only)
 ```
 
 ### Scenario: Game over when all lives lost
@@ -1558,7 +1576,7 @@ ASSERT:
   endGame('game_over') called
   results-title shows "Game Over"
   stars display shows 0 stars
-  dynamic audio "Out of lives!" played
+  game_over_sound_effect and game_over audio played sequentially
 ```
 
 ### Scenario: Right side disabled until left is clicked
@@ -1730,12 +1748,12 @@ ASSERT:
 - [ ] DOMContentLoaded calls init sequence in order (PART-004)
 - [ ] VisibilityTracker created with onInactive (pause signalCollector + timer + sound + streams) + onResume (resume signalCollector + timer + sound + streams) (PART-005)
 - [ ] TimerComponent created with timerType: 'increase', startTime: 0, endTime: 100000, autoStart: false (PART-006)
-- [ ] handlePostMessage registered and handles game_init (PART-008)
+- [ ] handlePostMessage registered and handles game_init — extracts `gameId`, `content`, `contentSetId`, `signalConfig` (PART-008)
 - [ ] `window.parent.postMessage({ type: 'game_ready' }, '*')` sent AFTER registering message listener (PART-008)
 - [ ] Fallback content available for standalone testing (PART-008)
 - [ ] recordAttempt produces correct attempt shape (PART-009)
 - [ ] trackEvent fires at all interaction points (PART-010)
-- [ ] endGame calculates metrics, logs, sends postMessage, cleans up (PART-011)
+- [ ] endGame calculates metrics (including `totalLives`, `tries`, `sessionHistory`), logs, sends `game_complete` postMessage (no signal payload), cleans up (PART-011 v3)
 - [ ] Debug functions on window: debugGame, debugAudio, testAudio, testPause, testResume, verifySentry, testSentry (PART-012, PART-030)
 - [ ] showResults uses `classList.add('hidden')` / `classList.remove('hidden')` to toggle screens — NOT `style.display` (`.hidden` uses `!important`) (PART-019)
 - [ ] InputSchema defined with 9 rounds of fallback content (PART-028)
@@ -1825,21 +1843,27 @@ ASSERT:
 - [ ] `verifySentry()` uses `Sentry.getClient()` (NOT `getCurrentHub().getClient()`)
 - [ ] `verifySentry()` and `testSentry()` debug functions on window
 
-### SignalCollector (PART-010)
+### SignalCollector (PART-010 v3)
 
-- [ ] SignalCollector initialized after FeedbackManager.init() with sessionId, studentId, templateId
+- [ ] SignalCollector initialized with `gameId` + `contentSetId` (NOT `templateId`)
 - [ ] `window.signalCollector` assigned
 - [ ] `let signalCollector = null` declared globally
-- [ ] `startProblem` called at each round start (in loadRound)
-- [ ] Deferred `endProblem` pattern used (via `gameState.pendingEndProblem`)
+- [ ] `handlePostMessage` extracts `gameId`, `contentSetId`, `signalConfig` from `game_init` and reconfigures SignalCollector with `flushUrl` + `playId`
+- [ ] `startFlushing()` called after SignalCollector receives `signalConfig` (in handlePostMessage)
+- [ ] No `startProblem()` / `endProblem()` / `updateCurrentAnswer()` calls anywhere (v2 deprecated)
 - [ ] `recordViewEvent` called in every DOM-modifying function (screen_transition, content_render, feedback_display, visual_update)
+- [ ] `recordViewEvent('screen_transition', { screen: 'results' })` called BEFORE `seal()` in endGame
 - [ ] `data-signal-id` attributes on important interactive elements (left-cell-{i}, right-cell-{i}, matching-grid, restart-button)
-- [ ] `seal()` called in endGame before postMessage
-- [ ] Deferred endProblem flushed in endGame before seal
+- [ ] `seal()` called in endGame before postMessage — fires sendBeacon, stops flush timer
+- [ ] Signal data NOT spread into `game_complete` postMessage (signals stream to GCS)
 - [ ] SignalCollector integrated with VisibilityTracker (pause/resume + custom events)
 - [ ] Signals separate from attempt_history
 - [ ] No inline stub/polyfill for SignalCollector (Anti-Pattern 18)
-- [ ] Restart pattern recreates SignalCollector
+- [ ] Restart pattern recreates SignalCollector with v3 constructor + calls `startFlushing()`
+- [ ] `computeTriesPerRound()` implemented for PART-011 v3 metrics
+- [ ] `totalLives`, `tries`, `sessionHistory` included in metrics object
+- [ ] `restartGame()` pushes session snapshot to `sessionHistory` before resetting
+- [ ] `restartGame()` preserves `content`, `contentSetId`, `signalConfig`, `sessionHistory`
 
 ### Contract Compliance
 
