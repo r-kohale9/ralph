@@ -28,6 +28,18 @@
         "goals": {
           "type": "object",
           "description": "Target metrics for this session"
+        },
+        "signalConfig": {
+          "type": "object",
+          "description": "Configuration for SignalCollector batch flushing (optional, provided when signal collection is active)",
+          "properties": {
+            "flushUrl": { "type": "string", "description": "Cloud function URL for batch uploads" },
+            "playId": { "type": "string", "description": "UUID for this game play session" },
+            "gameId": { "type": "string", "description": "Game identifier" },
+            "sessionId": { "type": "string", "description": "Session identifier" },
+            "contentSetId": { "type": "string", "description": "Content set identifier" },
+            "studentId": { "type": "string", "description": "Student identifier" }
+          }
         }
       }
     }

@@ -184,49 +184,31 @@ const fallbackContent = {
 };
 ```
 
-### Content Generation Guide
+### Content Set Generation Guidance
 
-The game receives content via `postMessage` (`game_init` → `event.data.data.content`). To generate different difficulty levels, vary these parameters:
+Generate **3 content sets** at different difficulty levels. All sets must have exactly 5 rounds. Structure: rounds 1–2 = chain of 3, rounds 3–4 = chain of 4, round 5 = chain of 5.
 
-| Field | Easy | Medium | Hard |
-|-------|------|--------|------|
-| `rounds[].chain` length | 3 numbers | 3–4 numbers | 4–5 numbers |
-| Starting number range | 1–5 | 2–10 | 5–50 |
-| Number of rounds | 5 | 5 | 5 |
-| Distractor strategy | No doubles pairs among distractors | No doubles pairs among distractors | No doubles pairs among distractors |
+| Dimension | Easy | Medium | Hard |
+|---|---|---|---|
+| Starting numbers (rounds 1–2) | 1–5 | 3–15 | 8–25 |
+| Starting numbers (rounds 3–4) | 1–8 | 5–20 | 10–40 |
+| Starting number (round 5) | 1–5 | 3–12 | 6–20 |
+| Max value in chain | 64 | 320 | 1280 |
 
-**Content constraints (MUST be enforced):**
+**Constraints all content sets must satisfy:**
+- Each `chain` is an ascending sequence where `chain[i+1] === chain[i] * 2`
+- Grid is always 3×3 (9 cells total)
+- Grid must contain every number in the chain exactly once
+- Remaining grid cells are distractors — positive integers, no duplicates within the grid, and no distractor may equal any chain value
+- Distractors should be plausible (similar magnitude to chain values) to avoid being trivially eliminated
+- No duplicate numbers within a single grid (all 9 values unique)
+- Chain numbers must not appear in positional order (left-to-right, top-to-bottom) — they should be scattered across the grid
+- Each content set should use different starting numbers (not just reorder the same chains)
 
-- Each `chain` must be a valid doubling sequence: `chain[i+1] === chain[i] * 2`
-- `chain` must be sorted ascending (smallest → largest)
-- `grid` must be a 3×3 2D array (exactly 9 integers)
-- `grid` must contain ALL chain numbers plus distractors to fill 9 cells
-- **No two distractors may form a doubling pair** (otherwise the player could find an unintended chain)
-- All numbers in `grid` must be unique positive integers
-- No distractor should equal any chain number
-- Chain numbers should be scattered randomly across the grid (not in a visually obvious pattern)
-
-**Generation algorithm:**
-
-1. Pick a starting number `s` from the allowed range
-2. Build chain: `[s, s*2, s*4, ...]` up to the required chain length
-3. Generate distractors: pick `9 - chain.length` unique positive integers that are NOT in the chain and do NOT form doubling pairs with each other or with chain numbers
-4. Combine chain numbers + distractors, shuffle, and place into a 3×3 grid
-5. Verify: no unintended doubling chains of length >= 2 exist among the distractors alone
-
-**Example content set (medium difficulty):**
-
-```json
-{
-  "rounds": [
-    { "chain": [3, 6, 12], "grid": [[12, 7, 3], [9, 6, 15], [11, 19, 5]] },
-    { "chain": [4, 8, 16], "grid": [[8, 13, 4], [21, 16, 9], [3, 11, 7]] },
-    { "chain": [2, 4, 8, 16], "grid": [[16, 7, 2], [11, 4, 19], [8, 13, 23]] },
-    { "chain": [5, 10, 20, 40], "grid": [[40, 13, 5], [9, 10, 23], [20, 7, 17]] },
-    { "chain": [3, 6, 12, 24, 48], "grid": [[12, 3, 48], [19, 6, 11], [24, 7, 17]] }
-  ]
-}
-```
+**Distractor quality rules:**
+- At least 2 distractors per grid should be within ±50% of a chain value (near-misses)
+- No distractor should be exactly double or half of any chain value (would create a false chain)
+- Distractors must be positive integers ≥ 1
 
 ---
 
