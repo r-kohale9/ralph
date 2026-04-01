@@ -42,7 +42,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 ### Receiving signal config from harness
 
-The parent harness sends a `game_init` postMessage that includes `signalConfig` with the cloud function URL and metadata. Handle it in your postMessage listener:
+The parent harness sends a `game_init` postMessage that includes `signalConfig` with the cloud function URL, identity overrides (`gameId`, `sessionId`, `contentSetId`, `studentId`), and play metadata. Handle it in your postMessage listener:
 
 ```javascript
 function handlePostMessage(event) {
@@ -54,7 +54,9 @@ function handlePostMessage(event) {
   if (signalCollector && gameState.signalConfig.flushUrl) {
     signalCollector.flushUrl = gameState.signalConfig.flushUrl;
     signalCollector.playId = gameState.signalConfig.playId || null;
+    signalCollector.gameId = gameState.signalConfig.gameId || signalCollector.gameId;
     signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+    signalCollector.contentSetId = gameState.signalConfig.contentSetId || signalCollector.contentSetId;
     signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
     signalCollector.startFlushing();
   }
@@ -395,6 +397,6 @@ SignalCollector auto-bootstraps Sentry if not already loaded. No manual Sentry s
 
 1. **Add `data-signal-id` to important elements** — options, inputs, buttons, scaffolds
 2. **Call `recordViewEvent()` for every visible DOM change** — powers narration and replay
-3. **Set `flushUrl` from `signalConfig` in `game_init`** — harness provides the URL
+3. **Set `flushUrl`, `gameId`, `sessionId`, `contentSetId`, `studentId` from `signalConfig` in `game_init`** — harness provides runtime overrides
 4. **Call `seal()` at game end** — triggers synchronous sendBeacon before iframe may be destroyed
 5. **Integrate with VisibilityTracker** — pause/resume on tab switch

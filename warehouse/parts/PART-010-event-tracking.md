@@ -292,7 +292,9 @@ function handlePostMessage(event) {
   if (signalCollector && gameState.signalConfig.flushUrl) {
     signalCollector.flushUrl = gameState.signalConfig.flushUrl;
     signalCollector.playId = gameState.signalConfig.playId || null;
+    signalCollector.gameId = gameState.signalConfig.gameId || signalCollector.gameId;
     signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+    signalCollector.contentSetId = gameState.signalConfig.contentSetId || signalCollector.contentSetId;
     signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
     signalCollector.startFlushing();
   }

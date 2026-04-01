@@ -2086,6 +2086,83 @@ describe('GEN-UX-005: SignalCollector must not be called with no args', () => {
     );
   });
 
+  // ─── SignalCollector inline stub detection (5h3) ────────────────────────────
+  it('fails when inline SignalCollector stub shadows CDN package', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'window.SignalCollector = class { constructor() {} seal() { return {}; } };\ninitGame();',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('FORBIDDEN') && output.includes('Inline SignalCollector stub'),
+      `Expected inline stub error but got: ${output}`,
+    );
+  });
+
+  it('passes when SignalCollector is loaded from CDN (no inline stub)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); var signalCollector = new SignalCollector({ sessionId: 's', studentId: 's', gameId: 'g', contentSetId: 'c' });\nwindow.signalCollector = signalCollector;",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('Inline SignalCollector stub'),
+      `Unexpected inline stub error: ${output}`,
+    );
+  });
+
+  // ─── SignalCollector waitForPackages typeof guard ──────────────────────────
+  it('fails when SignalCollector used without typeof guard in waitForPackages', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "async function waitForPackages() { while (typeof FeedbackManager === 'undefined') await new Promise(r => setTimeout(r, 50)); }\ninitGame(); var sc = new SignalCollector({ sessionId: 's', studentId: 's', gameId: 'g', contentSetId: 'c' });",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('typeof SignalCollector'),
+      `Expected typeof SignalCollector guard error but got: ${output}`,
+    );
+  });
+
+  it('passes when SignalCollector has typeof guard in waitForPackages', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "async function waitForPackages() { while (typeof FeedbackManager === 'undefined' || typeof SignalCollector === 'undefined') await new Promise(r => setTimeout(r, 50)); }\ninitGame(); var sc = new SignalCollector({ sessionId: 's', studentId: 's', gameId: 'g', contentSetId: 'c' });\nwindow.signalCollector = sc;",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('typeof SignalCollector'),
+      `Unexpected typeof guard error when guard is present: ${output}`,
+    );
+  });
+
+  // ─── SignalCollector window.signalCollector assignment ─────────────────────
+  it('warns when SignalCollector instantiated but not assigned to window', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); var sc = new SignalCollector({ sessionId: 's', studentId: 's', gameId: 'g', contentSetId: 'c' });",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('WARNING') && output.includes('window.signalCollector'),
+      `Expected window.signalCollector warning but got: ${output}`,
+    );
+  });
+
+  it('passes when SignalCollector assigned to window.signalCollector', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "initGame(); var sc = new SignalCollector({ sessionId: 's', studentId: 's', gameId: 'g', contentSetId: 'c' });\nwindow.signalCollector = sc;",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('window.signalCollector'),
+      `Unexpected window.signalCollector warning: ${output}`,
+    );
+  });
+
   // ─── GEN-LOCAL-ASSETS tests ─────────────────────────────────────────────────
   it('GEN-LOCAL-ASSETS: fires ERROR for src="assets/icon.svg"', () => {
     const html = VALID_HTML.replace(

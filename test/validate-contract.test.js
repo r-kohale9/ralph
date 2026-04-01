@@ -9,6 +9,7 @@ const {
   validateScoringContract,
   validateInitGameContract,
   validateCalcStarsContract,
+  validateSignalCollectorContract,
 } = require('../lib/validate-contract');
 
 const VALID_HTML = `<!DOCTYPE html>
@@ -43,6 +44,44 @@ initGame();
 </script>
 </body>
 </html>`;
+
+const CDN_HTML_NESTED = `<!DOCTYPE html>
+<html><head><title>Test</title></head>
+<body><div id="app"></div>
+<script>
+let gameState = { score: 0, phase: 'playing' };
+window.gameState = gameState;
+function calcStars() { return 3; }
+window.calcStars = calcStars;
+function computeTriesPerRound(attempts) { return []; }
+var signalCollector = null;
+window.signalCollector = signalCollector;
+function handlePostMessage(event) {
+  if (event.data.type === 'game_init') {
+    var signalConfig = event.data.data.signalConfig || {};
+    if (signalCollector && signalConfig.flushUrl) {
+      signalCollector.flushUrl = signalConfig.flushUrl;
+      signalCollector.playId = signalConfig.playId || null;
+      signalCollector.gameId = signalConfig.gameId || signalCollector.gameId;
+      signalCollector.sessionId = signalConfig.sessionId || signalCollector.sessionId;
+      signalCollector.contentSetId = signalConfig.contentSetId || signalCollector.contentSetId;
+      signalCollector.studentId = signalConfig.studentId || signalCollector.studentId;
+      signalCollector.startFlushing();
+    }
+  }
+}
+async function endGame() {
+  if (gameState.gameEnded) return;
+  gameState.gameEnded = true;
+  var totalLives = gameState.totalLives || 1;
+  var tries = computeTriesPerRound(gameState.attempts);
+  const metrics = { score: gameState.score, accuracy: 100, time: 30, stars: calcStars(), totalLives: totalLives, tries: tries, attempts: [], duration_data: {} };
+  var signalResult = signalCollector ? signalCollector.seal() : { event_count: 0, metadata: {} };
+  window.parent.postMessage({ type: 'game_complete', data: { metrics, attempts: gameState.attempts, completedAt: Date.now(), signal_event_count: signalResult.event_count, signal_metadata: signalResult.metadata } }, '*');
+}
+window.endGame = endGame;
+function initGame() { gameState = { score: 0, phase: 'playing' }; }
+</script></body></html>`;
 
 describe('validate-contract', () => {
   describe('validateContract (full)', () => {
@@ -165,25 +204,6 @@ describe('validate-contract', () => {
   });
 
   describe('validatePostMessageContract — CDN game_complete format', () => {
-    const CDN_HTML_NESTED = `<!DOCTYPE html>
-<html><head><title>Test</title></head>
-<body><div id="app"></div>
-<script>
-let gameState = { score: 0, phase: 'playing' };
-window.gameState = gameState;
-function calcStars() { return 3; }
-window.calcStars = calcStars;
-async function endGame() {
-  if (gameState.gameEnded) return;
-  gameState.gameEnded = true;
-  const metrics = { score: gameState.score, accuracy: 100, time: 30, stars: calcStars(), livesRemaining: 3, attempts: [], duration_data: {} };
-  if (signalCollector) signalCollector.seal();
-  window.parent.postMessage({ type: 'game_complete', data: { metrics, attempts: gameState.attempts, completedAt: Date.now() } }, '*');
-}
-window.endGame = endGame;
-function initGame() { gameState = { score: 0, phase: 'playing' }; }
-</script></body></html>`;
-
     const CDN_HTML_FLAT = `<!DOCTYPE html>
 <html><head><title>Test</title></head>
 <body><div id="app"></div>
@@ -213,6 +233,93 @@ function initGame() { gameState = { score: 0, phase: 'playing' }; }
       assert.ok(
         errors.some((e) => e.includes('flat payload')),
         `Expected flat payload error, got: ${errors.join(', ')}`,
+      );
+    });
+
+    it('fails CDN game missing duration_data', () => {
+      const html = CDN_HTML_NESTED.replace(/duration_data\s*:\s*\{\}/, '');
+      const errors = validatePostMessageContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('duration_data')),
+        `Expected duration_data error, got: ${errors.join(', ')}`,
+      );
+    });
+
+    it('fails CDN game missing completedAt', () => {
+      const html = CDN_HTML_NESTED.replace(/completedAt:\s*Date\.now\(\)/, '');
+      const errors = validatePostMessageContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('completedAt')),
+        `Expected completedAt error, got: ${errors.join(', ')}`,
+      );
+    });
+
+    it('warns CDN game missing totalLives', () => {
+      const html = CDN_HTML_NESTED.replace(/totalLives:\s*totalLives,/, '');
+      const errors = validatePostMessageContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('totalLives') && e.includes('WARNING')),
+        `Expected totalLives warning, got: ${errors.join(', ')}`,
+      );
+    });
+
+    it('warns CDN game missing tries', () => {
+      const html = CDN_HTML_NESTED.replace(/tries:\s*tries,/, '');
+      const errors = validatePostMessageContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('tries') && e.includes('WARNING')),
+        `Expected tries warning, got: ${errors.join(', ')}`,
+      );
+    });
+
+    it('fails CDN game with SignalCollector but missing signal_event_count', () => {
+      const html = CDN_HTML_NESTED.replace(/signal_event_count:\s*signalResult\.event_count,?\s*/, '');
+      const errors = validatePostMessageContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('signal_event_count')),
+        `Expected signal_event_count error, got: ${errors.join(', ')}`,
+      );
+    });
+
+    it('fails CDN game with SignalCollector but missing signal_metadata', () => {
+      const html = CDN_HTML_NESTED.replace(/signal_metadata:\s*signalResult\.metadata/, '');
+      const errors = validatePostMessageContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('signal_metadata')),
+        `Expected signal_metadata error, got: ${errors.join(', ')}`,
+      );
+    });
+  });
+
+  describe('validateSignalCollectorContract', () => {
+    it('returns empty when no SignalCollector used', () => {
+      const errors = validateSignalCollectorContract(VALID_HTML);
+      assert.equal(errors.length, 0);
+    });
+
+    it('passes when SignalCollector is properly integrated', () => {
+      const html = CDN_HTML_NESTED;
+      const errors = validateSignalCollectorContract(html);
+      assert.equal(errors.length, 0, `Unexpected errors: ${errors.join(', ')}`);
+    });
+
+    it('fails when startFlushing() is missing', () => {
+      const html = CDN_HTML_NESTED.replace(/signalCollector\.startFlushing\(\);/, '');
+      const errors = validateSignalCollectorContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('startFlushing')),
+        `Expected startFlushing error, got: ${errors.join(', ')}`,
+      );
+    });
+
+    it('warns when signalConfig/flushUrl not referenced', () => {
+      const html = CDN_HTML_NESTED
+        .replace(/signalConfig/g, 'cfg')
+        .replace(/flushUrl/g, 'endpoint');
+      const errors = validateSignalCollectorContract(html);
+      assert.ok(
+        errors.some((e) => e.includes('WARNING') && (e.includes('signalConfig') || e.includes('flushUrl'))),
+        `Expected signalConfig/flushUrl warning, got: ${errors.join(', ')}`,
       );
     });
   });

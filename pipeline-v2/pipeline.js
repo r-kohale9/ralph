@@ -169,6 +169,18 @@ Test the platform integration contract:
 - FeedbackManager integration: sound.preload(), sound.register(), playDynamicFeedback
 - SubtitleComponent.show() called for correct/wrong feedback
 - syncDOMState updates data-* attributes on #app
+- game_complete postMessage schema (CRITICAL):
+  - postMessage({ type: 'game_complete', data: { metrics: {...}, completedAt: Date.now() } })
+  - metrics MUST include: accuracy (0-100), time (seconds), stars (0-3), attempts (array), duration_data
+  - metrics SHOULD include: totalLives (integer, default 1), tries (per-round attempt counts)
+  - data MUST include: completedAt (timestamp)
+  - Payload must NOT be flat (score/stars at top level) — must be nested in data.metrics
+- SignalCollector integration (if signalCollector is used):
+  - window.signalCollector is accessible
+  - signalCollector.startFlushing() called after game_init config sets flushUrl from signalConfig
+  - signalCollector.recordViewEvent() called on screen transitions and DOM changes
+  - signalCollector.seal() called in endGame before postMessage
+  - game_complete data includes signal_event_count and signal_metadata (NOT raw signal events)
 
 ══════════════════════════════════════
 OUTPUT FORMAT (MANDATORY)
