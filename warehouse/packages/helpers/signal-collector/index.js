@@ -701,7 +701,7 @@
    * _flushInProgress prevents re-entrant concurrent calls.
    * After a successful chunk, calls itself directly to drain remaining backlog.
    */
-  SignalCollector.prototype._flush = function () {
+  SignalCollector.prototype._flush = function (force) {
     if (this._flushInProgress) return;
     if (!this.flushUrl) return;
 
@@ -710,7 +710,8 @@
     if (chunk.length === 0) return;
 
     // Skip flush if below minimum batch size and oldest event is recent
-    if (chunk.length < MIN_FLUSH_SIZE) {
+    // force=true bypasses this (used by seal() for final flush)
+    if (!force && chunk.length < MIN_FLUSH_SIZE) {
       var oldestAge = Date.now() - this._events[0].timestamp_ms;
       if (oldestAge < MAX_FLUSH_AGE_MS) {
         return;
@@ -741,7 +742,7 @@
           console.log("[SignalCollector] Flushed batch #" + payload.data.batch_number + " — " + chunkSize + " events");
           // Drain remaining backlog without waiting for next interval
           if (self._events.length > 0) {
-            self._flush();
+            self._flush(force);
           }
         } else {
           handleFailure(retryCount, "HTTP " + response.status);
@@ -802,7 +803,7 @@
     // Async bonus path: fetch with retry (confirmed delivery if iframe survives)
     if (this._events.length > 0 && this.flushUrl) {
       this._sealed = false; // temporarily re-open to allow _flush to run
-      this._flush();
+      this._flush(true);
       this._sealed = true;
     }
 
