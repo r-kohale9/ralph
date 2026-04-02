@@ -77,6 +77,8 @@ window.gameState = {
   totalLives: 3,
   roundData: null,           // Current round content
   currentStage: 1,           // 1=Easy, 2=Mixed, 3=Hard
+  typeBRetryUsed: false,     // Tracks whether current Type B round already had a partial retry
+  correctAnswer: null,       // Exposed for test harness — set per round in setupRound()
 };
 ```
 
@@ -432,9 +434,12 @@ Game HTML is placed inside a `<template>` element and cloned into `#gameContent`
 2. **Start screen callback** → `startGame()`: set `gameState.isActive = true`, `gameState.startTime = Date.now()`, `gameState.phase = 'playing-typeA'` or `'playing-typeB'`, call `setupRound()`.
 
 3. **setupRound():**
+   - Set `gameState.isProcessing = false` and `gameState.isActive = true` (reset from previous round)
+   - Set `gameState.typeBRetryUsed = false` (reset retry tracker for new round)
    - Get `roundData = gameState.content.rounds[gameState.currentRound]`
    - Set `gameState.roundData = roundData`
    - Set `gameState.currentStage = roundData.stage`
+   - Set `gameState.correctAnswer`: for Type A → `rd.isEquivalent ? 'same' : 'different'`; for Type B → `rd.correctAnswer` (exposes correct answer for test harness)
    - Display rule card: populate `#rule-a`, `#rule-b`, `#rule-emoji-1`, `#rule-emoji-2`, `#rule-item1`, `#rule-item2` from `roundData.ruleRatio` and `roundData.context`
    - If `roundData.roundType === 'typeA'`:
      - Show `#type-a-area`, hide `#type-b-area`
@@ -448,10 +453,12 @@ Game HTML is placed inside a `<template>` element and cloned into `#gameContent`
      - Set `gameState.phase = 'playing-typeB'`
    - Hide feedback area
    - Update `progressBar.update(gameState.currentRound, gameState.lives)` (round = rounds COMPLETED, starts at 0)
+   - Call `syncDOMState()`
 
 4. **handleTypeAAnswer(sameChosen):**
-   - Guard: if `gameState.isProcessing` return
+   - Guard: if `gameState.isProcessing || gameState.gameEnded` return
    - Set `gameState.isProcessing = true`
+   - Set `gameState.phase = 'feedback'`, call `syncDOMState()`
    - Determine: `correct = (sameChosen === roundData.isEquivalent)`
    - Record attempt via PART-009
    - If correct:
@@ -463,40 +470,56 @@ Game HTML is placed inside a `<template>` element and cloned into `#gameContent`
      - `await FeedbackManager.playDynamicFeedback({ audio_content: roundData.feedbackWrong, subtitle: roundData.feedbackWrong })`
      - `gameState.lives--`
    - Track event: `type_a_answer`
-   - If `gameState.lives <= 0` → `handleGameOver()`
+   - Call `syncDOMState()`
+   - If `gameState.lives <= 0` → `await handleGameOver()`
    - Else → `nextRound()`
-   - Set `gameState.isProcessing = false`
+   - (Note: `isProcessing` is reset in `setupRound()` at the start of the next round, NOT here)
 
 5. **handleTypeBSubmit():**
-   - Guard: if `gameState.isProcessing` return
+   - Guard: if `gameState.isProcessing || gameState.gameEnded` return
    - Set `gameState.isProcessing = true`
    - Read `inputA = parseInt(document.getElementById('input-a').value)`
    - Read `inputB = parseInt(document.getElementById('input-b').value)`
-   - Validate: if either is NaN or empty, show "Please fill in both fields" and return
+   - Validate: if either is NaN, empty, or ≤ 0, show "Please fill in both fields with a number greater than 0" and set `gameState.isProcessing = false` and return
    - `aCorrect = (inputA === roundData.correctAnswer.a)`
    - `bCorrect = (inputB === roundData.correctAnswer.b)`
    - Record attempt via PART-009
+   - **If this is a retry** (`gameState.typeBRetryUsed === true`) **and NOT both correct**: lose a life and advance regardless of partial/both-wrong:
+     - `await FeedbackManager.sound.play('wrong_tap', { subtitle: 'Not quite!', sticker: INCORRECT_STICKER_URL })`
+     - `await FeedbackManager.playDynamicFeedback({ audio_content: roundData.feedbackWrong, subtitle: roundData.feedbackWrong })`
+     - `gameState.lives--`
+     - Track event: `type_b_submit` with result `retry_failed`
+     - Call `syncDOMState()`
+     - If `gameState.lives <= 0` → `await handleGameOver()`
+     - Else → `nextRound()`
+     - Return
+   - Set `gameState.phase = 'feedback'`, call `syncDOMState()`
    - If both correct:
      - `await FeedbackManager.sound.play('correct_tap', { subtitle: 'Perfect!', sticker: CORRECT_STICKER_URL })`
      - `await FeedbackManager.playDynamicFeedback({ audio_content: roundData.feedbackCorrect, subtitle: roundData.feedbackCorrect })`
      - `gameState.score++`
      - Track event: `type_b_submit` with result `correct`
+     - Call `syncDOMState()`
      - `nextRound()`
-   - If partial (one correct, one wrong):
+   - If partial (one correct, one wrong) — first attempt only:
      - Determine which field: `partialMsg = aCorrect ? 'First number correct! Check the second.' : 'Second number correct! Check the first.'`
      - `await FeedbackManager.sound.play('partial_correct_attempt1', { subtitle: partialMsg, sticker: PARTIAL_CORRECT_STICKER_URL })`
      - Track event: `type_b_submit` with result `partial`
      - Clear the wrong field, keep the correct one
+     - Set `gameState.typeBRetryUsed = true` — marks that next submit is a retry
+     - Set `gameState.phase` back to `'playing-typeB'`
      - Set `gameState.isProcessing = false` — allow retry (same round, no life lost yet)
+     - Call `syncDOMState()`
      - Return (do NOT call nextRound)
    - If both wrong:
-     - `await FeedbackManager.sound.play('wrong_tap', { subtitle: 'Try again!', sticker: INCORRECT_STICKER_URL })`
+     - `await FeedbackManager.sound.play('wrong_tap', { subtitle: 'Not quite!', sticker: INCORRECT_STICKER_URL })`
      - `await FeedbackManager.playDynamicFeedback({ audio_content: roundData.feedbackWrong, subtitle: roundData.feedbackWrong })`
      - `gameState.lives--`
      - Track event: `type_b_submit` with result `incorrect`
-     - If `gameState.lives <= 0` → `handleGameOver()`
+     - Call `syncDOMState()`
+     - If `gameState.lives <= 0` → `await handleGameOver()`
      - Else → `nextRound()`
-   - Set `gameState.isProcessing = false`
+   - (Note: `isProcessing` is reset in `setupRound()` at the start of the next round, NOT here)
 
 6. **nextRound():**
    - `gameState.currentRound++`
@@ -507,18 +530,28 @@ Game HTML is placed inside a `<template>` element and cloned into `#gameContent`
    - Else → `setupRound()`
 
 7. **handleGameOver():**
-   - Set `gameState.gameEnded = true`, `gameState.phase = 'gameover'`
+   - Guard: `if (gameState.gameEnded) return;`
+   - Set `gameState.gameEnded = true`, `gameState.isActive = false`, `gameState.phase = 'gameover'`
+   - Calculate stars (same logic as endGame): `accuracy = gameState.score / gameState.totalRounds`
+     - `accuracy >= 0.8` → 3 stars; `accuracy >= 0.5` → 2 stars; `accuracy > 0` → 1 star; else → 0 stars
+   - Set `gameState.stars = stars`
+   - Call `syncDOMState()`
    - `await FeedbackManager.playDynamicFeedback({ audio_content: 'Oh no! All lives lost!', subtitle: 'Game Over' })`
+   - Seal SignalCollector: `if (signalCollector) signalCollector.seal()` (PART-010)
    - Show game-over transition screen via `TransitionScreen`
    - After transition callback → `showResults()`
+   - Post metrics via PART-008 postMessage: `{ type: 'GAME_COMPLETE', payload: { gameId, score, totalRounds, stars, accuracy, lives, attempts, events, duration } }`
 
 8. **endGame():**
-   - Set `gameState.gameEnded = true`, `gameState.phase = 'results'`
+   - Guard: `if (gameState.gameEnded) return;`
+   - Set `gameState.gameEnded = true`, `gameState.isActive = false`, `gameState.phase = 'results'`
    - Calculate stars: `accuracy = gameState.score / gameState.totalRounds`
      - `accuracy >= 0.8` → 3 stars
      - `accuracy >= 0.5` → 2 stars
      - `accuracy > 0` → 1 star
      - else → 0 stars
+   - Set `gameState.stars = stars`
+   - Call `syncDOMState()`
    - `await FeedbackManager.playDynamicFeedback({ audio_content: 'Great job! You scored ' + gameState.score + ' out of ' + gameState.totalRounds + '!', subtitle: 'Well done!', sticker: TROPHY_LOTTIE_URL })`
    - Seal SignalCollector: `if (signalCollector) signalCollector.seal()` (PART-010)
    - Show victory transition screen via `TransitionScreen`
@@ -530,7 +563,9 @@ Game HTML is placed inside a `<template>` element and cloned into `#gameContent`
    - Populate `#result-score`, `#result-lives`, `#result-accuracy`, `#stars-display`
 
 10. **restartGame():**
-    - Full reset: `gameState.currentRound = 0`, `gameState.score = 0`, `gameState.lives = 3`, `gameState.attempts = []`, `gameState.events = []`, `gameState.gameEnded = false`, `gameState.isActive = false`, `gameState.isProcessing = false`
+    - Full reset: `gameState.currentRound = 0`, `gameState.score = 0`, `gameState.stars = 0`, `gameState.lives = 3`, `gameState.attempts = []`, `gameState.events = []`, `gameState.gameEnded = false`, `gameState.isActive = false`, `gameState.isProcessing = false`, `gameState.typeBRetryUsed = false`, `gameState.correctAnswer = null`, `gameState.roundData = null`, `gameState.currentStage = 1`, `gameState.phase = 'start'`
+    - Deep-clone content to prevent mutation leaks: `gameState.content = JSON.parse(JSON.stringify(gameState.content))`
+    - Call `syncDOMState()`
     - Hide results screen, show start transition screen
 
 ---
@@ -541,9 +576,19 @@ Game HTML is placed inside a `<template>` element and cloned into `#gameContent`
 
 ```javascript
 function setupRound() {
+  // Reset interaction guards for new round
+  gameState.isProcessing = false;
+  gameState.isActive = true;
+  gameState.typeBRetryUsed = false;
+
   const rd = gameState.content.rounds[gameState.currentRound];
   gameState.roundData = rd;
   gameState.currentStage = rd.stage;
+
+  // Expose correct answer for test harness
+  gameState.correctAnswer = rd.roundType === 'typeA'
+    ? (rd.isEquivalent ? 'same' : 'different')
+    : rd.correctAnswer;
 
   // Populate rule card
   document.getElementById('rule-a').textContent = rd.ruleRatio.a;
@@ -594,6 +639,7 @@ function setupRound() {
 
   // Update progress bar (round = rounds COMPLETED, starts at 0)
   progressBar.update(gameState.currentRound, gameState.lives);
+  syncDOMState();
 }
 ```
 
@@ -603,6 +649,8 @@ function setupRound() {
 async function handleTypeAAnswer(sameChosen) {
   if (gameState.isProcessing || gameState.gameEnded) return;
   gameState.isProcessing = true;
+  gameState.phase = 'feedback';
+  syncDOMState();
 
   const rd = gameState.roundData;
   const correct = (sameChosen === rd.isEquivalent);
@@ -645,14 +693,14 @@ async function handleTypeAAnswer(sameChosen) {
 
   // Track event (PART-010)
   gameState.events.push({ type: 'type_a_answer', round: gameState.currentRound, correct, timestamp: Date.now() });
+  syncDOMState();
 
   if (gameState.lives <= 0) {
     await handleGameOver();
   } else {
     nextRound();
   }
-
-  gameState.isProcessing = false;
+  // Note: isProcessing is reset in setupRound() at the start of the next round
 }
 ```
 
@@ -667,10 +715,10 @@ async function handleTypeBSubmit() {
   const inputA = parseInt(document.getElementById('input-a').value);
   const inputB = parseInt(document.getElementById('input-b').value);
 
-  // Validate non-empty
-  if (isNaN(inputA) || isNaN(inputB)) {
+  // Validate non-empty and > 0
+  if (isNaN(inputA) || isNaN(inputB) || inputA <= 0 || inputB <= 0) {
     document.getElementById('feedback-area').style.display = '';
-    document.getElementById('feedback-text').textContent = 'Please fill in both fields.';
+    document.getElementById('feedback-text').textContent = 'Please fill in both fields with a number greater than 0.';
     gameState.isProcessing = false;
     return;
   }
@@ -687,8 +735,34 @@ async function handleTypeBSubmit() {
     aCorrect,
     bCorrect,
     isCorrect: aCorrect && bCorrect,
+    isRetry: gameState.typeBRetryUsed,
     timestamp: Date.now()
   });
+
+  // If this is a retry and NOT both correct → lose a life and advance
+  if (gameState.typeBRetryUsed && !(aCorrect && bCorrect)) {
+    document.getElementById('btn-submit').disabled = true;
+    await FeedbackManager.sound.play('wrong_tap', {
+      subtitle: 'Not quite!',
+      sticker: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-49.gif'
+    });
+    await FeedbackManager.playDynamicFeedback({
+      audio_content: rd.feedbackWrong,
+      subtitle: rd.feedbackWrong
+    });
+    gameState.lives--;
+    gameState.events.push({ type: 'type_b_submit', round: gameState.currentRound, result: 'retry_failed', timestamp: Date.now() });
+    syncDOMState();
+    if (gameState.lives <= 0) {
+      await handleGameOver();
+    } else {
+      nextRound();
+    }
+    return;
+  }
+
+  gameState.phase = 'feedback';
+  syncDOMState();
 
   if (aCorrect && bCorrect) {
     // Both correct
@@ -703,10 +777,10 @@ async function handleTypeBSubmit() {
     });
     gameState.score++;
     gameState.events.push({ type: 'type_b_submit', round: gameState.currentRound, result: 'correct', timestamp: Date.now() });
-    gameState.isProcessing = false;
+    syncDOMState();
     nextRound();
   } else if (aCorrect || bCorrect) {
-    // Partial — one correct, one wrong
+    // Partial — one correct, one wrong (first attempt only)
     const partialMsg = aCorrect
       ? 'First number correct! Check the second.'
       : 'Second number correct! Check the first.';
@@ -724,9 +798,12 @@ async function handleTypeBSubmit() {
     document.getElementById('feedback-area').style.display = '';
     document.getElementById('feedback-text').textContent = partialMsg;
 
-    // Allow retry — do NOT call nextRound, do NOT lose a life
+    // Mark retry used and allow re-attempt
+    gameState.typeBRetryUsed = true;
+    gameState.phase = 'playing-typeB';
     gameState.isProcessing = false;
-    return;
+    syncDOMState();
+    return; // do NOT call nextRound, do NOT lose a life
   } else {
     // Both wrong
     document.getElementById('btn-submit').disabled = true;
@@ -740,15 +817,15 @@ async function handleTypeBSubmit() {
     });
     gameState.lives--;
     gameState.events.push({ type: 'type_b_submit', round: gameState.currentRound, result: 'incorrect', timestamp: Date.now() });
+    syncDOMState();
 
     if (gameState.lives <= 0) {
-      gameState.isProcessing = false;
       await handleGameOver();
     } else {
-      gameState.isProcessing = false;
       nextRound();
     }
   }
+  // Note: isProcessing is reset in setupRound() at the start of the next round
 }
 ```
 
@@ -787,19 +864,50 @@ function nextRound() {
 
 ```javascript
 async function handleGameOver() {
+  if (gameState.gameEnded) return;
   gameState.gameEnded = true;
+  gameState.isActive = false;
   gameState.phase = 'gameover';
+
+  // Calculate stars (same logic as endGame)
+  const accuracy = gameState.score / gameState.totalRounds;
+  let stars = 0;
+  if (accuracy >= 0.8) stars = 3;
+  else if (accuracy >= 0.5) stars = 2;
+  else if (accuracy > 0) stars = 1;
+  gameState.stars = stars;
+
+  syncDOMState();
 
   await FeedbackManager.playDynamicFeedback({
     audio_content: 'Oh no! All lives lost!',
     subtitle: 'Game Over'
   });
 
+  // Seal SignalCollector (PART-010)
+  if (signalCollector) signalCollector.seal();
+
   transitionScreen.show('game-over', {
     title: 'Game Over',
     subtitle: 'You scored ' + gameState.score + ' out of ' + gameState.totalRounds,
     callback: () => showResults()
   });
+
+  // Post metrics (PART-008)
+  window.parent.postMessage({
+    type: 'GAME_COMPLETE',
+    payload: {
+      gameId: gameState.gameId,
+      score: gameState.score,
+      totalRounds: gameState.totalRounds,
+      stars: stars,
+      accuracy: Math.round(accuracy * 100),
+      lives: gameState.lives,
+      attempts: gameState.attempts,
+      events: gameState.events,
+      duration: Date.now() - gameState.startTime
+    }
+  }, '*');
 }
 ```
 
@@ -807,7 +915,9 @@ async function handleGameOver() {
 
 ```javascript
 async function endGame() {
+  if (gameState.gameEnded) return;
   gameState.gameEnded = true;
+  gameState.isActive = false;
   gameState.phase = 'results';
 
   const accuracy = gameState.score / gameState.totalRounds;
@@ -817,6 +927,7 @@ async function endGame() {
   else if (accuracy > 0) stars = 1;
 
   gameState.stars = stars;
+  syncDOMState();
 
   await FeedbackManager.playDynamicFeedback({
     audio_content: 'Great job! You scored ' + gameState.score + ' out of ' + gameState.totalRounds + '!',
@@ -882,16 +993,22 @@ function restartGame() {
   // Full reset
   gameState.currentRound = 0;
   gameState.score = 0;
+  gameState.stars = 0;
   gameState.lives = 3;
   gameState.attempts = [];
   gameState.events = [];
   gameState.gameEnded = false;
   gameState.isActive = false;
   gameState.isProcessing = false;
+  gameState.typeBRetryUsed = false;
+  gameState.correctAnswer = null;
   gameState.phase = 'start';
   gameState.roundData = null;
   gameState.currentStage = 1;
   gameState.startTime = null;
+
+  // Deep-clone content to prevent mutation leaks across replays
+  gameState.content = JSON.parse(JSON.stringify(gameState.content));
 
   // Recreate SignalCollector (endGame destroyed it via seal)
   signalCollector = new SignalCollector({
@@ -902,6 +1019,8 @@ function restartGame() {
   });
   window.signalCollector = signalCollector;
 
+  syncDOMState();
+
   // Hide results, show start transition
   document.getElementById('results-screen').style.display = 'none';
   document.getElementById('game-screen').style.display = '';
@@ -911,6 +1030,19 @@ function restartGame() {
     subtitle: 'Compare ratios and make them match!',
     callback: () => startGame()
   });
+}
+```
+
+### syncDOMState()
+
+```javascript
+function syncDOMState() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.setAttribute('data-phase', gameState.phase);
+  app.setAttribute('data-round', gameState.currentRound);
+  app.setAttribute('data-score', gameState.score);
+  app.setAttribute('data-lives', gameState.lives);
 }
 ```
 
@@ -958,57 +1090,55 @@ trophy: https://cdn.mathai.ai/mathai-assets/lottie/trophy.json (Lottie)
 
 | # | Moment | Trigger | Audio Type | Content / Sound ID | Await? | Notes |
 |---|--------|---------|------------|-------------------|--------|-------|
-| 1 | Type A correct | handleTypeAAnswer (correct) | Static | correct_tap | Awaited | With correct sticker + subtitle |
-| 2 | Type A explanation | handleTypeAAnswer (after #1) | Dynamic TTS | Multiplicative link explanation | Awaited | Sequential after #1 |
-| 3 | Type A wrong | handleTypeAAnswer (wrong) | Static | wrong_tap | Awaited | With incorrect sticker |
-| 4 | Type A wrong explanation | handleTypeAAnswer (after #3) | Dynamic TTS | Mismatch explanation | Awaited | Sequential after #3 |
-| 5 | Type B all correct | handleTypeBSubmit (both correct) | Static | correct_tap | Awaited | With correct sticker |
-| 6 | Type B correct explanation | handleTypeBSubmit (after #5) | Dynamic TTS | Multiplication confirmation | Awaited | Sequential after #5 |
-| 7 | Type B partial | handleTypeBSubmit (one correct) | Static | partial_correct_attempt1 | Awaited | With partial_correct sticker |
-| 8 | Type B both wrong | handleTypeBSubmit (both wrong) | Static | wrong_tap | Awaited | With incorrect sticker |
-| 9 | Type B wrong explanation | handleTypeBSubmit (after #8) | Dynamic TTS | Additive trap hint | Awaited | Sequential after #8 |
-| 10 | End game | endGame | Dynamic TTS | Score summary | Awaited | With trophy sticker |
+| 1 | Type A correct | handleTypeAAnswer (correct) | Static | correct_tap | ✅ Awaited | With correct sticker + subtitle |
+| 2 | Type A explanation | handleTypeAAnswer (after #1) | Dynamic TTS | Multiplicative link explanation | ✅ Awaited* | Sequential after #1; streaming may resolve early |
+| 3 | Type A wrong | handleTypeAAnswer (wrong) | Static | wrong_tap | ✅ Awaited | With incorrect sticker |
+| 4 | Type A wrong explanation | handleTypeAAnswer (after #3) | Dynamic TTS | Mismatch explanation | ✅ Awaited* | Sequential after #3; streaming may resolve early |
+| 5 | Type B all correct | handleTypeBSubmit (both correct) | Static | correct_tap | ✅ Awaited | With correct sticker |
+| 6 | Type B correct explanation | handleTypeBSubmit (after #5) | Dynamic TTS | Multiplication confirmation | ✅ Awaited* | Sequential after #5; streaming may resolve early |
+| 7 | Type B partial | handleTypeBSubmit (one correct) | Static | partial_correct_attempt1 | ✅ Awaited | With partial_correct sticker; user retries after |
+| 8 | Type B retry failed | handleTypeBSubmit (retry, not both correct) | Static | wrong_tap | ✅ Awaited | With incorrect sticker; costs a life |
+| 9 | Type B retry failed explanation | handleTypeBSubmit (after #8) | Dynamic TTS | feedbackWrong | ✅ Awaited* | Sequential after #8 |
+| 10 | Type B both wrong | handleTypeBSubmit (both wrong) | Static | wrong_tap | ✅ Awaited | With incorrect sticker |
+| 11 | Type B wrong explanation | handleTypeBSubmit (after #10) | Dynamic TTS | Additive trap hint | ✅ Awaited* | Sequential after #10; streaming may resolve early |
+| 12 | Game over | handleGameOver | Dynamic TTS | "Oh no! All lives lost!" | ✅ Awaited* | Streaming may resolve early |
+| 13 | End game victory | endGame | Dynamic TTS | Score summary | ✅ Awaited* | With trophy sticker; streaming may resolve early |
 
 ---
 
-## 12. Review Findings
+## 12. CSS & Layout Notes
 
-### Warning — Completeness — No audio URLs or sticker URLs specified
+### Desktop
+- Game wrapper (`#app`) must have `max-width: 480px` and be centered with `margin: 0 auto` (or parent uses `display: flex; justify-content: center`).
+- Buttons (`.game-btn`) should have `:hover` styles — e.g., `transform: scale(1.05)`, `box-shadow: 0 4px 12px rgba(0,0,0,0.15)`.
+- Input fields (`.ratio-input`) should have `:focus` ring and `:hover` border highlight.
 
-**What the spec says:** Voice-Over Strategy describes feedback text but no audio implementation details.
+### Mobile
+- Full-height containers use `100dvh` (not `100vh`) to avoid address-bar overlap.
+- All touch targets (buttons, inputs) must be at least 44×44px.
+- Input fields use `inputmode="numeric"` to show numeric keyboard on mobile.
 
-**Problem:** The pipeline cannot generate audio feedback without knowing which PART-017 sound IDs to preload and play. Voice-over text is described but not mapped to `sound.play()` or `playDynamicFeedback()`.
+### Responsive
+- No essential elements are hidden at any breakpoint — only spacing/font adjustments.
+- Media query at `max-width: 360px`: reduce font sizes on rule/comparison cards, reduce padding.
 
-**Suggested fix:** Added Feedback Integration section with PART-017 standard audio URLs, sticker URLs, and audio flow per round type. (RESOLVED)
+---
 
-### Warning — Completeness — No input schema defined
+## 13. Review Findings
 
-**What the spec says:** Game Structure table lists rounds, lives, stages, but no parameterized content structure.
+All 12 findings from spec review — all resolved.
 
-**Problem:** The pipeline cannot generate content sets without knowing the exact JSON shape the game expects.
-
-**Suggested fix:** Added Input Schema section with full JSON schema definition. (RESOLVED)
-
-### Warning — Completeness — No content set generation guidance
-
-**What the spec says:** Stage Breakdown table shows difficulty progression but no content generation instructions.
-
-**Problem:** Content generator doesn't know what dimensions to vary or what constraints to enforce across difficulty levels.
-
-**Suggested fix:** Added Content Set Generation Guide with specific parameters per difficulty. (RESOLVED)
-
-### Info — Interaction — Type B partial credit feedback unclear
-
-**What the spec says:** "Validates each field independently — can get partial credit feedback"
-
-**Problem:** The spec mentions partial credit but doesn't define exactly what happens: does the kid get another attempt? Does it cost a life? Is it the same round or next?
-
-**Suggested fix:** Clarified: on partial correct (one field right, one wrong), the kid sees which field was correct, gets the partial_correct sound+sticker, and must re-enter both fields. This counts as one attempt. If wrong on retry, it costs a life and moves to next round. (RESOLVED)
-
-### Info — API Usage — Dynamic audio API
-
-**What the spec says:** N/A (preventive note).
-
-**Problem:** Common mistake is to use `FeedbackManager.sound.play('dynamic', { text })` which does not work. The correct API is `FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker })`.
-
-**Resolution:** All function specs in Section 9 use the correct `playDynamicFeedback()` API. (RESOLVED)
+| # | Severity | Category | Title | Status |
+|---|----------|----------|-------|--------|
+| 1 | 🔴 Critical | Interaction | Type B retry has no cap — infinite retries on partial | ✅ RESOLVED — Added `typeBRetryUsed` flag; second failed attempt costs a life |
+| 2 | 🔴 Critical | Interaction | `isProcessing` never reset on correct/wrong paths | ✅ RESOLVED — `isProcessing` reset in `setupRound()` at start of next round |
+| 3 | 🔴 Critical | Promise | `handleGameOver()` missing stars, seal, postMessage | ✅ RESOLVED — Added guard, star calculation, `syncDOMState()`, seal, postMessage |
+| 4 | ⚠️ Warning | Interaction | Type B zero/negative values accepted | ✅ RESOLVED — Validation now checks `<= 0` in addition to NaN |
+| 5 | ⚠️ Warning | Completeness | `syncDOMState()` not defined | ✅ RESOLVED — Added `syncDOMState()` function writing data-phase/round/score/lives to `#app` |
+| 6 | ⚠️ Warning | Completeness | `gameState.phase` not tracked | ✅ RESOLVED — Phase set in setupRound, handleTypeAAnswer, handleTypeBSubmit, handleGameOver, endGame, restartGame |
+| 7 | ⚠️ Warning | Promise | `endGame()` missing guard for double-call | ✅ RESOLVED — Added `if (gameState.gameEnded) return;` guard |
+| 8 | ⚠️ Warning | Promise | `restartGame()` missing new fields and deep-clone | ✅ RESOLVED — Resets `typeBRetryUsed`, `correctAnswer`, `stars`; deep-clones content |
+| 9 | ⚠️ Warning | Concept | `correctAnswer` not exposed for test harness | ✅ RESOLVED — Set in `setupRound()`: Type A → 'same'/'different', Type B → `rd.correctAnswer` |
+| 10 | ⚠️ Warning | Completeness | No audio URLs or sticker URLs specified | ✅ RESOLVED — Added Section 10 with all URLs |
+| 11 | ℹ️ Info | Completeness | No desktop max-width/centering described | ✅ RESOLVED — Added Section 12 CSS & Layout Notes |
+| 12 | ℹ️ Info | Completeness | No hover states for desktop mouse users | ✅ RESOLVED — Added hover styles in Section 12 |

@@ -29,6 +29,46 @@ const { runPipeline, runTargetedFix } = require('./pipeline');
 const slack = require('./slack');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Wrap markdown content in a self-contained HTML page with marked.js for
+ * browser-friendly rendering (GitHub-dark theme, proper UTF-8 charset).
+ */
+function _wrapMarkdownAsHtml(mdContent, title) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title}</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px; background: #0d1117; color: #e6edf3; line-height: 1.6; }
+  h1 { border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+  h2 { border-bottom: 1px solid #21262d; padding-bottom: 6px; margin-top: 32px; }
+  h3 { margin-top: 24px; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 16px; overflow-x: auto; }
+  code { background: #161b22; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #30363d; padding: 8px 12px; text-align: left; }
+  th { background: #161b22; }
+  blockquote { border-left: 3px solid #30363d; margin: 16px 0; padding: 8px 16px; color: #8b949e; }
+  a { color: #58a6ff; }
+  hr { border: none; border-top: 1px solid #21262d; margin: 24px 0; }
+</style>
+</head>
+<body>
+<div id="content"></div>
+<script>
+  const md = ${JSON.stringify(mdContent)};
+  document.getElementById('content').innerHTML = marked.parse(md);
+<\/script>
+</body>
+</html>`;
+}
+
 // ─── Optional V1 modules (reuse for GCS, publishing, etc.) ──────────────────
 
 let gcp;
@@ -788,6 +828,44 @@ const worker = new Worker(QUEUE_NAME, async (job) => {
         } catch (e) {
           console.warn(`[worker-v2] GCS step upload failed: ${e.message}`);
         }
+      }
+    }
+
+    // Upload pre-generation section files to GCS after pre-generation step
+    if (event.type === 'pipeline-step' && event.status === 'done' && event.step === 'pre-generation' && gcp.isEnabled()) {
+      try {
+        const preGenDir = path.join(gameDir, 'pre-generation');
+        if (fs.existsSync(preGenDir)) {
+          const mdFiles = fs.readdirSync(preGenDir).filter(f => f.endsWith('.md')).sort();
+          const sectionUrls = [];
+
+          const sectionDisplayNames = {
+            'game-flow':  '🗺️ Game Flow',
+            'screens':    '📱 Screens',
+            'round-flow': '🔄 Round Flow',
+            'feedback':   '⚡ Feedback Moments',
+            'scoring':    '📊 Scoring',
+          };
+
+          for (const mdFile of mdFiles) {
+            const sectionId = mdFile.replace('.md', '');
+            const mdContent = fs.readFileSync(path.join(preGenDir, mdFile), 'utf-8');
+            const displayName = sectionDisplayNames[sectionId] || sectionId;
+            const htmlWrapped = _wrapMarkdownAsHtml(mdContent, `${displayName} — ${gameId}`);
+            const dest = `games/${gameId}/builds/${buildId}/pre-generation/${sectionId}.html`;
+            const url = await gcp.uploadContent(htmlWrapped, dest, { contentType: 'text/html; charset=utf-8' });
+            if (url) {
+              sectionUrls.push({ id: sectionId, name: displayName, url });
+              console.log(`[worker-v2] Pre-generation section uploaded: ${sectionId} → ${url}`);
+            }
+          }
+
+          if (sectionUrls.length > 0) {
+            event.preGenSections = sectionUrls;
+          }
+        }
+      } catch (e) {
+        console.warn(`[worker-v2] Pre-generation GCS upload failed: ${e.message}`);
       }
     }
 

@@ -8,7 +8,7 @@
 <!-- Sentry (PART-030) — must be first -->
 <script src="https://browser.sentry-cdn.com/10.23.0/bundle.min.js" crossorigin="anonymous"></script>
 
-<!-- Package Scripts (PART-002) -->
+<!-- Package Scripts (PART-002) — bundle files -->
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
@@ -26,7 +26,7 @@
   --mathai-light-orange: #FFF3E0;
   --mathai-purple: #7C3AED;
   --mathai-light-purple: #F3E8FF;
-  --mathai-gray: #6B6B6B;
+  --mathai-gray: #666666;
   --mathai-light-gray: #F2F2F2;
   --mathai-border-gray: #E0E0E0;
   --mathai-white: #FFFFFF;
@@ -45,7 +45,6 @@ body {
   background: var(--mathai-light-gray);
   color: var(--mathai-text-primary);
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
 }
 
 /* === App Container (PART-021) === */
@@ -174,8 +173,6 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   min-height: 48px;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
 }
 
 .btn-primary {
@@ -470,9 +467,9 @@ body {
 </template>
 
 <script>
-// ============================================================
+// ========================================
 // PART-005: Fallback Content
-// ============================================================
+// ========================================
 var fallbackContent = {
   "gameId": "word-problem-workshop",
   "rounds": [
@@ -619,9 +616,9 @@ var fallbackContent = {
   ]
 };
 
-// ============================================================
+// ========================================
 // PART-007: Game State Object
-// ============================================================
+// ========================================
 window.gameState = {
   gameId: 'word-problem-workshop',
   currentRound: 0,
@@ -644,8 +641,6 @@ window.gameState = {
     totalInactiveTime: 0,
     currentTime: null
   },
-
-  // GAME-SPECIFIC:
   currentStage: 1,
   totalPoints: 0,
   wordProblemText: '',
@@ -664,47 +659,46 @@ var progressBar = null;
 var transitionScreen = null;
 var signalCollector = null;
 
-// ============================================================
+// ========================================
 // Sticker constants
-// ============================================================
+// ========================================
 var CORRECT_STICKER = { url: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-30.gif', type: 'IMAGE_GIF' };
 var INCORRECT_STICKER = { url: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-49.gif', type: 'IMAGE_GIF' };
 
-// ============================================================
+// ========================================
 // PART-010: Event Tracking
-// ============================================================
-function trackEvent(name, category, data) {
+// ========================================
+function trackEvent(eventName, category, data) {
   var event = {
-    name: name,
+    event: eventName,
     category: category || 'game',
     data: data || {},
     timestamp: new Date().toISOString()
   };
   gameState.events.push(event);
-  console.log('Event:', name, JSON.stringify(data || {}, null, 2));
+  console.log('Event:', eventName, JSON.stringify(data || {}, null, 2));
 }
 
-// ============================================================
+// ========================================
 // PART-009: Attempt Tracking
-// ============================================================
+// ========================================
 function recordAttempt(attemptData) {
   var attempt = {
     timestamp: new Date().toISOString(),
-    round: gameState.currentRound + 1,
     input_of_user: attemptData.input_of_user,
     correct: attemptData.correct,
     metadata: attemptData.metadata || {}
   };
   gameState.attempts.push(attempt);
   gameState.duration_data.attempts.push({
-    round: gameState.currentRound + 1,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    round: attemptData.metadata ? attemptData.metadata.round : gameState.currentRound + 1
   });
 }
 
-// ============================================================
+// ========================================
 // PART-011: computeTriesPerRound
-// ============================================================
+// ========================================
 function computeTriesPerRound(attempts) {
   var rounds = {};
   attempts.forEach(function(a) {
@@ -716,9 +710,9 @@ function computeTriesPerRound(attempts) {
   });
 }
 
-// ============================================================
+// ========================================
 // syncDOMState
-// ============================================================
+// ========================================
 function syncDOMState() {
   var app = document.getElementById('app');
   if (app) {
@@ -730,23 +724,23 @@ function syncDOMState() {
   }
 }
 
-// ============================================================
+// ========================================
 // PART-003: waitForPackages
-// ============================================================
+// ========================================
 function waitForPackages(packages, timeout) {
   timeout = timeout || 10000;
   return new Promise(function(resolve, reject) {
-    var start = Date.now();
+    var startTime = Date.now();
     function check() {
       var allReady = packages.every(function(pkg) {
         return typeof window[pkg] !== 'undefined';
       });
       if (allReady) {
         resolve();
-      } else if (Date.now() - start > timeout) {
+      } else if (Date.now() - startTime > timeout) {
         var missing = packages.filter(function(pkg) { return typeof window[pkg] === 'undefined'; });
-        console.warn('Packages not loaded after timeout:', missing);
-        resolve(); // resolve anyway to allow fallback behavior
+        console.warn('Packages not loaded within timeout:', missing.join(', '));
+        resolve(); // Resolve anyway to not block the game
       } else {
         setTimeout(check, 100);
       }
@@ -755,9 +749,9 @@ function waitForPackages(packages, timeout) {
   });
 }
 
-// ============================================================
-// PART-015: LLM Validation
-// ============================================================
+// ========================================
+// PART-015: validateWordProblemLLM (PRIMARY EVALUATION)
+// ========================================
 async function validateWordProblemLLM(wordProblem, expression, expressionDisplay, expectedResult, rubric) {
   try {
     var result = await subjectiveEvaluation({
@@ -786,8 +780,6 @@ async function validateWordProblemLLM(wordProblem, expression, expressionDisplay
     var componentResult = result.data[0];
     var evalText = (componentResult.evaluation || '').trim().toLowerCase().replace(/[^a-z_]/g, '');
 
-    // Normalize evaluation to expected tiers (use includes for robustness —
-    // LLM may return extra text around the tier keyword)
     var tier = 'no_match';
     if (evalText.includes('correct_match')) tier = 'correct_match';
     else if (evalText.includes('partial_match')) tier = 'partial_match';
@@ -806,9 +798,10 @@ async function validateWordProblemLLM(wordProblem, expression, expressionDisplay
   }
 }
 
-// ============================================================
-// handlePostMessage
-// ============================================================
+// ========================================
+// Game Flow Functions
+// ========================================
+
 function handlePostMessage(event) {
   if (event.data && event.data.type === 'game_init') {
     gameState.content = (event.data.data && event.data.data.content) || fallbackContent;
@@ -824,11 +817,7 @@ function handlePostMessage(event) {
       signalCollector.startFlushing();
     }
 
-    // Enable start button
-    if (transitionScreen && transitionScreen.enableButton) {
-      transitionScreen.enableButton();
-    }
-
+    // Record view event
     if (signalCollector) {
       signalCollector.recordViewEvent('screen_transition', {
         screen: 'start',
@@ -836,36 +825,34 @@ function handlePostMessage(event) {
       });
     }
 
-    console.log('game_init received — content loaded');
+    console.log('game_init received, content loaded');
   }
 }
 
-// ============================================================
-// startGame
-// ============================================================
 function startGame() {
-  if (!gameState.content) {
-    gameState.content = fallbackContent;
-  }
+  if (!gameState.content) gameState.content = fallbackContent;
   gameState.startTime = Date.now();
   gameState.isActive = true;
   gameState.gameEnded = false;
-  gameState.phase = 'writing';
-  syncDOMState();
+  gameState.phase = 'writing'; syncDOMState();
   gameState.duration_data.startTime = new Date().toISOString();
   trackEvent('game_start', 'game');
+
+  // Ensure gameContent is visible (ScreenLayout hides it during transition)
+  var gc = document.getElementById('gameContent');
+  if (gc) gc.style.display = 'flex';
+
   setupRound();
 }
 
-// ============================================================
-// setupRound
-// ============================================================
 function setupRound() {
+  // Ensure gameContent is visible (TransitionScreen hides it during stage transitions)
+  var gc = document.getElementById('gameContent');
+  if (gc) gc.style.display = 'flex';
+
   var roundData = gameState.content.rounds[gameState.currentRound];
   gameState.roundData = roundData;
   gameState.currentStage = roundData.stage;
-
-  // Reset round state
   gameState.wordProblemText = '';
   gameState.evaluationResult = null;
   gameState.feedbackText = '';
@@ -883,42 +870,36 @@ function setupRound() {
 
   // Clear input
   var textarea = document.getElementById('word-problem-input');
-  textarea.value = '';
+  if (textarea) {
+    textarea.value = '';
+    textarea.disabled = false;
+  }
   document.getElementById('char-count').textContent = '0';
 
-  // Show/hide
+  // Show/hide areas
   document.getElementById('expression-card').style.display = '';
   document.getElementById('writing-area').style.display = '';
   document.getElementById('feedback-area').style.display = 'none';
   document.getElementById('feedback-hint').style.display = 'none';
   document.getElementById('feedback-example').style.display = 'none';
   document.getElementById('writing-error').style.display = 'none';
-  document.getElementById('btn-next-round').style.display = 'none';
 
   // Enable submit button
   var submitBtn = document.getElementById('btn-submit-problem');
   submitBtn.disabled = false;
   document.getElementById('btn-submit-text').textContent = 'Submit Word Problem';
 
-  // Phase
-  gameState.phase = 'writing';
-  syncDOMState();
+  gameState.phase = 'writing'; syncDOMState();
 
-  // Progress bar
-  if (progressBar) {
-    progressBar.update(gameState.currentRound, 0);
-  }
+  if (progressBar) progressBar.update(gameState.currentRound, 0);
 
   // Show game screen, hide results
   document.getElementById('game-screen').style.display = '';
   document.getElementById('results-screen').style.display = 'none';
 
-  trackEvent('round_start', 'game', {
-    round: gameState.currentRound + 1,
-    stage: roundData.stage,
-    expression: roundData.expression
-  });
+  trackEvent('round_start', 'game', { round: gameState.currentRound + 1, stage: roundData.stage, expression: roundData.expression });
 
+  // Record view event
   if (signalCollector) {
     signalCollector.recordViewEvent('content_render', {
       screen: 'gameplay',
@@ -936,9 +917,6 @@ function setupRound() {
   }
 }
 
-// ============================================================
-// handleProblemSubmit
-// ============================================================
 async function handleProblemSubmit() {
   if (!gameState.isActive || gameState.isProcessing) return;
   gameState.isProcessing = true;
@@ -953,26 +931,23 @@ async function handleProblemSubmit() {
     return;
   }
 
-  // Hide error
   document.getElementById('writing-error').style.display = 'none';
   gameState.wordProblemText = wordProblem;
 
-  trackEvent('word_problem_submit', 'game', {
-    wordProblem: wordProblem,
-    round: gameState.currentRound + 1,
-    expression: gameState.roundData.expression
-  });
+  trackEvent('word_problem_submit', 'game', { wordProblem: wordProblem, round: gameState.currentRound + 1, expression: gameState.roundData.expression });
 
-  gameState.phase = 'evaluating';
-  syncDOMState();
+  gameState.phase = 'evaluating'; syncDOMState();
 
-  // Disable submit button
+  // Disable submit button, show evaluating state
   var submitBtn = document.getElementById('btn-submit-problem');
   submitBtn.disabled = true;
   document.getElementById('btn-submit-text').textContent = 'Evaluating...';
 
+  // Also disable textarea during evaluation
+  document.getElementById('word-problem-input').disabled = true;
+
   try {
-    // LLM Evaluation (PART-015)
+    // LLM Evaluation (PART-015 — PRIMARY)
     var result = await validateWordProblemLLM(
       wordProblem,
       gameState.roundData.expression,
@@ -980,7 +955,6 @@ async function handleProblemSubmit() {
       gameState.roundData.result,
       gameState.roundData.rubric
     );
-
     gameState.evaluationResult = result.tier;
     gameState.feedbackText = result.feedback;
 
@@ -992,13 +966,7 @@ async function handleProblemSubmit() {
     if (gameState.evaluationResult === 'correct_match') gameState.correctCount++;
     if (gameState.evaluationResult === 'partial_match') gameState.partialCount++;
 
-    trackEvent('evaluation_complete', 'game', {
-      wordProblem: wordProblem,
-      tier: gameState.evaluationResult,
-      feedback: result.feedback,
-      roundPoints: roundPoints,
-      round: gameState.currentRound + 1
-    });
+    trackEvent('evaluation_complete', 'game', { wordProblem: wordProblem, tier: gameState.evaluationResult, feedback: result.feedback, roundPoints: roundPoints, round: gameState.currentRound + 1 });
 
     // Play audio + sticker
     if (gameState.evaluationResult === 'correct_match') {
@@ -1009,15 +977,14 @@ async function handleProblemSubmit() {
 
     // Show feedback area
     var badge = document.getElementById('evaluation-badge');
-    badge.className = 'evaluation-badge';
     if (gameState.evaluationResult === 'correct_match') {
-      badge.classList.add('correct-match');
+      badge.className = 'evaluation-badge correct-match';
       badge.textContent = '✅ Perfect Match! Your word problem nails it.';
     } else if (gameState.evaluationResult === 'partial_match') {
-      badge.classList.add('partial-match');
+      badge.className = 'evaluation-badge partial-match';
       badge.textContent = '🔶 Almost! Your story is close but needs adjustment.';
     } else {
-      badge.classList.add('no-match');
+      badge.className = 'evaluation-badge no-match';
       badge.textContent = '❌ Not quite. This doesn\'t match the expression.';
     }
 
@@ -1026,25 +993,24 @@ async function handleProblemSubmit() {
     document.getElementById('feedback-reasoning').textContent = result.feedback;
     document.getElementById('feedback-points').textContent = roundPoints + '/3 points';
 
-    // Show hints for non-perfect
+    // Show hint and example if not correct
     if (gameState.evaluationResult !== 'correct_match') {
       document.getElementById('hint-text').textContent = gameState.roundData.hints.thinkAbout;
       document.getElementById('feedback-hint').style.display = '';
       document.getElementById('example-text').textContent = gameState.roundData.exampleWordProblem;
       document.getElementById('feedback-example').style.display = '';
+    } else {
+      document.getElementById('feedback-hint').style.display = 'none';
+      document.getElementById('feedback-example').style.display = 'none';
     }
 
+    // Switch views
     document.getElementById('expression-card').style.display = 'none';
     document.getElementById('writing-area').style.display = 'none';
     document.getElementById('feedback-area').style.display = '';
     document.getElementById('btn-next-round').style.display = '';
 
-    // Scroll feedback into view so Next Round button is visible
-    setTimeout(function() {
-      document.getElementById('evaluation-badge').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
-
-    // Record feedback view
+    // Record feedback display view event
     if (signalCollector) {
       signalCollector.recordViewEvent('feedback_display', {
         screen: 'gameplay',
@@ -1058,7 +1024,7 @@ async function handleProblemSubmit() {
       });
     }
 
-    // Play dynamic TTS
+    // Play dynamic TTS feedback
     try {
       var feedbackText = result.feedback || gameState.roundData.hints.revealExplanation;
       await FeedbackManager.playDynamicFeedback({
@@ -1092,8 +1058,7 @@ async function handleProblemSubmit() {
       });
     }
 
-    gameState.phase = 'feedback';
-    syncDOMState();
+    gameState.phase = 'feedback'; syncDOMState();
 
   } catch (error) {
     console.error('Word problem evaluation failed:', error);
@@ -1101,7 +1066,7 @@ async function handleProblemSubmit() {
       Sentry.captureException(error, { tags: { phase: 'word-problem-evaluation', component: 'SubjectiveEvaluation', severity: 'high' } });
     }
 
-    // Fallback if feedback area not yet shown
+    // CRITICAL — Ensure game never gets stuck
     if (document.getElementById('feedback-area').style.display === 'none') {
       var roundPoints = 0;
 
@@ -1122,11 +1087,6 @@ async function handleProblemSubmit() {
       document.getElementById('feedback-area').style.display = '';
       document.getElementById('btn-next-round').style.display = '';
 
-      // Scroll feedback into view
-      setTimeout(function() {
-        document.getElementById('evaluation-badge').scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
-
       recordAttempt({
         input_of_user: { wordProblem: gameState.wordProblemText },
         correct: false,
@@ -1143,32 +1103,27 @@ async function handleProblemSubmit() {
       });
     }
 
-    gameState.phase = 'feedback';
-    syncDOMState();
+    gameState.phase = 'feedback'; syncDOMState();
 
   } finally {
-    submitBtn.disabled = false;
-    document.getElementById('btn-submit-text').textContent = 'Submit Word Problem';
+    // Re-enable submit button
+    var submitBtn = document.getElementById('btn-submit-problem');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      document.getElementById('btn-submit-text').textContent = 'Submit Word Problem';
+    }
     gameState.isProcessing = false;
   }
 }
 
-// ============================================================
-// handleNextRound
-// ============================================================
 function handleNextRound() {
   document.getElementById('btn-next-round').style.display = 'none';
   nextRound();
 }
 
-// ============================================================
-// nextRound
-// ============================================================
 function nextRound() {
   gameState.currentRound++;
-  if (progressBar) {
-    progressBar.update(gameState.currentRound, 0);
-  }
+  if (progressBar) progressBar.update(gameState.currentRound, 0);
   trackEvent('round_complete', 'game', { round: gameState.currentRound });
 
   if (gameState.currentRound >= gameState.totalRounds) {
@@ -1176,6 +1131,7 @@ function nextRound() {
   } else {
     var nextStage = gameState.content.rounds[gameState.currentRound].stage;
 
+    // Record screen transition
     if (signalCollector) {
       signalCollector.recordViewEvent('screen_transition', {
         screen: nextStage !== gameState.currentStage ? 'stage_transition' : 'gameplay',
@@ -1203,16 +1159,15 @@ function nextRound() {
   }
 }
 
-// ============================================================
-// endGame
-// ============================================================
 async function endGame() {
   if (gameState.gameEnded) return;
   gameState.gameEnded = true;
   gameState.isActive = false;
-  gameState.phase = 'results';
-  syncDOMState();
+  gameState.phase = 'results'; syncDOMState();
 
+  // Ensure gameContent is visible (results-screen is inside it)
+  var gc = document.getElementById('gameContent');
+  if (gc) gc.style.display = 'flex';
   gameState.duration_data.currentTime = new Date().toISOString();
 
   var timeTaken = Math.round((Date.now() - gameState.startTime) / 1000);
@@ -1241,10 +1196,7 @@ async function endGame() {
     ];
   }
 
-  // Seal SignalCollector
-  if (signalCollector) signalCollector.seal();
-
-  // Update results screen FIRST (before TTS, so user sees results immediately)
+  // Update results screen DOM FIRST (before async TTS which can take seconds)
   document.getElementById('result-points').textContent = gameState.totalPoints + '/30';
   document.getElementById('result-correct').textContent = gameState.correctCount + '/10';
   document.getElementById('result-partial').textContent = gameState.partialCount + '/10';
@@ -1255,9 +1207,23 @@ async function endGame() {
     starsDisplay.innerHTML += '<span class="' + (i < stars ? 'star-filled' : 'star-empty') + '">' + (i < stars ? '⭐' : '☆') + '</span>';
   }
 
+  // Show results, hide game (use explicit display values — CSS defaults are display:none)
   document.getElementById('results-screen').style.display = 'flex';
   document.getElementById('game-screen').style.display = 'none';
 
+  // Seal SignalCollector
+  if (signalCollector) signalCollector.seal();
+
+  // End-game TTS with trophy (non-blocking for UI — results already visible)
+  try {
+    await FeedbackManager.playDynamicFeedback({
+      audio_content: 'You scored ' + gameState.totalPoints + ' out of 30 points! You got ' + gameState.correctCount + ' perfect matches out of 10 rounds!',
+      subtitle: gameState.totalPoints + '/30 points — ' + stars + ' stars!',
+      sticker: { url: 'https://cdn.mathai.ai/mathai-assets/lottie/trophy.json', type: 'Lottie' }
+    });
+  } catch(e) { console.error('Feedback error:', JSON.stringify({ error: e.message }, null, 2)); }
+
+  // Send postMessage
   console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
   console.log('Attempt History:', JSON.stringify(gameState.attempts, null, 2));
 
@@ -1272,24 +1238,12 @@ async function endGame() {
 
   trackEvent('game_end', 'game', { metrics: metrics });
 
-  // End-game TTS with trophy (plays AFTER results are visible)
-  try {
-    await FeedbackManager.playDynamicFeedback({
-      audio_content: 'You scored ' + gameState.totalPoints + ' out of 30 points! You got ' + gameState.correctCount + ' perfect matches out of 10 rounds!',
-      subtitle: gameState.totalPoints + '/30 points — ' + stars + ' stars!',
-      sticker: { url: 'https://cdn.mathai.ai/mathai-assets/lottie/trophy.json', type: 'Lottie' }
-    });
-  } catch(e) { console.error('Feedback error:', JSON.stringify({ error: e.message }, null, 2)); }
-
   // Cleanup
   if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
   try { FeedbackManager.sound.stopAll(); } catch(e) {}
   try { FeedbackManager.stream.stopAll(); } catch(e) {}
 }
 
-// ============================================================
-// restartGame
-// ============================================================
 function restartGame() {
   // Save session history
   gameState.sessionHistory.push({
@@ -1313,13 +1267,8 @@ function restartGame() {
   gameState.phase = 'start';
   gameState.isProcessing = false;
   gameState.duration_data = {
-    startTime: null,
-    preview: [],
-    attempts: [],
-    evaluations: [],
-    inActiveTime: [],
-    totalInactiveTime: 0,
-    currentTime: null
+    startTime: null, preview: [], attempts: [], evaluations: [],
+    inActiveTime: [], totalInactiveTime: 0, currentTime: null
   };
   gameState.currentStage = 1;
   gameState.totalPoints = 0;
@@ -1336,11 +1285,10 @@ function restartGame() {
   gameState.signalConfig = savedSignalConfig;
   gameState.content = savedContent;
 
-  gameState.phase = 'start';
-  syncDOMState();
+  gameState.phase = 'start'; syncDOMState();
 
   // Recreate SignalCollector
-  if (typeof SignalCollector !== 'undefined') {
+  try {
     signalCollector = new SignalCollector({
       sessionId: (window.gameVariableState && window.gameVariableState.sessionId) || 'session_' + Date.now(),
       studentId: (window.gameVariableState && window.gameVariableState.studentId) || null,
@@ -1356,10 +1304,10 @@ function restartGame() {
       if (gameState.signalConfig.studentId) signalCollector.studentId = gameState.signalConfig.studentId;
       signalCollector.startFlushing();
     }
-  }
+  } catch(e) { console.error('SignalCollector restart error:', e); }
 
   // Recreate VisibilityTracker
-  if (typeof VisibilityTracker !== 'undefined') {
+  try {
     visibilityTracker = new VisibilityTracker({
       onInactive: function() {
         var inactiveStart = Date.now();
@@ -1392,15 +1340,15 @@ function restartGame() {
         primaryText: 'Resume'
       }
     });
-  }
+  } catch(e) { console.error('VisibilityTracker restart error:', e); }
 
   // Reset progress bar
-  if (typeof ProgressBarComponent !== 'undefined') {
+  try {
     progressBar = new ProgressBarComponent({ autoInject: true, totalRounds: 10, totalLives: 0, slotId: 'mathai-progress-slot' });
     progressBar.update(0, 0);
-  }
+  } catch(e) { console.error('ProgressBar restart error:', e); }
 
-  // Show start transition
+  // Show start transition screen
   if (transitionScreen) {
     transitionScreen.show({
       icons: ['✏️'],
@@ -1409,44 +1357,47 @@ function restartGame() {
       subtitle: 'Turn math expressions into real-world stories!',
       buttons: [{ text: "I'm ready!", type: 'primary', action: function() { startGame(); } }]
     });
+  } else {
+    startGame();
   }
-
-  // Show game screen, hide results
-  document.getElementById('game-screen').style.display = '';
-  document.getElementById('results-screen').style.display = 'none';
 }
 
-// ============================================================
-// PART-004: Initialization Block (DOMContentLoaded)
-// ============================================================
+// ========================================
+// PART-012: Debug Functions
+// ========================================
+window.debugGame = function() {
+  console.log('Game State:', JSON.stringify(gameState, null, 2));
+};
+window.debugSkipToEnd = function() {
+  gameState.currentRound = gameState.totalRounds - 1;
+  gameState.totalPoints = 20;
+  gameState.correctCount = 7;
+  gameState.partialCount = 2;
+  endGame();
+};
+
+// ========================================
+// PART-004: Initialization Block
+// ========================================
 document.addEventListener('DOMContentLoaded', async function() {
   console.log('DOMContentLoaded — initializing Word Problem Workshop');
 
-  // Wait for packages
-  await waitForPackages([
-    'FeedbackManager',
-    'ScreenLayout',
-    'ProgressBarComponent',
-    'TransitionScreenComponent',
-    'VisibilityTracker',
-    'SignalCollector',
-    'subjectiveEvaluation'
-  ], 10000);
+  // PART-003: Wait for packages
+  await waitForPackages(['FeedbackManager', 'ScreenLayout', 'ProgressBarComponent', 'TransitionScreenComponent', 'VisibilityTracker', 'SignalCollector', 'subjectiveEvaluation']);
 
-  // Initialize FeedbackManager
+  // PART-017: FeedbackManager init + audio preload
   try {
-    if (typeof FeedbackManager !== 'undefined') {
-      FeedbackManager.init();
-      // Audio preload
-      FeedbackManager.sound.preload([
-        { id: 'correct_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501597903.mp3' },
-        { id: 'wrong_tap', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501956470.mp3' }
-      ]);
+    FeedbackManager.init();
+    // Try multiple preload methods for compatibility
+    var preloadFn = FeedbackManager.sound.preload || FeedbackManager.sound.load || FeedbackManager.sound.register;
+    if (preloadFn) {
+      preloadFn.call(FeedbackManager.sound, 'correct_tap', 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501597903.mp3');
+      preloadFn.call(FeedbackManager.sound, 'wrong_tap', 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501956470.mp3');
     }
   } catch(e) { console.error('FeedbackManager init error:', e); }
 
-  // SignalCollector
-  if (typeof SignalCollector !== 'undefined') {
+  // PART-010: SignalCollector
+  try {
     signalCollector = new SignalCollector({
       sessionId: (window.gameVariableState && window.gameVariableState.sessionId) || 'session_' + Date.now(),
       studentId: (window.gameVariableState && window.gameVariableState.studentId) || null,
@@ -1454,38 +1405,34 @@ document.addEventListener('DOMContentLoaded', async function() {
       contentSetId: gameState.contentSetId || null
     });
     window.signalCollector = signalCollector;
-  }
+  } catch(e) { console.error('SignalCollector init error:', e); }
 
-  // ScreenLayout inject
-  if (typeof ScreenLayout !== 'undefined') {
+  // PART-025: ScreenLayout inject
+  try {
     ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } });
-  }
+  } catch(e) { console.error('ScreenLayout inject error:', e); }
 
-  // Clone template into gameContent
+  // Clone template into #gameContent (created by ScreenLayout.inject)
+  // Fallback: if ScreenLayout didn't create #gameContent, append directly to #app
   var template = document.getElementById('game-template');
-  var gameContent = document.getElementById('gameContent');
+  var gameContent = document.getElementById('gameContent') || document.getElementById('app');
   if (template && gameContent) {
     var clone = template.content.cloneNode(true);
     gameContent.appendChild(clone);
-  } else if (template) {
-    // Fallback: if ScreenLayout didn't create #gameContent, inject into #app
-    var app = document.getElementById('app');
-    var clone = template.content.cloneNode(true);
-    app.appendChild(clone);
   }
 
-  // ProgressBar
-  if (typeof ProgressBarComponent !== 'undefined') {
+  // PART-023: ProgressBar
+  try {
     progressBar = new ProgressBarComponent({ autoInject: true, totalRounds: 10, totalLives: 0, slotId: 'mathai-progress-slot' });
-  }
+  } catch(e) { console.error('ProgressBar init error:', e); }
 
-  // TransitionScreen
-  if (typeof TransitionScreenComponent !== 'undefined') {
+  // PART-024: TransitionScreen
+  try {
     transitionScreen = new TransitionScreenComponent({ slotId: 'mathai-transition-slot' });
-  }
+  } catch(e) { console.error('TransitionScreen init error:', e); }
 
-  // VisibilityTracker
-  if (typeof VisibilityTracker !== 'undefined') {
+  // PART-005: VisibilityTracker
+  try {
     visibilityTracker = new VisibilityTracker({
       onInactive: function() {
         var inactiveStart = Date.now();
@@ -1518,17 +1465,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         primaryText: 'Resume'
       }
     });
-  }
+  } catch(e) { console.error('VisibilityTracker init error:', e); }
 
   // Attach input listener for char count
   var textarea = document.getElementById('word-problem-input');
   if (textarea) {
     textarea.addEventListener('input', function() {
-      document.getElementById('char-count').textContent = textarea.value.length;
+      document.getElementById('char-count').textContent = this.value.length;
     });
   }
 
-  // Register postMessage handler
+  // Register postMessage listener
   window.addEventListener('message', handlePostMessage);
 
   // Show start transition screen
@@ -1554,35 +1501,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   trackEvent('game_ready', 'game', { timestamp: new Date().toISOString() });
   window.parent.postMessage({ type: 'game_ready' }, '*');
   console.log('Game ready — waiting for game_init postMessage');
-
-  syncDOMState();
 });
-
-// ============================================================
-// PART-012: Debug Functions
-// ============================================================
-window.debugGameState = function() {
-  console.log('Game State:', JSON.stringify(gameState, null, 2));
-  return gameState;
-};
-
-window.debugSkipToRound = function(round) {
-  if (round >= 0 && round < gameState.totalRounds) {
-    gameState.currentRound = round;
-    setupRound();
-    console.log('Skipped to round', round + 1);
-  }
-};
-
-window.debugEndGame = function() {
-  gameState.currentRound = gameState.totalRounds - 1;
-  nextRound();
-};
-
-window.debugSetPoints = function(points) {
-  gameState.totalPoints = points;
-  console.log('Points set to', points);
-};
 </script>
 </body>
 </html>

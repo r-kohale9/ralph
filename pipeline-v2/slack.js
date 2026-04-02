@@ -43,8 +43,9 @@ function nextStep(label) {
 // ─── Step metadata ─────────────────────────────────────────────────────────
 
 const STEP_META = {
-  'spec-validation': { icon: '📝', name: 'Spec Validation', num: '0' },
-  'generate':        { icon: '🏗️', name: 'Generate HTML', num: '1' },
+  'spec-validation':  { icon: '📝', name: 'Spec Validation', num: '0' },
+  'pre-generation':   { icon: '🧠', name: 'Pre-Generation Analysis', num: '0.5' },
+  'generate':         { icon: '🏗️', name: 'Generate HTML', num: '1' },
   'validate':        { icon: '🔍', name: 'Validate & Smoke Check', num: '1a' },
   'test-fix':        { icon: '🧪', name: 'Test & Fix', num: '2' },
   'visual-review':   { icon: '👁️', name: 'Visual Review', num: '3' },
@@ -103,6 +104,7 @@ async function createBuildThread(gameId, {
           ``,
           `*Pipeline plan:*`,
           `0️⃣ Spec pre-validation`,
+          `🧠 Pre-generation analysis — spec flow & interactions`,
           `1️⃣ Generate HTML — \`${model || config.GEN_MODEL}\``,
           `1️⃣a Validate & smoke check (auto-fix)`,
           `2️⃣ Test → fix — 5 categories: game-flow · mechanics · level-progression · edge-cases · contract`,
@@ -306,6 +308,7 @@ async function postStepUpdate(threadTs, channelId, event) {
       // Add context about what this step does
       const nextHints = {
         'spec-validation': 'Checking spec structure',
+        'pre-generation': 'Analyzing spec flow & interactions',
         'generate': `Generating with \`${config.GEN_MODEL}\``,
         'validate': 'Static checks + browser smoke test',
         'test-fix': '5 categories × comprehensive browser testing',
@@ -342,11 +345,32 @@ async function postStepUpdate(threadTs, channelId, event) {
         } else {
           blocks.push(mrkdwn(`${headerText}\n✅ Spec structure OK`));
         }
-        blocks.push(nextStep('Generate HTML'));
+        blocks.push(nextStep('Pre-Generation Analysis'));
       } else {
         const errorList = (event.errors || []).map((e) => `• ${e}`).join('\n');
         blocks.push(mrkdwn(`${headerText}\n❌ *Spec validation FAILED*\n${errorList}`));
       }
+      await coreSlack.postThreadUpdate(threadTs, channelId, headerText, { blocks });
+      return;
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // PRE-GENERATION ANALYSIS
+    // ──────────────────────────────────────────────────────────────────
+    if (baseStep === 'pre-generation') {
+      if (event.chars) headerText += ` · ${event.chars} chars`;
+      let bodyText = headerText;
+      if (event.preGenSections && event.preGenSections.length > 0) {
+        bodyText += '\n';
+        for (const sec of event.preGenSections) {
+          bodyText += `\n• <${sec.url}|${sec.name}>`;
+        }
+      }
+      if (event.status === 'failed') {
+        bodyText += `\n⚠️ Skipped — proceeding without pre-generation`;
+      }
+      blocks.push(mrkdwn(bodyText));
+      blocks.push(nextStep('Generate HTML'));
       await coreSlack.postThreadUpdate(threadTs, channelId, headerText, { blocks });
       return;
     }
