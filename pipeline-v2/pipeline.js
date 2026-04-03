@@ -14,12 +14,14 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 const { createSession } = require('./agent');
+const { buildPreGenerationPrompt } = require('../lib/prompts');
 const { validateContract } = require('../lib/validate-contract');
 
 // ─── Step definitions ─────────────────────────────────────────────────────────
 
 const STEPS = {
   SPEC_VALIDATION: 'spec-validation',
+  PRE_GENERATION: 'pre-generation',
   GENERATE: 'generate',
   VALIDATE: 'validate',
   TEST_FIX: 'test-fix',
@@ -99,8 +101,14 @@ Report what you found and fixed.`;
 }
 
 function buildTestFixPrompt(gameDir) {
+  const preGenDir = path.join(gameDir, 'pre-generation');
+  const preGenHint = fs.existsSync(preGenDir)
+    ? `\nPRE-GENERATION REFERENCE (read ONLY when you need to understand intended behavior for a fix):
+${preGenDir}/ contains: game-flow.md, screens.md, round-flow.md, feedback.md, scoring.md.
+The spec is authoritative — use pre-gen docs only to understand INTENT, not as a code source.\n`
+    : '';
   return `Now thoroughly test the game using Playwright MCP tools and fix any issues you find.
-
+${preGenHint}
 IMPORTANT: Use the Playwright MCP tools directly (browser_navigate, browser_screenshot, browser_click, browser_console_messages, etc.) to interact with the game in the browser. Do NOT write Playwright test script files.
 
 The game is at: file://${path.join(gameDir, 'index.html')}
@@ -212,8 +220,14 @@ ISSUES_FIXED:
 }
 
 function buildVisualReviewPrompt(gameDir) {
+  const preGenDir = path.join(gameDir, 'pre-generation');
+  const preGenHint = fs.existsSync(preGenDir)
+    ? `\nPRE-GENERATION REFERENCE (read screens.md and game-flow.md to understand intended layout):
+${preGenDir}/ contains: game-flow.md, screens.md, round-flow.md, feedback.md, scoring.md.
+The spec is authoritative — use pre-gen docs only to verify visual intent matches implementation.\n`
+    : '';
   return `Perform a visual UI/UX review of the game using Playwright MCP.
-
+${preGenHint}
 Navigate to: file://${path.join(gameDir, 'index.html')}
 
 REVIEW CHECKLIST:
@@ -266,8 +280,14 @@ ISSUE: [warning] description here`;
 }
 
 function buildFinalReviewPrompt(gameDir) {
+  const preGenDir = path.join(gameDir, 'pre-generation');
+  const preGenHint = fs.existsSync(preGenDir)
+    ? `\nPRE-GENERATION REFERENCE (read to verify intended flows match implementation):
+${preGenDir}/ contains: game-flow.md, screens.md, round-flow.md, feedback.md, scoring.md.
+The spec is authoritative — use pre-gen docs to cross-check visual layout and interaction intent.\n`
+    : '';
   return `Perform a final comprehensive review of the game.
-
+${preGenHint}
 Game file: ${path.join(gameDir, 'index.html')}
 
 Compare the implemented game against the original specification provided at the start of this session.
@@ -612,7 +632,10 @@ function _validateSpec(specContent) {
 
   // Should describe game mechanics
   const mechanicsPatterns = [
-    /game\s*mechanic/i, /gameplay/i, /interaction/i, /how\s*(?:to|it)\s*(?:play|work)/i,
+    /game\s*mechanic/i,
+    /gameplay/i,
+    /interaction/i,
+    /how\s*(?:to|it)\s*(?:play|work)/i,
     /click|tap|drag|swipe|select|choose|match|sort|arrange/i,
   ];
   if (!mechanicsPatterns.some((p) => p.test(specContent))) {
@@ -632,7 +655,9 @@ function _validateSpec(specContent) {
 
   // Check for handlePostMessage implementation (PART-008/010 critical pattern)
   if (!/handlePostMessage/i.test(specContent) && !/signalConfig/i.test(specContent)) {
-    warnings.push('Spec does not include handlePostMessage or signalConfig — verify signalCollector setup in generated HTML');
+    warnings.push(
+      'Spec does not include handlePostMessage or signalConfig — verify signalCollector setup in generated HTML',
+    );
   }
 
   return { valid: errors.length === 0, warnings, errors };
@@ -653,16 +678,7 @@ function _validateSpec(specContent) {
  * @param {function} [opts.onProgress]  — progress callback
  * @returns {Promise<object>} Pipeline report
  */
-async function runPipeline({
-  gameId,
-  specPath,
-  gameDir,
-  buildId,
-  model,
-  additionalDirectories = [],
-  log,
-  onProgress,
-}) {
+async function runPipeline({ gameId, specPath, gameDir, buildId, model, additionalDirectories = [], log, onProgress }) {
   const logger = log || { info: console.log, warn: console.warn, error: console.error };
   const startTime = Date.now();
 
@@ -683,8 +699,11 @@ async function runPipeline({
 
   const progress = async (event) => {
     if (onProgress) {
-      try { await onProgress({ ...event, gameId, elapsed: ((Date.now() - startTime) / 1000).toFixed(1) }); }
-      catch (e) { logger.warn(`[pipeline] Progress callback error: ${e.message}`); }
+      try {
+        await onProgress({ ...event, gameId, elapsed: ((Date.now() - startTime) / 1000).toFixed(1) });
+      } catch (e) {
+        logger.warn(`[pipeline] Progress callback error: ${e.message}`);
+      }
     }
   };
 
@@ -698,7 +717,14 @@ async function runPipeline({
     logger.error(`[pipeline] Spec validation FAILED: ${specCheck.errors.join('; ')}`);
     report.status = 'FAILED';
     report.errors.push(`Spec validation failed: ${specCheck.errors.join('; ')}`);
-    await progress({ type: 'pipeline-step', step: STEPS.SPEC_VALIDATION, status: 'done', valid: false, errors: specCheck.errors, warnings: specCheck.warnings });
+    await progress({
+      type: 'pipeline-step',
+      step: STEPS.SPEC_VALIDATION,
+      status: 'done',
+      valid: false,
+      errors: specCheck.errors,
+      warnings: specCheck.warnings,
+    });
     await progress({ type: 'pipeline-error', error: `Spec validation: ${specCheck.errors.join('; ')}` });
     return report;
   }
@@ -707,7 +733,159 @@ async function runPipeline({
     for (const w of specCheck.warnings) logger.warn(`[pipeline] Spec warning: ${w}`);
   }
   logger.info(`[pipeline] Spec validation passed (${specCheck.warnings.length} warning(s))`);
-  await progress({ type: 'pipeline-step', step: STEPS.SPEC_VALIDATION, status: 'done', valid: true, errors: [], warnings: specCheck.warnings });
+  await progress({
+    type: 'pipeline-step',
+    step: STEPS.SPEC_VALIDATION,
+    status: 'done',
+    valid: true,
+    errors: [],
+    warnings: specCheck.warnings,
+  });
+
+  // ── Step 0.5: Pre-Generation Analysis ───────────────────────────────────
+  // Produces a visual flow document for human review (Slack/GCS).
+  // NOT injected into the agent session — purely for human consumption.
+  const preGenDir = path.join(gameDir, 'pre-generation');
+
+  // Section definitions — order matters for concatenation
+  const PRE_GEN_SECTIONS = [
+    { id: 'game-flow', emoji: '🗺️', name: 'Game Flow', header: '## 🗺️' },
+    { id: 'screens', emoji: '📱', name: 'Screens', header: '## 📱' },
+    { id: 'round-flow', emoji: '🔄', name: 'Round Flow', header: '## 🔄' },
+    { id: 'feedback', emoji: '⚡', name: 'Feedback Moments', header: '## ⚡' },
+    { id: 'scoring', emoji: '📊', name: 'Scoring', header: '## 📊' },
+  ];
+
+  /**
+   * Split the full pre-generation markdown into sections by H2 emoji headers.
+   * Returns an array of { id, emoji, name, content } objects.
+   */
+  function splitPreGenSections(fullText) {
+    const sections = [];
+    // Extract title + one-liner (everything before the first known section header)
+    const firstSectionIdx = PRE_GEN_SECTIONS.reduce((min, s) => {
+      const idx = fullText.indexOf(s.header);
+      return idx >= 0 && idx < min ? idx : min;
+    }, fullText.length);
+    const preamble = fullText.slice(0, firstSectionIdx).trim();
+
+    for (let i = 0; i < PRE_GEN_SECTIONS.length; i++) {
+      const sec = PRE_GEN_SECTIONS[i];
+      const startIdx = fullText.indexOf(sec.header);
+      if (startIdx < 0) continue;
+
+      // Find next section start or end of text
+      let endIdx = fullText.length;
+      for (let j = i + 1; j < PRE_GEN_SECTIONS.length; j++) {
+        const nextIdx = fullText.indexOf(PRE_GEN_SECTIONS[j].header);
+        if (nextIdx >= 0) {
+          endIdx = nextIdx;
+          break;
+        }
+      }
+
+      let content = fullText.slice(startIdx, endIdx).trim();
+      // Prepend preamble (title + one-liner) to the first section
+      if (sections.length === 0 && preamble) {
+        content = preamble + '\n\n' + content;
+      }
+      sections.push({ ...sec, content });
+    }
+
+    // Fallback: if no sections were found, save everything as game-flow
+    if (sections.length === 0 && fullText.trim().length > 0) {
+      sections.push({ id: 'game-flow', emoji: '🗺️', name: 'Game Flow', content: fullText.trim() });
+    }
+
+    return sections;
+  }
+
+  // Backward compat: migrate old single-file pre-generation.md to directory format
+  const oldPreGenFile = path.join(gameDir, 'pre-generation.md');
+  if (fs.existsSync(oldPreGenFile) && !fs.existsSync(preGenDir)) {
+    const oldContent = fs.readFileSync(oldPreGenFile, 'utf-8');
+    if (oldContent.length > 500) {
+      logger.info('[pipeline] Step 0.5: Migrating old pre-generation.md to directory format');
+      const sections = splitPreGenSections(oldContent);
+      if (!fs.existsSync(preGenDir)) fs.mkdirSync(preGenDir, { recursive: true });
+      for (const sec of sections) {
+        fs.writeFileSync(path.join(preGenDir, `${sec.id}.md`), sec.content);
+      }
+    }
+  }
+
+  // Check for cached section files
+  if (fs.existsSync(preGenDir) && fs.readdirSync(preGenDir).filter((f) => f.endsWith('.md')).length > 0) {
+    const mdFiles = fs
+      .readdirSync(preGenDir)
+      .filter((f) => f.endsWith('.md'))
+      .sort();
+    const totalChars = mdFiles.reduce((sum, f) => sum + fs.statSync(path.join(preGenDir, f)).size, 0);
+    const sectionNames = mdFiles.map((f) => f.replace('.md', ''));
+    logger.info(`[pipeline] Step 0.5: Loaded ${mdFiles.length} cached pre-generation sections (${totalChars} chars)`);
+    await progress({
+      type: 'pipeline-step',
+      step: STEPS.PRE_GENERATION,
+      status: 'done',
+      chars: totalChars,
+      cached: true,
+      sections: sectionNames,
+    });
+  } else {
+    await progress({ type: 'pipeline-step', step: STEPS.PRE_GENERATION, status: 'running' });
+    const preGenStart = Date.now();
+    try {
+      // Use a one-shot agent session (no tools needed) to generate the pre-generation analysis
+      const preGenSession = await createSession({
+        gameDir,
+        specPath,
+        model: model || config.GEN_MODEL,
+        additionalDirectories: [],
+        log: logger,
+        onProgress: null,
+      });
+      const preGenPrompt = buildPreGenerationPrompt(specContent);
+      const preGenResult = await preGenSession.send('pre-generation', preGenPrompt);
+      if (preGenResult.text && preGenResult.text.length > 200) {
+        const fullText = preGenResult.text;
+        const sections = splitPreGenSections(fullText);
+
+        // Create pre-generation directory and save each section
+        if (!fs.existsSync(preGenDir)) fs.mkdirSync(preGenDir, { recursive: true });
+        const sectionNames = [];
+        for (const sec of sections) {
+          const filePath = path.join(preGenDir, `${sec.id}.md`);
+          fs.writeFileSync(filePath, sec.content);
+          sectionNames.push(sec.id);
+        }
+        logger.info(
+          `[pipeline] Step 0.5: Pre-generation complete — ${sections.length} sections (${fullText.length} chars, ${Math.round((Date.now() - preGenStart) / 1000)}s)`,
+        );
+        await progress({
+          type: 'pipeline-step',
+          step: STEPS.PRE_GENERATION,
+          status: 'done',
+          chars: fullText.length,
+          elapsed: Math.round((Date.now() - preGenStart) / 1000),
+          sections: sectionNames,
+        });
+      } else {
+        logger.warn('[pipeline] Step 0.5: Pre-generation returned insufficient text — proceeding without it');
+        await progress({
+          type: 'pipeline-step',
+          step: STEPS.PRE_GENERATION,
+          status: 'done',
+          chars: 0,
+          elapsed: Math.round((Date.now() - preGenStart) / 1000),
+          sections: [],
+        });
+      }
+    } catch (err) {
+      // degraded: pre-generation is optional enrichment — pipeline can proceed without it
+      logger.warn(`[pipeline] Step 0.5: Pre-generation failed: ${err.message} — proceeding without it`);
+      await progress({ type: 'pipeline-step', step: STEPS.PRE_GENERATION, status: 'failed', error: err.message });
+    }
+  }
 
   // ── Create single agent session ─────────────────────────────────────────
   let session;
@@ -754,7 +932,15 @@ async function runPipeline({
     logger.info(`[pipeline] Generated HTML: ${(htmlSize / 1024).toFixed(1)}KB`);
     report.htmlSize = htmlSize;
 
-    await progress({ type: 'pipeline-step', step: STEPS.GENERATE, status: 'done', htmlSize, turns: genResult.turns, toolUses: genResult.toolUses, toolNames: genResult.toolNames });
+    await progress({
+      type: 'pipeline-step',
+      step: STEPS.GENERATE,
+      status: 'done',
+      htmlSize,
+      turns: genResult.turns,
+      toolUses: genResult.toolUses,
+      toolNames: genResult.toolNames,
+    });
 
     // ── Step 1.5: Deterministic contract validation ─────────────────────────
     const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
@@ -765,7 +951,7 @@ async function runPipeline({
       const errorList = contractErrors.map((e) => `- ${e}`).join('\n');
       await session.send(
         'deterministic-fix',
-        `DETERMINISTIC VALIDATION found ${contractErrors.length} contract error(s) in the generated HTML. Fix ALL of these before proceeding:\n\n${errorList}\n\nRead ${htmlPath}, fix each issue, and save.`
+        `DETERMINISTIC VALIDATION found ${contractErrors.length} contract error(s) in the generated HTML. Fix ALL of these before proceeding:\n\n${errorList}\n\nRead ${htmlPath}, fix each issue, and save.`,
       );
       logger.info('[pipeline] Deterministic fix step completed');
     }
@@ -774,19 +960,35 @@ async function runPipeline({
     await progress({ type: 'pipeline-step', step: STEPS.VALIDATE, status: 'running' });
 
     const validateResult = await session.send(STEPS.VALIDATE, buildValidatePrompt(gameDir));
-    report.steps.validate = { turns: validateResult.turns, toolUses: validateResult.toolUses, text: validateResult.text?.slice(0, 5000) };
+    report.steps.validate = {
+      turns: validateResult.turns,
+      toolUses: validateResult.toolUses,
+      text: validateResult.text?.slice(0, 5000),
+    };
 
     if (validateResult.done) {
       throw new Error(validateResult.error || 'Session ended during validation');
     }
 
-    await progress({ type: 'pipeline-step', step: STEPS.VALIDATE, status: 'done', turns: validateResult.turns, toolUses: validateResult.toolUses, toolNames: validateResult.toolNames, summary: _extractSummary(validateResult.text) });
+    await progress({
+      type: 'pipeline-step',
+      step: STEPS.VALIDATE,
+      status: 'done',
+      turns: validateResult.turns,
+      toolUses: validateResult.toolUses,
+      toolNames: validateResult.toolNames,
+      summary: _extractSummary(validateResult.text),
+    });
 
     // ── Step 3: Test & Fix ──────────────────────────────────────────────────
     await progress({ type: 'pipeline-step', step: STEPS.TEST_FIX, status: 'running' });
 
     const testResult = await session.send(STEPS.TEST_FIX, buildTestFixPrompt(gameDir));
-    report.steps.testFix = { turns: testResult.turns, toolUses: testResult.toolUses, text: testResult.text?.slice(0, 8000) };
+    report.steps.testFix = {
+      turns: testResult.turns,
+      toolUses: testResult.toolUses,
+      text: testResult.text?.slice(0, 8000),
+    };
 
     if (testResult.done) {
       throw new Error(testResult.error || 'Session ended during testing');
@@ -811,12 +1013,18 @@ async function runPipeline({
     }
 
     await progress({
-      type: 'pipeline-step', step: STEPS.TEST_FIX, status: 'done',
-      turns: testResult.turns, toolUses: testResult.toolUses, toolNames: testResult.toolNames,
-      issuesFound: report.steps.testFix.issuesFound, issuesFixed: report.steps.testFix.issuesFixed,
+      type: 'pipeline-step',
+      step: STEPS.TEST_FIX,
+      status: 'done',
+      turns: testResult.turns,
+      toolUses: testResult.toolUses,
+      toolNames: testResult.toolNames,
+      issuesFound: report.steps.testFix.issuesFound,
+      issuesFixed: report.steps.testFix.issuesFixed,
       issueDescriptions: testIssueDescriptions,
       categoryResults: categoryResults.categories,
-      totalPassed: categoryResults.totalPassed, totalTests: categoryResults.totalTests,
+      totalPassed: categoryResults.totalPassed,
+      totalTests: categoryResults.totalTests,
       summary: _extractSummary(testResult.text),
     });
 
@@ -838,7 +1046,16 @@ async function runPipeline({
       throw new Error(visualResult.error || 'Session ended during visual review');
     }
 
-    await progress({ type: 'pipeline-step', step: STEPS.VISUAL_REVIEW, status: 'done', turns: visualResult.turns, toolUses: visualResult.toolUses, toolNames: visualResult.toolNames, verdict: visualVerdict, summary: _extractSummary(visualResult.text) });
+    await progress({
+      type: 'pipeline-step',
+      step: STEPS.VISUAL_REVIEW,
+      status: 'done',
+      turns: visualResult.turns,
+      toolUses: visualResult.toolUses,
+      toolNames: visualResult.toolNames,
+      verdict: visualVerdict,
+      summary: _extractSummary(visualResult.text),
+    });
 
     // ── Step 5: Final Review ────────────────────────────────────────────────
     await progress({ type: 'pipeline-step', step: STEPS.FINAL_REVIEW, status: 'running' });
@@ -859,7 +1076,16 @@ async function runPipeline({
       report.rejectionReasons = finalVerdict.issues.map((i) => i.description);
     }
 
-    await progress({ type: 'pipeline-step', step: STEPS.FINAL_REVIEW, status: 'done', turns: finalResult.turns, toolUses: finalResult.toolUses, toolNames: finalResult.toolNames, verdict: finalVerdict, summary: _extractSummary(finalResult.text) });
+    await progress({
+      type: 'pipeline-step',
+      step: STEPS.FINAL_REVIEW,
+      status: 'done',
+      turns: finalResult.turns,
+      toolUses: finalResult.toolUses,
+      toolNames: finalResult.toolNames,
+      verdict: finalVerdict,
+      summary: _extractSummary(finalResult.text),
+    });
 
     // ── Step 6: Rejection Fix Loop (up to 2 attempts) ─────────────────────
     const MAX_REJECTION_FIX_ATTEMPTS = 2;
@@ -871,7 +1097,12 @@ async function runPipeline({
       const rejIssues = finalVerdict.issues || [];
 
       logger.info(`[pipeline] Rejection fix attempt ${rejectionFixAttempt}/${MAX_REJECTION_FIX_ATTEMPTS}`);
-      await progress({ type: 'pipeline-step', step: STEPS.REJECTION_FIX, status: 'running', attempt: rejectionFixAttempt });
+      await progress({
+        type: 'pipeline-step',
+        step: STEPS.REJECTION_FIX,
+        status: 'running',
+        attempt: rejectionFixAttempt,
+      });
 
       // Fix
       const fixResult = await session.send(
@@ -881,15 +1112,39 @@ async function runPipeline({
 
       if (fixResult.error || fixResult.done) {
         logger.warn(`[pipeline] Rejection fix ${rejectionFixAttempt} failed: ${fixResult.error || 'session ended'}`);
-        await progress({ type: 'pipeline-step', step: STEPS.REJECTION_FIX, status: 'done', attempt: rejectionFixAttempt, turns: fixResult.turns, toolUses: fixResult.toolUses, toolNames: fixResult.toolNames, error: fixResult.error, summary: 'Fix attempt failed — stopping' });
+        await progress({
+          type: 'pipeline-step',
+          step: STEPS.REJECTION_FIX,
+          status: 'done',
+          attempt: rejectionFixAttempt,
+          turns: fixResult.turns,
+          toolUses: fixResult.toolUses,
+          toolNames: fixResult.toolNames,
+          error: fixResult.error,
+          summary: 'Fix attempt failed — stopping',
+        });
         break;
       }
 
-      await progress({ type: 'pipeline-step', step: STEPS.REJECTION_FIX, status: 'done', attempt: rejectionFixAttempt, turns: fixResult.turns, toolUses: fixResult.toolUses, toolNames: fixResult.toolNames, summary: _extractSummary(fixResult.text) });
+      await progress({
+        type: 'pipeline-step',
+        step: STEPS.REJECTION_FIX,
+        status: 'done',
+        attempt: rejectionFixAttempt,
+        turns: fixResult.turns,
+        toolUses: fixResult.toolUses,
+        toolNames: fixResult.toolNames,
+        summary: _extractSummary(fixResult.text),
+      });
 
       // Re-review
       logger.info(`[pipeline] Re-review after rejection fix ${rejectionFixAttempt}`);
-      await progress({ type: 'pipeline-step', step: STEPS.FINAL_REVIEW, status: 'running', attempt: rejectionFixAttempt + 1 });
+      await progress({
+        type: 'pipeline-step',
+        step: STEPS.FINAL_REVIEW,
+        status: 'running',
+        attempt: rejectionFixAttempt + 1,
+      });
 
       const reReviewResult = await session.send(
         `${STEPS.FINAL_REVIEW}-${rejectionFixAttempt + 1}`,
@@ -906,7 +1161,17 @@ async function runPipeline({
         report.rejectionReasons = [];
       }
 
-      await progress({ type: 'pipeline-step', step: STEPS.FINAL_REVIEW, status: 'done', attempt: rejectionFixAttempt + 1, turns: reReviewResult.turns, toolUses: reReviewResult.toolUses, toolNames: reReviewResult.toolNames, verdict: finalVerdict, summary: _extractSummary(reReviewResult.text) });
+      await progress({
+        type: 'pipeline-step',
+        step: STEPS.FINAL_REVIEW,
+        status: 'done',
+        attempt: rejectionFixAttempt + 1,
+        turns: reReviewResult.turns,
+        toolUses: reReviewResult.toolUses,
+        toolNames: reReviewResult.toolNames,
+        verdict: finalVerdict,
+        summary: _extractSummary(reReviewResult.text),
+      });
 
       if (reReviewResult.error || reReviewResult.done) break;
     }
@@ -940,7 +1205,9 @@ async function runPipeline({
           logger.info(`[pipeline] ✅ Published: ${publish.gameId} — ${publish.contentSets.length} content set(s)`);
           logger.info(`[pipeline] 🎮 Game link: ${publish.gameLink}`);
           for (const cs of publish.contentSets) {
-            logger.info(`[pipeline]   ${cs.name}: https://learn.mathai.ai/game/${publish.gameId}/${cs.id}${cs.valid ? '' : ' [INVALID]'}`);
+            logger.info(
+              `[pipeline]   ${cs.name}: https://learn.mathai.ai/game/${publish.gameId}/${cs.id}${cs.valid ? '' : ' [INVALID]'}`,
+            );
           }
           // Save publish info to disk
           fs.writeFileSync(path.join(gameDir, 'publish-info.json'), JSON.stringify(publish, null, 2) + '\n');
@@ -949,8 +1216,12 @@ async function runPipeline({
         }
 
         await progress({
-          type: 'pipeline-step', step: STEPS.CONTENT_GEN, status: 'done',
-          turns: contentResult.turns, toolUses: contentResult.toolUses, toolNames: contentResult.toolNames,
+          type: 'pipeline-step',
+          step: STEPS.CONTENT_GEN,
+          status: 'done',
+          turns: contentResult.turns,
+          toolUses: contentResult.toolUses,
+          toolNames: contentResult.toolNames,
           inputSchemaProps: publish?.inputSchemaProps || 0,
           contentSetsCount: publish?.contentSets?.length || 0,
           published: !!publish,
@@ -965,7 +1236,6 @@ async function runPipeline({
         // Non-fatal — game is still approved, server.js publishGame() will handle as fallback
       }
     }
-
   } catch (err) {
     logger.error(`[pipeline] Pipeline error: ${err.message}`);
     report.status = 'FAILED';
@@ -994,8 +1264,12 @@ async function runPipeline({
   }
 
   logger.info(`\n${'═'.repeat(70)}`);
-  logger.info(`[pipeline] ${report.status === 'APPROVED' ? '✅' : report.status === 'REJECTED' ? '🔸' : '❌'} ${gameId} — ${report.status}`);
-  logger.info(`[pipeline] ${elapsed}s | ${summary.totalTurns} turns | ${summary.totalToolUses} tools | $${summary.totalCost.toFixed(4)}`);
+  logger.info(
+    `[pipeline] ${report.status === 'APPROVED' ? '✅' : report.status === 'REJECTED' ? '🔸' : '❌'} ${gameId} — ${report.status}`,
+  );
+  logger.info(
+    `[pipeline] ${elapsed}s | ${summary.totalTurns} turns | ${summary.totalToolUses} tools | $${summary.totalCost.toFixed(4)}`,
+  );
   logger.info(`${'═'.repeat(70)}\n`);
 
   // Close session gracefully
@@ -1078,7 +1352,11 @@ async function runTargetedFix({ gameId, gameDir, specPath, feedback, model, log,
   report.totalCost = summary.totalCost;
   report.totalTimeS = parseFloat(((Date.now() - startTime) / 1000).toFixed(1));
 
-  try { await session.close(); } catch (e) { /* ignore */ }
+  try {
+    await session.close();
+  } catch (e) {
+    /* ignore */
+  }
 
   if (session.getTranscriptPath()) {
     report.transcriptPath = session.getTranscriptPath();
@@ -1105,7 +1383,10 @@ function _extractSummary(text) {
     if (m) return (m[1] || m[0]).trim().slice(0, 300);
   }
   // Fallback: last non-empty line
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
   return lines.length > 0 ? lines[lines.length - 1].slice(0, 300) : null;
 }
 
@@ -1115,15 +1396,18 @@ function _extractSummary(text) {
 function _countIssues(text) {
   if (!text) return { found: 0, fixed: 0 };
   // Count "issue", "bug", "fix", "error" mentions
-  const foundMatches = text.match(/(?:found|discovered|identified|detected)\s+(\d+)\s+(?:issue|bug|problem|error)/gi) || [];
-  const fixedMatches = text.match(/(?:fixed|resolved|addressed|corrected)\s+(\d+)\s+(?:issue|bug|problem|error)/gi) || [];
+  const foundMatches =
+    text.match(/(?:found|discovered|identified|detected)\s+(\d+)\s+(?:issue|bug|problem|error)/gi) || [];
+  const fixedMatches =
+    text.match(/(?:fixed|resolved|addressed|corrected)\s+(\d+)\s+(?:issue|bug|problem|error)/gi) || [];
   // Also count ISSUE: lines
   const issueLines = (text.match(/^ISSUE:/gim) || []).length;
   // Extract numbers
-  const extractNum = (matches) => matches.reduce((sum, m) => {
-    const n = m.match(/(\d+)/);
-    return sum + (n ? parseInt(n[1], 10) : 1);
-  }, 0);
+  const extractNum = (matches) =>
+    matches.reduce((sum, m) => {
+      const n = m.match(/(\d+)/);
+      return sum + (n ? parseInt(n[1], 10) : 1);
+    }, 0);
   return {
     found: Math.max(extractNum(foundMatches), issueLines),
     fixed: extractNum(fixedMatches),
@@ -1143,11 +1427,15 @@ function _extractIssueDescriptions(text) {
   for (const m of issueLines) descriptions.push(m[1].trim());
 
   // "- Fixed: ..." or "- Found: ..." or "- Bug: ..." patterns
-  const bulletFixes = text.matchAll(/[-•]\s*(?:Fixed|Found|Bug|Error|Issue|Problem|Resolved|Corrected)[:\s]+(.+?)(?:\n|$)/gi);
+  const bulletFixes = text.matchAll(
+    /[-•]\s*(?:Fixed|Found|Bug|Error|Issue|Problem|Resolved|Corrected)[:\s]+(.+?)(?:\n|$)/gi,
+  );
   for (const m of bulletFixes) descriptions.push(m[1].trim());
 
   // "\d. ..." numbered issue lists that mention fix/issue/error
-  const numbered = text.matchAll(/\d+\.\s*\*{0,2}(.+?(?:fix|issue|error|bug|broken|incorrect|missing).+?)\*{0,2}(?:\n|$)/gi);
+  const numbered = text.matchAll(
+    /\d+\.\s*\*{0,2}(.+?(?:fix|issue|error|bug|broken|incorrect|missing).+?)\*{0,2}(?:\n|$)/gi,
+  );
   for (const m of numbered) descriptions.push(m[1].trim());
 
   // Deduplicate (case-insensitive) and limit
@@ -1186,22 +1474,28 @@ function _parseCategoryResults(text) {
 
   // Parse CATEGORY_DETAIL blocks for each category
   for (const cat of CATS) {
-    const detailRegex = new RegExp(`CATEGORY_DETAIL:\\s*${cat}\\s*\\n([\\s\\S]*?)(?=CATEGORY_DETAIL:|ISSUES_FIXED:|TEST_RESULTS:|$)`, 'i');
+    const detailRegex = new RegExp(
+      `CATEGORY_DETAIL:\\s*${cat}\\s*\\n([\\s\\S]*?)(?=CATEGORY_DETAIL:|ISSUES_FIXED:|TEST_RESULTS:|$)`,
+      'i',
+    );
     const detailMatch = text.match(detailRegex);
     if (detailMatch) {
-      const lines = detailMatch[1].split('\n')
+      const lines = detailMatch[1]
+        .split('\n')
         .map((l) => l.trim())
         .filter((l) => l.startsWith('-') || l.startsWith('•'));
 
-      const details = lines.map((line) => {
-        const passMatch = line.match(/\[PASS\]\s*(.+)/i);
-        const failMatch = line.match(/\[FAIL\]\s*(.+)/i);
-        const skipMatch = line.match(/\[SKIP\]\s*(.+)/i);
-        if (passMatch) return { status: 'pass', description: passMatch[1].trim() };
-        if (failMatch) return { status: 'fail', description: failMatch[1].trim() };
-        if (skipMatch) return { status: 'skip', description: skipMatch[1].trim() };
-        return { status: 'unknown', description: line.replace(/^[-•]\s*/, '').trim() };
-      }).filter((d) => d.description.length > 0);
+      const details = lines
+        .map((line) => {
+          const passMatch = line.match(/\[PASS\]\s*(.+)/i);
+          const failMatch = line.match(/\[FAIL\]\s*(.+)/i);
+          const skipMatch = line.match(/\[SKIP\]\s*(.+)/i);
+          if (passMatch) return { status: 'pass', description: passMatch[1].trim() };
+          if (failMatch) return { status: 'fail', description: failMatch[1].trim() };
+          if (skipMatch) return { status: 'skip', description: skipMatch[1].trim() };
+          return { status: 'unknown', description: line.replace(/^[-•]\s*/, '').trim() };
+        })
+        .filter((d) => d.description.length > 0);
 
       if (!categories[cat]) {
         const passed = details.filter((d) => d.status === 'pass').length;
@@ -1216,7 +1510,8 @@ function _parseCategoryResults(text) {
   const issuesFixed = [];
   const fixedMatch = text.match(/ISSUES_FIXED:\s*\n([\s\S]*?)(?=TEST_RESULTS:|CATEGORY_DETAIL:|$)/i);
   if (fixedMatch) {
-    const lines = fixedMatch[1].split('\n')
+    const lines = fixedMatch[1]
+      .split('\n')
       .map((l) => l.replace(/^[-•]\s*/, '').trim())
       .filter((l) => l.length > 5);
     issuesFixed.push(...lines);

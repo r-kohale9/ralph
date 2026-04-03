@@ -1420,7 +1420,7 @@ async function validateWordProblemLLM(wordProblem, expression, expressionDisplay
       components: [
         {
           component_id: 'wp_' + gameState.currentRound,
-          evaluation_prompt: 'Math expression: "' + expressionDisplay + '" (result = ' + expectedResult + ')\nStudent\'s word problem: "' + wordProblem + '"\nRubric: ' + rubric + '\n\nEvaluate whether the student\'s word problem correctly represents the given math expression.\n\nCheck these criteria:\n1. Does the word problem use the correct quantities from the expression?\n2. Does the word problem represent the correct operation(s) (addition = combining, subtraction = removing, multiplication = equal groups, division = sharing equally)?\n3. For multi-step expressions, does the story capture the correct order of operations?\n4. Would solving the word problem give the same result as the expression?\n\nReturn exactly one phrase from these options:\n- "correct_match" if the word problem correctly represents the expression (all quantities, operations, and relationships are right)\n- "partial_match" if the word problem captures the general idea but has an error in quantities, operations, or order\n- "no_match" if the word problem does not represent the expression or is incoherent/irrelevant',
+          evaluation_prompt: 'Math expression: "' + expressionDisplay + '" (result = ' + expectedResult + ')\nStudent\'s word problem: "' + wordProblem + '"\nRubric: ' + rubric + '\n\nEvaluate whether the student\'s word problem correctly represents the given math expression.\n\nBe GENEROUS and BROAD in your evaluation — this is a Grade 4 student being creative. Accept any word problem that demonstrates understanding of the math, even if:\n- The items are different types (e.g., "5 apples and 3 oranges = 8 fruits" for 5+3=8 is CORRECT)\n- The wording is informal, uses slang, or has minor grammar/spelling mistakes\n- The story is silly, fantastical, or uses unusual scenarios\n- The student describes the result explicitly (e.g., "together they had 8") rather than posing it as a question\n- The student uses names, places, or cultural references\n\nWhat matters is:\n1. The correct quantities from the expression appear in the story\n2. The relationship between quantities matches the operation (addition = combining/joining/getting more, subtraction = removing/losing/giving away, multiplication = equal groups/repeated sets, division = sharing equally/splitting)\n3. The math works out to the correct result\n\nReturn ONLY one of these three words — nothing else, no quotes, no explanation:\ncorrect_match\npartial_match\nno_match\n\n- correct_match: the word problem correctly represents the expression (quantities and operation meaning are right)\n- partial_match: captures the general idea but has a clear math error (wrong number, wrong operation)\n- no_match: does not represent the expression at all, or is incoherent/irrelevant',
           feedback_prompt: 'You are a friendly math tutor helping a Grade 4 student learn to write word problems.\n\nMath expression: "' + expressionDisplay + '"\nStudent\'s word problem: "' + wordProblem + '"\nEvaluation: {{evaluation}}\n\nProvide a short (2-3 sentence) encouraging feedback:\n- If "correct_match": Praise their creativity and point out what made their word problem work well (specific quantities, correct operation meaning)\n- If "partial_match": Acknowledge what they got right, then gently explain what needs to change (e.g., wrong quantity, wrong operation meaning)\n- If "no_match": Be kind and encouraging, explain what the expression means in simple terms, and suggest what kind of real-world situation could match it\n\nKeep it warm and age-appropriate for a Grade 4 student. Use simple language.'
         }
       ],
@@ -1440,12 +1440,13 @@ async function validateWordProblemLLM(wordProblem, expression, expressionDisplay
     }
 
     var componentResult = result.data[0];
-    var evalText = (componentResult.evaluation || '').trim().toLowerCase();
+    var evalText = (componentResult.evaluation || '').trim().toLowerCase().replace(/[^a-z_]/g, '');
 
-    // Normalize evaluation to expected tiers
+    // Normalize evaluation to expected tiers (use includes for robustness —
+    // LLM may return extra text around the tier keyword)
     var tier = 'no_match';
-    if (evalText === 'correct_match') tier = 'correct_match';
-    else if (evalText === 'partial_match') tier = 'partial_match';
+    if (evalText.includes('correct_match')) tier = 'correct_match';
+    else if (evalText.includes('partial_match')) tier = 'partial_match';
 
     return {
       tier: tier,
@@ -1522,7 +1523,7 @@ trophy: https://cdn.mathai.ai/mathai-assets/lottie/trophy.json (Lottie)
 
 - **Warning — LLM latency:** The `validateWordProblemLLM` call via `subjectiveEvaluation()` may take 2-10 seconds depending on API load. The 30-second timeout covers worst-case scenarios. If the API fails, a graceful fallback message is shown and the kid gets 0 points (no crash). Uses `onComplete`/`onError` callbacks for logging.
 
-- **Warning — LLM evaluation reliability:** Since the LLM is the ONLY evaluation, prompt engineering is critical. The evaluation_prompt explicitly lists the 4 criteria (correct quantities, correct operations, correct order of operations, correct result) and returns a constrained set of responses. The `tier` normalization in `validateWordProblemLLM` defaults to `no_match` for any unexpected response, ensuring the game never crashes on malformed LLM output.
+- **Warning — LLM evaluation reliability:** Since the LLM is the ONLY evaluation, prompt engineering is critical. The evaluation_prompt is intentionally GENEROUS — it accepts creative, informal, and unconventional word problems as long as the quantities, operation, and result are mathematically correct (e.g., "5 apples and 3 oranges = 8 fruits" is valid for 5+3=8). The prompt instructs the LLM to return ONLY the tier keyword with no extra text. The `tier` normalization in `validateWordProblemLLM` uses `includes()` matching and strips non-alpha characters for robustness — if the LLM adds quotes, punctuation, or explanation around the tier keyword, it still parses correctly. Defaults to `no_match` only for truly unrecognizable responses.
 
 - **Info — Example word problem as fallback:** When the evaluation is not `correct_match`, the game shows both a thinking hint (`thinkAbout`) and a complete example word problem (`exampleWordProblem`). This ensures the kid always sees what a correct answer looks like, even when the LLM evaluation service fails.
 
