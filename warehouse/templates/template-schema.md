@@ -62,6 +62,7 @@ A table showing which warehouse parts are included. This tells the LLM exactly w
 | PART-034 | Variable Schema Serialization | YES (POST_GEN)  | Serializes Section 4 to inputSchema.json             |
 | PART-035 | Test Plan Generation          | YES (POST_GEN)  | Generates tests.md after HTML                        |
 | PART-037 | Playwright Testing            | YES (POST_GEN)  | Ralph loop generates tests + fix cycle               |
+| PART-039 | Preview Screen                | YES (MANDATORY)  | Always included — shows before game starts            |
 ```
 
 ### 3. Game State
@@ -151,6 +152,27 @@ Exact HTML for each screen, with all element IDs specified.
 
 ```markdown
 ## Screens
+
+### Screen 0: Preview Screen — PART-039 (MANDATORY)
+
+The PreviewScreenComponent (loaded via CDN package) handles all preview UI.
+No custom HTML needed — the component creates its own DOM in the ScreenLayout preview slot.
+
+ScreenLayout configuration:
+```javascript
+ScreenLayout.inject('app', {
+  slots: { progressBar: true, previewScreen: true, transitionScreen: true }
+});
+```
+
+PreviewScreen instantiation (in DOMContentLoaded):
+```javascript
+const previewScreen = new PreviewScreenComponent({
+  autoInject: true,
+  slotId: 'mathai-preview-slot',
+  gameContentId: 'gameContent'
+});
+```
 
 ### Screen 1: Game Screen (#game-screen)
 
@@ -268,13 +290,31 @@ Every function the game needs, with exact signatures and step-by-step logic.
 
 ### Global Scope (RULE-001)
 
+**showPreviewScreen()**
+
+- Called from game_init handler after setting gameState.content
+- Calls previewScreen.show({ questionLabel, score, showStar, instruction, audioUrl, previewContent, onComplete: startGameAfterPreview })
+- Preview data comes from game_init payload → content set → fallbackContent
+
+**startGameAfterPreview(previewData)**
+
+- gameState.previewResult = previewData
+- gameState.duration_data.preview = gameState.duration_data.preview || []
+- gameState.duration_data.preview.push({ duration: previewData.duration })
+- Set gameState.startTime = Date.now()
+- Set gameState.isActive = true
+- Set gameState.duration_data.startTime = new Date().toISOString()
+- If timer exists: timer.start()
+- trackEvent('game_start', 'game')
+- signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' })
+- Call renderRound() or setupRound()
+
 **setupGame()**
 
 - {{Step 1}}
 - {{Step 2}}
-- Set gameState.startTime = Date.now()
-- Set gameState.isActive = true
-- trackEvent('game_start', 'game')
+- IMPORTANT: Do NOT set gameState.startTime here — it is set in startGameAfterPreview()
+- Call showPreviewScreen() instead of directly starting the game
 
 **handleAnswer({{params}})**
 
@@ -427,6 +467,22 @@ Structured test scenarios that the ralph loop (PART-037) uses to generate Playwr
 
 > These scenarios are consumed by the ralph loop to generate `tests/game.spec.js`.
 > Every scenario must specify exact selectors, exact actions, and exact assertions.
+
+### Scenario: Preview screen displays and transitions to game
+
+SETUP: Page loaded
+ACTIONS:
+wait for .mathai-preview-header to be visible
+assert #previewQuestionLabel text matches expected question label
+assert #previewScore text matches expected score
+assert .mathai-preview-instruction contains expected instruction text
+assert .mathai-preview-skip-btn is visible
+click .mathai-preview-skip-btn
+wait for #gameContent to be visible
+assert .mathai-preview-header is not visible (preview hidden)
+assert gameState.isActive === true
+assert gameState.startTime is set (> 0)
+EXPECTED: Preview screen shows, skip advances to game, game starts normally
 
 ### Scenario: Complete game with all correct answers
 ```

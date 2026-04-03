@@ -17,43 +17,44 @@
 
 | Part ID  | Name                          | Included        | Config/Notes                                                                 |
 | -------- | ----------------------------- | --------------- | ---------------------------------------------------------------------------- |
-| PART-001 | HTML Shell                    | YES             | —                                                                            |
-| PART-002 | Package Scripts               | YES             | —                                                                            |
-| PART-003 | waitForPackages               | YES             | —                                                                            |
-| PART-004 | Initialization Block          | YES             | —                                                                            |
+| PART-001 | HTML Shell                    | YES             | ---                                                                          |
+| PART-002 | Package Scripts               | YES             | ---                                                                          |
+| PART-003 | waitForPackages               | YES             | Checks: FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector, ScreenLayout, ProgressBarComponent, TransitionScreenComponent, PreviewScreenComponent, InteractionManager |
+| PART-004 | Initialization Block          | YES             | ---                                                                          |
 | PART-005 | VisibilityTracker             | YES             | popupProps: default                                                          |
 | PART-006 | TimerComponent                | YES             | timerType: 'increase', startTime: 0, endTime: 100000, autoStart: false       |
 | PART-007 | Game State Object             | YES             | Custom fields: lives, totalLives, chainIndex, currentChain, selectedCells    |
-| PART-008 | PostMessage Protocol          | YES             | —                                                                            |
-| PART-009 | Attempt Tracking              | YES             | —                                                                            |
-| PART-010 | Event Tracking                | YES             | Custom events: cell_selected, chain_complete, life_lost, round_complete      |
+| PART-008 | PostMessage Protocol          | YES             | ---                                                                          |
+| PART-009 | Attempt Tracking              | YES             | ---                                                                          |
+| PART-010 | Event Tracking & SignalCollector | YES          | Custom events: cell_selected, chain_complete, life_lost, round_complete      |
 | PART-011 | End Game & Metrics            | YES             | Stars = lives remaining (lives-based, not accuracy-based)                    |
-| PART-012 | Debug Functions               | YES             | —                                                                            |
-| PART-013 | Validation Fixed              | NO              | —                                                                            |
+| PART-012 | Debug Functions               | YES             | ---                                                                          |
+| PART-013 | Validation Fixed              | NO              | ---                                                                          |
 | PART-014 | Validation Function           | YES             | Rule: clicked value must equal currentChain[chainIndex]                      |
-| PART-015 | Validation LLM                | NO              | —                                                                            |
-| PART-016 | StoriesComponent              | NO              | —                                                                            |
+| PART-015 | Validation LLM                | NO              | ---                                                                          |
+| PART-016 | StoriesComponent              | NO              | ---                                                                          |
 | PART-017 | Feedback Integration          | YES             | Audio feedback for correct/incorrect taps and completion                      |
-| PART-018 | Case Converter                | NO              | —                                                                            |
+| PART-018 | Case Converter                | NO              | ---                                                                          |
 | PART-019 | Results Screen UI             | YES             | Custom metrics: Rounds completed, Lives remaining                            |
-| PART-020 | CSS Variables & Colors        | YES             | —                                                                            |
+| PART-020 | CSS Variables & Colors        | YES             | ---                                                                          |
 | PART-021 | Screen Layout CSS             | YES             | CSS only (HTML auto-injected by PART-025)                                    |
-| PART-022 | Game Buttons                  | YES             | No Submit/Retry — direct cell tap validation. Reset + Next used.             |
+| PART-022 | Game Buttons                  | YES             | No Submit/Retry -- direct cell tap validation. Reset + Next used.            |
 | PART-023 | ProgressBar Component         | YES             | totalRounds: 5, totalLives: 3                                                |
 | PART-024 | TransitionScreen Component    | YES             | Screens: start, victory, game-over, level                                    |
-| PART-025 | ScreenLayout Component        | YES             | slots: progressBar=true, transitionScreen=true                               |
+| PART-025 | ScreenLayout Component        | YES             | slots: progressBar=true, previewScreen=true, transitionScreen=true           |
 | PART-026 | Anti-Patterns                 | YES (REFERENCE) | Verification checklist, not code-generating                                  |
 | PART-027 | Play Area Construction        | YES             | Layout: 3x3 grid                                                            |
 | PART-028 | InputSchema Patterns          | YES             | Schema type: rounds with chain + grid + distractors                          |
-| PART-029 | Story-Only Game               | NO              | —                                                                            |
+| PART-029 | Story-Only Game               | NO              | ---                                                                          |
 | PART-030 | Sentry Error Tracking         | YES             | Error monitoring for every game                                              |
-| PART-031 | API Helper                    | NO              | —                                                                            |
-| PART-032 | AnalyticsManager              | NO              | —                                                                            |
+| PART-031 | API Helper                    | NO              | ---                                                                          |
+| PART-032 | AnalyticsManager              | NO              | ---                                                                          |
 | PART-033 | Interaction Patterns          | YES             | Patterns: grid (3x3 clickable cells)                                         |
 | PART-034 | Variable Schema Serialization | YES (POST_GEN)  | Serializes Section 4 to inputSchema.json                                     |
 | PART-035 | Test Plan Generation          | YES (POST_GEN)  | Generates tests.md after HTML                                                |
 | PART-037 | Playwright Testing            | YES (POST_GEN)  | Ralph loop generates tests + fix cycle                                       |
-| PART-038 | Interaction Manager           | YES             | selector: '.game-play-area', disableOnAudioFeedback: true                    |
+| PART-038 | InteractionManager            | YES             | selector: '.game-play-area', disableOnAudioFeedback: true                    |
+| PART-039 | Preview Screen                | YES (MANDATORY) | Always included -- shows before game starts                                  |
 
 ---
 
@@ -89,6 +90,7 @@ window.gameState = {
   gridData: [],          // 2D array [3][3] of numbers displayed in the grid
   chainLength: 3,        // Length of the chain for the current round (grows from 3 to 5)
   isProcessing: false,   // Prevents double-clicks during audio feedback
+  previewResult: null,   // Stores preview screen completion data
   gameId: 'doubles_chain',
   contentSetId: null
 };
@@ -98,6 +100,7 @@ let visibilityTracker = null;
 let signalCollector = null;
 let progressBar = null;
 let transitionScreen = null;
+let previewScreen = null;
 ```
 
 ---
@@ -129,6 +132,18 @@ let transitionScreen = null;
         },
         "required": ["chain", "grid"]
       }
+    },
+    "previewInstruction": {
+      "type": "string",
+      "description": "HTML instruction text shown on the preview screen before game starts"
+    },
+    "previewAudioText": {
+      "type": "string",
+      "description": "Narration text for TTS generation (pipeline reads this at build time)"
+    },
+    "previewAudio": {
+      "type": "string",
+      "description": "CDN URL of generated preview audio (null if not yet generated)"
     }
   },
   "required": ["rounds"]
@@ -139,6 +154,13 @@ let transitionScreen = null;
 
 ```javascript
 const fallbackContent = {
+  // Preview screen defaults (PART-039)
+  previewInstruction: '<p><b>Find the doubles chain!</b></p><p>Tap numbers in order -- each number is <b>double</b> the one before it. Start with the smallest number in the chain.</p>',
+  previewAudioText: 'Find the doubles chain! Tap numbers in order. Each number is double the one before it. Start with the smallest number in the chain.',
+  previewAudio: null,
+  previewContent: null,
+
+  // Game rounds
   rounds: [
     {
       chain: [2, 4, 8],
@@ -186,33 +208,59 @@ const fallbackContent = {
 
 ### Content Set Generation Guidance
 
-Generate **3 content sets** at different difficulty levels. All sets must have exactly 5 rounds. Structure: rounds 1–2 = chain of 3, rounds 3–4 = chain of 4, round 5 = chain of 5.
+Generate **3 content sets** at different difficulty levels. All sets must have exactly 5 rounds. Structure: rounds 1-2 = chain of 3, rounds 3-4 = chain of 4, round 5 = chain of 5.
 
 | Dimension | Easy | Medium | Hard |
 |---|---|---|---|
-| Starting numbers (rounds 1–2) | 1–5 | 3–15 | 8–25 |
-| Starting numbers (rounds 3–4) | 1–8 | 5–20 | 10–40 |
-| Starting number (round 5) | 1–5 | 3–12 | 6–20 |
+| Starting numbers (rounds 1-2) | 1-5 | 3-15 | 8-25 |
+| Starting numbers (rounds 3-4) | 1-8 | 5-20 | 10-40 |
+| Starting number (round 5) | 1-5 | 3-12 | 6-20 |
 | Max value in chain | 64 | 320 | 1280 |
 
 **Constraints all content sets must satisfy:**
 - Each `chain` is an ascending sequence where `chain[i+1] === chain[i] * 2`
-- Grid is always 3×3 (9 cells total)
+- Grid is always 3x3 (9 cells total)
 - Grid must contain every number in the chain exactly once
-- Remaining grid cells are distractors — positive integers, no duplicates within the grid, and no distractor may equal any chain value
+- Remaining grid cells are distractors -- positive integers, no duplicates within the grid, and no distractor may equal any chain value
 - Distractors should be plausible (similar magnitude to chain values) to avoid being trivially eliminated
 - No duplicate numbers within a single grid (all 9 values unique)
-- Chain numbers must not appear in positional order (left-to-right, top-to-bottom) — they should be scattered across the grid
+- Chain numbers must not appear in positional order (left-to-right, top-to-bottom) -- they should be scattered across the grid
 - Each content set should use different starting numbers (not just reorder the same chains)
 
 **Distractor quality rules:**
-- At least 2 distractors per grid should be within ±50% of a chain value (near-misses)
+- At least 2 distractors per grid should be within +/-50% of a chain value (near-misses)
 - No distractor should be exactly double or half of any chain value (would create a false chain)
-- Distractors must be positive integers ≥ 1
+- Distractors must be positive integers >= 1
+
+**Preview fields per content set:**
+- `previewInstruction`: HTML string with bold/images describing the game task
+- `previewAudioText`: Plain text narration for TTS generation
+- `previewAudio`: null (pipeline generates audio URL at build time)
 
 ---
 
 ## 5. Screens & HTML Structure
+
+### Screen 0: Preview Screen -- PART-039 (MANDATORY)
+
+The PreviewScreenComponent (loaded via CDN package) handles all preview UI.
+No custom HTML needed -- the component creates its own DOM in the ScreenLayout preview slot.
+
+ScreenLayout configuration:
+```javascript
+ScreenLayout.inject('app', {
+  slots: { progressBar: true, previewScreen: true, transitionScreen: true }
+});
+```
+
+PreviewScreen instantiation (in DOMContentLoaded):
+```javascript
+previewScreen = new PreviewScreenComponent({
+  autoInject: true,
+  slotId: 'mathai-preview-slot',
+  gameContentId: 'gameContent'
+});
+```
 
 ### Screen 1: Game Content (inside `#gameContent` via ScreenLayout)
 
@@ -580,13 +628,43 @@ html, body {
 <!-- STEP 1: SentryConfig package -->
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
 
-<!-- STEP 2: Sentry SDK v10.23.0 -->
-<script
-  src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js"
-  crossorigin="anonymous"
-></script>
+<!-- STEP 2: initSentry() function definition (see PART-030 for full code) -->
+<script>
+function initSentry() {
+  try {
+    if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled && typeof Sentry !== 'undefined') {
+      Sentry.init({
+        dsn: SentryConfig.dsn,
+        environment: SentryConfig.environment,
+        release: 'doubles-chain@1.0.0',
+        tracesSampleRate: SentryConfig.tracesSampleRate,
+        sampleRate: SentryConfig.sampleRate,
+        maxBreadcrumbs: 50,
+        ignoreErrors: [
+          'ResizeObserver loop limit exceeded',
+          'ResizeObserver loop completed with undelivered notifications',
+          'Non-Error promise rejection captured',
+          'Script error.',
+          'Load failed',
+          'Failed to fetch'
+        ]
+      });
+    }
+  } catch (e) {
+    console.error('Sentry init error:', JSON.stringify({ error: e.message }, null, 2));
+  }
+}
+</script>
 
-<!-- STEP 3: Game packages (exact URLs, in this order) -->
+<!-- STEP 3: Sentry SDK v10.23.0 (3 scripts, NO integrity attribute) -->
+<script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+<!-- STEP 4: Initialize on load -->
+<script>window.addEventListener('load', initSentry);</script>
+
+<!-- STEP 5-7: Game packages (exact URLs, in this order) -->
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
@@ -597,35 +675,46 @@ html, body {
 ## 8. Game Flow
 
 1. **Page loads** -> DOMContentLoaded fires
-   - `waitForPackages()` -- checks FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector
+   - `waitForPackages()` -- checks FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector, ScreenLayout, ProgressBarComponent, TransitionScreenComponent, PreviewScreenComponent, InteractionManager
    - `FeedbackManager.init()`
    - SignalCollector created and assigned to `window.signalCollector`
-   - `ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } })`
+   - `ScreenLayout.inject('app', { slots: { progressBar: true, previewScreen: true, transitionScreen: true } })`
    - Clone `#game-template` into `#gameContent`
    - ProgressBarComponent created (totalRounds: 5, totalLives: 3)
    - TransitionScreenComponent created
+   - PreviewScreenComponent created (autoInject: true, slotId: 'mathai-preview-slot', gameContentId: 'gameContent')
    - TimerComponent created (type: 'increase', startTime: 0, endTime: 100000, autoStart: false)
    - InteractionManager created (selector: '.game-play-area') and assigned to `window.interactionManager`
    - Audio preloaded: correct_tap, wrong_tap
-   - VisibilityTracker created with onInactive/onResume
+   - VisibilityTracker created with onInactive/onResume (wires previewScreen.pause/resume)
    - Register postMessage listener: `window.addEventListener('message', handlePostMessage)`
    - Send `game_ready` postMessage to parent
-   - Sentry initialized (if SentryConfig.enabled)
-   - Show start transition screen: "Doubles Chain" / "Find the hidden chain of doubles!" / "I'm ready!" button
+   - Show start transition screen: "Doubles Chain" / "Find the hidden chain of doubles!" / "I'm ready!" button -> calls `setupGame()`
 
 2. **Start screen** -> User clicks "I'm ready!"
    - `setupGame()` runs:
      - Load content from `gameState.content` or `fallbackContent`
-     - Reset all game state: currentRound=0, score=0, lives=3, attempts=[], events=[], chainIndex=0, selectedCells=[]
-     - Set `gameState.startTime = Date.now()`
-     - Set `gameState.isActive = true`
+     - Reset all game state: currentRound=0, score=0, lives=3, attempts=[], events=[], chainIndex=0, selectedCells=[], previewResult=null
+     - IMPORTANT: Do NOT set `gameState.startTime` here -- it is set in `startGameAfterPreview()`
+     - IMPORTANT: Do NOT set `gameState.isActive` here -- it is set in `startGameAfterPreview()`
+     - Update progressBar: `progressBar.update(0, 3)`
+     - Call `showPreviewScreen()`
+
+3. **Preview screen** -> shows instruction, audio, timer bar
+   - `showPreviewScreen()` calls `previewScreen.show({ questionLabel, score, showStar, instruction, audioUrl, previewContent, onComplete: startGameAfterPreview })`
+   - User watches/listens or clicks "Skip & show options"
+   - On complete: `startGameAfterPreview(previewData)` runs:
+     - Store `gameState.previewResult = previewData`
+     - Track preview duration in `gameState.duration_data.preview`
+     - NOW set `gameState.startTime = Date.now()`
+     - NOW set `gameState.isActive = true`
      - Set `gameState.duration_data.startTime = new Date().toISOString()`
      - Start timer: `timer.start()`
      - `trackEvent('game_start', 'game')`
-     - Update progressBar: `progressBar.update(0, 3)`
+     - `signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' })`
      - Call `renderRound()`
 
-3. **renderRound()** -- renders the current round:
+4. **renderRound()** -- renders the current round:
    - Get round data from `gameState.content.rounds[gameState.currentRound]`
    - Set `currentChain`, `gridData`, `chainLength`, reset `chainIndex=0`, `selectedCells=[]`
    - Update round title ("Round X"), instruction text ("Find the chain of N doubles!")
@@ -634,7 +723,7 @@ html, body {
    - Record `signalCollector.recordViewEvent('content_render', ...)` with round info
    - Show game screen, hide feedback, show Reset button, hide Next button
 
-4. **User interaction loop -- handleCellClick(row, col):**
+5. **User interaction loop -- handleCellClick(row, col):**
    - Guard: if `!gameState.isActive` or `gameState.isProcessing`, return
    - Guard: if cell already `chain-found` or `disabled`, return
    - Set `isProcessing = true`
@@ -665,7 +754,7 @@ html, body {
      - **If lives <= 0:** call `endGame()` and return
    - Set `isProcessing = false`
 
-5. **handleNext() -- advance to next round:**
+6. **handleNext() -- advance to next round:**
    - Increment `gameState.currentRound`
    - Update progressBar: `progressBar.update(currentRound, lives)`
    - **If currentRound >= totalRounds:** call `endGame()`
@@ -673,10 +762,10 @@ html, body {
      - Show level transition screen ("Round X+1!" / "Chain of N doubles") with `duration: 2000` (auto-hide, no buttons)
      - After 2100ms: show game screen and call `renderRound()`
 
-6. **End condition(s) -- EVERY path that calls endGame():**
+7. **End condition(s) -- EVERY path that calls endGame():**
    - **Trigger 1:** All 5 rounds completed -> `handleNext()` calls `endGame()` when `currentRound >= totalRounds`
    - **Trigger 2:** All lives lost -> `handleCellClick()` calls `endGame()` when `lives <= 0`
-   - `endGame()` calculates metrics (lives-based stars), shows victory/game-over TransitionScreen, sends postMessage, cleans up
+   - `endGame()` calculates metrics (lives-based stars), seals signalCollector, shows victory/game-over TransitionScreen, sends postMessage, cleans up
    - **There is NO dead-end game state.** Every wrong answer decrements lives toward endGame. Every correct chain completion leads to handleNext toward endGame.
 
 ---
@@ -691,29 +780,74 @@ html, body {
 async function waitForPackages() {
   const timeout = 10000;
   const start = Date.now();
+  const packages = [
+    'FeedbackManager', 'TimerComponent', 'VisibilityTracker',
+    'SignalCollector', 'ScreenLayout', 'ProgressBarComponent',
+    'TransitionScreenComponent', 'PreviewScreenComponent', 'InteractionManager'
+  ];
   try {
-    while (typeof FeedbackManager === 'undefined') {
-      if (Date.now() - start > timeout) throw new Error('Package timeout: FeedbackManager');
-      await new Promise(r => setTimeout(r, 50));
-    }
-    while (typeof TimerComponent === 'undefined') {
-      if (Date.now() - start > timeout) throw new Error('Package timeout: TimerComponent');
-      await new Promise(r => setTimeout(r, 50));
-    }
-    while (typeof VisibilityTracker === 'undefined') {
-      if (Date.now() - start > timeout) throw new Error('Package timeout: VisibilityTracker');
-      await new Promise(r => setTimeout(r, 50));
-    }
-    while (typeof SignalCollector === 'undefined') {
-      if (Date.now() - start > timeout) throw new Error('Package timeout: SignalCollector');
-      await new Promise(r => setTimeout(r, 50));
+    for (var i = 0; i < packages.length; i++) {
+      while (typeof window[packages[i]] === 'undefined') {
+        if (Date.now() - start > timeout) throw new Error('Package timeout: ' + packages[i]);
+        await new Promise(function(r) { setTimeout(r, 50); });
+      }
     }
     console.log('All packages loaded');
   } catch (error) {
-    console.error('Package loading failed:', error);
+    console.error('Package loading failed:', JSON.stringify({ error: error.message }, null, 2));
     document.body.innerHTML = '<div style="padding:20px;text-align:center;">Failed to load. Please refresh.</div>';
     throw error;
   }
+}
+```
+
+**showPreviewScreen()**
+
+Called from `setupGame()` after resetting state. Shows the PART-039 preview screen with instruction and optional audio.
+
+```javascript
+function showPreviewScreen() {
+  var content = gameState.content || fallbackContent;
+  previewScreen.show({
+    questionLabel: 'Q1',
+    score: '0/' + gameState.totalRounds,
+    showStar: true,
+    instruction: content.previewInstruction || fallbackContent.previewInstruction,
+    audioUrl: content.previewAudio || null,
+    previewContent: content.previewContent || null,
+    onComplete: function(previewData) {
+      startGameAfterPreview(previewData);
+    }
+  });
+}
+```
+
+**startGameAfterPreview(previewData)**
+
+CRITICAL: `gameState.startTime` must NOT be set until preview ends.
+
+```javascript
+function startGameAfterPreview(previewData) {
+  // Store preview result for game_complete payload
+  gameState.previewResult = previewData;
+
+  // Track preview duration
+  gameState.duration_data.preview = gameState.duration_data.preview || [];
+  gameState.duration_data.preview.push({ duration: previewData.duration });
+
+  // NOW start the actual game
+  gameState.startTime = Date.now();
+  gameState.isActive = true;
+  gameState.duration_data.startTime = new Date().toISOString();
+
+  if (timer) timer.start();
+  trackEvent('game_start', 'game');
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+  }
+
+  renderRound();
 }
 ```
 
@@ -726,8 +860,10 @@ function setupGame() {
   }
 
   // Reset all state
-  gameState.startTime = Date.now();
-  gameState.isActive = true;
+  // IMPORTANT: Do NOT set gameState.startTime here -- set in startGameAfterPreview()
+  // IMPORTANT: Do NOT set gameState.isActive here -- set in startGameAfterPreview()
+  gameState.startTime = null;
+  gameState.isActive = false;
   gameState.currentRound = 0;
   gameState.score = 0;
   gameState.lives = 3;
@@ -737,17 +873,21 @@ function setupGame() {
   gameState.currentChain = [];
   gameState.gridData = [];
   gameState.isProcessing = false;
+  gameState.previewResult = null;
   gameState.attempts = [];
   gameState.events = [];
-  gameState.duration_data.startTime = new Date().toISOString();
-
-  if (timer) timer.start();
-
-  trackEvent('game_start', 'game');
+  gameState.duration_data.startTime = null;
+  gameState.duration_data.preview = [];
+  gameState.duration_data.attempts = [];
+  gameState.duration_data.evaluations = [];
+  gameState.duration_data.inActiveTime = [];
+  gameState.duration_data.totalInactiveTime = 0;
+  gameState.duration_data.currentTime = null;
 
   if (progressBar) progressBar.update(0, gameState.lives);
 
-  renderRound();
+  // Show preview screen instead of starting game directly (PART-039)
+  showPreviewScreen();
 }
 ```
 
@@ -755,7 +895,7 @@ function setupGame() {
 
 ```javascript
 function renderRound() {
-  const roundData = gameState.content.rounds[gameState.currentRound];
+  var roundData = gameState.content.rounds[gameState.currentRound];
   gameState.currentChain = roundData.chain;
   gameState.gridData = roundData.grid;
   gameState.chainLength = roundData.chain.length;
@@ -801,20 +941,22 @@ function renderRound() {
 
 ```javascript
 function createGrid(rows, cols, data) {
-  const grid = document.getElementById('game-grid');
+  var grid = document.getElementById('game-grid');
   grid.style.setProperty('--cols', cols);
   grid.innerHTML = '';
 
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const cell = document.createElement('div');
+  for (var r = 0; r < rows; r++) {
+    for (var c = 0; c < cols; c++) {
+      var cell = document.createElement('div');
       cell.className = 'grid-cell';
       cell.dataset.row = r;
       cell.dataset.col = c;
       cell.dataset.value = data[r][c];
       cell.setAttribute('data-signal-id', 'cell-' + r + '-' + c);
       cell.textContent = data[r][c];
-      cell.addEventListener('click', function() { handleCellClick(r, c); });
+      (function(row, col) {
+        cell.addEventListener('click', function() { handleCellClick(row, col); });
+      })(r, c);
       grid.appendChild(cell);
     }
   }
@@ -827,14 +969,14 @@ function createGrid(rows, cols, data) {
 async function handleCellClick(row, col) {
   if (!gameState.isActive || gameState.isProcessing) return;
 
-  const cell = document.querySelector('.grid-cell[data-row="' + row + '"][data-col="' + col + '"]');
+  var cell = document.querySelector('.grid-cell[data-row="' + row + '"][data-col="' + col + '"]');
   if (!cell || cell.classList.contains('chain-found') || cell.classList.contains('disabled')) return;
 
   gameState.isProcessing = true;
 
-  const value = Number(cell.dataset.value);
-  const expected = gameState.currentChain[gameState.chainIndex];
-  const isCorrect = (value === expected);
+  var value = Number(cell.dataset.value);
+  var expected = gameState.currentChain[gameState.chainIndex];
+  var isCorrect = (value === expected);
 
   // Record attempt
   recordAttempt({
@@ -949,10 +1091,10 @@ async function handleCellClick(row, col) {
 
 ```javascript
 function updateChainProgress() {
-  const el = document.getElementById('chain-progress');
+  var el = document.getElementById('chain-progress');
   if (!el) return;
-  const parts = [];
-  for (let i = 0; i < gameState.currentChain.length; i++) {
+  var parts = [];
+  for (var i = 0; i < gameState.currentChain.length; i++) {
     if (i < gameState.chainIndex) {
       parts.push('<span class="chain-found-number">' + gameState.currentChain[i] + '</span>');
     } else {
@@ -967,8 +1109,8 @@ function updateChainProgress() {
 
 ```javascript
 function showFeedback(message, isCorrect) {
-  const area = document.getElementById('feedback-area');
-  const text = document.getElementById('feedback-text');
+  var area = document.getElementById('feedback-area');
+  var text = document.getElementById('feedback-text');
   area.classList.remove('hidden');
   text.textContent = message;
   text.className = isCorrect ? 'feedback-correct' : 'feedback-incorrect';
@@ -983,7 +1125,7 @@ function resetRound() {
   gameState.selectedCells = [];
   gameState.isProcessing = false;
 
-  // Reset grid visual state
+  // Reset grid visual state (does NOT restore lives)
   document.querySelectorAll('.grid-cell').forEach(function(cell) {
     cell.classList.remove('selected', 'correct', 'incorrect', 'chain-found', 'disabled');
   });
@@ -1082,15 +1224,15 @@ function endGame() {
   gameState.isActive = false;
   gameState.duration_data.currentTime = new Date().toISOString();
 
-  const correct = gameState.attempts.filter(function(a) { return a.correct; }).length;
-  const total = gameState.attempts.length;
-  const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
-  const timeTaken = timer ? timer.getTimeTaken() : Math.round((Date.now() - gameState.startTime) / 1000);
+  var correct = gameState.attempts.filter(function(a) { return a.correct; }).length;
+  var total = gameState.attempts.length;
+  var accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+  var timeTaken = timer ? timer.getTimeTaken() : Math.round((Date.now() - gameState.startTime) / 1000);
 
   // Lives-based stars (NOT accuracy-based)
-  const stars = gameState.lives >= 3 ? 3 : gameState.lives >= 2 ? 2 : gameState.lives >= 1 ? 1 : 0;
+  var stars = gameState.lives >= 3 ? 3 : gameState.lives >= 2 ? 2 : gameState.lives >= 1 ? 1 : 0;
 
-  const metrics = {
+  var metrics = {
     accuracy: accuracy,
     time: timeTaken,
     stars: stars,
@@ -1109,7 +1251,7 @@ function endGame() {
   if (signalCollector) signalCollector.seal();
 
   // Show transition screen for victory or game over
-  const won = gameState.currentRound >= gameState.totalRounds;
+  var won = gameState.currentRound >= gameState.totalRounds;
 
   if (transitionScreen) {
     document.getElementById('game-screen').style.display = 'none';
@@ -1140,7 +1282,8 @@ function endGame() {
     data: {
       metrics: metrics,
       attempts: gameState.attempts,
-      completedAt: Date.now()
+      completedAt: Date.now(),
+      previewResult: gameState.previewResult || null
     }
   }, '*');
 
@@ -1148,6 +1291,7 @@ function endGame() {
   if (timer) { timer.destroy(); timer = null; }
   if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
   if (progressBar) { progressBar.destroy(); progressBar = null; }
+  if (previewScreen) { previewScreen.destroy(); previewScreen = null; }
   FeedbackManager.sound.stopAll();
   FeedbackManager.stream.stopAll();
 }
@@ -1199,6 +1343,7 @@ function handlePostMessage(event) {
     signalCollector.startFlushing();
   }
 
+  // Call setupGame which resets state and shows preview screen (PART-039)
   setupGame();
 }
 ```
@@ -1207,7 +1352,7 @@ function handlePostMessage(event) {
 
 ```javascript
 function recordAttempt(data) {
-  const attempt = {
+  var attempt = {
     attempt_timestamp: new Date().toISOString(),
     time_since_start_of_game: (Date.now() - gameState.startTime) / 1000,
     input_of_user: data.userAnswer,
@@ -1248,7 +1393,7 @@ function trackEvent(type, target, data) {
 ### Inside DOMContentLoaded (PART-004)
 
 ```javascript
-window.addEventListener("DOMContentLoaded", async () => {
+window.addEventListener("DOMContentLoaded", async function() {
   try {
     await waitForPackages();
     await FeedbackManager.init();
@@ -1262,14 +1407,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
     window.signalCollector = signalCollector;
 
-    // ScreenLayout (PART-025)
-    const layout = ScreenLayout.inject('app', {
-      slots: { progressBar: true, transitionScreen: true }
+    // ScreenLayout (PART-025) -- includes previewScreen slot
+    var layout = ScreenLayout.inject('app', {
+      slots: { progressBar: true, previewScreen: true, transitionScreen: true }
     });
 
     // Clone game template into gameContent
-    const gameContent = document.getElementById('gameContent');
-    const template = document.getElementById('game-template');
+    var gameContent = document.getElementById('gameContent');
+    var template = document.getElementById('game-template');
     gameContent.appendChild(template.content.cloneNode(true));
 
     // ProgressBar (PART-023)
@@ -1283,6 +1428,13 @@ window.addEventListener("DOMContentLoaded", async () => {
     // TransitionScreen (PART-024)
     transitionScreen = new TransitionScreenComponent({ autoInject: true });
 
+    // PreviewScreen (PART-039)
+    previewScreen = new PreviewScreenComponent({
+      autoInject: true,
+      slotId: 'mathai-preview-slot',
+      gameContentId: 'gameContent'
+    });
+
     // Timer -- count-up, no time limit (PART-006)
     timer = new TimerComponent('timer-container', {
       timerType: 'increase',
@@ -1294,7 +1446,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
 
     // InteractionManager (PART-038)
-    const interactionManager = new InteractionManager({
+    var interactionManager = new InteractionManager({
       selector: '.game-play-area',
       disableOnAudioFeedback: true,
       disableOnEvaluation: true
@@ -1311,22 +1463,23 @@ window.addEventListener("DOMContentLoaded", async () => {
       console.error('Sound preload error:', JSON.stringify({ error: e.message }, null, 2));
     }
 
-    // VisibilityTracker (PART-005)
+    // VisibilityTracker (PART-005) -- includes previewScreen pause/resume (PART-039)
     visibilityTracker = new VisibilityTracker({
-      onInactive: () => {
-        const inactiveStart = Date.now();
+      onInactive: function() {
+        var inactiveStart = Date.now();
         gameState.duration_data.inActiveTime.push({ start: inactiveStart });
         if (signalCollector) {
           signalCollector.pause();
           signalCollector.recordCustomEvent('visibility_hidden', {});
         }
+        if (previewScreen) previewScreen.pause();
         if (timer) timer.pause({ fromVisibilityTracker: true });
         FeedbackManager.sound.pause();
         FeedbackManager.stream.pauseAll();
         trackEvent('game_paused', 'system');
       },
-      onResume: () => {
-        const lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+      onResume: function() {
+        var lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
         if (lastInactive && !lastInactive.end) {
           lastInactive.end = Date.now();
           gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
@@ -1335,7 +1488,8 @@ window.addEventListener("DOMContentLoaded", async () => {
           signalCollector.resume();
           signalCollector.recordCustomEvent('visibility_visible', {});
         }
-        if (timer?.isPaused) timer.resume({ fromVisibilityTracker: true });
+        if (previewScreen) previewScreen.resume();
+        if (timer && timer.isPaused) timer.resume({ fromVisibilityTracker: true });
         FeedbackManager.sound.resume();
         FeedbackManager.stream.resumeAll();
         trackEvent('game_resumed', 'system');
@@ -1353,27 +1507,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     // Signal ready to parent (PART-008)
     window.parent.postMessage({ type: 'game_ready' }, '*');
 
-    // Sentry initialization (PART-030)
-    if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled) {
-      Sentry.init({
-        dsn: SentryConfig.dsn,
-        environment: SentryConfig.environment,
-        release: "doubles-chain@1.0.0",
-        tracesSampleRate: SentryConfig.tracesSampleRate,
-        sampleRate: SentryConfig.sampleRate,
-        maxBreadcrumbs: 50,
-        ignoreErrors: [
-          "ResizeObserver loop limit exceeded",
-          "ResizeObserver loop completed with undelivered notifications",
-          "Non-Error promise rejection captured",
-          "Script error.",
-          "Load failed",
-          "Failed to fetch"
-        ]
-      });
-    }
-
-    // Show start transition screen
+    // Show start transition screen (standalone/fallback mode)
+    // When embedded (with game_init), the parent sends game_init after receiving game_ready,
+    // which calls setupGame() -> showPreviewScreen() -> startGameAfterPreview()
     if (transitionScreen) {
       transitionScreen.show({
         icons: ['\uD83D\uDD17'],
@@ -1419,6 +1555,7 @@ window.testPause = function() {
   if (visibilityTracker) {
     visibilityTracker.triggerInactive();
   } else {
+    if (previewScreen) previewScreen.pause();
     if (timer) timer.pause();
     FeedbackManager.sound.pause();
     FeedbackManager.stream.pauseAll();
@@ -1430,7 +1567,8 @@ window.testResume = function() {
   if (visibilityTracker) {
     visibilityTracker.triggerResume();
   } else {
-    if (timer?.isPaused) timer.resume();
+    if (previewScreen) previewScreen.resume();
+    if (timer && timer.isPaused) timer.resume();
     FeedbackManager.sound.resume();
     FeedbackManager.stream.resumeAll();
   }
@@ -1462,12 +1600,12 @@ window.loadRound = function(n) {
 
 ### Game Lifecycle Events (automatic -- from PART-010)
 
-| Event        | Target | When Fired            |
-| ------------ | ------ | --------------------- |
-| game_start   | game   | setupGame() completes |
-| game_end     | game   | endGame() fires       |
-| game_paused  | system | Tab loses focus       |
-| game_resumed | system | User resumes          |
+| Event        | Target | When Fired                        |
+| ------------ | ------ | --------------------------------- |
+| game_start   | game   | startGameAfterPreview() completes |
+| game_end     | game   | endGame() fires                   |
+| game_paused  | system | Tab loses focus                   |
+| game_resumed | system | User resumes                      |
 
 ### Game-Specific Events
 
@@ -1482,18 +1620,20 @@ window.loadRound = function(n) {
 
 ## 11. Scaffold Points
 
-| Point           | Function          | When                        | What Can Be Injected                             |
-| --------------- | ----------------- | --------------------------- | ------------------------------------------------ |
-| after_incorrect | handleCellClick() | User taps wrong cell        | Hint: "Look for the smallest number first"       |
-| before_round    | renderRound()     | New round starts            | Strategy tip: "Start with the smallest number"   |
-| chain_stuck     | handleCellClick() | No progress for 15 seconds  | Visual highlight of first chain number            |
-| on_life_lost    | handleCellClick() | Life decremented            | Show partial chain or worked example              |
+| Point           | Function                 | When                        | What Can Be Injected                             |
+| --------------- | ------------------------ | --------------------------- | ------------------------------------------------ |
+| after_incorrect | handleCellClick()        | User taps wrong cell        | Hint: "Look for the smallest number first"       |
+| before_round    | renderRound()            | New round starts            | Strategy tip: "Start with the smallest number"   |
+| chain_stuck     | handleCellClick()        | No progress for 15 seconds  | Visual highlight of first chain number            |
+| on_life_lost    | handleCellClick()        | Life decremented            | Show partial chain or worked example              |
+| preview_phase   | showPreviewScreen()      | Before game starts          | Additional instruction content, worked example    |
 
 ### Scaffold Integration Notes
 
 - Scaffolds are optional -- game works without them
 - Each scaffold point must have a no-op default (game continues normally if no scaffold is provided)
 - Scaffold content is provided via postMessage (same channel as game content)
+- The preview_phase scaffold can inject additional `previewContent` HTML into the preview screen
 
 ---
 
@@ -1501,13 +1641,14 @@ window.loadRound = function(n) {
 
 > FeedbackManager (PART-017) is included -- audio feedback for correct/incorrect taps and game completion.
 
-| Moment                    | Trigger Function  | Feedback Type               | Notes                            |
-| ------------------------- | ----------------- | --------------------------- | -------------------------------- |
-| Correct cell tap          | handleCellClick() | sound + sticker             | Play after marking cell green    |
-| Incorrect cell tap        | handleCellClick() | sound + sticker             | Play after flashing cell red     |
-| Game complete (3 lives)   | endGame() via TransitionScreen | celebration (stars) | Victory screen with stars        |
-| Game complete (0 lives)   | endGame() via TransitionScreen | encouragement | Game over screen                 |
-| Round transition          | handleNext()      | subtle transition sound     | Via TransitionScreen auto-hide   |
+| Moment                    | Trigger Function           | Feedback Type               | Notes                            |
+| ------------------------- | -------------------------- | --------------------------- | -------------------------------- |
+| Correct cell tap          | handleCellClick()          | sound + sticker             | Play after marking cell green    |
+| Incorrect cell tap        | handleCellClick()          | sound + sticker             | Play after flashing cell red     |
+| Game complete (3 lives)   | endGame() via TransitionScreen | celebration (stars)     | Victory screen with stars        |
+| Game complete (0 lives)   | endGame() via TransitionScreen | encouragement            | Game over screen                 |
+| Round transition          | handleNext()               | subtle transition sound     | Via TransitionScreen auto-hide   |
+| Preview instruction       | showPreviewScreen()        | preview audio (optional)    | Via PreviewScreenComponent audio |
 
 ### Feedback IDs (for FeedbackManager.sound.play)
 
@@ -1521,7 +1662,7 @@ window.loadRound = function(n) {
 
 ## 13. Visual Specifications
 
-- **Layout:** ScreenLayout with progressBar + transitionScreen slots. 480px max-width, centered.
+- **Layout:** ScreenLayout with progressBar + previewScreen + transitionScreen slots. 480px max-width, centered.
 - **Color palette:** Primary=#270f36, Success=var(--mathai-green), Error=var(--mathai-red), Blue=var(--mathai-blue), Purple=var(--mathai-purple), Background=#f6f6f6, Content=#ffffff
 - **Typography:** var(--mathai-font-family), title=32px, subtitle=18px, body=16px, grid-cells=32px bold
 - **Spacing:** Container padding 10px, grid gap 8px, button gap 12px
@@ -1529,6 +1670,7 @@ window.loadRound = function(n) {
 - **Interactive states:** default (white bg, gray border), hover (#f0f0f0), selected (blue border, light blue bg), correct (green border, light green bg), incorrect (red border, light red bg, 500ms flash), chain-found (green, disabled)
 - **Transitions:** all 0.2s ease on cells and buttons, 0.5s on progress bar fill
 - **Responsive:** 480px max-width container, grid auto-sizes within
+- **Preview screen:** Managed by PreviewScreenComponent -- header bar, timer progress, instruction area, skip button
 
 ---
 
@@ -1537,12 +1679,33 @@ window.loadRound = function(n) {
 > These scenarios are consumed by the ralph loop to generate `tests/game.spec.js`.
 > Every scenario must specify exact selectors, exact actions, and exact assertions.
 
+### Scenario: Preview screen displays and transitions to game
+
+```
+SETUP: Page loaded, start transition screen shown
+ACTIONS:
+  click "I'm ready!" button on start transition screen (TransitionScreenComponent primary button)
+  wait for .mathai-preview-header to be visible (preview screen shown)
+  assert .mathai-preview-instruction contains "Find the doubles chain"
+  assert .mathai-preview-skip-btn is visible
+  click .mathai-preview-skip-btn
+  wait for #gameContent to be visible
+  wait for #game-screen to be visible
+ASSERT:
+  .mathai-preview-header is not visible (preview hidden)
+  gameState.isActive === true
+  gameState.startTime is set (> 0)
+  gameState.duration_data.preview.length >= 1
+  gameState.duration_data.preview[0].duration is a number >= 0
+```
+
 ### Scenario: Complete game with all correct answers (5 rounds, 0 mistakes)
 
 ```
 SETUP: Page loaded, start transition screen shown, click "I'm ready!" button via transition screen
-ACTIONS:
+  wait for preview screen, click .mathai-preview-skip-btn to skip preview
   wait for gameState.isActive === true and #game-screen visible
+ACTIONS:
 
   // Round 1: chain [2, 4, 8] -- grid: [[5,2,9],[4,7,3],[1,8,6]]
   click .grid-cell[data-row="0"][data-col="1"]  // value=2
@@ -1618,7 +1781,7 @@ ASSERT:
 ### Scenario: Submit incorrect answer (lose a life)
 
 ```
-SETUP: Page loaded, click "I'm ready!" on start transition, wait for gameState.isActive === true
+SETUP: Page loaded, click "I'm ready!" on start transition, skip preview screen, wait for gameState.isActive === true
 ACTIONS:
   // Round 1: chain [2, 4, 8]. Click wrong cell (value=5)
   click .grid-cell[data-row="0"][data-col="0"]  // value=5 (wrong, expected=2)
@@ -1636,7 +1799,7 @@ ASSERT:
 ### Scenario: Game over -- all lives lost
 
 ```
-SETUP: Page loaded, click "I'm ready!", wait for gameState.isActive === true
+SETUP: Page loaded, click "I'm ready!", skip preview screen, wait for gameState.isActive === true
 ACTIONS:
   // Make 3 wrong taps to lose all lives
   // Round 1: chain [2, 4, 8], grid: [[5,2,9],[4,7,3],[1,8,6]]
@@ -1659,7 +1822,7 @@ ASSERT:
 ### Scenario: Reset clears all selections within a round
 
 ```
-SETUP: Page loaded, click "I'm ready!", wait for gameState.isActive === true
+SETUP: Page loaded, click "I'm ready!", skip preview screen, wait for gameState.isActive === true
 ACTIONS:
   // Round 1: chain [2, 4, 8]
   click .grid-cell[data-row="0"][data-col="1"]  // value=2 (correct, first in chain)
@@ -1681,7 +1844,7 @@ ASSERT:
 ### Scenario: Chain progress display updates correctly
 
 ```
-SETUP: Page loaded, click "I'm ready!", wait for gameState.isActive === true, Round 1 (chain [2, 4, 8])
+SETUP: Page loaded, click "I'm ready!", skip preview screen, wait for gameState.isActive === true, Round 1 (chain [2, 4, 8])
 ACTIONS:
   // Initially all unknown
   assert #chain-progress innerHTML contains three "?" spans separated by arrows
@@ -1696,7 +1859,7 @@ ASSERT:
 ### Scenario: Correct cell becomes permanently marked and unclickable
 
 ```
-SETUP: Page loaded, click "I'm ready!", wait for gameState.isActive === true
+SETUP: Page loaded, click "I'm ready!", skip preview screen, wait for gameState.isActive === true
 ACTIONS:
   click .grid-cell[data-row="0"][data-col="1"]  // value=2 (correct, first in chain)
   wait 600ms
@@ -1712,7 +1875,7 @@ ASSERT:
 ### Scenario: Timer counts up during gameplay
 
 ```
-SETUP: Page loaded, click "I'm ready!", wait for gameState.isActive === true
+SETUP: Page loaded, click "I'm ready!", skip preview screen, wait for gameState.isActive === true
 ACTIONS:
   wait 3000ms
 ASSERT:
@@ -1727,8 +1890,8 @@ ASSERT:
 ### Structural
 
 - [ ] HTML has DOCTYPE, meta charset, meta viewport
-- [ ] Package scripts in correct order (PART-002): SentryConfig -> Sentry SDK -> FeedbackManager -> Components -> Helpers
-- [ ] All script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` -- no relative paths, no `cdn.homeworkapp.ai`
+- [ ] Package scripts in correct order (PART-002): SentryConfig -> initSentry() -> Sentry SDK (3 scripts) -> load listener -> FeedbackManager -> Components -> Helpers
+- [ ] All script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` or `browser.sentry-cdn.com` -- no relative paths, no `cdn.homeworkapp.ai`
 - [ ] Single `<style>` in `<head>`, single `<script>` in `<body>` (RULE-007)
 - [ ] `#app` div exists (for ScreenLayout)
 - [ ] `<template id="game-template">` exists with game content
@@ -1740,29 +1903,36 @@ ASSERT:
 
 ### Functional
 
-- [ ] `waitForPackages()` defined and checks FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector (PART-003)
+- [ ] `waitForPackages()` defined and checks all 9 packages: FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector, ScreenLayout, ProgressBarComponent, TransitionScreenComponent, PreviewScreenComponent, InteractionManager (PART-003)
 - [ ] DOMContentLoaded is `async` and wrapped in try/catch (PART-004)
 - [ ] `waitForPackages()` called first, `FeedbackManager.init()` called second
 - [ ] SignalCollector created and assigned to `window.signalCollector`
-- [ ] `ScreenLayout.inject()` called before ProgressBar/TransitionScreen (PART-025)
+- [ ] `ScreenLayout.inject()` called with `previewScreen: true` in slots (PART-025, PART-039)
 - [ ] Game template cloned into `#gameContent` after ScreenLayout.inject()
 - [ ] ProgressBarComponent created with totalRounds: 5, totalLives: 3 (PART-023)
 - [ ] TransitionScreenComponent created (PART-024)
+- [ ] PreviewScreenComponent created with autoInject, slotId, gameContentId (PART-039)
 - [ ] TimerComponent created with timerType: 'increase', startTime: 0, endTime: 100000, autoStart: false (PART-006)
 - [ ] InteractionManager created with selector '.game-play-area' and assigned to `window.interactionManager` (PART-038)
 - [ ] Audio preloaded with `sound.preload([{id, url}])` -- NOT `sound.register()` (PART-017)
 - [ ] VisibilityTracker created with onInactive + onResume callbacks (PART-005)
-- [ ] onInactive pauses: signalCollector, timer (with `{ fromVisibilityTracker: true }`), sound (`pause()` NOT `stopAll()`), streams
-- [ ] onResume resumes: signalCollector, timer (only if paused, with `{ fromVisibilityTracker: true }`), sound, streams
+- [ ] onInactive pauses: signalCollector, previewScreen, timer (with `{ fromVisibilityTracker: true }`), sound (`pause()` NOT `stopAll()`), streams
+- [ ] onResume resumes: signalCollector, previewScreen, timer (only if paused, with `{ fromVisibilityTracker: true }`), sound, streams
 - [ ] onInactive/onResume record visibility_hidden/visibility_visible custom events on signalCollector
 - [ ] onInactive/onResume fire trackEvent('game_paused'/'game_resumed', 'system')
 - [ ] handlePostMessage registered and handles game_init (PART-008)
 - [ ] `game_ready` postMessage sent AFTER message listener registered (PART-008)
 - [ ] setupGame has fallback content for standalone testing (PART-008)
-- [ ] **setupGame() sets `gameState.startTime = Date.now()`**
-- [ ] **setupGame() sets `gameState.isActive = true`**
-- [ ] **setupGame() calls `timer.start()`**
-- [ ] **setupGame() calls `trackEvent('game_start', 'game')`**
+- [ ] **setupGame() does NOT set `gameState.startTime`** -- that is set in `startGameAfterPreview()` (PART-039)
+- [ ] **setupGame() does NOT set `gameState.isActive`** -- that is set in `startGameAfterPreview()` (PART-039)
+- [ ] **setupGame() calls `showPreviewScreen()`** instead of directly starting the game (PART-039)
+- [ ] **showPreviewScreen() calls `previewScreen.show()` with instruction, audioUrl, onComplete** (PART-039)
+- [ ] **startGameAfterPreview() sets `gameState.startTime = Date.now()`** (PART-039)
+- [ ] **startGameAfterPreview() sets `gameState.isActive = true`** (PART-039)
+- [ ] **startGameAfterPreview() calls `timer.start()`**
+- [ ] **startGameAfterPreview() calls `trackEvent('game_start', 'game')`**
+- [ ] **startGameAfterPreview() records preview duration in `duration_data.preview[]`** (PART-039)
+- [ ] **startGameAfterPreview() records `screen_transition` view event** (PART-039)
 - [ ] recordAttempt produces correct attempt shape with all mandatory fields (PART-009)
 - [ ] trackEvent fires at all interaction points: cell_selected, chain_complete, life_lost, round_reset (PART-010)
 - [ ] `signalCollector.recordViewEvent()` called on every DOM change (content_render, visual_update, feedback_display, overlay_toggle, screen_transition)
@@ -1770,14 +1940,17 @@ ASSERT:
 - [ ] **Every end condition calls endGame()** -- rounds complete (via handleNext) OR lives lost (via handleCellClick)
 - [ ] Stars calculated from lives remaining: lives >= 3 -> 3, >= 2 -> 2, >= 1 -> 1, 0 -> 0
 - [ ] `computeTriesPerRound` helper exists in global scope
-- [ ] Debug functions on window: debugGame, debugAudio, testAudio, testPause, testResume, debugSignals (PART-012)
+- [ ] Debug functions on window: debugGame, debugAudio, testAudio, testPause, testResume, debugSignals, loadRound (PART-012)
 - [ ] `testPause`/`testResume` use `visibilityTracker.triggerInactive()`/`triggerResume()`
+- [ ] `testPause`/`testResume` fallback includes `previewScreen.pause()`/`previewScreen.resume()`
 - [ ] showResults populates all fields including rounds and lives (PART-019)
-- [ ] InputSchema defined with fallback content of 5 rounds (PART-028)
+- [ ] InputSchema defined with fallback content of 5 rounds plus preview fields (PART-028)
 - [ ] Play area has 3x3 grid with clear interactive/feedback sections (PART-027)
 - [ ] No anti-patterns present (PART-026)
 - [ ] No inline stub/polyfill/fallback classes for CDN packages
 - [ ] `window.gameState = {...}` -- NOT `const gameState = {...}`
+- [ ] `game_complete` postMessage includes `previewResult` field (PART-039)
+- [ ] `endGame()` calls `previewScreen.destroy()` in cleanup (PART-039)
 
 ### Design & Layout
 
@@ -1802,7 +1975,7 @@ ASSERT:
 - [ ] RULE-002: All async functions have `async` keyword (handleCellClick, testAudio, DOMContentLoaded handler)
 - [ ] RULE-003: All async calls in try/catch
 - [ ] RULE-004: All logging uses JSON.stringify
-- [ ] RULE-005: Cleanup in endGame -- timer, visibilityTracker, progressBar destroyed; audio stopped
+- [ ] RULE-005: Cleanup in endGame -- timer, visibilityTracker, progressBar, previewScreen destroyed; audio stopped
 - [ ] RULE-006: No `new Audio()`, no `setInterval` for timer, no `SubtitleComponent.show()`
 - [ ] RULE-007: Single file, no external CSS/JS (except PART-002 CDN packages)
 
@@ -1818,14 +1991,30 @@ ASSERT:
 - [ ] Game ends when all 5 rounds complete (victory path with TransitionScreen + stars)
 - [ ] Chain length grows from 3 (rounds 1-2) to 4 (rounds 3-4) to 5 (round 5) per fallback content
 - [ ] Reset button resets chainIndex, selectedCells, and all cell classes within current round
+- [ ] Reset does NOT restore lives
 - [ ] `isProcessing` flag prevents double-clicks during audio feedback
 - [ ] `window.loadRound(n)` debug function jumps to round n
 - [ ] No dead-end game states -- every state leads to either continued play or endGame
+
+### PART-039 Preview Screen Compliance
+
+- [ ] PreviewScreenComponent instantiated in DOMContentLoaded
+- [ ] ScreenLayout.inject() includes `previewScreen: true`
+- [ ] `showPreviewScreen()` function exists in global scope
+- [ ] `startGameAfterPreview()` function exists in global scope
+- [ ] `previewScreen.show()` called from `setupGame()` via `showPreviewScreen()`
+- [ ] `startGameAfterPreview()` sets `gameState.startTime` AFTER preview ends
+- [ ] `gameState.duration_data.preview[]` populated with `{ duration }`
+- [ ] VisibilityTracker wired to `previewScreen.pause()`/`previewScreen.resume()`
+- [ ] No `new Audio()` for preview audio (FeedbackManager handles all audio)
+- [ ] `gameState.previewResult` included in `game_complete` postMessage payload
+- [ ] `fallbackContent` includes `previewInstruction`, `previewAudioText`, `previewAudio` fields
+- [ ] `previewScreen.destroy()` called in `endGame()` cleanup
 
 ### Contract Compliance
 
 - [ ] gameState matches `contracts/game-state.schema.json`
 - [ ] Attempts match `contracts/attempt.schema.json` (all required fields present)
 - [ ] Metrics match `contracts/metrics.schema.json` (includes totalLives, tries)
-- [ ] duration_data matches `contracts/duration-data.schema.json`
-- [ ] postMessage out matches `contracts/postmessage-out.schema.json` (type: 'game_complete', data.metrics, data.attempts, data.completedAt)
+- [ ] duration_data matches `contracts/duration-data.schema.json` (includes preview[])
+- [ ] postMessage out matches `contracts/postmessage-out.schema.json` (type: 'game_complete', data.metrics, data.attempts, data.completedAt, data.previewResult)

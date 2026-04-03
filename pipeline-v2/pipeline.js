@@ -127,6 +127,12 @@ Test the full user journey from start to finish:
 - Results screen shows score/stars/play-again
 - Play Again button resets game to fresh state
 - Timer starts/stops correctly (if applicable)
+- Preview screen appears before game starts (after page load)
+- Preview shows header bar with back button, avatar, question label, score, star
+- Timer progress bar animates from 100% to 0%
+- Preview auto-advances to game when timer ends
+- Skip button immediately advances to game
+- After preview, game starts normally (first round renders)
 
 ══════════════════════════════════════
 CATEGORY 2: mechanics
@@ -190,6 +196,13 @@ Test the platform integration contract:
   - signalCollector.recordViewEvent() called on screen transitions and DOM changes
   - signalCollector.seal() called in endGame before postMessage
   - game_complete data includes signal_event_count and signal_metadata (NOT raw signal events)
+- PreviewScreen contract:
+  - PreviewScreenComponent instantiated and injected into ScreenLayout preview slot
+  - Preview passes interaction data to game code via onComplete callback
+  - gameState.duration_data.preview[] populated with { duration } entry
+  - If preview has interactive content, user choices included in game_complete payload
+  - Avatar video switches between speaking/silent based on audio state
+  - gameState.startTime NOT set until preview ends (set in startGameAfterPreview)
 
 ══════════════════════════════════════
 OUTPUT FORMAT (MANDATORY)
