@@ -26,6 +26,7 @@
      * @param {object} config - Configuration
      * @param {object} config.slots - Which slots to create
      * @param {boolean|string} config.slots.progressBar - Create progress bar slot (true = auto ID, string = custom ID)
+     * @param {boolean|string} config.slots.previewScreen - Create preview screen slot
      * @param {boolean|string} config.slots.transitionScreen - Create transition screen slot
      * @returns {object} Created slot IDs
      */
@@ -36,12 +37,15 @@
       }
       
       const slots = config.slots || {};
-      
+
       // Generate slot IDs
       const slotIds = {
-        progressSlot: typeof slots.progressBar === 'string' 
-          ? slots.progressBar 
+        progressSlot: typeof slots.progressBar === 'string'
+          ? slots.progressBar
           : (slots.progressBar ? 'mathai-progress-slot' : null),
+        previewSlot: typeof slots.previewScreen === 'string'
+          ? slots.previewScreen
+          : (slots.previewScreen ? 'mathai-preview-slot' : null),
         transitionSlot: typeof slots.transitionScreen === 'string'
           ? slots.transitionScreen
           : (slots.transitionScreen ? 'mathai-transition-slot' : null),
@@ -49,19 +53,26 @@
       };
       
       // Build HTML structure
-      let html = '<div class="page-center"><section class="game-wrapper">';
-      
+      let html = '<div class="page-center">';
+
+      // Add preview screen slot OUTSIDE game-wrapper (sibling) — mutually exclusive with game
+      if (slotIds.previewSlot) {
+        html += `<div id="${slotIds.previewSlot}" style="display:none;"></div>`;
+      }
+
+      html += '<section class="game-wrapper">';
+
       // Add progress bar slot if requested
       if (slotIds.progressSlot) {
         html += `<div id="${slotIds.progressSlot}"></div>`;
       }
-      
+
       // Add game stack
       html += '<div class="game-stack">';
-      
+
       // Add game content
       html += '<div id="gameContent" class="game-block"></div>';
-      
+
       // Add transition screen slot if requested
       if (slotIds.transitionSlot) {
         html += `<div id="${slotIds.transitionSlot}" class="game-block" style="display:none;"></div>`;

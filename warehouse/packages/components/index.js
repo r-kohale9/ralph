@@ -34,7 +34,8 @@
     subtitle: "https://storage.googleapis.com/test-dynamic-assets/packages/subtitle/index.js",
     sticker: "https://storage.googleapis.com/test-dynamic-assets/packages/sticker/index.js",
     timer: "https://storage.googleapis.com/test-dynamic-assets/packages/timer/index.js",
-    stories: "https://storage.googleapis.com/test-dynamic-assets/packages/components/stories/index.js"
+    stories: "https://storage.googleapis.com/test-dynamic-assets/packages/components/stories/index.js",
+    previewScreen: "https://storage.googleapis.com/test-dynamic-assets/packages/components/preview-screen/index.js"
   };
 
   // Load CSS file
@@ -91,6 +92,7 @@
         .then(() => loadScript(COMPONENT_URLS.screenLayout, "ScreenLayout"))
         .then(() => loadScript(COMPONENT_URLS.progressBar, "ProgressBar"))
         .then(() => loadScript(COMPONENT_URLS.transitionScreen, "TransitionScreen"))
+        .then(() => loadScript(COMPONENT_URLS.previewScreen, "PreviewScreen"))
         // 3. Load dependencies
         .then(() => loadScript(COMPONENT_URLS.lottiePlayer, "LottiePlayer"))
         .then(() => loadScript(COMPONENT_URLS.popupLayout, "PopupComponent"))
@@ -124,10 +126,13 @@
         StickerComponent: window.StickerComponent,
         TimerComponent: window.TimerComponent,
         StoriesComponent: window.StoriesComponent,
-        version: "1.1.1"
+        PreviewScreenComponent: window.PreviewScreenComponent,
+        PreviewScreen: window.PreviewScreen,
+        version: "1.2.0"
       };
     })
     .catch(function (error) {
       console.error("[MathAIComponents] Failed to load components:", error);
     });
 })(window);
+
