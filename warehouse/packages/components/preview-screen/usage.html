@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>PreviewScreen Component — Usage Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+    /* Mobile frame wrapper — transform creates new containing block for position:fixed children */
+    .mobile-frame {
+      width: 375px; height: 667px; margin: 20px auto;
+      background: #fff; position: relative; overflow: hidden;
+      box-shadow: 0 0 40px rgba(0,0,0,0.15); border-radius: 16px;
+      transform: scale(1);
+    }
+    #app { width: 100%; height: 100%; position: relative; overflow: hidden; }
+    .game-block { width: 100%; min-height: 100%; }
+
+    /* Demo controls — outside the mobile frame */
+    .demo-controls {
+      width: 375px; margin: 12px auto 0;
+      background: #1a1a2e; border-radius: 12px;
+      padding: 12px 16px; display: flex; gap: 8px; flex-wrap: wrap;
+      justify-content: center;
+    }
+    .demo-controls button {
+      background: #667eea; color: #fff; border: none; border-radius: 8px;
+      padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .demo-controls button:hover { background: #5a6fd6; }
+    .demo-controls button.danger { background: #e74c3c; }
+
+    /* Log — outside frame */
+    #log {
+      width: 375px; margin: 8px auto 0; max-height: 200px;
+      overflow-y: auto; background: #1a1a2e; color: #0f0; font-size: 11px;
+      font-family: monospace; padding: 8px 12px; border-radius: 8px;
+      display: none;
+    }
+    #log.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="mobile-frame">
+    <div id="app"></div>
+  </div>
+  <div class="demo-controls">
+    <button onclick="showBasicPreview()">Basic (5s timer)</button>
+    <button onclick="showAudioPreview()">With Audio</button>
+    <button onclick="showInteractivePreview()">Interactive</button>
+    <button onclick="pausePreview()">Pause</button>
+    <button onclick="resumePreview()">Resume</button>
+    <button onclick="toggleLog()">Log</button>
+    <button class="danger" onclick="destroyPreview()">Destroy</button>
+  </div>
+  <div id="log"></div>
+
+  <!-- Load packages from CDN -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/screen-layout/index.js"></script>
+  <script src="./index.js"></script>
+
+  <script>
+    var previewScreen;
+    var logEl = document.getElementById('log');
+
+    function log(msg) {
+      console.log(msg);
+      logEl.innerHTML += msg + '\n';
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function toggleLog() {
+      logEl.classList.toggle('visible');
+    }
+
+    // Setup layout
+    ScreenLayout.inject('app', {
+      slots: { previewScreen: true }
+    });
+
+    // Init FeedbackManager
+    if (typeof FeedbackManager !== 'undefined' && FeedbackManager.init) {
+      FeedbackManager.init();
+    }
+
+    // Create PreviewScreen
+    previewScreen = new PreviewScreenComponent({
+      slotId: 'mathai-preview-slot',
+      gameContentId: 'gameContent'
+    });
+
+    // Put some content in gameContent so we can see the toggle
+    var gc = document.getElementById('gameContent');
+    if (gc) {
+      gc.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-size:24px;color:#666;">Game Content Area (visible after preview)</div>';
+    }
+
+    function showBasicPreview() {
+      log('[Demo] Showing basic preview (5s timer, no audio)');
+      previewScreen.show({
+        questionLabel: 'Q1',
+        score: '0/3',
+        showStar: true,
+        instruction: '<p>Add the list of <b>numbers</b> and type their <b>sum</b>.</p><p>No star for this question — it\'s only to check your speed, so I can plan the activity for you.</p><p>Complete 3 rounds and try to get them all correct!</p>',
+        onComplete: function(data) {
+          log('[Demo] Preview complete! Data: ' + JSON.stringify(data));
+        }
+      });
+    }
+
+    function showAudioPreview() {
+      log('[Demo] Showing audio preview');
+      previewScreen.show({
+        questionLabel: 'Q2',
+        score: '1/3',
+        showStar: true,
+        instruction: '<p>Listen to the instructions and then <b>solve</b> the puzzle.</p>',
+        audioUrl: 'https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/audios/correct_answer.mp3',
+        onComplete: function(data) {
+          log('[Demo] Audio preview complete! Data: ' + JSON.stringify(data));
+        }
+      });
+    }
+
+    function showInteractivePreview() {
+      log('[Demo] Showing interactive preview');
+      previewScreen.show({
+        questionLabel: 'Q3',
+        score: '2/5',
+        showStar: false,
+        instruction: '<p>Can you finish this in under <b>60 seconds</b>?</p>',
+        previewContent: '<div style="display:flex;gap:12px;margin-top:20px;">' +
+          '<button onclick="previewScreen.setPreviewData(\'userChoice\',\'yes\')" style="flex:1;padding:16px;font-size:18px;border:2px solid #667eea;border-radius:12px;background:#f0f2ff;cursor:pointer;font-weight:600;">Yes!</button>' +
+          '<button onclick="previewScreen.setPreviewData(\'userChoice\',\'no\')" style="flex:1;padding:16px;font-size:18px;border:2px solid #e74c3c;border-radius:12px;background:#fff5f5;cursor:pointer;font-weight:600;">No</button>' +
+          '</div>',
+        onComplete: function(data) {
+          log('[Demo] Interactive preview complete! Data: ' + JSON.stringify(data));
+        },
+        onPreviewInteraction: function(interaction) {
+          log('[Demo] Interaction: ' + JSON.stringify(interaction));
+        }
+      });
+    }
+
+    function pausePreview() {
+      log('[Demo] Pausing...');
+      previewScreen.pause();
+    }
+
+    function resumePreview() {
+      log('[Demo] Resuming...');
+      previewScreen.resume();
+    }
+
+    function destroyPreview() {
+      log('[Demo] Destroying...');
+      previewScreen.destroy();
+    }
+
+    // Auto-show basic preview on load
+    showBasicPreview();
+  </script>
+</body>
+</html>
