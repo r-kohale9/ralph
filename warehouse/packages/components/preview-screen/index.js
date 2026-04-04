@@ -82,6 +82,11 @@
 
     // Audio permission tracking
     this._audioUnlockDone = false;
+    this._permissionCallbacks = [];
+    this._permissionPollId = null;
+
+    // Play generation counter (prevents stale promise resolutions from affecting avatar)
+    this._playGeneration = 0;
 
     // Sentry
     this._sentryReady = false;
@@ -542,21 +547,24 @@
       return;
     }
 
-    // If already unlocked (either by FM or by our prior unlock), proceed immediately
+    // If already unlocked, proceed immediately
     if (this._audioUnlockDone) {
       callback();
       return;
     }
 
-    // Check if audio permission popup is currently visible.
-    // FeedbackManager.init() auto-shows the popup — we must NOT race with it.
-    // Instead, poll until the popup is dismissed (user clicked Okay).
+    // Queue this callback — multiple callers share a single poll loop
+    this._permissionCallbacks.push(callback);
+
+    // If poll is already running, don't create a second one
+    if (this._permissionPollId) {
+      return;
+    }
+
     function isPopupVisible() {
-      // Check PopupComponent visibility
       if (typeof PopupComponent !== "undefined" && typeof PopupComponent.isVisible === "function" && PopupComponent.isVisible()) {
         return true;
       }
-      // Check popup-backdrop as fallback
       var bd = document.getElementById("popup-backdrop");
       if (bd && bd.style.display !== "none" && bd.offsetParent !== null) {
         return true;
@@ -564,25 +572,26 @@
       return false;
     }
 
-    // If no popup visible and no unlock needed, proceed
+    // If no popup visible, fire all callbacks immediately
     if (!isPopupVisible()) {
-      self._audioUnlockDone = true;
-      callback();
+      this._audioUnlockDone = true;
+      this._flushPermissionCallbacks();
       return;
     }
 
-    // Popup is visible — poll until it's dismissed
+    // Popup is visible — single shared poll loop until dismissed
     console.log("[PreviewScreen] Waiting for audio permission popup to be dismissed...");
-    var pollId = setInterval(function () {
+    this._permissionPollId = setInterval(function () {
       if (!self._isActive) {
-        clearInterval(pollId);
+        clearInterval(self._permissionPollId);
+        self._permissionPollId = null;
         return;
       }
       if (!isPopupVisible()) {
-        clearInterval(pollId);
+        clearInterval(self._permissionPollId);
+        self._permissionPollId = null;
         self._audioUnlockDone = true;
         // Force FeedbackManager unlock state — popup was dismissed, audio context should be ready
-        // Without this, play() tries await unlock() which can hang
         if (FeedbackManager.sound) {
           FeedbackManager.sound.unlocked = true;
           FeedbackManager.sound.unlockAttempted = true;
@@ -591,13 +600,25 @@
         var bd = document.getElementById("popup-backdrop");
         if (bd) { bd.style.display = "none"; bd.style.pointerEvents = "none"; }
         console.log("[PreviewScreen] Audio permission granted, starting timer");
-        callback();
+        self._flushPermissionCallbacks();
       }
     }, 150);
   };
 
+  PreviewScreenComponent.prototype._flushPermissionCallbacks = function () {
+    var cbs = this._permissionCallbacks.slice();
+    this._permissionCallbacks = [];
+    for (var i = 0; i < cbs.length; i++) {
+      try { cbs[i](); } catch (e) { this._captureError(e, { method: "_flushPermissionCallbacks" }); }
+    }
+  };
+
   PreviewScreenComponent.prototype._playPreviewAudio = function () {
     var self = this;
+    // Increment play generation — prevents stale .then() from resetting avatar
+    this._playGeneration++;
+    var gen = this._playGeneration;
+
     try {
       // Get duration BEFORE playing (available after preload)
       var duration = FeedbackManager.sound.getDuration(self._audioId);
@@ -609,11 +630,13 @@
 
       var playResult = FeedbackManager.sound.play(this._audioId, {
         onplay: function () {
+          if (gen !== self._playGeneration) return; // stale call
           self._isAudioPlaying = true;
           self._setAvatarState(true);
           self._beginProgressBar();
         },
         onerror: function (err) {
+          if (gen !== self._playGeneration) return; // stale call
           console.warn("[PreviewScreen] Audio playback error:", err);
           self._isAudioPlaying = false;
           self._setAvatarState(false);
@@ -624,9 +647,10 @@
         }
       });
 
-      // Handle play() promise resolution
+      // Handle play() promise resolution (audio finished or interrupted)
       if (playResult && typeof playResult.then === "function") {
         playResult.then(function (res) {
+          if (gen !== self._playGeneration) return; // stale — a newer play superseded this one
           self._isAudioPlaying = false;
           self._setAvatarState(false);
         }).catch(function (err) {
