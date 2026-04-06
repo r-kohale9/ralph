@@ -314,6 +314,54 @@ window.loadRound = function(n) {
 
 Also never call `nextRound()` from `window.loadRound` — `nextRound` increments `currentRound` before rendering, causing a double-increment.
 
+## Anti-Pattern 22: Setting gameState.startTime Before Preview Ends
+
+```javascript
+// WRONG — startTime set during init, before preview screen finishes
+function setupGame() {
+  gameState.startTime = Date.now();  // Too early! Preview hasn't ended yet
+  gameState.isActive = true;
+  showPreviewScreen();
+}
+```
+
+**Correct:** Set `startTime` in `startGameAfterPreview()`, AFTER preview completes:
+```javascript
+function startGameAfterPreview(previewData) {
+  gameState.startTime = Date.now();  // Correct — preview is done
+  gameState.isActive = true;
+  renderRound();
+}
+```
+
+## Anti-Pattern 23: Using new Audio() for Preview Audio
+
+```javascript
+// WRONG — preview audio bypasses FeedbackManager
+const previewAudio = new Audio(content.previewAudio);
+previewAudio.play();
+```
+
+**Correct:** Use `FeedbackManager.sound.preload()` and `FeedbackManager.sound.play()` for all audio including preview.
+
+## Anti-Pattern 24: Not Tracking Preview Duration
+
+```javascript
+// WRONG — preview duration not recorded
+previewScreen.show({ onComplete: function() { startGame(); } });
+```
+
+**Correct:** Record preview duration in `duration_data.preview[]`:
+```javascript
+previewScreen.show({
+  onComplete: function(previewData) {
+    gameState.duration_data.preview = gameState.duration_data.preview || [];
+    gameState.duration_data.preview.push({ duration: previewData.duration });
+    startGameAfterPreview(previewData);
+  }
+});
+```
+
 ## Verification
 
 - [ ] All 4 script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` — no relative paths, no `cdn.homeworkapp.ai`, no invented domains

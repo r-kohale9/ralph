@@ -69,7 +69,7 @@ Game packages load in this order (AFTER Sentry — see PART-030 for full block):
 
 Package source is available in `warehouse/packages/` for debugging during fix iterations:
 - `packages/feedback-manager/index.js` — FeedbackManager (SoundManager, StreamManager, Subtitle/Sticker integration)
-- `packages/components/index.js` — Bundle loader for ScreenLayout, ProgressBar, TransitionScreen, Timer, Stories
+- `packages/components/index.js` — Bundle loader for ScreenLayout, ProgressBar, TransitionScreen, PreviewScreen, Timer, Stories
 - `packages/helpers/index.js` — Bundle loader for VisibilityTracker, InteractionManager, SignalCollector, etc.
 - `packages/README.md` — Full package index with API quick reference
 

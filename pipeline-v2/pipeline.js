@@ -127,6 +127,12 @@ Test the full user journey from start to finish:
 - Results screen shows score/stars/play-again
 - Play Again button resets game to fresh state
 - Timer starts/stops correctly (if applicable)
+- Preview screen appears before game starts (after page load)
+- Preview shows header bar with back button, avatar, question label, score, star
+- Timer progress bar animates from 100% to 0%
+- Preview auto-advances to game when timer ends
+- Skip button immediately advances to game
+- After preview, game starts normally (first round renders)
 
 ══════════════════════════════════════
 CATEGORY 2: mechanics
@@ -190,6 +196,22 @@ Test the platform integration contract:
   - signalCollector.recordViewEvent() called on screen transitions and DOM changes
   - signalCollector.seal() called in endGame before postMessage
   - game_complete data includes signal_event_count and signal_metadata (NOT raw signal events)
+- PreviewScreen contract (PART-039, MANDATORY):
+  - ScreenLayout.inject() MUST include previewScreen: true in slots config
+  - PreviewScreenComponent instantiated AFTER ScreenLayout.inject()
+  - waitForPackages() MUST include typeof PreviewScreenComponent === 'undefined' check
+  - showPreviewScreen() and startGameAfterPreview() functions MUST exist
+  - DOMContentLoaded MUST call setupGame() directly as last step — NO start TransitionScreen before preview
+  - previewScreen.show() MUST pass: instruction: content.previewInstruction || fallbackContent.previewInstruction — NEVER hardcode as string literal
+  - previewScreen.show() MUST pass: audioUrl: content.previewAudio || fallbackContent.previewAudio || null — NEVER omit
+  - previewScreen.show() MUST pass: previewContent: content.previewContent || null
+  - previewScreen.show() MUST NOT pass questionLabel, score, showStar — these come from game_init automatically
+  - gameState.startTime NOT set until preview ends (set in startGameAfterPreview, NOT in setupGame)
+  - gameState.duration_data.preview[] populated with { duration } entry in startGameAfterPreview
+  - fallbackContent MUST include previewInstruction (HTML string) and previewAudioText (plain text for TTS)
+  - VisibilityTracker onInactive → previewScreen.pause(), onResume → previewScreen.resume()
+  - endGame() MUST call previewScreen.destroy() in cleanup
+  - No new Audio() for preview audio — FeedbackManager handles all audio
 
 ══════════════════════════════════════
 OUTPUT FORMAT (MANDATORY)
@@ -432,6 +454,13 @@ Generate a JSON Schema (draft-07) that matches fallbackContent exactly:
 - Arrays → describe item schema from actual objects
 - Preserve types, nesting, and field names exactly
 
+MANDATORY preview fields (PART-039) — ALWAYS include these in the schema properties:
+  "previewInstruction": { "type": "string", "description": "HTML instruction shown on preview screen" }
+  "previewAudioText": { "type": "string", "description": "Plain text for TTS audio generation" }
+  "previewAudio": { "type": ["string", "null"], "description": "CDN URL of preview audio" }
+  "previewContent": { "description": "Data for interactive preview content area" }
+These MUST be in properties when additionalProperties is false, otherwise content set validation fails with "must NOT have additional properties".
+
 Save to: ${path.join(gameDir, 'inputSchema.json')}
 
 ═══════════════════════════════════════
@@ -480,51 +509,91 @@ Extract publishedGameId and artifactUrl from the response.
 If registration fails (non-2xx), log the error and stop.
 
 ═══════════════════════════════════════
-STEP 3: Generate 2-6 content sets
+STEP 3: Generate content sets, generate preview audio, and upload
 ═══════════════════════════════════════
 CRITICAL: You MUST create at least ONE content set. Without content sets, the game link is useless — nothing will render.
 
-**Default content set (MANDATORY):**
-First, create a "Default" content set using the EXACT fallbackContent from the HTML file. This is your guaranteed-working baseline:
-- Read the fallbackContent object from the game HTML
-- Use it directly as the content JSON (it's already in the correct format)
-- Set difficulty: "medium", give it a descriptive name like "<Game Title> — Default"
-- This set is guaranteed to work since the game already runs with it
-
-**Additional content sets (2-5 more):**
-Generate varied content sets beyond the default:
-- Consider axes of variation: difficulty, target numbers, grid size, theme, grade level, speed, etc.
-- Each set: descriptive name, difficulty (easy/medium/hard), grade (1-12), concept tags, and the content JSON
-- Content must be mathematically correct and educationally sound
-- Each content JSON must conform to the inputSchema you generated
-- Vary content meaningfully — don't just change one number
-
-IMPORTANT: Validate each content set actually works by loading it in the game via Playwright/browser test.
-
-═══════════════════════════════════════
-STEP 4: Upload each content set via Core API
-═══════════════════════════════════════
-For each content set, POST to the Core API:
+For each content set, do ALL of the following in a single script (generate → add audio → upload):
 
 \`\`\`javascript
-const res = await fetch(CORE_API_URL + '/api/content-sets/create', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CORE_API_TOKEN },
-  body: JSON.stringify({
-    gameId: '<publishedGameId from step 2>',
-    name: '<game title> — <set name>',
-    description: 'Auto-generated: <set name>',
-    grade: <integer>,
-    difficulty: '<easy|medium|hard>',
-    concepts: ['<tag1>', '<tag2>'],
-    content: <the content JSON object>,
-    createdBy: 'ralph-pipeline-v2',
-  }),
+// Run this as a single node script for ALL content sets:
+const CORE_API_URL = process.env.CORE_API_URL;
+const CORE_API_TOKEN = process.env.CORE_API_TOKEN;
+const TTS_API = 'https://asia-south1-mathai-449208.cloudfunctions.net/generate-audio';
+const publishedGameId = '<from step 2>';
+
+// ── A. Build the content sets array ──────────────────────────────────────
+const contentSets = [];
+
+// Default content set (MANDATORY) — use EXACT fallbackContent from HTML
+contentSets.push({
+  name: '<Game Title> — Default',
+  difficulty: 'medium',
+  grade: 4,
+  concepts: [],
+  content: <fallbackContent object copied from HTML>,
 });
-// Response: body.data.id = contentSetId, body.data.isValid = true/false
+
+// Additional content sets (2-5 more) — varied difficulty, numbers, etc.
+contentSets.push({
+  name: '<Game Title> — Easy',
+  difficulty: 'easy',
+  grade: 2,
+  concepts: [],
+  content: { /* varied content conforming to inputSchema */ },
+});
+// ... more sets ...
+
+// ── B. Generate preview audio for each set ───────────────────────────────
+for (const cs of contentSets) {
+  var text = cs.content.previewAudioText;
+  if (!text && cs.content.previewInstruction) {
+    text = cs.content.previewInstruction.replace(/<[^>]*>/g, '').trim();
+  }
+  if (text && !cs.content.previewAudio) {
+    try {
+      var ttsRes = await fetch(TTS_API + '?sendUrl=true&text=' + encodeURIComponent(text));
+      var ttsData = await ttsRes.json();
+      cs.content.previewAudio = ttsData.audio_url;
+      console.log('Preview audio for ' + cs.name + ': ' + ttsData.audio_url);
+    } catch (e) {
+      console.warn('TTS failed for ' + cs.name + ': ' + e.message);
+    }
+  }
+}
+
+// ── C. Upload each set to Core API ───────────────────────────────────────
+const results = [];
+for (const cs of contentSets) {
+  var res = await fetch(CORE_API_URL + '/api/content-sets/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CORE_API_TOKEN },
+    body: JSON.stringify({
+      gameId: publishedGameId,
+      name: cs.name,
+      description: 'Auto-generated: ' + cs.name,
+      grade: cs.grade,
+      difficulty: cs.difficulty,
+      concepts: cs.concepts,
+      content: cs.content,
+      createdBy: 'ralph-pipeline-v2',
+    }),
+  });
+  var body = await res.json();
+  var csId = body.data?.id;
+  var isValid = body.data?.isValid;
+  console.log(cs.name + ': id=' + csId + ' valid=' + isValid);
+  if (!isValid) console.warn('Validation errors:', JSON.stringify(body.data?.validationErrors));
+  results.push({ id: csId, name: cs.name, difficulty: cs.difficulty, grade: cs.grade, valid: isValid !== false });
+}
 \`\`\`
 
-Log each content set creation result. If a set fails validation (isValid=false), log the validationErrors.
+**Content set guidelines:**
+- Default set: use EXACT fallbackContent from HTML (guaranteed to work)
+- Additional sets: vary meaningfully (difficulty, numbers, grid size, etc.)
+- Each content JSON must conform to the inputSchema from STEP 1
+- Content must be mathematically correct and educationally sound
+- Validate each set works by loading it in the game via Playwright/browser test
 
 ═══════════════════════════════════════
 STEP 5: Output the final result
@@ -1181,6 +1250,38 @@ async function runPipeline({ gameId, specPath, gameDir, buildId, model, addition
       logger.info(`[pipeline] After ${rejectionFixAttempt} rejection fix attempt(s): ${report.status}`);
     }
 
+    // ── Step 6b: Patch preview audio into HTML (before GCS upload) ─────────
+    if (report.status === 'APPROVED') {
+      try {
+        const htmlPath = path.join(gameDir, 'index.html');
+        let htmlContent = fs.readFileSync(htmlPath, 'utf-8');
+        // Check if previewAudio is null in fallbackContent
+        if (/previewAudio\s*:\s*null/.test(htmlContent)) {
+          // Extract previewAudioText or previewInstruction
+          const audioTextMatch = htmlContent.match(/previewAudioText\s*:\s*['"]([^'"]+)['"]/);
+          const instrMatch = htmlContent.match(/previewInstruction\s*:\s*['"](<[^'"]+>)['"]/);
+          let ttsText = audioTextMatch ? audioTextMatch[1] : null;
+          if (!ttsText && instrMatch) {
+            ttsText = instrMatch[1].replace(/<[^>]*>/g, '').trim();
+          }
+          if (ttsText) {
+            const TTS_API = 'https://asia-south1-mathai-449208.cloudfunctions.net/generate-audio';
+            const ttsRes = await fetch(`${TTS_API}?sendUrl=true&text=${encodeURIComponent(ttsText)}`);
+            if (ttsRes.ok) {
+              const { audio_url } = await ttsRes.json();
+              if (audio_url) {
+                htmlContent = htmlContent.replace(/previewAudio\s*:\s*null/, `previewAudio: '${audio_url}'`);
+                fs.writeFileSync(htmlPath, htmlContent);
+                logger.info(`[pipeline] Patched preview audio into HTML: ${audio_url}`);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        logger.warn(`[pipeline] Preview audio patch failed (non-fatal): ${e.message}`);
+      }
+    }
+
     // ── Step 7: Content Gen + Publish (only if APPROVED) ───────────────────
     // The agent generates inputSchema, registers the game, creates content sets,
     // and uploads everything via the Core API — all within the same session.
@@ -1201,6 +1302,40 @@ async function runPipeline({ gameId, specPath, gameDir, buildId, model, addition
 
         const { publish } = _parsePublishResult(contentResult.text);
         if (publish) {
+          // ── Backfill content set IDs if agent didn't include them ──────
+          const hasMissingIds = publish.contentSets.some((cs) => !cs.id);
+          if (hasMissingIds && publish.gameId) {
+            const _apiUrl = process.env.CORE_API_URL || '';
+            const _apiToken = process.env.CORE_API_TOKEN || '';
+            if (_apiUrl && _apiToken) {
+              try {
+                const searchRes = await fetch(
+                  `${_apiUrl}/api/content-sets/search?gameId=${encodeURIComponent(publish.gameId)}`,
+                  { headers: { 'Authorization': `Bearer ${_apiToken}` } },
+                );
+                if (searchRes.ok) {
+                  const searchData = await searchRes.json();
+                  const apiSets = searchData.data || [];
+                  if (apiSets.length > 0) {
+                    // Replace content sets with API data (has real IDs)
+                    publish.contentSets = apiSets.map((s) => ({
+                      id: s.id || s._id,
+                      name: s.name || 'unnamed',
+                      difficulty: s.difficulty || 'medium',
+                      grade: s.grade || 4,
+                      valid: s.isValid !== false,
+                    }));
+                    // Fix game link with first content set ID
+                    publish.gameLink = `https://learn.mathai.ai/game/${publish.gameId}/${publish.contentSets[0].id}`;
+                    logger.info(`[pipeline] Backfilled ${publish.contentSets.length} content set ID(s) from API`);
+                  }
+                }
+              } catch (e) {
+                logger.warn(`[pipeline] Content set ID backfill failed: ${e.message}`);
+              }
+            }
+          }
+
           report.publish = publish;
           logger.info(`[pipeline] ✅ Published: ${publish.gameId} — ${publish.contentSets.length} content set(s)`);
           logger.info(`[pipeline] 🎮 Game link: ${publish.gameLink}`);
@@ -1211,6 +1346,7 @@ async function runPipeline({ gameId, specPath, gameDir, buildId, model, addition
           }
           // Save publish info to disk
           fs.writeFileSync(path.join(gameDir, 'publish-info.json'), JSON.stringify(publish, null, 2) + '\n');
+
         } else {
           logger.warn('[pipeline] No PUBLISH_RESULT found in agent output — publishGame will handle it');
         }

@@ -24,44 +24,45 @@ A table showing which warehouse parts are included. This tells the LLM exactly w
 ```markdown
 ## Parts Selected
 
-| Part ID  | Name                          | Included        | Config/Notes                                         |
-| -------- | ----------------------------- | --------------- | ---------------------------------------------------- |
-| PART-001 | HTML Shell                    | YES             | —                                                    |
-| PART-002 | Package Scripts               | YES             | —                                                    |
-| PART-003 | waitForPackages               | YES             | —                                                    |
-| PART-004 | Initialization Block          | YES             | —                                                    |
-| PART-005 | VisibilityTracker             | YES             | popupProps: {{custom or default}}                    |
-| PART-006 | TimerComponent                | {{YES/NO}}      | {{timerType, startTime, endTime, autoStart}}         |
-| PART-007 | Game State Object             | YES             | Custom fields: {{list}}                              |
-| PART-008 | PostMessage Protocol          | YES             | —                                                    |
-| PART-009 | Attempt Tracking              | YES             | —                                                    |
-| PART-010 | Event Tracking                | YES             | Custom events: {{list}}                              |
-| PART-011 | End Game & Metrics            | YES             | {{custom star logic if any}}                         |
-| PART-012 | Debug Functions               | YES             | —                                                    |
-| PART-013 | Validation Fixed              | {{YES/NO}}      | —                                                    |
-| PART-014 | Validation Function           | {{YES/NO}}      | Rules: {{describe}}                                  |
-| PART-015 | Validation LLM                | {{YES/NO}}      | —                                                    |
-| PART-016 | StoriesComponent              | {{YES/NO}}      | —                                                    |
-| PART-017 | Feedback Integration          | {{YES/NO}}      | Audio feedback and sticker moments                   |
-| PART-018 | Case Converter                | {{YES/NO}}      | —                                                    |
-| PART-019 | Results Screen (v2)           | YES             | Via TransitionScreen content slot — custom metrics: {{list}} |
-| PART-020 | CSS Variables & Colors        | YES             | —                                                    |
-| PART-021 | Screen Layout CSS (v2)        | YES             | ⛔ Manual HTML deprecated — v2 CSS only              |
-| PART-022 | Game Buttons                  | YES             | —                                                    |
-| PART-023 | ProgressBar Component (v2)    | YES             | totalRounds: {{N}}, totalLives: {{N}}                |
-| PART-024 | TransitionScreen Component (v2)| YES            | Screens: welcome/level/victory/game-over + AUDIO     |
-| PART-025 | ScreenLayout Component (v2)   | YES             | sections: header/questionText/progressBar/playArea/transitionScreen |
-| PART-026 | Anti-Patterns                 | YES (REFERENCE) | Verification checklist, not code-generating          |
-| PART-027 | Play Area Construction        | YES             | Layout: {{grid/options/input/custom}}                |
-| PART-028 | InputSchema Patterns          | YES             | Schema type: {{questions/grid/levels}}               |
-| PART-029 | Story-Only Game               | {{YES/NO}}      | storyBlockId: {{ID}}                                 |
-| PART-030 | Sentry Error Tracking         | YES             | Error monitoring for every game                      |
-| PART-031 | API Helper                    | {{YES/NO}}      | —                                                    |
-| PART-032 | AnalyticsManager              | {{YES/NO}}      | —                                                    |
-| PART-033 | Interaction Patterns          | {{YES/NO}}      | Patterns: {{drag-drop/grid/tag-input}}               |
-| PART-034 | Variable Schema Serialization | YES (POST_GEN)  | Serializes Section 4 to inputSchema.json             |
-| PART-035 | Test Plan Generation          | YES (POST_GEN)  | Generates tests.md after HTML                        |
-| PART-037 | Playwright Testing            | YES (POST_GEN)  | Ralph loop generates tests + fix cycle               |
+| Part ID  | Name                            | Included        | Config/Notes                                                        |
+| -------- | ------------------------------- | --------------- | ------------------------------------------------------------------- |
+| PART-001 | HTML Shell                      | YES             | —                                                                   |
+| PART-002 | Package Scripts                 | YES             | —                                                                   |
+| PART-003 | waitForPackages                 | YES             | —                                                                   |
+| PART-004 | Initialization Block            | YES             | —                                                                   |
+| PART-005 | VisibilityTracker               | YES             | popupProps: {{custom or default}}                                   |
+| PART-006 | TimerComponent                  | {{YES/NO}}      | {{timerType, startTime, endTime, autoStart}}                        |
+| PART-007 | Game State Object               | YES             | Custom fields: {{list}}                                             |
+| PART-008 | PostMessage Protocol            | YES             | —                                                                   |
+| PART-009 | Attempt Tracking                | YES             | —                                                                   |
+| PART-010 | Event Tracking                  | YES             | Custom events: {{list}}                                             |
+| PART-011 | End Game & Metrics              | YES             | {{custom star logic if any}}                                        |
+| PART-012 | Debug Functions                 | YES             | —                                                                   |
+| PART-013 | Validation Fixed                | {{YES/NO}}      | —                                                                   |
+| PART-014 | Validation Function             | {{YES/NO}}      | Rules: {{describe}}                                                 |
+| PART-015 | Validation LLM                  | {{YES/NO}}      | —                                                                   |
+| PART-016 | StoriesComponent                | {{YES/NO}}      | —                                                                   |
+| PART-017 | Feedback Integration            | {{YES/NO}}      | Audio feedback and sticker moments                                  |
+| PART-018 | Case Converter                  | {{YES/NO}}      | —                                                                   |
+| PART-019 | Results Screen (v2)             | YES             | Via TransitionScreen content slot — custom metrics: {{list}}        |
+| PART-020 | CSS Variables & Colors          | YES             | —                                                                   |
+| PART-021 | Screen Layout CSS (v2)          | YES             | ⛔ Manual HTML deprecated — v2 CSS only                             |
+| PART-022 | Game Buttons                    | YES             | —                                                                   |
+| PART-023 | ProgressBar Component (v2)      | YES             | totalRounds: {{N}}, totalLives: {{N}}                               |
+| PART-024 | TransitionScreen Component (v2) | YES             | Screens: welcome/level/victory/game-over + AUDIO                    |
+| PART-025 | ScreenLayout Component (v2)     | YES             | sections: header/questionText/progressBar/playArea/transitionScreen |
+| PART-026 | Anti-Patterns                   | YES (REFERENCE) | Verification checklist, not code-generating                         |
+| PART-027 | Play Area Construction          | YES             | Layout: {{grid/options/input/custom}}                               |
+| PART-028 | InputSchema Patterns            | YES             | Schema type: {{questions/grid/levels}}                              |
+| PART-029 | Story-Only Game                 | {{YES/NO}}      | storyBlockId: {{ID}}                                                |
+| PART-030 | Sentry Error Tracking           | YES             | Error monitoring for every game                                     |
+| PART-031 | API Helper                      | {{YES/NO}}      | —                                                                   |
+| PART-032 | AnalyticsManager                | {{YES/NO}}      | —                                                                   |
+| PART-033 | Interaction Patterns            | {{YES/NO}}      | Patterns: {{drag-drop/grid/tag-input}}                              |
+| PART-034 | Variable Schema Serialization   | YES (POST_GEN)  | Serializes Section 4 to inputSchema.json                            |
+| PART-035 | Test Plan Generation            | YES (POST_GEN)  | Generates tests.md after HTML                                       |
+| PART-037 | Playwright Testing              | YES (POST_GEN)  | Ralph loop generates tests + fix cycle                              |
+| PART-039 | Preview Screen                  | YES (MANDATORY) | Always included — shows before game starts                          |
 ```
 
 ### 3. Game State
@@ -152,7 +153,28 @@ ScreenLayout v2 injects the page structure automatically. Only `<div id="app"></
 ```markdown
 ## Screens
 
-### Body HTML
+### Screen 0: Preview Screen — PART-039 (MANDATORY)
+
+The PreviewScreenComponent (loaded via CDN package) handles all preview UI.
+No custom HTML needed — the component creates its own DOM in the ScreenLayout preview slot.
+
+ScreenLayout configuration:
+```javascript
+ScreenLayout.inject('app', {
+  slots: { progressBar: true, previewScreen: true, transitionScreen: true }
+});
+```
+
+PreviewScreen instantiation (in DOMContentLoaded):
+```javascript
+const previewScreen = new PreviewScreenComponent({
+  autoInject: true,
+  slotId: 'mathai-preview-slot',
+  gameContentId: 'gameContent'
+});
+```
+
+### Screen 1: Game Screen (#game-screen)
 
 ```html
 <div id="app"></div>
@@ -200,7 +222,7 @@ transitionScreen.show({
 
 Complete styles for the game. Must include styles for all screens, states, and interactions.
 
-```markdown
+````markdown
 ## CSS
 
 ```css
@@ -213,6 +235,7 @@ Complete styles for the game. Must include styles for all screens, states, and i
   - Responsive considerations
   - Animations/transitions
 }}
+```
 ````
 
 ````
@@ -294,13 +317,32 @@ Every function the game needs, with exact signatures and step-by-step logic.
 
 ### Global Scope (RULE-001)
 
+**showPreviewScreen()**
+
+- Called from game_init handler after setting gameState.content
+- Calls previewScreen.show({ instruction, audioUrl, previewContent, onComplete: startGameAfterPreview })
+- Note: questionLabel, score, showStar are read automatically from game_init payload
+- Preview data comes from game_init payload → content set → fallbackContent
+
+**startGameAfterPreview(previewData)**
+
+- gameState.previewResult = previewData
+- gameState.duration_data.preview = gameState.duration_data.preview || []
+- gameState.duration_data.preview.push({ duration: previewData.duration })
+- Set gameState.startTime = Date.now()
+- Set gameState.isActive = true
+- Set gameState.duration_data.startTime = new Date().toISOString()
+- If timer exists: timer.start()
+- trackEvent('game_start', 'game')
+- signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' })
+- Call renderRound() or setupRound()
+
 **setupGame()**
 
 - {{Step 1}}
 - {{Step 2}}
-- Set gameState.startTime = Date.now()
-- Set gameState.isActive = true
-- trackEvent('game_start', 'game')
+- IMPORTANT: Do NOT set gameState.startTime here — it is set in startGameAfterPreview()
+- Call showPreviewScreen() instead of directly starting the game
 
 **handleAnswer({{params}})**
 
@@ -453,6 +495,22 @@ Structured test scenarios that the ralph loop (PART-037) uses to generate Playwr
 
 > These scenarios are consumed by the ralph loop to generate `tests/game.spec.js`.
 > Every scenario must specify exact selectors, exact actions, and exact assertions.
+
+### Scenario: Preview screen displays and transitions to game
+
+SETUP: Page loaded
+ACTIONS:
+wait for .mathai-preview-header to be visible
+assert #previewQuestionLabel text matches expected question label
+assert #previewScore text matches expected score
+assert .mathai-preview-instruction contains expected instruction text
+assert .mathai-preview-skip-btn is visible
+click .mathai-preview-skip-btn
+wait for #gameContent to be visible
+assert .mathai-preview-header is not visible (preview hidden)
+assert gameState.isActive === true
+assert gameState.startTime is set (> 0)
+EXPECTED: Preview screen shows, skip advances to game, game starts normally
 
 ### Scenario: Complete game with all correct answers
 ```
