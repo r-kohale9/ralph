@@ -82,6 +82,11 @@
 
     // Audio permission tracking
     this._audioUnlockDone = false;
+    this._permissionCallbacks = [];
+    this._permissionPollId = null;
+
+    // Play generation counter (prevents stale promise resolutions from affecting avatar)
+    this._playGeneration = 0;
 
     // Sentry
     this._sentryReady = false;
@@ -93,6 +98,27 @@
     this._silentVideo = null;
     this._instructionArea = null;
     this._previewContentArea = null;
+
+    // game_init payload data (questionLabel, score, showStar come from here)
+    this._gameInitData = null;
+
+    // Listen for game_init to capture header data
+    var self = this;
+    this._gameInitListener = function (event) {
+      if (event.data && event.data.type === "game_init" && event.data.data) {
+        self._gameInitData = event.data.data;
+      }
+    };
+    window.addEventListener("message", this._gameInitListener);
+
+    // Self-managed visibility handling — safety net in case external code
+    // (e.g. VisibilityTracker) doesn't call pause() on tab switch.
+    this._visibilityListener = function () {
+      if (document.hidden && self._isActive && !self._isPaused) {
+        self.pause();
+      }
+    };
+    document.addEventListener("visibilitychange", this._visibilityListener);
 
     // Init
     this.injectStyles();
@@ -177,27 +203,31 @@
       "  text-align: left;" +
       "}" +
       ".mathai-preview-instruction {" +
-      "  font-weight: 400; font-size: 16px; line-height: 21px;" +
+      "  font-weight: 400; font-size: 16px; line-height: 21px; padding-bottom: 20px;" +
       "  color: #333333;" +
       "  font-family: var(--mathai-font-family, sans-serif);" +
       "}" +
       ".mathai-preview-instruction img { max-width: 100%; height: auto; }" +
       ".mathai-preview-instruction video { width: 100%; }" +
-      ".mathai-preview-content-area { margin-top: 16px; }" +
 
-      /* Skip button */
+      /* Skip button — matches FlowButton from mathai-client */
       ".mathai-preview-skip-wrap {" +
       "  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);" +
       "  width: 100%; max-width: var(--mathai-game-max-width, 480px);" +
-      "  padding: 16px 32px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));" +
+      "  padding: 8px 16px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));" +
       "  text-align: center; z-index: 20; box-sizing: border-box;" +
-      "  background: linear-gradient(transparent, rgba(255,255,255,0.95) 30%);" +
+      "  background: transparent;" +
       "}" +
       ".mathai-preview-skip-btn {" +
-      "  background: none; border: none; cursor: pointer;" +
-      "  font-size: 15px; font-weight: 600; color: #667eea;" +
-      "  padding: 12px 24px;" +
+      "  background: #fff; cursor: pointer;" +
+      "  font-size: 16px; font-weight: 400; color: #270F36;" +
+      "  height: 68px; padding: 20px 53px;" +
+      "  border: 1px solid #ECECEC; border-radius: 8px;" +
+      "  box-shadow: 0px 2px 1px rgba(0, 0, 0, 0.1);" +
       "  font-family: var(--mathai-font-family, sans-serif);" +
+      "}" +
+      ".mathai-preview-skip-btn:active {" +
+      "  border-color: #270F36;" +
       "}";
 
     document.head.appendChild(style);
@@ -307,14 +337,12 @@
 
   /**
    * @param {object} config
-   * @param {string} config.questionLabel
-   * @param {string} config.score
-   * @param {boolean} config.showStar
    * @param {string} config.instruction - HTML string
    * @param {string} config.audioUrl
    * @param {string} config.previewContent - pre-rendered HTML string
    * @param {function} config.onComplete - callback(previewData)
    * @param {function} config.onPreviewInteraction - callback(interactionData)
+   * Note: questionLabel, score, showStar are read from game_init payload automatically
    */
   PreviewScreenComponent.prototype.show = function (config) {
     var self = this;
@@ -335,15 +363,16 @@
       if (this.gameWrapper) this.gameWrapper.style.display = "none";
       this.container.style.display = "block";
 
-      // Populate header
+      // Populate header from game_init payload (not from game code config)
+      var d = this._gameInitData || {};
       var labelEl = document.getElementById("previewQuestionLabel");
-      if (labelEl) labelEl.textContent = config.questionLabel || "Q1";
+      if (labelEl) labelEl.textContent = d.questionLabel || "Q1";
 
       var scoreEl = document.getElementById("previewScore");
-      if (scoreEl) scoreEl.textContent = config.score || "0/3";
+      if (scoreEl) scoreEl.textContent = d.score || "0/3";
 
       var starEl = document.getElementById("previewStar");
-      if (starEl) starEl.style.display = config.showStar !== false ? "inline-block" : "none";
+      if (starEl) starEl.style.display = (d.showStar !== false) ? "inline-block" : "none";
 
       // Reset progress bar
       if (this._progressBar) {
@@ -374,13 +403,59 @@
       this._recordViewEvent("content_render", { instruction: !!config.instruction, previewContent: !!config.previewContent });
 
       // Audio / Timer flow
+      this._instruction = config.instruction || "";
       if (config.audioUrl) {
         this._startWithAudio(config.audioUrl);
       } else {
-        this._startWithTimer();
+        // No audio URL — try to generate one from instruction text at runtime
+        this._tryRuntimeTTS(config.instruction);
       }
     } catch (err) {
       this._captureError(err, { method: "show", config: config });
+    }
+  };
+
+  // ============================================================
+  // Runtime TTS fallback — generate audio from instruction text
+  // ============================================================
+
+  var TTS_API_URL = "https://asia-south1-mathai-449208.cloudfunctions.net/generate-audio";
+
+  PreviewScreenComponent.prototype._tryRuntimeTTS = function (instruction) {
+    var self = this;
+    if (!instruction) {
+      this._startWithTimer();
+      return;
+    }
+
+    // Strip HTML tags to get plain text
+    var text = instruction.replace(/<[^>]*>/g, "").trim();
+    if (!text) {
+      this._startWithTimer();
+      return;
+    }
+
+    // Call TTS API to get audio URL — best effort, fall back to timer on failure
+    try {
+      fetch(TTS_API_URL + "?sendUrl=true&text=" + encodeURIComponent(text))
+        .then(function (res) {
+          if (!res.ok) throw new Error("TTS API returned " + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          if (data.audio_url && self._isActive) {
+            self._hasAudio = true;
+            self._startWithAudio(data.audio_url);
+          } else {
+            self._startWithTimer();
+          }
+        })
+        .catch(function () {
+          // TTS failed — use 5s timer
+          if (self._isActive) self._startWithTimer();
+        });
+    } catch (e) {
+      this._startWithTimer();
     }
   };
 
@@ -417,23 +492,46 @@
 
     this._ensureFeedbackManager(function () {
       if (!FeedbackManager || !FeedbackManager.sound) {
-        // Fallback to timer if FM still unavailable
         self._startWithTimer();
         return;
       }
 
-      try {
-        // Preload audio
-        FeedbackManager.sound.preload([{ id: self._audioId, url: audioUrl }]);
+      // Preload audio (async) AND wait for audio permission in parallel
+      // Both must complete before playing
+      var preloadDone = false;
+      var permissionDone = false;
 
-        // Check audio permission
-        self._waitForAudioPermission(function () {
+      function tryPlay() {
+        if (preloadDone && permissionDone && self._isActive) {
           self._playPreviewAudio();
-        });
+        }
+      }
+
+      // Start preload
+      try {
+        var preloadPromise = FeedbackManager.sound.preload([{ id: self._audioId, url: audioUrl }]);
+        if (preloadPromise && typeof preloadPromise.then === "function") {
+          preloadPromise.then(function () {
+            preloadDone = true;
+            tryPlay();
+          }).catch(function (err) {
+            console.warn("[PreviewScreen] Audio preload failed:", err);
+            self._startWithTimer();
+          });
+        } else {
+          preloadDone = true;
+        }
       } catch (err) {
         self._captureError(err, { method: "_startWithAudio", audioUrl: audioUrl });
         self._startWithTimer();
+        return;
       }
+
+      // Start permission check
+      self._waitForAudioPermission(function () {
+        permissionDone = true;
+        tryPlay();
+      });
     });
   };
 
@@ -443,6 +541,7 @@
     this._ensureFeedbackManager(function () {
       // Even with no audio, wait for audio permission (timer starts only when no popup visible)
       self._waitForAudioPermission(function () {
+        self._isPaused = false; // Clear stale pause state from pre-permission pause/resume
         self._duration = DEFAULT_TIMER_DURATION;
         self._beginProgressBar();
         self._recordViewEvent("component_state", { progressBar: "started", duration: self._duration, hasAudio: false });
@@ -458,21 +557,24 @@
       return;
     }
 
-    // If already unlocked (either by FM or by our prior unlock), proceed immediately
+    // If already unlocked, proceed immediately
     if (this._audioUnlockDone) {
       callback();
       return;
     }
 
-    // Check if audio permission popup is currently visible.
-    // FeedbackManager.init() auto-shows the popup — we must NOT race with it.
-    // Instead, poll until the popup is dismissed (user clicked Okay).
+    // Queue this callback — multiple callers share a single poll loop
+    this._permissionCallbacks.push(callback);
+
+    // If poll is already running, don't create a second one
+    if (this._permissionPollId) {
+      return;
+    }
+
     function isPopupVisible() {
-      // Check PopupComponent visibility
       if (typeof PopupComponent !== "undefined" && typeof PopupComponent.isVisible === "function" && PopupComponent.isVisible()) {
         return true;
       }
-      // Check popup-backdrop as fallback
       var bd = document.getElementById("popup-backdrop");
       if (bd && bd.style.display !== "none" && bd.offsetParent !== null) {
         return true;
@@ -480,66 +582,102 @@
       return false;
     }
 
-    // If no popup visible and no unlock needed, proceed
+    // If no popup visible, fire all callbacks immediately
     if (!isPopupVisible()) {
-      self._audioUnlockDone = true;
-      callback();
+      this._audioUnlockDone = true;
+      this._flushPermissionCallbacks();
       return;
     }
 
-    // Popup is visible — poll until it's dismissed
+    // Popup is visible — single shared poll loop until dismissed
     console.log("[PreviewScreen] Waiting for audio permission popup to be dismissed...");
-    var pollId = setInterval(function () {
+    this._permissionPollId = setInterval(function () {
       if (!self._isActive) {
-        clearInterval(pollId);
+        clearInterval(self._permissionPollId);
+        self._permissionPollId = null;
         return;
       }
       if (!isPopupVisible()) {
-        clearInterval(pollId);
+        clearInterval(self._permissionPollId);
+        self._permissionPollId = null;
         self._audioUnlockDone = true;
+        // Force FeedbackManager unlock state — popup was dismissed, audio context should be ready
+        if (FeedbackManager.sound) {
+          FeedbackManager.sound.unlocked = true;
+          FeedbackManager.sound.unlockAttempted = true;
+        }
         // Clean up backdrop just in case
         var bd = document.getElementById("popup-backdrop");
         if (bd) { bd.style.display = "none"; bd.style.pointerEvents = "none"; }
         console.log("[PreviewScreen] Audio permission granted, starting timer");
-        callback();
+        self._flushPermissionCallbacks();
       }
     }, 150);
   };
 
+  PreviewScreenComponent.prototype._flushPermissionCallbacks = function () {
+    var cbs = this._permissionCallbacks.slice();
+    this._permissionCallbacks = [];
+    for (var i = 0; i < cbs.length; i++) {
+      try { cbs[i](); } catch (e) { this._captureError(e, { method: "_flushPermissionCallbacks" }); }
+    }
+  };
+
   PreviewScreenComponent.prototype._playPreviewAudio = function () {
     var self = this;
+    // Permission was just granted — clear any stale pause state.
+    // This handles the case where pause()/resume() fired while waiting for
+    // the audio permission popup, but resume() was never called (user dismissed
+    // the permission popup directly, not the VisibilityTracker resume popup).
+    this._isPaused = false;
+
+    // Increment play generation — prevents stale .then() from resetting avatar
+    this._playGeneration++;
+    var gen = this._playGeneration;
 
     try {
-      FeedbackManager.sound.play(this._audioId, {
+      // Get duration BEFORE playing (available after preload)
+      var duration = FeedbackManager.sound.getDuration(self._audioId);
+      if (duration && duration > 0) {
+        self._duration = duration * 1000; // seconds to ms
+      } else {
+        self._duration = DEFAULT_TIMER_DURATION;
+      }
+
+      var playResult = FeedbackManager.sound.play(this._audioId, {
         onplay: function () {
+          if (gen !== self._playGeneration) return; // stale call
           self._isAudioPlaying = true;
           self._setAvatarState(true);
-          self._recordViewEvent("feedback_display", { audio: "started" });
-
-          // Get duration from Howl
-          var duration = FeedbackManager.sound.duration(self._audioId);
-          if (duration && duration > 0) {
-            self._duration = duration * 1000; // seconds to ms
-          } else {
+          self._beginProgressBar();
+        },
+        onerror: function (err) {
+          if (gen !== self._playGeneration) return; // stale call
+          console.warn("[PreviewScreen] Audio playback error:", err);
+          self._isAudioPlaying = false;
+          self._setAvatarState(false);
+          if (!self._rafId) {
             self._duration = DEFAULT_TIMER_DURATION;
+            self._beginProgressBar();
           }
-          self._beginProgressBar();
-          self._recordViewEvent("component_state", { progressBar: "started", duration: self._duration, hasAudio: true });
-        },
-        onend: function () {
-          self._isAudioPlaying = false;
-          self._setAvatarState(false);
-          self._recordViewEvent("feedback_display", { audio: "ended" });
-          self._onTimerComplete();
-        },
-        onerror: function () {
-          console.warn("[PreviewScreen] Audio playback error, falling back to timer");
-          self._isAudioPlaying = false;
-          self._setAvatarState(false);
-          self._duration = DEFAULT_TIMER_DURATION;
-          self._beginProgressBar();
         }
       });
+
+      // Handle play() promise resolution (audio finished or interrupted)
+      if (playResult && typeof playResult.then === "function") {
+        playResult.then(function (res) {
+          if (gen !== self._playGeneration) return; // stale — a newer play superseded this one
+          self._isAudioPlaying = false;
+          self._setAvatarState(false);
+        }).catch(function (err) {
+          console.warn("[PreviewScreen] play() rejected:", err);
+        });
+      }
+
+      // If onplay didn't fire (audio failed silently), start progress bar as fallback
+      if (!self._rafId) {
+        self._beginProgressBar();
+      }
     } catch (err) {
       this._captureError(err, { method: "_playPreviewAudio" });
       this._duration = DEFAULT_TIMER_DURATION;
@@ -555,7 +693,7 @@
     var self = this;
     this._startTime = performance.now();
     this._elapsed = 0;
-
+    this._totalPausedDuration = 0; // Reset stale pause time from any pre-start pause/resume cycle
     function tick(now) {
       if (!self._isActive || self._isPaused) return;
 
@@ -568,11 +706,7 @@
       }
 
       if (elapsed >= self._duration) {
-        // Timer done
-        if (!self._hasAudio) {
-          self._onTimerComplete();
-        }
-        // If has audio, onend callback handles completion
+        self._onTimerComplete();
         return;
       }
 
@@ -625,10 +759,15 @@
       this._pausedAt = performance.now();
       this._cancelRaf();
 
-      // Pause audio
+      // Pause audio — only if a voice is still actively playing.
+      // If voice is already null (FM or handleInactive already paused it),
+      // calling pause() again would call stopAll() which destroys the saved
+      // voice state needed for resumeVoice().
       if (this._hasAudio && FeedbackManager && FeedbackManager.sound) {
         try {
-          FeedbackManager.sound.pause(this._audioId);
+          if (FeedbackManager.sound.audioKit.getCurrentlyPlaying()) {
+            FeedbackManager.sound.pause();
+          }
         } catch (e) { /* ignore */ }
         this._isAudioPlaying = false;
       }
@@ -672,6 +811,9 @@
   PreviewScreenComponent.prototype._beginResumedProgressBar = function () {
     var self = this;
 
+    // Guard: if progress bar was never started, nothing to resume
+    if (this._startTime === 0) return;
+
     function tick(now) {
       if (!self._isActive || self._isPaused) return;
 
@@ -684,9 +826,7 @@
       }
 
       if (elapsed >= self._duration) {
-        if (!self._hasAudio) {
-          self._onTimerComplete();
-        }
+        self._onTimerComplete();
         return;
       }
 
@@ -744,6 +884,14 @@
   PreviewScreenComponent.prototype.destroy = function () {
     this.hide();
     if (this.container) this.container.innerHTML = "";
+    if (this._gameInitListener) {
+      window.removeEventListener("message", this._gameInitListener);
+      this._gameInitListener = null;
+    }
+    if (this._visibilityListener) {
+      document.removeEventListener("visibilitychange", this._visibilityListener);
+      this._visibilityListener = null;
+    }
     console.log("[PreviewScreen] Destroyed");
   };
 

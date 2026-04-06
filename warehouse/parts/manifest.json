@@ -335,6 +335,15 @@
       "condition": "Game needs interaction suppression during audio feedback or evaluation",
       "file": "PART-038-interaction-manager.md",
       "dependencies": ["PART-002", "PART-003"]
+    },
+    {
+      "id": "PART-039",
+      "name": "Preview Screen",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game (preview/instruction screen before interaction starts)",
+      "file": "PART-039-preview-screen.md",
+      "dependencies": ["PART-002", "PART-017", "PART-025"]
     }
   ],
 
@@ -343,7 +352,8 @@
       "PART-001", "PART-002", "PART-003", "PART-004", "PART-005",
       "PART-007", "PART-008", "PART-009", "PART-010", "PART-011",
       "PART-012", "PART-019", "PART-020", "PART-021", "PART-022",
-      "PART-027", "PART-028", "PART-030"
+      "PART-017", "PART-025",
+      "PART-027", "PART-028", "PART-030", "PART-039"
     ],
     "post_gen": ["PART-034", "PART-035", "PART-037"],
     "verification": ["PART-026"],

@@ -122,6 +122,20 @@ After generating `index.html`, analyze the game code and produce `{game-director
 - [ ] `duration_data.inActiveTime` records inactive periods
 - [ ] `duration_data.totalInactiveTime` accumulates correctly
 
+## 7b. Preview Screen
+
+- [ ] Preview screen renders before game interaction starts
+- [ ] Preview header bar shows back button, avatar, question label, score, star
+- [ ] Progress bar animates from 100% to 0% over duration
+- [ ] Skip button visible and advances to game when clicked
+- [ ] Preview auto-advances when timer/audio ends
+- [ ] Audio plays during preview via FeedbackManager (if configured)
+- [ ] Avatar switches between speaking/silent video based on audio state
+- [ ] `startGameAfterPreview()` called after preview ends
+- [ ] `gameState.startTime` set AFTER preview ends (not during init)
+- [ ] `duration_data.preview[]` populated with `{ duration }` entry
+- [ ] VisibilityTracker pauses preview on tab switch, resumes on return
+
 ## 8. Metrics & Scoring
 
 - [ ] `accuracy` = correct / total (0-100 range)

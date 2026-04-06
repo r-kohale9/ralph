@@ -73,7 +73,7 @@ From the user prompt, determine:
 
 Use `parts/manifest.json` → `capability_matrix` to determine which parts this game needs:
 
-1. Start with `any_game` → gives all MANDATORY parts (18 code-generating parts)
+1. Start with `any_game` → gives all MANDATORY parts (including PART-039 Preview Screen, PART-017 Feedback, PART-025 ScreenLayout Component)
 2. Always load `verification` → PART-026 (anti-patterns checklist)
 3. Always load `post_gen` → PART-034, PART-035 (run after HTML generation)
 4. Check each conditional capability:
