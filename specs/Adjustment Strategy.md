@@ -1,6 +1,6 @@
-# Adjustment Strategy — Game-Specific Template (Assembly Book)
+# Game Spec: Adjustment Strategy
 
-> **Self-contained template.** An LLM reading ONLY this file should produce a working HTML file. No need to re-read the warehouse.
+> Assembly book for HTML generation. An LLM reading ONLY this file must be able to produce the correct, working HTML with zero ambiguity.
 
 > **CRITICAL — PART-017 is NO (Feedback Integration NOT included).** Do NOT call `FeedbackManager.init()` in this game. Calling it triggers an audio permission popup that causes non-deterministic test failures in Playwright. The game uses `FeedbackManager.sound` and `FeedbackManager.playDynamicFeedback` directly (which do not require init). Omit `FeedbackManager.init()` entirely.
 
@@ -11,47 +11,53 @@
 ## 1. Game Identity
 
 - **Title:** Adjustment Strategy
-- **Game ID:** game_adjustment_strategy
+- **Game ID:** game_1742306400_adj9strat
 - **Type:** standard
-- **Description:** Two numbers are shown with independent +/− buttons. The user adjusts numbers to make mental addition easier (e.g., 47+33 → 50+30), then types the sum in an input field and taps Check. The answer is always the original sum. 9 rounds across 3 levels (3 rounds per level), 3 lives. Stars based on average time per level.
+- **Description:** A mental addition strategy game where players adjust two addends to "friendlier" numbers (e.g., 47+33 → 50+30), then type the original sum. Reinforces number sense and compensation strategy across 9 rounds in 3 levels.
 
 ---
 
 ## 2. Parts Selected
 
-| Part ID  | Name                          | Included        | Config/Notes                                                                                                                                          |
-| -------- | ----------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PART-001 | HTML Shell                    | YES             | —                                                                                                                                                     |
-| PART-002 | Package Scripts               | YES             | —                                                                                                                                                     |
-| PART-003 | waitForPackages               | YES             | —                                                                                                                                                     |
-| PART-004 | Initialization Block          | YES             | —                                                                                                                                                     |
-| PART-005 | VisibilityTracker             | YES             | popupProps: default                                                                                                                                   |
-| PART-006 | TimerComponent                | YES             | timerType: 'increase', startTime: 0, autoStart: false, format: 'min'                                                                                  |
-| PART-007 | Game State Object             | YES             | Custom fields: lives, numberA, numberB, correctAnswer, deltaA, deltaB, roundStartTime, levelStartTime, levelTimes, level, wrongAttempts, isProcessing |
-| PART-008 | PostMessage Protocol          | YES             | —                                                                                                                                                     |
-| PART-009 | Attempt Tracking              | YES             | —                                                                                                                                                     |
-| PART-010 | Event Tracking                | YES             | Custom events: adjust_number, reset_adjustments, check_answer, correct_answer, wrong_answer, round_complete, level_complete, life_lost                |
-| PART-011 | End Game & Metrics            | YES             | Custom star logic: avg time/level <15s = 3★, <25s = 2★, ≥25s = 1★, game-over = 0★                                                                     |
-| PART-012 | Debug Functions               | YES             | —                                                                                                                                                     |
-| PART-013 | Validation Fixed              | YES             | Rule: parseInt(input) === numberA + numberB                                                                                                           |
-| PART-014 | Validation Function           | NO              | —                                                                                                                                                     |
-| PART-015 | Validation LLM                | NO              | —                                                                                                                                                     |
-| PART-016 | StoriesComponent              | NO              | —                                                                                                                                                     |
-| PART-017 | Feedback Integration          | NO              | Extension — specific audio URLs used directly                                                                                                         |
-| PART-018 | Case Converter                | NO              | —                                                                                                                                                     |
-| PART-019 | Results Screen UI             | YES             | Custom metrics: time, rounds completed, avg time/level, wrong attempts, accuracy                                                                      |
-| PART-020 | CSS Variables & Colors        | YES             | —                                                                                                                                                     |
-| PART-021 | Screen Layout CSS             | YES             | —                                                                                                                                                     |
-| PART-022 | Game Buttons                  | YES             | —                                                                                                                                                     |
-| PART-023 | ProgressBar Component         | YES             | totalRounds: 9, totalLives: 3                                                                                                                         |
-| PART-024 | TransitionScreen Component    | YES             | Screens: start, level-transition, victory, game-over                                                                                                  |
-| PART-025 | ScreenLayout Component        | YES             | slots: progressBar=true, transitionScreen=true                                                                                                        |
-| PART-026 | Anti-Patterns                 | YES (REFERENCE) | Verification checklist                                                                                                                                |
-| PART-027 | Play Area Construction        | YES             | Layout: two-number adjuster + input + check button                                                                                                    |
-| PART-028 | InputSchema Patterns          | YES             | Schema type: rounds with numberA, numberB, correctAnswer                                                                                              |
-| PART-034 | Variable Schema Serialization | YES (POST_GEN)  |                                                                                                                                                       |
-| PART-035 | Test Plan Generation          | YES (POST_GEN)  |                                                                                                                                                       |
-| PART-037 | Playwright Testing            | YES (POST_GEN)  |                                                                                                                                                       |
+| Part ID | Name | Included | Config/Notes |
+|---------|------|----------|-------------|
+| PART-001 | HTML Shell | YES | — |
+| PART-002 | Package Scripts | YES | — |
+| PART-003 | waitForPackages | YES | — |
+| PART-004 | Initialization Block | YES | See DOMContentLoaded sequence in Section 9 |
+| PART-005 | VisibilityTracker | YES | popupProps: title="Game Paused", description="Click Resume to continue.", primaryText="Resume" |
+| PART-006 | TimerComponent | YES | timerType='increase', format='min', startTime=0, endTime=100000, autoStart=false |
+| PART-007 | Game State Object | YES | Custom fields: lives, totalLives, numberA, numberB, correctAnswer, deltaA, deltaB, roundStartTime, levelStartTime, levelTimes, level, wrongAttempts, isProcessing, pendingEndProblem |
+| PART-008 | PostMessage Protocol | YES | — |
+| PART-009 | Attempt Tracking | YES | validationType: 'fixed' |
+| PART-010 | Event Tracking | YES | Custom events: adjustment_made, answer_checked, life_lost, level_complete |
+| PART-011 | End Game & Metrics | YES | Custom star logic: time-based per level average (see Section 8) |
+| PART-012 | Debug Functions | YES | — |
+| PART-013 | Validation Fixed | YES | parseInt(input) === numberA + numberB |
+| PART-014 | Validation Function | NO | — |
+| PART-015 | Validation LLM | NO | — |
+| PART-016 | StoriesComponent | NO | — |
+| PART-017 | Feedback Integration | YES | Audio preloaded in init; correct_tap and wrong_tap; TTS for game complete |
+| PART-018 | Case Converter | NO | — |
+| PART-019 | Results Screen UI | YES | Custom metric rows: Level, Lives remaining |
+| PART-020 | CSS Variables & Colors | YES | — |
+| PART-021 | Screen Layout CSS | YES | CSS only — ScreenLayout.inject() generates the HTML structure |
+| PART-022 | Game Buttons | YES | Check button (custom, not standard Submit); Reset button top-right |
+| PART-023 | ProgressBar Component | YES | totalRounds=9, totalLives=3, slotId='mathai-progress-slot' |
+| PART-024 | TransitionScreen Component | YES | Screens: start, level-transition, victory, game-over |
+| PART-025 | ScreenLayout Component | YES | slots: progressBar=true, transitionScreen=true |
+| PART-026 | Anti-Patterns | YES (REFERENCE) | Verification checklist, not code-generating |
+| PART-027 | Play Area Construction | YES | Layout: two-column adjuster + answer input |
+| PART-028 | InputSchema Patterns | YES | Schema type: rounds array with numberA, numberB, correctAnswer |
+| PART-029 | Story-Only Game | NO | — |
+| PART-030 | Sentry Error Tracking | YES | Error monitoring for every game; DSN from SentryConfig package |
+| PART-031 | API Helper | NO | — |
+| PART-032 | AnalyticsManager | NO | — |
+| PART-033 | Interaction Patterns | NO | No drag-drop, no grid interaction, no tag input |
+| PART-034 | Variable Schema Serialization | YES (POST_GEN) | Serializes Section 4 to inputSchema.json |
+| PART-035 | Test Plan Generation | YES (POST_GEN) | Generates tests.md after HTML |
+| PART-037 | Playwright Testing | YES (POST_GEN) | Ralph loop generates tests + fix cycle |
+| PART-038 | InteractionManager | NO | — |
 
 ---
 
@@ -79,30 +85,32 @@ window.gameState = {
   },
 
   // GAME-SPECIFIC:
-  lives: 3,
-  totalLives: 3,
-  numberA: 0,                // Original first number
-  numberB: 0,                // Original second number
-  correctAnswer: 0,          // numberA + numberB
-  deltaA: 0,                 // Current adjustment delta for number A
-  deltaB: 0,                 // Current adjustment delta for number B
-  roundStartTime: null,      // Timestamp when current round started
-  levelStartTime: null,      // Timestamp when current level started
-  levelTimes: [],            // Array of time (ms) per completed level
-  level: 1,                  // Current level (1-3), 3 rounds per level
-  wrongAttempts: 0,
-  isProcessing: false
+  lives: 3,              // Remaining lives (lose one per wrong answer)
+  totalLives: 3,         // Starting lives (always 3)
+  numberA: 0,            // First addend from content (original, unchanged)
+  numberB: 0,            // Second addend from content (original, unchanged)
+  correctAnswer: 0,      // numberA + numberB, set at round load
+  deltaA: 0,             // User's current adjustment to numberA (can be negative)
+  deltaB: 0,             // User's current adjustment to numberB (can be negative)
+  roundStartTime: null,  // ms timestamp when current round started
+  levelStartTime: null,  // ms timestamp when current level started
+  levelTimes: [],        // ms elapsed per completed level (max 3 entries)
+  level: 1,              // Current level (1-3)
+  wrongAttempts: 0,      // Wrong attempts on current round (for retry loop)
+  isProcessing: false,   // Prevent double-submit during async feedback
+  pendingEndProblem: null // Deferred SignalCollector endProblem (PART-010)
 };
 
 let timer = null;
 let visibilityTracker = null;
+let signalCollector = null;
 let progressBar = null;
 let transitionScreen = null;
 ```
 
 ---
 
-## 4. Input Schema
+## 4. Input Schema (External Variables)
 
 ```json
 {
@@ -110,26 +118,17 @@ let transitionScreen = null;
   "properties": {
     "rounds": {
       "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
       "items": {
         "type": "object",
         "properties": {
-          "numberA": {
-            "type": "integer",
-            "description": "First number to add"
-          },
-          "numberB": {
-            "type": "integer",
-            "description": "Second number to add"
-          },
-          "correctAnswer": {
-            "type": "integer",
-            "description": "numberA + numberB"
-          }
+          "numberA": { "type": "integer", "description": "First addend" },
+          "numberB": { "type": "integer", "description": "Second addend" },
+          "correctAnswer": { "type": "integer", "description": "numberA + numberB (the original sum)" }
         },
         "required": ["numberA", "numberB", "correctAnswer"]
-      },
-      "minItems": 9,
-      "description": "9 rounds across 3 levels (3 rounds each). Difficulty increases per level."
+      }
     }
   },
   "required": ["rounds"]
@@ -138,101 +137,57 @@ let transitionScreen = null;
 
 ### Fallback Test Content
 
-**Level 1 (Rounds 1-3):** Two-digit numbers, sums under 100. Numbers close to round numbers encourage adjustment.
-**Level 2 (Rounds 4-6):** Two-digit numbers, sums 100-130. Larger values require more strategic adjustment.
-**Level 3 (Rounds 7-9):** Bigger two-digit numbers, sums 130-160. Numbers benefit from rounding to nearest ten.
-
 ```javascript
 const fallbackContent = {
   rounds: [
-    // === LEVEL 1: Easy — sums under 100 ===
-
-    // Round 1: 47 + 33 = 80 (adjust → 50 + 30)
-    // Verify: 47 + 33 = 80 ✓
+    // Level 1 (rounds 0-2)
     { numberA: 47, numberB: 33, correctAnswer: 80 },
-
-    // Round 2: 28 + 14 = 42 (adjust → 30 + 12)
-    // Verify: 28 + 14 = 42 ✓
     { numberA: 28, numberB: 14, correctAnswer: 42 },
-
-    // Round 3: 56 + 25 = 81 (adjust → 60 + 21)
-    // Verify: 56 + 25 = 81 ✓
     { numberA: 56, numberB: 25, correctAnswer: 81 },
-
-    // === LEVEL 2: Medium — sums 100-130 ===
-
-    // Round 4: 36 + 84 = 120 (adjust → 40 + 80)
-    // Verify: 36 + 84 = 120 ✓
+    // Level 2 (rounds 3-5)
     { numberA: 36, numberB: 84, correctAnswer: 120 },
-
-    // Round 5: 67 + 45 = 112 (adjust → 70 + 42)
-    // Verify: 67 + 45 = 112 ✓
     { numberA: 67, numberB: 45, correctAnswer: 112 },
-
-    // Round 6: 49 + 73 = 122 (adjust → 50 + 72)
-    // Verify: 49 + 73 = 122 ✓
     { numberA: 49, numberB: 73, correctAnswer: 122 },
-
-    // === LEVEL 3: Hard — sums 130-160 ===
-
-    // Round 7: 78 + 56 = 134 (adjust → 80 + 54)
-    // Verify: 78 + 56 = 134 ✓
+    // Level 3 (rounds 6-8)
     { numberA: 78, numberB: 56, correctAnswer: 134 },
-
-    // Round 8: 83 + 69 = 152 (adjust → 80 + 72)
-    // Verify: 83 + 69 = 152 ✓
     { numberA: 83, numberB: 69, correctAnswer: 152 },
-
-    // Round 9: 95 + 47 = 142 (adjust → 100 + 42)
-    // Verify: 95 + 47 = 142 ✓
     { numberA: 95, numberB: 47, correctAnswer: 142 }
   ]
 };
 ```
 
-**Verification:**
-
-| Round | Level | A   | B   | A+B | ✓   |
-| ----- | ----- | --- | --- | --- | --- |
-| 1     | 1     | 47  | 33  | 80  | ✓   |
-| 2     | 1     | 28  | 14  | 42  | ✓   |
-| 3     | 1     | 56  | 25  | 81  | ✓   |
-| 4     | 2     | 36  | 84  | 120 | ✓   |
-| 5     | 2     | 67  | 45  | 112 | ✓   |
-| 6     | 2     | 49  | 73  | 122 | ✓   |
-| 7     | 3     | 78  | 56  | 134 | ✓   |
-| 8     | 3     | 83  | 69  | 152 | ✓   |
-| 9     | 3     | 95  | 47  | 142 | ✓   |
-
 ---
 
 ## 5. Screens & HTML Structure
 
-### Body HTML
+The game uses ScreenLayout (PART-025). The `<body>` contains only `<div id="app"></div>` and a `<template id="game-template">`. All game HTML is placed inside the template and cloned into `#gameContent` after `ScreenLayout.inject()`. There is NO static game HTML in `<body>` outside of these two elements.
+
+### Body structure (before inject)
 
 ```html
 <div id="app"></div>
 
 <template id="game-template">
-  <div id="game-screen" class="game-block">
-    <div id="timer-container"></div>
+  <!-- Game screen: active during gameplay -->
+  <div id="game-screen" class="game-block" style="display:none;">
 
-    <div class="instruction-area">
-      <p class="instruction-text">Check the list, think smart, and adjust wisely.</p>
-      <p class="instruction-text-sub">Remember — this is a timed game!</p>
-      <p class="instruction-text-sub">Clear all <strong>3 levels</strong> with an average speed of less than <strong>15 seconds</strong> per level to earn 3 stars.</p>
-    </div>
-
+    <!-- Reset button: top-right corner, always visible during gameplay -->
     <div class="reset-row">
-      <button class="reset-btn" id="btn-reset" onclick="resetAdjustments()">↻ Reset</button>
+      <button class="btn-reset" id="btn-reset" onclick="resetAdjustments()">&#8635; Reset</button>
     </div>
 
-    <div class="adjuster-container" id="adjuster-container">
+    <!-- Level/round label -->
+    <div class="level-label" id="level-label">Level 1 &middot; Round 1</div>
+
+    <!-- Two number adjusters side by side, with + between -->
+    <div class="adjusters-row" id="adjusters-row">
+
       <!-- Number A adjuster -->
       <!-- CRITICAL: The minus and plus buttons for each adjuster MUST have the IDs shown below.
            Tests locate these buttons by ID (#btn-a-minus, #btn-a-plus, #btn-b-minus, #btn-b-plus).
            These IDs must be present both in the initial HTML template AND re-injected by updateAdjusterUI(). -->
       <div class="number-adjuster" id="adjuster-a">
+<<<<<<< Updated upstream
         <div class="adj-top-area" id="adj-a-top">
           <button class="adj-btn adj-minus" id="btn-a-minus" onclick="adjustNumber('a', -1)">−</button>
         </div>
@@ -243,13 +198,27 @@ const fallbackContent = {
         <div class="adj-bottom-area" id="adj-a-bottom">
           <button class="adj-btn adj-plus" id="btn-a-plus" onclick="adjustNumber('a', 1)">+</button>
         </div>
+=======
+        <!-- Top area: shows adj-minus button (delta=0 or delta>0); shows adj-label-minus (delta<0) -->
+        <div class="adj-top" id="adj-top-a"></div>
+        <!-- Number box with optional delta badge -->
+        <div class="number-box-wrap">
+          <div class="number-box" id="number-box-a" data-signal-id="number-box-a">
+            <span id="number-a-display">47</span>
+          </div>
+          <span class="delta-badge hidden" id="delta-badge-a"></span>
+        </div>
+        <!-- Bottom area: shows adj-plus button (delta=0 or delta<0); shows adj-label-plus (delta>0) -->
+        <div class="adj-bottom" id="adj-bottom-a"></div>
+>>>>>>> Stashed changes
       </div>
 
-      <!-- Operator -->
-      <span class="operator-sign">+</span>
+      <!-- Plus sign between the two adjusters -->
+      <div class="plus-sign">+</div>
 
       <!-- Number B adjuster -->
       <div class="number-adjuster" id="adjuster-b">
+<<<<<<< Updated upstream
         <div class="adj-top-area" id="adj-b-top">
           <button class="adj-btn adj-minus" id="btn-b-minus" onclick="adjustNumber('b', -1)">−</button>
         </div>
@@ -260,262 +229,386 @@ const fallbackContent = {
         <div class="adj-bottom-area" id="adj-b-bottom">
           <button class="adj-btn adj-plus" id="btn-b-plus" onclick="adjustNumber('b', 1)">+</button>
         </div>
+=======
+        <div class="adj-top" id="adj-top-b"></div>
+        <div class="number-box-wrap">
+          <div class="number-box" id="number-box-b" data-signal-id="number-box-b">
+            <span id="number-b-display">33</span>
+          </div>
+          <span class="delta-badge hidden" id="delta-badge-b"></span>
+        </div>
+        <div class="adj-bottom" id="adj-bottom-b"></div>
+>>>>>>> Stashed changes
       </div>
-    </div>
 
+    </div><!-- /.adjusters-row -->
+
+    <!-- Instruction text -->
+    <div class="instruction-text">What is the sum?</div>
+
+    <!-- Answer area: input + Check button -->
     <div class="answer-area" id="answer-area">
-      <input type="number" class="answer-input" id="answer-input" placeholder="?" oninput="onInputChange()" />
-      <button class="game-btn btn-primary check-btn hidden" id="btn-check" onclick="checkAnswer()">✓ Check</button>
+      <input
+        type="number"
+        id="answer-input"
+        class="answer-input"
+        placeholder="?"
+        autocomplete="off"
+        inputmode="numeric"
+        data-signal-id="answer-input"
+        oninput="onInputChange()"
+      >
+      <button
+        class="btn-check hidden"
+        id="btn-check"
+        onclick="checkAnswer()"
+        data-signal-id="btn-check"
+      >Check</button>
     </div>
-  </div>
 
-  <div id="results-screen" class="game-block" style="display: none;">
-    <div class="results-card">
+    <!-- Timer container (populated by TimerComponent) -->
+    <div id="timer-container" style="margin-top:8px;text-align:center;"></div>
+
+  </div><!-- /#game-screen -->
+
+  <!-- Results screen: shown after endGame() -->
+  <div id="results-screen" style="display:none;">
+    <div class="results-container">
+      <h2 id="results-title">Game Complete!</h2>
       <div id="stars-display" class="stars-display"></div>
-      <h2 class="results-title" id="results-title">Great Job!</h2>
       <div class="results-metrics">
         <div class="metric-row">
-          <span class="metric-label">Time</span>
-          <span class="metric-value" id="result-time">0:00</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Avg Time/Level</span>
-          <span class="metric-value" id="result-avg-time">0.0s</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Rounds Completed</span>
-          <span class="metric-value" id="result-rounds">0/9</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Wrong Attempts</span>
-          <span class="metric-value" id="result-wrong">0</span>
-        </div>
-        <div class="metric-row">
           <span class="metric-label">Accuracy</span>
-          <span class="metric-value" id="result-accuracy">0%</span>
+          <span id="result-score" class="metric-value">0%</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Time</span>
+          <span id="result-time" class="metric-value">0s</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Correct</span>
+          <span id="result-correct" class="metric-value">0/0</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Level Reached</span>
+          <span id="result-level" class="metric-value">1</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Lives Left</span>
+          <span id="result-lives" class="metric-value">3</span>
         </div>
       </div>
-      <button class="game-btn btn-primary" id="btn-restart" onclick="restartGame()">Play Again</button>
+      <button onclick="restartGame()" class="game-btn btn-secondary" style="margin-top:16px;">Play Again</button>
     </div>
-  </div>
+  </div><!-- /#results-screen -->
+
 </template>
 ```
+
+### Adjuster rendering rules
+
+Each adjuster column has three zones: top, number-box, bottom.
+
+**When delta = 0 (initial state):**
+- Top area (`adj-top`): renders `<button class="adj-btn adj-minus" onclick="adjustNumber('a', -1)">−</button>`
+- Number box: shows original number (e.g., 47)
+- Bottom area (`adj-bottom`): renders `<button class="adj-btn adj-plus" onclick="adjustNumber('a', 1)">+</button>`
+- Delta badge: hidden
+
+**When delta < 0 (e.g., deltaA = -3, adjustedA = 44):**
+- Top area: renders `<div class="adj-label adj-label-minus" onclick="adjustNumber('a', -1)" style="cursor:pointer;"><span class="adj-label-icon">&#8595;</span> 44</div>` (clickable — clicking continues decreasing delta)
+- Number box: still shows original 47 (unchanged)
+- Bottom area: renders `<button class="adj-btn adj-plus" onclick="adjustNumber('a', 1)">+</button>`
+- Delta badge: class `delta-badge negative`, text `-3`
+
+**When delta > 0 (e.g., deltaA = +3, adjustedA = 50):**
+- Top area: renders `<button class="adj-btn adj-minus" onclick="adjustNumber('a', -1)">−</button>`
+- Number box: still shows original 47 (unchanged)
+- Bottom area: renders `<div class="adj-label adj-label-plus" onclick="adjustNumber('a', 1)" style="cursor:pointer;"><span class="adj-label-icon">&#8593;</span> 50</div>` (clickable — clicking continues increasing delta)
+- Delta badge: class `delta-badge positive`, text `+3`
+
+The number displayed in the number-box (via `#number-a-display` / `#number-b-display`) is ALWAYS the original numberA/numberB. It never changes as the user adjusts.
+
+`updateAdjusterUI(which)` is called after every `adjustNumber()` call and on `renderAdjusters()`. It rebuilds the innerHTML of `adj-top-{which}` and `adj-bottom-{which}` and updates the delta badge. When delta != 0, the label div carries an `onclick` to continue adjusting in the same direction — no separate button is rendered alongside it.
 
 ---
 
 ## 6. CSS
 
 ```css
-/* === CSS Variables (PART-020) === */
-:root {
-  --mathai-green: #219653;
-  --mathai-light-green: #EAFBF1;
-  --mathai-red: #E35757;
-  --mathai-light-red: #FDECEC;
-  --mathai-blue: #2563eb;
-  --mathai-light-blue: #EBF0FF;
-  --mathai-gray: #828282;
-  --mathai-light-gray: #F2F2F2;
-  --mathai-white: #FFFFFF;
-  --mathai-black: #1A1A2E;
-  --mathai-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --mathai-font-size-title: 24px;
-  --mathai-font-size-body: 16px;
-  --mathai-font-size-label: 14px;
-  --mathai-font-size-small: 12px;
-  --mathai-border-radius-card: 12px;
+/* ===================== BASE LAYOUT (PART-021) ===================== */
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #f6f6f6;
+  font-family: var(--mathai-font-family, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
 }
 
-/* === Reset === */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: var(--mathai-font-family);
-  background: var(--mathai-white);
-  color: var(--mathai-black);
-  -webkit-font-smoothing: antialiased;
-}
-
-/* === Game Block === */
-.game-block {
+.page-center {
+  display: flex;
+  justify-content: center;
   width: 100%;
+  min-height: 100dvh;
+  box-sizing: border-box;
+}
+
+.game-wrapper {
+  width: 100vw;
+  max-width: var(--mathai-game-max-width, 480px);
+  box-sizing: border-box;
+  background: #ffffff;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 16px;
-  gap: 16px;
+  align-items: stretch;
+  min-height: 100dvh;
+  padding-top: 54px;
+  position: relative;
 }
 
-/* === Instruction Area === */
-.instruction-area {
+.game-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mathai-stack-gap, 10px);
+  padding: 0 10px 20px 10px;
+  box-sizing: border-box;
   width: 100%;
-  max-width: 340px;
-  margin: 0 auto;
+  overflow-x: hidden;
 }
 
-.instruction-text {
-  font-size: var(--mathai-font-size-body);
-  color: var(--mathai-black);
-  line-height: 1.5;
-  margin-bottom: 4px;
+.game-block {
+  padding: var(--mathai-stack-gap, 10px);
+  margin-bottom: var(--mathai-stack-gap, 10px);
+  background: transparent;
+  border-radius: 8px;
+  box-sizing: border-box;
 }
 
-.instruction-text strong { font-weight: 700; }
-
-.instruction-text-sub {
-  font-size: var(--mathai-font-size-label);
-  color: var(--mathai-gray);
-  line-height: 1.4;
-  margin-bottom: 4px;
+.content-fill {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100dvh - 54px);
+  box-sizing: border-box;
 }
 
-.instruction-text-sub strong { font-weight: 700; color: var(--mathai-black); }
+#mathai-progress-slot,
+.mathai-progress-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
 
-/* === Reset Row === */
+@media (min-width: 520px) {
+  .game-wrapper { width: 100%; }
+}
+
+/* ===================== BUTTONS (PART-022) ===================== */
+.btn-container {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: var(--mathai-padding-small, 10px);
+  flex-wrap: wrap;
+}
+
+.game-btn {
+  padding: 14px 32px;
+  font-size: var(--mathai-font-size-button, 16px);
+  font-weight: 600;
+  font-family: var(--mathai-font-family, system-ui);
+  border: none;
+  border-radius: var(--mathai-border-radius-button, 10px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--mathai-white, #ffffff);
+}
+
+.game-btn:active { transform: translateY(0); }
+.game-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--mathai-green, #219653);
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(33, 150, 83, 0.4);
+}
+
+.btn-secondary {
+  background: var(--mathai-blue, #667eea);
+}
+.btn-secondary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.hidden { display: none !important; }
+
+/* ===================== RESET BUTTON ===================== */
 .reset-row {
-  width: 100%;
-  max-width: 340px;
   display: flex;
   justify-content: flex-end;
+  margin-bottom: 4px;
 }
 
-.reset-btn {
-  background: var(--mathai-light-gray);
-  border: 1px solid #E0E0E0;
-  border-radius: 8px;
+.btn-reset {
+  background: transparent;
+  border: 1.5px solid #ccc;
+  border-radius: 20px;
   padding: 6px 14px;
-  font-size: var(--mathai-font-size-label);
-  font-weight: 600;
-  font-family: var(--mathai-font-family);
-  color: var(--mathai-black);
+  font-size: 13px;
+  color: #555;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.reset-btn:hover { background: #E8E8E8; }
+.btn-reset:hover {
+  background: #f0f0f0;
+  border-color: #aaa;
+}
 
-/* === Adjuster Container === */
-.adjuster-container {
+/* ===================== LEVEL LABEL ===================== */
+.level-label {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mathai-level-text, #270F63);
+  margin-bottom: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* ===================== ADJUSTERS ROW ===================== */
+.adjusters-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin: 8px 0;
+  gap: 16px;
+  margin: 8px 0 16px;
 }
 
-.operator-sign {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--mathai-gray);
-  align-self: center;
-  margin-top: -8px; /* align with number box vertically */
+.plus-sign {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--mathai-primary, #270f36);
+  flex-shrink: 0;
+  margin-top: 6px;
 }
 
-/* === Number Adjuster (vertical stack: minus area → number → plus area) === */
+/* ===================== SINGLE ADJUSTER ===================== */
 .number-adjuster {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  width: 80px;
 }
 
-/* === Adj Top/Bottom Areas === */
-.adj-top-area, .adj-bottom-area {
-  width: 80px;
-  height: 36px;
+/* Top and bottom areas: fixed height so layout does not shift */
+.adj-top,
+.adj-bottom {
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
+  width: 80px;
 }
 
-/* When showing adjusted value, the area displays value + small icon */
-.adj-top-area.has-value,
-.adj-bottom-area.has-value {
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.adj-top-area.has-value { color: var(--mathai-black); }
-.adj-bottom-area.has-value { color: var(--mathai-black); }
-
-/* Adjusted value display (replaces button when active) */
-.adjusted-value-display {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--mathai-black);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.adjusted-value-display .adj-icon {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.adjusted-value-display .adj-icon.minus { color: var(--mathai-red); }
-.adjusted-value-display .adj-icon.plus { color: var(--mathai-green); }
-
-/* === Adj Buttons === */
+/* Adjuster buttons */
 .adj-btn {
   width: 80px;
   height: 36px;
-  border: 1.5px solid #E0E0E0;
   border-radius: 8px;
-  font-size: 18px;
-  font-weight: 600;
+  border: 1.5px solid;
+  font-size: 22px;
+  font-weight: 700;
   cursor: pointer;
+  transition: all 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
-  font-family: var(--mathai-font-family);
-  background: var(--mathai-white);
-  color: var(--mathai-gray);
+  line-height: 1;
 }
 
 .adj-minus {
-  border-color: #F5D5D5;
   background: #FFF5F5;
-  color: var(--mathai-red);
+  border-color: #F5D5D5;
+  color: #c0392b;
 }
-
-.adj-minus:hover { background: var(--mathai-light-red); border-color: var(--mathai-red); }
+.adj-minus:hover {
+  background: #FFE8E8;
+  border-color: #e88;
+}
+.adj-minus:active { transform: scale(0.96); }
 
 .adj-plus {
-  border-color: #D5F0D5;
   background: #F5FFF5;
-  color: var(--mathai-green);
+  border-color: #D5F0D5;
+  color: #219653;
 }
+.adj-plus:hover {
+  background: #E5FFE5;
+  border-color: #8d8;
+}
+.adj-plus:active { transform: scale(0.96); }
 
-.adj-plus:hover { background: var(--mathai-light-green); border-color: var(--mathai-green); }
-
-/* === Number Box === */
-.number-box {
+/* Adjusted-value display labels (shown when delta != 0 in that direction) */
+.adj-label {
   width: 80px;
-  height: 60px;
+  height: 36px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #E0E0E0;
-  border-radius: 10px;
-  background: var(--mathai-white);
-  position: relative;
+  font-size: 15px;
+  font-weight: 700;
+  gap: 4px;
+  user-select: none;
 }
 
-.original-number {
+.adj-label-minus {
+  background: #FFF5F5;
+  color: #c0392b;
+  border: 1.5px solid #F5D5D5;
+}
+
+.adj-label-plus {
+  background: #F5FFF5;
+  color: #219653;
+  border: 1.5px solid #D5F0D5;
+}
+
+.adj-label-icon {
+  font-size: 12px;
+}
+
+/* ===================== NUMBER BOX ===================== */
+.number-box-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.number-box {
+  width: 80px;
+  height: 60px;
+  border: 2.5px solid #ddd;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 28px;
   font-weight: 700;
-  color: var(--mathai-black);
+  color: var(--mathai-primary, #270f36);
+  background: #fff;
+  transition: border-color 0.2s ease;
 }
 
-/* === Delta Badge (positioned top-right of number box) === */
+/* ===================== DELTA BADGE ===================== */
 .delta-badge {
   position: absolute;
   top: -8px;
-  right: -8px;
-  min-width: 24px;
+  right: -10px;
+  min-width: 26px;
   height: 20px;
   border-radius: 10px;
   font-size: 11px;
@@ -524,114 +617,231 @@ body {
   align-items: center;
   justify-content: center;
   padding: 0 5px;
+  box-sizing: border-box;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .delta-badge.positive {
-  background: var(--mathai-green);
-  color: var(--mathai-white);
+  background: #D5F0D5;
+  color: #219653;
+  border: 1px solid #adc;
 }
 
 .delta-badge.negative {
-  background: var(--mathai-red);
-  color: var(--mathai-white);
+  background: #FFD9D9;
+  color: #c0392b;
+  border: 1px solid #eaa;
 }
 
-/* === Answer Area === */
+/* ===================== INSTRUCTION ===================== */
+.instruction-text {
+  text-align: center;
+  font-size: 15px;
+  color: var(--mathai-gray, #666666);
+  margin-bottom: 12px;
+}
+
+/* ===================== ANSWER AREA ===================== */
 .answer-area {
   display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 12px;
-  margin-top: 16px;
+  margin-bottom: 8px;
 }
 
 .answer-input {
   width: 80px;
   height: 52px;
-  border: 2px solid #E0E0E0;
+  border: 2.5px solid #E0E0E0;
   border-radius: 10px;
   font-size: 22px;
-  font-weight: 600;
+  font-weight: 700;
   text-align: center;
-  font-family: var(--mathai-font-family);
-  color: var(--mathai-black);
+  color: var(--mathai-primary, #270f36);
   outline: none;
   transition: border-color 0.2s ease;
+  /* Remove browser spinner arrows on number input */
   -moz-appearance: textfield;
 }
-
 .answer-input::-webkit-outer-spin-button,
 .answer-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-
 .answer-input:focus {
   border-color: #E8D98A;
-  box-shadow: 0 0 0 2px rgba(232, 217, 138, 0.3);
+  box-shadow: 0 0 0 3px rgba(232, 217, 138, 0.3);
 }
 
-.answer-input::placeholder {
-  color: var(--mathai-gray);
-  font-weight: 400;
-}
-
-/* === Check Button === */
-.check-btn {
-  max-width: 200px;
-  padding: 10px 32px;
-  font-size: var(--mathai-font-size-body);
-  border-radius: 24px;
-  background: var(--mathai-blue);
-}
-
-.check-btn:hover { filter: brightness(0.9); }
-
-/* === Buttons (PART-022) === */
-.game-btn {
-  padding: 12px 32px;
+/* Check button: blue, pill shape */
+.btn-check {
+  background: #2563eb;
+  color: #fff;
   border: none;
-  border-radius: 12px;
-  font-size: var(--mathai-font-size-body);
-  font-weight: 600;
-  font-family: var(--mathai-font-family);
+  border-radius: 24px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-height: 44px;
-  width: 100%;
-  max-width: 340px;
+  white-space: nowrap;
+}
+.btn-check:hover:not(:disabled) {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+}
+.btn-check:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.btn-primary { background: var(--mathai-green); color: var(--mathai-white); }
-.btn-primary:hover { filter: brightness(0.9); }
-
-/* === Results Screen (PART-019) === */
-.results-card {
-  background: var(--mathai-white);
-  border-radius: 16px;
+/* ===================== RESULTS SCREEN ===================== */
+.results-container {
   padding: 32px 24px;
   text-align: center;
   max-width: 360px;
-  width: 100%;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  margin: 0 auto;
 }
 
-.results-title { font-size: var(--mathai-font-size-title); margin-bottom: 24px; color: var(--mathai-black); }
-.stars-display { font-size: 40px; margin-bottom: 16px; display: flex; justify-content: center; gap: 8px; }
-.results-metrics { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
-.metric-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--mathai-light-gray); }
-.metric-label { color: var(--mathai-gray); font-size: var(--mathai-font-size-label); }
-.metric-value { font-weight: 700; font-size: var(--mathai-font-size-body); color: var(--mathai-black); }
+.results-container h2 {
+  font-size: 26px;
+  color: var(--mathai-primary, #270f36);
+  margin: 0 0 12px;
+}
 
-/* === Utility === */
-.hidden { display: none !important; }
+.stars-display {
+  font-size: 36px;
+  margin: 12px 0;
+  letter-spacing: 4px;
+}
+
+.results-metrics {
+  background: #f8f8f8;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 16px 0;
+  text-align: left;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+.metric-row:last-child { border-bottom: none; }
+
+.metric-label {
+  font-size: 14px;
+  color: var(--mathai-gray, #666);
+}
+.metric-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--mathai-primary, #270f36);
+}
 ```
 
 ---
 
-## 7. Game Flow
+## 7. Script Loading (copy these EXACT tags — never invent URLs)
+
+```html
+<!-- STEP 1: SentryConfig package -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+<!-- STEP 2: initSentry() function definition (see PART-030 for full code) -->
+<script>
+function initSentry() {
+  if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled) {
+    Sentry.init({
+      dsn: SentryConfig.dsn,
+      environment: SentryConfig.environment,
+      release: "adjustment-strategy@1.0.0",
+      tracesSampleRate: SentryConfig.tracesSampleRate,
+      sampleRate: SentryConfig.sampleRate,
+      maxBreadcrumbs: 50,
+      ignoreErrors: [
+        "ResizeObserver loop limit exceeded",
+        "ResizeObserver loop completed with undelivered notifications",
+        "Non-Error promise rejection captured",
+        "Script error.",
+        "Load failed",
+        "Failed to fetch",
+      ],
+    });
+  }
+
+  window.addEventListener("error", (event) => {
+    Sentry.captureException(event.error || new Error(event.message), {
+      tags: { errorType: "unhandled", severity: "critical" },
+      contexts: {
+        errorEvent: {
+          message: event.message,
+          filename: event.filename,
+          lineno: event.lineno,
+        },
+      },
+    });
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    Sentry.captureException(
+      event.reason || new Error("Unhandled promise rejection"),
+      {
+        tags: { errorType: "unhandled-promise", severity: "critical" },
+      },
+    );
+  });
+
+  window.verifySentry = function () {
+    const checks = {
+      sdkLoaded: typeof Sentry !== 'undefined',
+      configLoaded: typeof SentryConfig !== 'undefined',
+      initialized: typeof Sentry !== 'undefined' && Sentry.getClient() !== undefined,
+      dsn: typeof Sentry !== 'undefined' ? Sentry.getClient()?.getDsn()?.toString() : null,
+      configVersion: typeof SentryConfig !== 'undefined' ? SentryConfig.version : null,
+      replayEnabled: typeof SentryConfig !== 'undefined' ? SentryConfig.captureReplay : null
+    };
+    console.log("Sentry Status:", JSON.stringify(checks, null, 2));
+    return checks;
+  };
+
+  window.testSentry = function () {
+    try {
+      throw new Error("Test error from testSentry()");
+    } catch (error) {
+      Sentry.captureException(error, { tags: { test: true } });
+      console.log("Test error sent to Sentry. Check dashboard.");
+    }
+  };
+}
+</script>
+
+<!-- STEP 3: Sentry SDK v10.23.0 (3 scripts, NO integrity attribute) -->
+<script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+<!-- STEP 4: Initialize on load -->
+<script>window.addEventListener('load', initSentry);</script>
+
+<!-- STEP 5-7: Game packages (exact URLs, in this order) -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+```
+
+---
+
+## 8. Game Flow
 
 1. **Page loads** → DOMContentLoaded fires
+<<<<<<< Updated upstream
    - waitForPackages(), FeedbackManager.init()
    - Register sounds (correct_tap, wrong_tap)
    - ScreenLayout.inject, clone template
@@ -947,330 +1157,1465 @@ body {
 - gameState.events.push({ type, target, data, timestamp: new Date().toISOString(), timeSinceStart: gameState.startTime ? Date.now() - gameState.startTime : 0 })
 
 ### Inside DOMContentLoaded (PART-004)
+=======
+   - `waitForPackages()` — waits for FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector
+   - `FeedbackManager.init()`
+   - `FeedbackManager.sound.preload([{id:'correct_tap', url:'...'}, {id:'wrong_tap', url:'...'}])`
+   - `signalCollector = new SignalCollector({...})`; `window.signalCollector = signalCollector`
+   - `ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } })`
+   - Clone `#game-template` content into `#gameContent`
+   - `timer = new TimerComponent('timer-container', { timerType:'increase', format:'min', startTime:0, endTime:100000, autoStart:false, onEnd:() => endGame('complete') })`
+   - `progressBar = new ProgressBarComponent({ autoInject:true, totalRounds:9, totalLives:3, slotId:'mathai-progress-slot' })`
+   - `transitionScreen = new TransitionScreenComponent({ autoInject:true })`
+   - `visibilityTracker = new VisibilityTracker({...})`
+   - `window.addEventListener('message', handlePostMessage)`
+   - `setupGame()` — sets fallback content, then shows start transition screen
+
+2. **`setupGame()`** runs:
+   - If `!gameState.content`, sets `gameState.content = fallbackContent`
+   - Sets `gameState.startTime = Date.now()`, `isActive = true`
+   - Resets `currentRound = 0`, `score = 0`, `attempts = []`, `events = []`
+   - Resets `lives = 3`, `level = 1`, `levelTimes = []`, `deltaA = 0`, `deltaB = 0`, `isProcessing = false`, `pendingEndProblem = null`
+   - Sets `gameState.duration_data.startTime = new Date().toISOString()`
+   - Calls `trackEvent('game_start', 'game')`
+   - Shows start transition screen: icon '➕', title "Let's go!", button "Let's go!" → `startGame()`
+   - NOTE: timer is NOT started here; `startGame()` starts it after user clicks
+
+3. **`startGame()`** (called from transition button):
+   - Calls `timer.start()`
+   - Sets `gameState.levelStartTime = Date.now()`
+   - Shows `#game-screen` (sets `style.display = 'block'`)
+   - Hides `#results-screen`
+   - Calls `loadRound()`
+
+4. **`loadRound()`** (called at each new round):
+   - Flushes deferred `endProblem` if `gameState.pendingEndProblem` exists
+   - Gets `roundData = gameState.content.rounds[gameState.currentRound]`
+   - Sets `gameState.numberA`, `numberB`, `correctAnswer = numberA + numberB`
+   - Resets `deltaA = 0`, `deltaB = 0`, `wrongAttempts = 0`, `isProcessing = false`, `roundStartTime = Date.now()`
+   - Sets level: `gameState.level = Math.floor(gameState.currentRound / 3) + 1`
+   - Updates `#level-label` text: "Level {level} · Round {(currentRound % 3) + 1}"
+   - Updates `#number-a-display` text to `numberA`; `#number-b-display` text to `numberB`
+   - Calls `renderAdjusters()` (resets adj-top/bottom to default buttons, hides badges)
+   - Calls `clearAnswerArea()` (clears input, hides btn-check)
+   - Calls `progressBar.update(gameState.currentRound, gameState.lives)`
+   - Calls `signalCollector.startProblem('round_' + currentRound, {...})`
+   - Calls `signalCollector.recordViewEvent('content_render', {...})`
+   - Calls `trackEvent('question_shown', 'game', { round, numberA, numberB, correctAnswer })`
+
+5. **User adjusts numbers** (optional before answering):
+   - Clicks `adj-btn.adj-minus` or `adj-btn.adj-plus` inside an adjuster → `adjustNumber('a'|'b', -1|1)`
+   - `adjustNumber(which, direction)`: increments/decrements `deltaA` or `deltaB` by 1
+   - Calls `updateAdjusterUI(which)` to re-render that adjuster column
+   - Records view event and trackEvent
+
+6. **User types answer** → `onInputChange()`:
+   - If `input.value.trim() !== ''`: removes `.hidden` from `#btn-check`
+   - Else: adds `.hidden` to `#btn-check`
+
+7. **User clicks Check** → `checkAnswer()` (async):
+   - Guards: `if (gameState.isProcessing) return`; sets `isProcessing = true`
+   - Reads `parseInt(document.getElementById('answer-input').value, 10)` → `userAnswer`
+   - Validates: `userAnswer === gameState.correctAnswer` (the original sum, NOT adjusted values)
+   - Calls `recordAttempt({...})`
+   - Disables input, hides btn-check
+   - **If correct:**
+     - `gameState.score++`
+     - Sets `pendingEndProblem`
+     - `await FeedbackManager.sound.play('correct_tap', { subtitle: getCorrectPhrase() })`
+     - Sets `isProcessing = false`
+     - Calls `roundComplete()`
+   - **If incorrect:**
+     - `gameState.lives--`
+     - `gameState.wrongAttempts++`
+     - `trackEvent('life_lost', ...)`
+     - `progressBar.update(gameState.currentRound, gameState.lives)`
+     - Sets `pendingEndProblem`
+     - `await FeedbackManager.sound.play('wrong_tap', { subtitle: 'Not quite! Try again.' })`
+     - If `lives <= 0`: sets `isProcessing = false`, calls `endGame('game_over')`, returns
+     - Else: clears input (`input.value = ''`), re-enables input (`input.disabled = false`), sets `isProcessing = false` (allows retry on same round)
+
+8. **`roundComplete()`**:
+   - `gameState.currentRound++`
+   - If `currentRound % 3 === 0` AND `currentRound < 9` (level boundary):
+     - `gameState.levelTimes.push(Date.now() - levelStartTime)`
+     - `gameState.level++`
+     - `gameState.levelStartTime = Date.now()`
+     - Calls `trackEvent('level_complete', 'game', { level: gameState.level - 1 })`
+     - Calls `showLevelTransition(gameState.level)` and returns
+   - If `currentRound >= 9` (all rounds done):
+     - `gameState.levelTimes.push(Date.now() - levelStartTime)`
+     - Calls `endGame('complete')` and returns
+   - Else: calls `loadRound()`
+
+9. **`showLevelTransition(level)`**:
+   - Hides `#game-screen`
+   - Calls `transitionScreen.show({ icons:['🎯'], iconSize:'normal', title:'Level '+level+'!', titleStyles:{color:'#270F63', fontSize:'36px'}, duration:2000 })` — uses `duration` ONLY, no buttons
+   - After 2000ms (via `setTimeout`): sets `gameState.levelStartTime = Date.now()`, shows `#game-screen`, calls `loadRound()`
+
+10. **End conditions that call `endGame(reason)`:**
+    - All 9 rounds completed correctly → `endGame('complete')` from `roundComplete()`
+    - Lives reach 0 → `endGame('game_over')` from `checkAnswer()`
+
+11. **`endGame(reason)`** (async):
+    - Guard: `if (!gameState.isActive) return`; sets `isActive = false`
+    - Calculates time-based stars (see Section 8)
+    - Calls `showResults(metrics, reason)` — shows results screen, hides game screen
+    - Shows victory or game-over transition screen
+    - Sends `game_complete` postMessage
+    - Cleans up timer, visibilityTracker, progressBar, audio
+
+---
+
+## 9. Functions
+
+### `waitForPackages()` — copy exactly from PART-003
 
 ```javascript
-window.addEventListener('DOMContentLoaded', async () => {
+async function waitForPackages() {
+  const timeout = 10000;
+  const start = Date.now();
   try {
-    await waitForPackages();
-    await FeedbackManager.init();
+    while (typeof FeedbackManager === 'undefined') {
+      if (Date.now() - start > timeout) throw new Error('Package timeout: FeedbackManager');
+      await new Promise(r => setTimeout(r, 50));
+    }
+    while (typeof TimerComponent === 'undefined') {
+      if (Date.now() - start > timeout) throw new Error('Package timeout: TimerComponent');
+      await new Promise(r => setTimeout(r, 50));
+    }
+    while (typeof VisibilityTracker === 'undefined') {
+      if (Date.now() - start > timeout) throw new Error('Package timeout: VisibilityTracker');
+      await new Promise(r => setTimeout(r, 50));
+    }
+    while (typeof SignalCollector === 'undefined') {
+      if (Date.now() - start > timeout) throw new Error('Package timeout: SignalCollector');
+      await new Promise(r => setTimeout(r, 50));
+    }
+    console.log('All packages loaded');
+  } catch (error) {
+    console.error('Package loading failed:', error);
+    document.body.innerHTML = '<div style="padding:20px;text-align:center;">Failed to load. Please refresh.</div>';
+    throw error;
+  }
+}
+```
+
+### `trackEvent(type, target, data = {})` — copy exactly from PART-010
+
+```javascript
+function trackEvent(type, target, data = {}) {
+  gameState.events.push({
+    type,
+    target,
+    timestamp: Date.now(),
+    ...data
+  });
+}
+```
+
+### `recordAttempt(data)` — copy exactly from PART-009
+
+```javascript
+function recordAttempt(data) {
+  const attempt = {
+    attempt_timestamp: new Date().toISOString(),
+    time_since_start_of_game: (Date.now() - gameState.startTime) / 1000,
+    input_of_user: data.userAnswer,
+    attempt_number: gameState.attempts.length + 1,
+    correct: data.correct,
+    metadata: {
+      round: gameState.currentRound,
+      question: data.question,
+      correctAnswer: data.correctAnswer,
+      validationType: data.validationType || 'fixed'
+    }
+  };
+  gameState.attempts.push(attempt);
+  gameState.duration_data.attempts.push({
+    startTime: new Date().toISOString(),
+    time_to_first_attempt: (Date.now() - gameState.startTime) / 1000,
+    duration: 0
+  });
+  console.log('Attempt:', JSON.stringify(attempt, null, 2));
+}
+```
+
+### `handlePostMessage(event)` — from PART-008
+
+```javascript
+function handlePostMessage(event) {
+  if (event.data?.type === 'game_init') {
+    const { gameId, content, context, goals } = event.data.data;
+    gameState.content = content;
+    if (gameState.gameId) gameState.gameId = gameId;
+    setupGame();
+  }
+}
+```
+
+### `setupGame()`
+
+```javascript
+function setupGame() {
+  if (!gameState.content) {
+    gameState.content = fallbackContent;
+  }
+
+  // MANDATORY from PART-004:
+  gameState.startTime = Date.now();
+  gameState.isActive = true;
+  gameState.currentRound = 0;
+  gameState.score = 0;
+  gameState.attempts = [];
+  gameState.events = [];
+  gameState.duration_data.startTime = new Date().toISOString();
+
+  // Game-specific resets:
+  gameState.lives = 3;
+  gameState.level = 1;
+  gameState.levelTimes = [];
+  gameState.deltaA = 0;
+  gameState.deltaB = 0;
+  gameState.wrongAttempts = 0;
+  gameState.isProcessing = false;
+  gameState.pendingEndProblem = null;
+
+  trackEvent('game_start', 'game');
+
+  // Show start transition screen — user must click to begin
+  // timer.start() is called in startGame() after this button is clicked
+  transitionScreen.show({
+    icons: ['\u2795'],
+    iconSize: 'large',
+    title: "Let's go!",
+    subtitle: 'Adjust the numbers to make addition easier.',
+    buttons: [{ text: "Let's go!", type: 'primary', action: () => startGame() }]
+  });
+}
+```
+
+### `startGame()`
+
+```javascript
+function startGame() {
+  if (timer) timer.start();
+  gameState.levelStartTime = Date.now();
+  document.getElementById('game-screen').style.display = 'block';
+  document.getElementById('results-screen').style.display = 'none';
+  loadRound();
+}
+```
+
+### `loadRound()`
+
+```javascript
+function loadRound() {
+  // Flush deferred endProblem from previous round (PART-010 deferred pattern)
+  if (signalCollector && gameState.pendingEndProblem) {
+    signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
+    gameState.pendingEndProblem = null;
+  }
+
+  const roundData = gameState.content.rounds[gameState.currentRound];
+  gameState.numberA = roundData.numberA;
+  gameState.numberB = roundData.numberB;
+  gameState.correctAnswer = roundData.numberA + roundData.numberB;
+  gameState.deltaA = 0;
+  gameState.deltaB = 0;
+  gameState.wrongAttempts = 0;
+  gameState.roundStartTime = Date.now();
+  gameState.isProcessing = false;
+
+  const levelNumber = Math.floor(gameState.currentRound / 3) + 1;
+  gameState.level = levelNumber;
+  const roundInLevel = (gameState.currentRound % 3) + 1;
+
+  document.getElementById('level-label').textContent =
+    'Level ' + levelNumber + ' \u00b7 Round ' + roundInLevel;
+
+  // Update number displays
+  document.getElementById('number-a-display').textContent = roundData.numberA;
+  document.getElementById('number-b-display').textContent = roundData.numberB;
+
+  renderAdjusters();
+  clearAnswerArea();
+
+  progressBar.update(gameState.currentRound, gameState.lives);
+
+  if (signalCollector) {
+    signalCollector.startProblem('round_' + gameState.currentRound, {
+      round_number: gameState.currentRound,
+      question_text: roundData.numberA + ' + ' + roundData.numberB,
+      correct_answer: gameState.correctAnswer,
+      difficulty: levelNumber === 1 ? 'easy' : levelNumber === 2 ? 'medium' : 'hard'
+    });
+    signalCollector.recordViewEvent('content_render', {
+      screen: 'gameplay',
+      content_snapshot: {
+        question_text: roundData.numberA + ' + ' + roundData.numberB,
+        round: gameState.currentRound,
+        level: levelNumber,
+        trigger: 'round_start'
+      },
+      components: {
+        timer: timer ? { value: timer.getCurrentTime(), state: timer.isRunning ? 'running' : 'paused' } : null,
+        progress: { current: gameState.currentRound, total: 9 }
+      }
+    });
+  }
+
+  trackEvent('question_shown', 'game', {
+    round: gameState.currentRound,
+    numberA: roundData.numberA,
+    numberB: roundData.numberB,
+    correctAnswer: gameState.correctAnswer
+  });
+}
+```
+
+### `renderAdjusters()`
+
+```javascript
+function renderAdjusters() {
+  updateAdjusterUI('a');
+  updateAdjusterUI('b');
+}
+```
+
+### `updateAdjusterUI(which)`
+
+```javascript
+function updateAdjusterUI(which) {
+  const delta = which === 'a' ? gameState.deltaA : gameState.deltaB;
+  const originalNumber = which === 'a' ? gameState.numberA : gameState.numberB;
+  const adjustedValue = originalNumber + delta;
+
+  const topEl = document.getElementById('adj-top-' + which);
+  const bottomEl = document.getElementById('adj-bottom-' + which);
+  const badgeEl = document.getElementById('delta-badge-' + which);
+
+  // Top area: minus button when delta >= 0; clickable label when delta < 0
+  if (delta < 0) {
+    topEl.innerHTML =
+      '<div class="adj-label adj-label-minus" onclick="adjustNumber(\'' + which + '\', -1)" style="cursor:pointer;">' +
+      '<span class="adj-label-icon">\u2193</span> ' + adjustedValue +
+      '</div>';
+  } else {
+    topEl.innerHTML =
+      '<button class="adj-btn adj-minus" onclick="adjustNumber(\'' + which + '\', -1)">\u2212</button>';
+  }
+
+  // Bottom area: plus button when delta <= 0; clickable label when delta > 0
+  if (delta > 0) {
+    bottomEl.innerHTML =
+      '<div class="adj-label adj-label-plus" onclick="adjustNumber(\'' + which + '\', 1)" style="cursor:pointer;">' +
+      '<span class="adj-label-icon">\u2191</span> ' + adjustedValue +
+      '</div>';
+  } else {
+    bottomEl.innerHTML =
+      '<button class="adj-btn adj-plus" onclick="adjustNumber(\'' + which + '\', 1)">+</button>';
+  }
+
+  // Delta badge: show only when delta != 0
+  if (delta === 0) {
+    badgeEl.className = 'delta-badge hidden';
+    badgeEl.textContent = '';
+  } else if (delta > 0) {
+    badgeEl.className = 'delta-badge positive';
+    badgeEl.textContent = '+' + delta;
+  } else {
+    badgeEl.className = 'delta-badge negative';
+    badgeEl.textContent = String(delta); // e.g., "-3"
+  }
+}
+```
+
+### `adjustNumber(which, direction)`
+
+```javascript
+function adjustNumber(which, direction) {
+  if (gameState.isProcessing) return;
+  if (which === 'a') {
+    gameState.deltaA += direction;
+  } else {
+    gameState.deltaB += direction;
+  }
+  const delta = which === 'a' ? gameState.deltaA : gameState.deltaB;
+  const originalNumber = which === 'a' ? gameState.numberA : gameState.numberB;
+  const adjustedValue = originalNumber + delta;
+
+  updateAdjusterUI(which);
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('visual_update', {
+      screen: 'gameplay',
+      content_snapshot: {
+        type: 'adjustment_made',
+        which: which,
+        delta: delta,
+        adjustedValue: adjustedValue
+      }
+    });
+  }
+
+  trackEvent('adjustment_made', 'adjuster-' + which, {
+    delta: delta,
+    adjusted: adjustedValue,
+    direction: direction
+  });
+}
+```
+
+### `resetAdjustments()`
+
+```javascript
+function resetAdjustments() {
+  if (gameState.isProcessing) return;
+  gameState.deltaA = 0;
+  gameState.deltaB = 0;
+  renderAdjusters();
+  trackEvent('tap', 'btn-reset', {});
+}
+```
+
+### `clearAnswerArea()`
+
+```javascript
+function clearAnswerArea() {
+  const input = document.getElementById('answer-input');
+  input.value = '';
+  input.disabled = false;
+  document.getElementById('btn-check').classList.add('hidden');
+}
+```
+
+### `onInputChange()`
+
+```javascript
+function onInputChange() {
+  const input = document.getElementById('answer-input');
+  const hasValue = input.value.trim() !== '';
+  const btnCheck = document.getElementById('btn-check');
+  if (hasValue) {
+    btnCheck.classList.remove('hidden');
+  } else {
+    btnCheck.classList.add('hidden');
+  }
+  trackEvent('input_change', 'answer-input', { value: input.value });
+}
+```
+
+### `checkAnswer()` (async, global scope — RULE-001)
+
+```javascript
+async function checkAnswer() {
+  if (gameState.isProcessing) return;
+  gameState.isProcessing = true;
+
+  const input = document.getElementById('answer-input');
+  const userAnswer = parseInt(input.value, 10);
+
+  if (isNaN(userAnswer)) {
+    gameState.isProcessing = false;
+    return;
+  }
+
+  // Validation (PART-013 fixed): the answer is always the ORIGINAL sum
+  const isCorrect = userAnswer === gameState.correctAnswer;
+  const questionText = gameState.numberA + ' + ' + gameState.numberB;
+
+  recordAttempt({
+    userAnswer: userAnswer,
+    correct: isCorrect,
+    question: questionText,
+    correctAnswer: gameState.correctAnswer,
+    validationType: 'fixed'
+  });
+
+  if (signalCollector) {
+    signalCollector.recordCustomEvent('answer_checked', {
+      correct: isCorrect,
+      userAnswer: userAnswer,
+      correctAnswer: gameState.correctAnswer
+    });
+  }
+
+  // Disable input during feedback
+  input.disabled = true;
+  document.getElementById('btn-check').classList.add('hidden');
+
+  if (isCorrect) {
+    gameState.score++;
+    gameState.pendingEndProblem = {
+      id: 'round_' + gameState.currentRound,
+      outcome: { correct: true, answer: userAnswer }
+    };
+
+    if (signalCollector) {
+      signalCollector.recordViewEvent('feedback_display', {
+        screen: 'gameplay',
+        content_snapshot: { feedback_type: 'correct', message: getCorrectPhrase() }
+      });
+    }
 
     try {
-      await FeedbackManager.sound.register('correct_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740724945201.mp3');
-      await FeedbackManager.sound.register('wrong_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740725080819.mp3');
-    } catch(e) { console.error('Sound registration error:', JSON.stringify({ error: e.message }, null, 2)); }
+      await FeedbackManager.sound.play('correct_tap', {
+        subtitle: getCorrectPhrase()
+      });
+    } catch (e) {
+      console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2));
+    }
 
-    const layout = ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } });
-    const gameContent = document.getElementById('gameContent');
-    const template = document.getElementById('game-template');
-    gameContent.appendChild(template.content.cloneNode(true));
+    gameState.isProcessing = false;
+    roundComplete();
 
-    timer = new TimerComponent('timer-container', { timerType: 'increase', format: 'min', startTime: 0, autoStart: false });
-    progressBar = new ProgressBarComponent({ autoInject: true, totalRounds: 9, totalLives: 3, slotId: 'mathai-progress-slot' });
-    transitionScreen = new TransitionScreenComponent({ autoInject: true });
-    visibilityTracker = new VisibilityTracker({
-      onInactive: () => { if (timer && timer.isRunning) timer.pause(); try { FeedbackManager.sound.stopAll(); } catch(e) {} gameState.duration_data.inActiveTime.push({ start: Date.now() }); },
-      onResume: () => { if (timer && timer.isPaused && gameState.isActive) timer.resume(); const last = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1]; if (last && !last.end) { last.end = Date.now(); gameState.duration_data.totalInactiveTime += (last.end - last.start); } }
+  } else {
+    gameState.lives--;
+    gameState.wrongAttempts++;
+    gameState.pendingEndProblem = {
+      id: 'round_' + gameState.currentRound,
+      outcome: { correct: false, answer: userAnswer }
+    };
+
+    trackEvent('life_lost', 'game', {
+      lives: gameState.lives,
+      round: gameState.currentRound
     });
 
-    if (!gameState.content) gameState.content = fallbackContent;
+    progressBar.update(gameState.currentRound, gameState.lives);
+
+    if (signalCollector) {
+      signalCollector.recordViewEvent('feedback_display', {
+        screen: 'gameplay',
+        content_snapshot: { feedback_type: 'incorrect', message: 'Not quite! Try again.' }
+      });
+    }
+
+    try {
+      await FeedbackManager.sound.play('wrong_tap', {
+        subtitle: 'Not quite! Try again.'
+      });
+    } catch (e) {
+      console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2));
+    }
+
+    if (gameState.lives <= 0) {
+      gameState.isProcessing = false;
+      endGame('game_over');
+      return;
+    }
+
+    // Allow retry on same round: re-enable input, clear value
+    input.value = '';
+    input.disabled = false;
+    gameState.isProcessing = false;
+  }
+}
+```
+
+### `getCorrectPhrase()`
+
+```javascript
+function getCorrectPhrase() {
+  const phrases = [
+    'Great job! That\'s right!',
+    'Correct! Well done!',
+    'Excellent strategy!',
+    'Perfect! Keep going!'
+  ];
+  return phrases[Math.floor(Math.random() * phrases.length)];
+}
+```
+
+### `roundComplete()`
+
+```javascript
+function roundComplete() {
+  gameState.currentRound++;
+
+  // Level boundary: every 3 rounds (at round indices 3 and 6)
+  if (gameState.currentRound % 3 === 0 && gameState.currentRound < 9) {
+    gameState.levelTimes.push(Date.now() - gameState.levelStartTime);
+    const nextLevel = gameState.level + 1;
+    trackEvent('level_complete', 'game', { level: gameState.level });
+    showLevelTransition(nextLevel);
+    return;
+  }
+
+  // All rounds complete
+  if (gameState.currentRound >= 9) {
+    gameState.levelTimes.push(Date.now() - gameState.levelStartTime);
+    endGame('complete');
+    return;
+  }
+
+  // Same level, next round
+  loadRound();
+}
+```
+
+### `showLevelTransition(level)`
+
+```javascript
+function showLevelTransition(level) {
+  document.getElementById('game-screen').style.display = 'none';
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('overlay_toggle', {
+      screen: 'transition',
+      content_snapshot: {
+        overlay: 'transition_screen',
+        visible: true,
+        title: 'Level ' + level + '!'
+      }
+    });
+  }
+
+  // Use duration only (no buttons) — auto-advance after 2000ms (PART-024 rule)
+  transitionScreen.show({
+    icons: ['\uD83C\uDFAF'],
+    iconSize: 'normal',
+    title: 'Level ' + level + '!',
+    titleStyles: { color: '#270F63', fontSize: '36px' },
+    duration: 2000
+  });
+
+  // After 2000ms the transition auto-hides; show game-screen and load next round
+  setTimeout(function() {
+    gameState.levelStartTime = Date.now();
+    document.getElementById('game-screen').style.display = 'block';
+    loadRound();
+  }, 2000);
+}
+```
+
+### `endGame(reason)` (async)
+
+Star logic (time-based, per-level average):
+- Collect `gameState.levelTimes` (array of ms per completed level, max 3 entries)
+- Average seconds = `(sum of levelTimes) / levelTimes.length / 1000`
+- Stars: `< 15s` → 3, `< 25s` → 2, `>= 25s` → 1, `reason === 'game_over'` → 0
+
+```javascript
+async function endGame(reason) {
+  if (!gameState.isActive) return;
+  gameState.isActive = false;
+  gameState.duration_data.currentTime = new Date().toISOString();
+
+  const correct = gameState.attempts.filter(a => a.correct).length;
+  const total = gameState.attempts.length;
+  const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+  const timeTaken = timer ? timer.getTimeTaken() : Math.round((Date.now() - gameState.startTime) / 1000);
+
+  // Time-based star calculation (custom — overrides PART-011 default)
+  let stars;
+  if (reason === 'game_over') {
+    stars = 0;
+  } else {
+    const levelTimesMs = gameState.levelTimes;
+    let avgSec = 0;
+    if (levelTimesMs.length > 0) {
+      const totalMs = levelTimesMs.reduce(function(a, b) { return a + b; }, 0);
+      avgSec = totalMs / levelTimesMs.length / 1000;
+    }
+    stars = avgSec < 15 ? 3 : avgSec < 25 ? 2 : 1;
+  }
+
+  const metrics = {
+    accuracy: accuracy,
+    time: timeTaken,
+    stars: stars,
+    attempts: gameState.attempts,
+    duration_data: gameState.duration_data,
+    levelTimes: gameState.levelTimes,
+    livesRemaining: gameState.lives
+  };
+
+  console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
+  console.log('Attempt History:', JSON.stringify(gameState.attempts, null, 2));
+
+  trackEvent('game_end', 'game', { metrics: metrics });
+
+  // Flush deferred endProblem before sealing (PART-010)
+  if (signalCollector && gameState.pendingEndProblem) {
+    signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
+    gameState.pendingEndProblem = null;
+  }
+
+  // Seal SignalCollector (PART-010)
+  const signalPayload = signalCollector ? signalCollector.seal() : { events: [], signals: {}, metadata: {} };
+
+  // Show results screen (PART-019)
+  showResults(metrics, reason);
+
+  // Show end transition screen
+  if (reason === 'game_over') {
+    transitionScreen.show({
+      icons: ['\uD83D\uDE14'],
+      iconSize: 'large',
+      title: 'Game Over!',
+      subtitle: 'You ran out of lives.',
+      buttons: [{ text: 'Try again!', type: 'primary', action: function() { restartGame(); } }]
+    });
+  } else {
+    // Victory: TTS then show victory transition
+    try {
+      await FeedbackManager.playDynamicFeedback({
+        audio_content: 'Great job! You scored ' + accuracy + ' percent!',
+        subtitle: 'Great job! You scored ' + accuracy + '%!'
+      });
+    } catch (e) {
+      console.error('TTS error:', JSON.stringify({ error: e.message }, null, 2));
+    }
+    transitionScreen.show({
+      stars: stars,
+      title: 'Well done!',
+      subtitle: 'You completed all ' + gameState.totalRounds + ' rounds!',
+      buttons: [{ text: 'Claim Stars', type: 'primary', action: function() { claimStars(); } }]
+    });
+  }
+
+  // Send to platform (PART-008)
+  window.parent.postMessage({
+    type: 'game_complete',
+    data: {
+      metrics: metrics,
+      attempts: gameState.attempts,
+      events: signalPayload.events,
+      signals: signalPayload.signals,
+      metadata: signalPayload.metadata,
+      completedAt: Date.now()
+    }
+  }, '*');
+
+  // Cleanup (RULE-005)
+  if (timer) { timer.destroy(); timer = null; }
+  if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
+  if (progressBar) { progressBar.destroy(); progressBar = null; }
+  FeedbackManager.sound.stopAll();
+  FeedbackManager.stream.stopAll();
+}
+```
+
+### `claimStars()`
+
+```javascript
+function claimStars() {
+  transitionScreen.show({
+    icons: ['\uD83C\uDF89'],
+    iconSize: 'large',
+    title: 'Stars Claimed!',
+    persist: true
+  });
+}
+```
+
+### `showResults(metrics, reason)` — from PART-019 with custom fields
+
+```javascript
+function showResults(metrics, reason) {
+  document.getElementById('result-score').textContent = metrics.accuracy + '%';
+  document.getElementById('result-time').textContent = formatTime(metrics.time);
+  const correctCount = gameState.attempts.filter(function(a) { return a.correct; }).length;
+  document.getElementById('result-correct').textContent = correctCount + '/' + gameState.attempts.length;
+  document.getElementById('stars-display').textContent =
+    '\u2B50'.repeat(metrics.stars) + '\u2606'.repeat(3 - metrics.stars);
+  document.getElementById('result-level').textContent = gameState.level;
+  document.getElementById('result-lives').textContent = Math.max(0, gameState.lives);
+  document.getElementById('results-title').textContent =
+    reason === 'game_over' ? 'Game Over!' : 'Game Complete!';
+  document.getElementById('game-screen').style.display = 'none';
+  document.getElementById('results-screen').style.display = 'block';
+}
+```
+
+### `formatTime(seconds)`
+
+```javascript
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  if (m > 0) return m + 'm ' + s + 's';
+  return s + 's';
+}
+```
+
+### `restartGame()` — recreates destroyed components (PART-011 restart pattern)
+
+```javascript
+function restartGame() {
+  // Reset all state
+  gameState.currentRound = 0;
+  gameState.score = 0;
+  gameState.attempts = [];
+  gameState.events = [];
+  gameState.isActive = true;
+  gameState.startTime = Date.now();
+  gameState.lives = 3;
+  gameState.level = 1;
+  gameState.levelTimes = [];
+  gameState.deltaA = 0;
+  gameState.deltaB = 0;
+  gameState.wrongAttempts = 0;
+  gameState.isProcessing = false;
+  gameState.pendingEndProblem = null;
+  gameState.duration_data = {
+    startTime: new Date().toISOString(),
+    preview: [],
+    attempts: [],
+    evaluations: [],
+    inActiveTime: [],
+    totalInactiveTime: 0,
+    currentTime: null
+  };
+
+  // Recreate destroyed components (endGame nulled them)
+  signalCollector = new SignalCollector({
+    sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+    studentId: window.gameVariableState?.studentId || null,
+    templateId: gameState.gameId || null
+  });
+  window.signalCollector = signalCollector;
+
+  timer = new TimerComponent('timer-container', {
+    timerType: 'increase',
+    format: 'min',
+    startTime: 0,
+    endTime: 100000,
+    autoStart: false,
+    onEnd: function() { endGame('complete'); }
+  });
+
+  progressBar = new ProgressBarComponent({
+    autoInject: true,
+    totalRounds: 9,
+    totalLives: 3,
+    slotId: 'mathai-progress-slot'
+  });
+
+  visibilityTracker = new VisibilityTracker({
+    onInactive: function() {
+      const inactiveStart = Date.now();
+      gameState.duration_data.inActiveTime.push({ start: inactiveStart });
+      if (signalCollector) {
+        signalCollector.pause();
+        signalCollector.recordCustomEvent('visibility_hidden', {});
+      }
+      if (timer) timer.pause({ fromVisibilityTracker: true });
+      FeedbackManager.sound.pause();
+      FeedbackManager.stream.pauseAll();
+      trackEvent('game_paused', 'system');
+    },
+    onResume: function() {
+      const lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+      if (lastInactive && !lastInactive.end) {
+        lastInactive.end = Date.now();
+        gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
+      }
+      if (signalCollector) {
+        signalCollector.resume();
+        signalCollector.recordCustomEvent('visibility_visible', {});
+      }
+      if (timer && timer.isPaused) timer.resume({ fromVisibilityTracker: true });
+      FeedbackManager.sound.resume();
+      FeedbackManager.stream.resumeAll();
+      trackEvent('game_resumed', 'system');
+    },
+    popupProps: {
+      title: 'Game Paused',
+      description: 'Click Resume to continue.',
+      primaryText: 'Resume'
+    }
+  });
+
+  // Show game, hide results
+  document.getElementById('game-screen').style.display = 'block';
+  document.getElementById('results-screen').style.display = 'none';
+
+  timer.start();
+  gameState.levelStartTime = Date.now();
+  trackEvent('game_start', 'game');
+  loadRound();
+}
+```
+
+### DOMContentLoaded block (PART-004)
+>>>>>>> Stashed changes
+
+```javascript
+window.addEventListener('DOMContentLoaded', async function() {
+  try {
+    // 1. Wait for packages
+    await waitForPackages();
+
+    // 2. Init FeedbackManager
+    await FeedbackManager.init();
+
+    // 3. Preload sounds (PART-017) — use preload() array, NOT register()
+    try {
+      await FeedbackManager.sound.preload([
+        { id: 'correct_tap', url: 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740724945201.mp3' },
+        { id: 'wrong_tap',   url: 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740725080819.mp3' }
+      ]);
+    } catch (e) {
+      console.error('Sound preload error:', JSON.stringify({ error: e.message }, null, 2));
+    }
+
+    // 4. Create SignalCollector (PART-010) — BEFORE timer
+    signalCollector = new SignalCollector({
+      sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+      studentId: window.gameVariableState?.studentId || null,
+      templateId: gameState.gameId || null
+    });
+    window.signalCollector = signalCollector;
+
+    // 5. Inject ScreenLayout (PART-025) — BEFORE ProgressBar and TransitionScreen
+    ScreenLayout.inject('app', {
+      slots: { progressBar: true, transitionScreen: true }
+    });
+
+    // 6. Clone game template into #gameContent (PART-025 pattern)
+    var gameContentEl = document.getElementById('gameContent');
+    var templateEl = document.getElementById('game-template');
+    gameContentEl.appendChild(templateEl.content.cloneNode(true));
+
+    // 7. Create TimerComponent (PART-006) — count-up, no autoStart, large endTime
+    timer = new TimerComponent('timer-container', {
+      timerType: 'increase',
+      format: 'min',
+      startTime: 0,
+      endTime: 100000,
+      autoStart: false,
+      onEnd: function() { endGame('complete'); }
+    });
+
+    // 8. Create ProgressBarComponent (PART-023)
+    progressBar = new ProgressBarComponent({
+      autoInject: true,
+      totalRounds: 9,
+      totalLives: 3,
+      slotId: 'mathai-progress-slot'
+    });
+
+    // 9. Create TransitionScreenComponent (PART-024)
+    transitionScreen = new TransitionScreenComponent({
+      autoInject: true
+    });
+
+    // 10. Create VisibilityTracker (PART-005) — AFTER timer
+    visibilityTracker = new VisibilityTracker({
+      onInactive: function() {
+        var inactiveStart = Date.now();
+        gameState.duration_data.inActiveTime.push({ start: inactiveStart });
+        if (signalCollector) {
+          signalCollector.pause();
+          signalCollector.recordCustomEvent('visibility_hidden', {});
+        }
+        if (timer) timer.pause({ fromVisibilityTracker: true });
+        FeedbackManager.sound.pause();
+        FeedbackManager.stream.pauseAll();
+        trackEvent('game_paused', 'system');
+      },
+      onResume: function() {
+        var lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+        if (lastInactive && !lastInactive.end) {
+          lastInactive.end = Date.now();
+          gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
+        }
+        if (signalCollector) {
+          signalCollector.resume();
+          signalCollector.recordCustomEvent('visibility_visible', {});
+        }
+        if (timer && timer.isPaused) timer.resume({ fromVisibilityTracker: true });
+        FeedbackManager.sound.resume();
+        FeedbackManager.stream.resumeAll();
+        trackEvent('game_resumed', 'system');
+      },
+      popupProps: {
+        title: 'Game Paused',
+        description: 'Click Resume to continue.',
+        primaryText: 'Resume'
+      }
+    });
+
+    // 11. Register postMessage listener
     window.addEventListener('message', handlePostMessage);
 
-    transitionScreen.show({ icons: ['🧮'], iconSize: 'large', title: 'Adjustment Strategy', subtitle: 'Adjust numbers to add faster!', buttons: [{ text: "Let's go!", type: 'primary', action: () => startGame() }] });
-  } catch(e) { console.error('Init error:', JSON.stringify({ error: e.message }, null, 2)); }
+    // 12. Run setupGame — sets fallback content and shows start transition screen
+    setupGame();
+
+  } catch (error) {
+    console.error('Initialization failed:', JSON.stringify({ error: error.message }, null, 2));
+  }
 });
 ```
 
-### Window-Attached Debug (PART-012)
+### Debug functions (PART-012) — copy exactly
 
 ```javascript
-window.debugGame = () => { console.log('Game State:', JSON.stringify({ currentRound: gameState.currentRound, totalRounds: gameState.totalRounds, lives: gameState.lives, score: gameState.score, level: gameState.level, numberA: gameState.numberA, numberB: gameState.numberB, deltaA: gameState.deltaA, deltaB: gameState.deltaB, correctAnswer: gameState.correctAnswer, wrongAttempts: gameState.wrongAttempts, isActive: gameState.isActive, levelTimes: gameState.levelTimes }, null, 2)); };
-window.debugAudio = () => { console.log('FeedbackManager available:', typeof FeedbackManager !== 'undefined'); };
-window.testAudio = async (id) => { try { await FeedbackManager.sound.play(id || 'correct_tap'); } catch(e) { console.error(JSON.stringify({ error: e.message }, null, 2)); } };
-window.testPause = () => { if (timer) timer.pause(); };
-window.testResume = () => { if (timer && gameState.isActive) timer.resume(); };
+window.debugGame = function() {
+  console.log('Game State:', JSON.stringify(gameState, null, 2));
+};
+
+window.debugAudio = function() {
+  console.log('Audio State:', JSON.stringify({
+    sound: FeedbackManager.sound.getState(),
+    stream: FeedbackManager.stream.getState()
+  }, null, 2));
+};
+
+window.testAudio = async function(id) {
+  console.log('Testing audio:', id);
+  try {
+    await FeedbackManager.sound.play(id);
+  } catch (e) {
+    console.error('Audio test failed:', JSON.stringify({ error: e.message }, null, 2));
+  }
+};
+
+window.testPause = function() {
+  if (visibilityTracker) {
+    visibilityTracker.triggerInactive();
+  } else {
+    if (timer) timer.pause();
+    FeedbackManager.sound.pause();
+    FeedbackManager.stream.pauseAll();
+  }
+  console.log(JSON.stringify({ event: 'testPause', timerPaused: true }));
+};
+
+window.testResume = function() {
+  if (visibilityTracker) {
+    visibilityTracker.triggerResume();
+  } else {
+    if (timer && timer.isPaused) timer.resume();
+    FeedbackManager.sound.resume();
+    FeedbackManager.stream.resumeAll();
+  }
+  console.log(JSON.stringify({ event: 'testResume', timerResumed: true }));
+};
+
+window.debugSignals = function() {
+  if (!signalCollector) {
+    console.log('SignalCollector not initialized');
+    return;
+  }
+  console.log('=== Signal Collector Debug ===');
+  signalCollector.debug();
+  console.log('Input events:', signalCollector.getInputEvents().length);
+  console.log('Problem signals:', JSON.stringify(signalCollector.getAllProblemSignals(), null, 2));
+  console.log('Current view:', JSON.stringify(signalCollector.getCurrentView(), null, 2));
+  console.log('Metadata:', JSON.stringify(signalCollector.getMetadata(), null, 2));
+};
 ```
 
 ---
 
-## 9. Event Schema
+## 10. Event Schema
 
-### Game Lifecycle Events
+### Game Lifecycle Events (automatic — PART-010)
 
-| Event      | Target | When Fired  |
-| ---------- | ------ | ----------- |
-| game_start | game   | startGame() |
-| game_end   | game   | endGame()   |
+| Event | Target | When Fired |
+|-------|--------|------------|
+| `game_start` | `game` | `setupGame()` and `restartGame()` |
+| `game_end` | `game` | `endGame()` fires |
+| `game_paused` | `system` | VisibilityTracker onInactive |
+| `game_resumed` | `system` | VisibilityTracker onResume |
 
 ### Game-Specific Events
 
-| Event             | Target   | When Fired                | Data                                                       |
-| ----------------- | -------- | ------------------------- | ---------------------------------------------------------- |
-| adjust_number     | adjuster | User taps +/− on a number | { which, direction, deltaA, deltaB, adjustedA, adjustedB } |
-| reset_adjustments | game     | User taps Reset           | { round }                                                  |
-| check_answer      | input    | User taps Check           | { userAnswer, correctAnswer, round }                       |
-| correct_answer    | input    | Answer matches sum        | { userAnswer, round }                                      |
-| wrong_answer      | input    | Answer doesn't match      | { userAnswer, correctAnswer, round }                       |
-| round_complete    | game     | Round advances            | { round, livesRemaining }                                  |
-| level_complete    | game     | Level's 3 rounds done     | { level, levelTime }                                       |
-| life_lost         | game     | Wrong answer              | { livesRemaining }                                         |
+| Event | Target | When Fired | Data |
+|-------|--------|------------|------|
+| `question_shown` | `game` | `loadRound()` | `{ round, numberA, numberB, correctAnswer }` |
+| `adjustment_made` | `adjuster-a` or `adjuster-b` | `adjustNumber()` | `{ delta, adjusted, direction }` |
+| `life_lost` | `game` | Wrong answer in `checkAnswer()` | `{ lives, round }` |
+| `level_complete` | `game` | `roundComplete()` at level boundary | `{ level }` |
+| `input_change` | `answer-input` | `onInputChange()` | `{ value }` |
+| `tap` | `btn-reset` | `resetAdjustments()` | `{}` |
 
 ---
 
-## 10. Scaffold Points
+## 11. Scaffold Points
 
-| Point               | Function              | When                   | What Can Be Injected                              |
-| ------------------- | --------------------- | ---------------------- | ------------------------------------------------- |
-| after_wrong_answer  | checkAnswer()         | Wrong answer submitted | Hint about adjustment strategy, show expected sum |
-| before_round        | loadRound()           | New round starts       | Strategy tip ("Try rounding to nearest 10")       |
-| on_level_transition | showLevelTransition() | New level              | Difficulty preview                                |
-
-### Scaffold Integration Notes
-
-- Scaffolds are optional — game works without them
-- Each scaffold point must have a no-op default (game continues normally if no scaffold is provided)
-- Scaffold content is provided via postMessage (same channel as game content)
+| Point | Function | When | What Can Be Injected |
+|-------|----------|------|---------------------|
+| `after_incorrect` | `checkAnswer()` | Wrong answer | Hint: "Try rounding numberA to nearest 10" |
+| `before_round` | `loadRound()` | New round starts | Strategy tip for this specific combination |
+| `on_level_transition` | `showLevelTransition()` | Level boundary reached | Encouragement, difficulty preview |
 
 ---
 
-## 11. Feedback Triggers
+## 12. Feedback Triggers
 
-| Moment           | Trigger               | Feedback Type                                |
-| ---------------- | --------------------- | -------------------------------------------- |
-| Correct answer   | checkAnswer()         | registered sound (correct_tap) + dynamic TTS |
-| Wrong answer     | checkAnswer()         | registered sound (wrong_tap) + dynamic TTS   |
-| Victory          | endGame('victory')    | dynamic TTS with avg time                    |
-| Game over        | endGame('game_over')  | dynamic TTS                                  |
-| Level transition | showLevelTransition() | transition screen (visual only)              |
+| Moment | Trigger Function | Feedback Type | Notes |
+|--------|-----------------|---------------|-------|
+| Correct answer | `checkAnswer()` | `correct_tap` + subtitle | `getCorrectPhrase()` varied text; NO color change |
+| Incorrect answer | `checkAnswer()` | `wrong_tap` + subtitle | "Not quite! Try again."; NO color change |
+| Game complete (victory) | `endGame('complete')` | TTS `playDynamicFeedback` + victory transition | Reports accuracy % |
+| Game over | `endGame('game_over')` | Game-over transition | No audio |
 
-**Important:** No red/green background change on correct/incorrect. Feedback is audio-only (registered sounds + dynamic TTS).
-
-### Sound Registration
+### Sound URLs (exact — preloaded in DOMContentLoaded)
 
 ```javascript
-await FeedbackManager.sound.register('correct_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740724945201.mp3');
-await FeedbackManager.sound.register('wrong_tap', 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740725080819.mp3');
+{ id: 'correct_tap', url: 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740724945201.mp3' }
+{ id: 'wrong_tap',   url: 'https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1740725080819.mp3' }
 ```
+
+**CRITICAL: Use `FeedbackManager.sound.preload([...])` — NOT `sound.register()` (does not exist).**
+
+**NO background color change on correct or incorrect answer — audio-only feedback.**
 
 ---
 
-## 12. Visual Specifications
+## 13. Visual Specifications
 
-- **Layout:** Vertical stack — instruction → reset row → adjuster pair → input + check
-- **Adjuster pair:** Two number adjusters side-by-side with "+" operator between them
-- **Each adjuster:** Vertical stack: [−button/adjusted-value] → [number box with delta badge] → [+button/adjusted-value]
-- **Number box:** 80px × 60px, border-radius 10px, 28px bold number
-- **−button:** Light red background (#FFF5F5), red border (#F5D5D5), 80px × 36px
-- **+button:** Light green background (#F5FFF5), green border (#D5F0D5), 80px × 36px
-- **Delta badge:** Pill shape, top-right of number box. Green for positive, red for negative.
-- **Adjusted value:** Replaces the +/− button area when delta ≠ 0. Shows icon (+ or −) and the adjusted number in bold.
-- **Input field:** 80px × 52px, centered, number-only, "?" placeholder, yellow border on focus
-- **Check button:** Blue (#2563eb), rounded pill (24px radius), appears only when input has a value
-- **Reset button:** Gray, top-right aligned, "↻ Reset"
-- **No background color change** on correct/incorrect — only audio feedback
+- **Layout:** Vertical flex stack inside max-width 480px wrapper. Adjusters row: horizontal flex, two `.number-adjuster` columns (80px wide each) with `.plus-sign` (28px) between. No grid, no drag-drop.
+- **Number box:** 80×60px, border-radius 10px, 28px bold, white background, `#ddd` border. Displays original number only — never changes.
+- **Adj buttons:** 80×36px, border-radius 8px. Minus: `#FFF5F5` bg, `#F5D5D5` border, `#c0392b` text. Plus: `#F5FFF5` bg, `#D5F0D5` border, `#219653` text.
+- **Adj labels (when delta != 0):** Same dimensions and colors as buttons but non-interactive. Show adjusted value with directional arrow icon.
+- **Delta badge:** Position absolute top-right of number-box-wrap. Height 20px, min-width 26px, border-radius 10px, 11px bold. Positive: `#D5F0D5` bg, `#219653` text. Negative: `#FFD9D9` bg, `#c0392b` text. Hidden when delta=0.
+- **Answer input:** 80×52px, border-radius 10px, 22px bold, `?` placeholder, `#E0E0E0` border. Focus: `#E8D98A` border + yellow glow. Spinner arrows removed.
+- **Check button:** `#2563eb` bg, pill border-radius 24px, 16px bold white. Hidden until input has value.
+- **Reset button:** Top-right of play area, ghost style (transparent bg, `#ccc` border, 20px radius, 13px gray text).
+- **NO color change on correct/incorrect** — only audio feedback.
+- **Level label:** `#270F63`, 14px, 600 weight, centered.
+- **Results screen:** White card, centered, star display (emoji ⭐/☆), metrics table, "Play Again" blue button.
+- **Transitions:** CSS transitions 0.2s ease on buttons and borders.
+- **Responsive:** 480px max-width, 100dvh height, mobile-first.
 
 ---
 
-## 13. Test Scenarios
+## 14. Test Scenarios
 
-### Scenario: Complete game with all correct (9 rounds, 3 levels)
+> These scenarios are consumed by the ralph loop (PART-037) to generate `tests/game.spec.js`. Every action uses real selectors. Every assertion is exact.
+
+### Scenario: Complete game with all correct answers (fallback content)
 
 ```
-SETUP: Start screen → click "Let's go!" → Level 1 transition → click "Let's go!"
+SETUP: Page loaded, game ready (waitForGameReady returns true)
 ACTIONS:
-  // Round 1: 47 + 33 = 80
-  type "80" in #answer-input
+  wait for transition screen to show (start screen)
+  click button with text "Let's go!"   (starts game via startGame())
+  wait for #game-screen to be visible
+  -- Round 0: numberA=47, numberB=33, correctAnswer=80 --
+  fill #answer-input with "80"
+  wait for #btn-check to not have class "hidden"
   click #btn-check
-  → correct sound plays, advance after 400ms
-  // Round 2: 28 + 14 = 42
-  type "42" in #answer-input, click #btn-check
-  // Round 3: 56 + 25 = 81
-  type "81" in #answer-input, click #btn-check
-  → Level 2 transition screen appears
-  click "Next Level"
-  // Round 4: 36 + 84 = 120
-  type "120", click #btn-check
-  // Round 5: 67 + 45 = 112
-  type "112", click #btn-check
-  // Round 6: 49 + 73 = 122
-  type "122", click #btn-check
-  → Level 3 transition
-  click "Next Level"
-  // Round 7: 78 + 56 = 134
-  type "134", click #btn-check
-  // Round 8: 83 + 69 = 152
-  type "152", click #btn-check
-  // Round 9: 95 + 47 = 142
-  type "142", click #btn-check
+  wait 2500ms
+  -- Round 1: numberA=28, numberB=14, correctAnswer=42 --
+  fill #answer-input with "42"
+  click #btn-check
+  wait 2500ms
+  -- Round 2: numberA=56, numberB=25, correctAnswer=81 --
+  fill #answer-input with "81"
+  click #btn-check
+  wait 2500ms
+  wait 2500ms (level 2 transition auto-hides after 2000ms)
+  -- Round 3: numberA=36, numberB=84, correctAnswer=120 --
+  fill #answer-input with "120"
+  click #btn-check
+  wait 2500ms
+  -- Round 4: numberA=67, numberB=45, correctAnswer=112 --
+  fill #answer-input with "112"
+  click #btn-check
+  wait 2500ms
+  -- Round 5: numberA=49, numberB=73, correctAnswer=122 --
+  fill #answer-input with "122"
+  click #btn-check
+  wait 2500ms
+  wait 2500ms (level 3 transition auto-hides)
+  -- Round 6: numberA=78, numberB=56, correctAnswer=134 --
+  fill #answer-input with "134"
+  click #btn-check
+  wait 2500ms
+  -- Round 7: numberA=83, numberB=69, correctAnswer=152 --
+  fill #answer-input with "152"
+  click #btn-check
+  wait 2500ms
+  -- Round 8: numberA=95, numberB=47, correctAnswer=142 --
+  fill #answer-input with "142"
+  click #btn-check
+  wait 4000ms (TTS + victory transition)
 ASSERT:
-  gameState.score == 9, results visible, 3 stars if avg <15s per level
+  gameState.score == 9
+  gameState.lives == 3
+  gameState.isActive == false
+  #results-screen is visible
+  #game-screen is hidden
+  #result-score text == "100%"
+  #stars-display contains 3 stars
 ```
 
-### Scenario: Use adjustment aid then answer
+### Scenario: Submit incorrect answer — life lost, retry same round
 
 ```
-SETUP: Round 1 (47 + 33), game active
+SETUP: Page loaded, start screen shown
 ACTIONS:
-  click adj-plus on number A 3 times → deltaA = +3, adjusted = 50, badge "+3"
-  click adj-minus on number B 3 times → deltaB = -3, adjusted = 30, badge "-3"
-  type "80" in #answer-input
+  click button with text "Let's go!"
+  wait for #game-screen to be visible
+  fill #answer-input with "999"
   click #btn-check
+  wait 2500ms
 ASSERT:
-  correct sound plays
-  gameState.deltaA == 3, gameState.deltaB == -3 (recorded in attempt)
-  advance to round 2
-```
-
-### Scenario: Wrong answer → lose life, retry same round
-
-```
-SETUP: Round 1, 47 + 33 = 80
-ACTIONS:
-  type "75" in #answer-input
-  click #btn-check
-ASSERT:
-  wrong sound plays, dynamic audio "Not quite..."
   gameState.lives == 2
-  input cleared, Check button hidden
-  still on round 1 (gameState.currentRound == 0)
-  adjustments preserved (if any were made)
+  gameState.currentRound == 0   (still on round 0)
+  gameState.attempts.length == 1
+  gameState.attempts[0].correct == false
+  gameState.attempts[0].input_of_user == 999
+  #answer-input value == ""     (cleared for retry)
+  #answer-input disabled == false  (re-enabled for retry)
+  gameState.isProcessing == false
 ```
 
-### Scenario: Adjust numbers independently
+### Scenario: Lose all 3 lives — game over
 
 ```
-SETUP: Round 1, 47 + 33
+SETUP: Page loaded, start screen shown
 ACTIONS:
-  click adj-minus on number A once → deltaA = -1, adjusted A shows 46
-  click adj-plus on number B once → deltaB = +1, adjusted B shows 34
+  click button with text "Let's go!"
+  wait for #game-screen to be visible
+  fill #answer-input with "999"
+  click #btn-check
+  wait 2500ms
+  fill #answer-input with "999"
+  click #btn-check
+  wait 2500ms
+  fill #answer-input with "999"
+  click #btn-check
+  wait 2500ms
 ASSERT:
-  number A: badge "-1", top area shows "− 46"
-  number B: badge "+1", bottom area shows "+ 34"
-  numbers are independently adjusted
+  gameState.lives == 0
+  gameState.isActive == false
+  #results-screen is visible
+  #results-title text == "Game Over!"
+  #stars-display contains 0 stars (3 empty stars)
+  game_complete postMessage was sent
+  postMessage data.metrics.stars == 0
 ```
 
-### Scenario: Reset clears adjustments and input
+### Scenario: Adjust numbers then submit — answer must still be original sum
 
 ```
-SETUP: Round 1, user has adjusted both numbers and typed in input
+SETUP: Page loaded, start screen shown
 ACTIONS:
-  click adj-plus on A 3 times, click adj-minus on B 2 times
-  type "80" in input
+  click button with text "Let's go!"
+  wait for #game-screen to be visible
+  -- Round 0: 47+33=80; adjust A up by 3 to make 50 --
+  click button.adj-btn.adj-plus inside #adjuster-a   (first click)
+  click button.adj-btn.adj-plus inside #adjuster-a   (second click)
+  click button.adj-btn.adj-plus inside #adjuster-a   (third click)
+ASSERT (mid-scenario):
+  gameState.deltaA == 3
+  #delta-badge-a textContent == "+3"
+  #delta-badge-a does NOT have class "hidden"
+  #delta-badge-a has class "positive"
+  #adj-bottom-a contains element with class "adj-label-plus" (not a button)
+  #adj-top-a contains button with class "adj-minus" (still a button)
+ACTIONS (continued):
+  fill #answer-input with "80"   (original sum — NOT 83 = 50+33)
+  click #btn-check
+  wait 2500ms
+ASSERT:
+  gameState.score == 1
+  gameState.attempts[0].correct == true
+  gameState.attempts[0].input_of_user == 80
+  gameState.attempts[0].metadata.correctAnswer == 80
+```
+
+### Scenario: Reset clears adjustments
+
+```
+SETUP: Page loaded, start screen shown, game started
+ACTIONS:
+  click button with text "Let's go!"
+  wait for #game-screen to be visible
+  click button.adj-btn.adj-plus inside #adjuster-a
+  click button.adj-btn.adj-plus inside #adjuster-a
+  click button.adj-btn.adj-minus inside #adjuster-b
+ASSERT (mid-scenario):
+  gameState.deltaA == 2
+  gameState.deltaB == -1
+ACTIONS (continued):
   click #btn-reset
 ASSERT:
-  deltaA == 0, deltaB == 0
-  both adjusters show original buttons (no adjusted values, no badges)
-  input cleared, Check button hidden
+  gameState.deltaA == 0
+  gameState.deltaB == 0
+  #delta-badge-a has class "hidden"
+  #delta-badge-b has class "hidden"
+  #adj-top-a contains button.adj-minus (delta=0, shows minus button in top)
+  #adj-bottom-a contains button.adj-plus (delta=0, shows plus button in bottom)
+  #adj-top-b contains button.adj-minus
+  #adj-bottom-b contains button.adj-plus
 ```
 
-### Scenario: Level transitions appear every 3 rounds
+### Scenario: Check button hidden until input has value
 
 ```
-SETUP: Complete rounds 1-3
-ASSERT:
-  After round 3 correct, Level 2 transition screen shows
-  After clicking "Next Level", round 4 loads
-  After round 6, Level 3 transition shows
-```
-
-### Scenario: Game over after 3 wrong answers
-
-```
-SETUP: 3 wrong attempts on same or different rounds
+SETUP: Page loaded, start screen shown
 ACTIONS:
-  type "99" → Check → wrong (lives=2)
-  type "88" → Check → wrong (lives=1)
-  type "77" → Check → wrong (lives=0)
-ASSERT:
-  lives == 0, game over screen shows, 0 stars
-```
-
-### Scenario: Check button visibility
-
-```
-SETUP: Round loaded, input empty
+  click button with text "Let's go!"
+  wait for #game-screen to be visible
 ASSERT:
   #btn-check has class "hidden"
 ACTIONS:
-  type "5" in input
+  fill #answer-input with "8"
 ASSERT:
   #btn-check does NOT have class "hidden"
 ACTIONS:
-  clear input (backspace)
+  clear #answer-input (fill with "")
 ASSERT:
-  #btn-check has class "hidden" again
+  #btn-check has class "hidden"
 ```
 
-### Scenario: Star rating based on avg time per level
+### Scenario: Level 2 transition fires after round 3
 
 ```
+SETUP: Page loaded, start screen shown
+ACTIONS:
+  click button with text "Let's go!"
+  wait for #game-screen to be visible
+  fill #answer-input with "80"; click #btn-check; wait 2500ms
+  fill #answer-input with "42"; click #btn-check; wait 2500ms
+  fill #answer-input with "81"; click #btn-check; wait 2500ms
+ASSERT (immediately after round 2 correct):
+  #game-screen style.display == "none"  (hidden while transition shows)
+  gameState.level == 2
+  gameState.currentRound == 3
+ASSERT (after 2500ms):
+  #game-screen is visible again
+  #number-a-display text == "36"  (round 3: numberA=36)
+  #number-b-display text == "84"
+```
+
+### Scenario: Metrics shape in game_complete postMessage
+
+```
+SETUP: Complete all 9 rounds correctly (see Scenario 1)
+ASSERT (on game_complete postMessage):
+  data.metrics.accuracy == 100
+  data.metrics.stars is integer between 0 and 3
+  data.metrics.time > 0
+  data.attempts is array with length 9
+  data.events is array
+  each attempt has fields: attempt_timestamp, time_since_start_of_game, input_of_user, attempt_number, correct, metadata
+  each attempt.metadata has: round, question, correctAnswer, validationType
+  each attempt.metadata.validationType == "fixed"
+```
+
+### Scenario: Sentry integration fully configured (PART-030)
+
+```
+SETUP: Page loaded, game ready
+ACTIONS:
+  (none — check on load)
+ASSERT (via verifySentryIntegration helper):
+  SentryConfig package loaded (window.SentryConfig !== undefined)
+  Sentry SDK loaded (window.Sentry !== undefined)
+  initSentry() function defined
+  Sentry initialized (verifySentry().initialized === true)
+  DSN present (verifySentry().dsn is truthy)
+  Script order: SentryConfig → SDK → game packages
+  No integrity attribute on SDK scripts
+  All 3 SDK scripts loaded (bundle.tracing.replay.feedback, captureconsole, browserprofiling)
+  verifySentry() debug function exists
+  testSentry() debug function exists
+```
+
+### Scenario: No Sentry console errors on load (PART-030)
+
+```
+SETUP: Collect console errors from page load
+ACTIONS:
+  Load page, wait for game ready
 ASSERT:
-  avg < 15s/level = 3★
-  avg 15-25s/level = 2★
-  avg ≥ 25s/level = 1★
-  game over = 0★
+  No "Sentry initialization failed" in console errors
+  No "SentryConfig is not defined" in console errors
+  No "Sentry is not defined" in console errors
 ```
 
-### Scenario: ProgressBar + timer
+### Scenario: Global Sentry error handlers registered (PART-030)
 
 ```
+SETUP: Page loaded
+ACTIONS:
+  Trigger a test error via page.evaluate(() => window.testSentry())
 ASSERT:
-  "0/9 rounds completed" + 3 hearts at start
-  timer counting up
-  updates after each round and life loss
-```
-
-### Scenario: Restart resets everything
-
-```
-ACTIONS: click restart
-ASSERT: all state reset, level=1, transition screen shows
+  testSentry() executes without throwing
+  Console shows "Test error sent to Sentry"
 ```
 
 ---
 
-## 14. Verification Checklist
+## 15. Verification Checklist
 
 ### Structural
-- [ ] DOCTYPE, meta charset, meta viewport
-- [ ] Package scripts in order (PART-002)
-- [ ] Single style + single script (RULE-007)
-- [ ] #app, #game-screen, #results-screen, #timer-container
+- [ ] `<!DOCTYPE html>` present
+- [ ] `<meta charset="UTF-8">` present
+- [ ] `<meta name="viewport" content="width=device-width, initial-scale=1.0">` present
+- [ ] SentryConfig script loaded FIRST, before Sentry SDK scripts (PART-030)
+- [ ] Sentry SDK v10.23.0 — all 3 scripts: bundle.tracing.replay.feedback, captureconsole, browserprofiling (PART-030)
+- [ ] No `integrity` attribute on Sentry SDK scripts (PART-030)
+- [ ] Game packages in correct order after Sentry: FeedbackManager → Components → Helpers (PART-002)
+- [ ] All 3 package script URLs use exact `storage.googleapis.com/test-dynamic-assets/...` paths
+- [ ] No invented or hallucinated CDN URLs (PART-026 #0)
+- [ ] Single `<style>` block in `<head>` (RULE-007)
+- [ ] Single `<script>` block in `<body>` with no `src` attribute (RULE-007)
+- [ ] `<div id="app"></div>` exists in `<body>` (for ScreenLayout.inject)
+- [ ] `<template id="game-template">` exists in `<body>`
+- [ ] `#game-screen` inside template, `style="display:none;"` initially
+- [ ] `#results-screen` inside template, `style="display:none;"` initially
+- [ ] `#timer-container` inside `#game-screen`
+- [ ] `#adjusters-row` with `#adjuster-a` and `#adjuster-b` inside `#game-screen`
+- [ ] `#adj-top-a`, `#adj-bottom-a` inside `#adjuster-a`
+- [ ] `#adj-top-b`, `#adj-bottom-b` inside `#adjuster-b`
+- [ ] `#number-box-a` with `#number-a-display` inside `#adjuster-a`
+- [ ] `#number-box-b` with `#number-b-display` inside `#adjuster-b`
+- [ ] `#delta-badge-a` and `#delta-badge-b` exist, have class `hidden` initially
+- [ ] `#answer-input` type="number" inside `#game-screen`
+- [ ] `#btn-check` inside `#game-screen`, has class `hidden` initially
+- [ ] `#btn-reset` inside `#game-screen`
 
 ### Functional
-- [ ] waitForPackages with 10s timeout (PART-003)
-- [ ] Init sequence correct (PART-004)
-- [ ] VisibilityTracker (PART-005)
-- [ ] TimerComponent increase (PART-006)
-- [ ] PostMessage handling (PART-008)
-- [ ] Fallback content (PART-008)
-- [ ] recordAttempt shape (PART-009)
-- [ ] trackEvent (PART-010)
-- [ ] endGame metrics+cleanup (PART-011)
-- [ ] Debug functions (PART-012)
-- [ ] showResults (PART-019)
-- [ ] No anti-patterns (PART-026)
-
-### Design & Layout
-- [ ] CSS variables (PART-020)
-- [ ] ScreenLayout (PART-021)
-- [ ] 480px max, 100dvh (PART-021)
-- [ ] game-btn + btn-primary (PART-022)
-- [ ] ProgressBar: 9 rounds, 3 lives (PART-023)
-- [ ] update() with rounds COMPLETED (PART-023)
-- [ ] TransitionScreen: start, level transitions, victory, game-over (PART-024)
-- [ ] ScreenLayout.inject before components (PART-025)
-- [ ] Template cloneNode (PART-025)
-
-### Rules
-- [ ] RULE-001: Global scope — all onclick handlers global
-- [ ] RULE-002: async keyword on all async functions
-- [ ] RULE-003: try/catch on all async calls
-- [ ] RULE-004: JSON.stringify in all logging
-- [ ] RULE-005: Cleanup in endGame (timer, progressBar, visibilityTracker, FeedbackManager)
-- [ ] RULE-006: No new Audio(), setInterval for timer, SubtitleComponent.show()
-- [ ] RULE-007: Single file, no external CSS/JS
+- [ ] `waitForPackages()` checks all four: FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector (PART-003)
+- [ ] `waitForPackages()` has 10s timeout and shows fallback UI on failure (PART-003)
+- [ ] DOMContentLoaded calls in order: waitForPackages → FeedbackManager.init → sound.preload → SignalCollector → ScreenLayout.inject → clone template → TimerComponent → ProgressBarComponent → TransitionScreenComponent → VisibilityTracker → postMessage listener → setupGame (PART-004)
+- [ ] `ScreenLayout.inject()` called BEFORE creating ProgressBar and TransitionScreen (PART-025)
+- [ ] Template cloned into `#gameContent` after inject (PART-025)
+- [ ] `setupGame()` sets `gameState.startTime`, `isActive`, `currentRound`, `score`, `attempts`, `events`, `duration_data.startTime` (PART-004)
+- [ ] `setupGame()` does NOT call `timer.start()` — `startGame()` does it after transition button click
+- [ ] `startGame()` calls `timer.start()` (PART-006)
+- [ ] `handlePostMessage()` in global scope, handles `game_init`, calls `setupGame()` (PART-008)
+- [ ] Fallback content (9 rounds) set in `setupGame()` when `!gameState.content` (PART-008)
+- [ ] `recordAttempt()` in global scope, produces correct attempt shape (PART-009)
+- [ ] `trackEvent()` in global scope, pushes to `gameState.events` (PART-010)
+- [ ] `signalCollector.startProblem()` called at each `loadRound()` (PART-010)
+- [ ] Deferred `endProblem` pattern used via `gameState.pendingEndProblem` (PART-010)
+- [ ] `signalCollector.recordViewEvent()` called in: `loadRound`, `adjustNumber`, `checkAnswer`, `showLevelTransition` (PART-010)
+- [ ] `data-signal-id` attributes on `#number-box-a`, `#number-box-b`, `#answer-input`, `#btn-check` (PART-010)
+- [ ] `endGame()` guards against double-call with `if (!gameState.isActive) return` (PART-011)
+- [ ] `endGame()` flushes `pendingEndProblem` before `signalCollector.seal()` (PART-011)
+- [ ] `endGame()` calls `showResults(metrics, reason)` (PART-019)
+- [ ] `endGame()` sends `game_complete` postMessage with metrics, attempts, events, signals, metadata, completedAt (PART-008, PART-011)
+- [ ] Star calculation is time-based: <15s avg/level=3★, <25s=2★, ≥25s=1★, game_over=0★ (custom PART-011)
+- [ ] `showResults()` populates: result-score, result-time, result-correct, stars-display, result-level, result-lives, results-title (PART-019)
+- [ ] All 6 debug functions on `window`: debugGame, debugAudio, testAudio, testPause, testResume, debugSignals (PART-012)
+- [ ] `testPause()` uses `visibilityTracker.triggerInactive()` (PART-012)
+- [ ] `testResume()` uses `visibilityTracker.triggerResume()` (PART-012)
+- [ ] `progressBar.update()` called with rounds COMPLETED (0 at start, not current round index 1) (PART-023)
+- [ ] `progressBar.destroy()` called in `endGame()` cleanup (PART-023)
+- [ ] Start transition: `transitionScreen.show({...buttons:[{text:"Let's go!", action:startGame}]})` (PART-024)
+- [ ] Level transitions: `duration: 2000` ONLY — no `buttons` combined with `duration` (PART-024)
+- [ ] Victory transition: `stars:` field + `buttons` with `claimStars()` (PART-024)
+- [ ] Game-over transition: `icons: ['😔']` + `buttons` with `restartGame()` (PART-024)
+- [ ] `restartGame()` recreates SignalCollector, TimerComponent, ProgressBarComponent, VisibilityTracker (PART-011)
+- [ ] All game HTML inside `#gameContent` — no game elements as sibling of `#app` (PART-025, PART-026 #13)
+- [ ] No static game HTML directly in `<body>` or inside `#app` (PART-025)
+- [ ] `initSentry()` defined and called on load (PART-030)
+- [ ] Sentry SDK scripts loaded in correct order (PART-030)
 
 ### Game-Specific
+<<<<<<< Updated upstream
 - [ ] Two numbers displayed with independent +/− buttons
 - [ ] Each click adjusts by ±1 (independent — adjusting A does NOT affect B)
 - [ ] Delta > 0: adjusted value shown below (+ area), green badge with "+N"
@@ -1290,6 +2635,70 @@ ASSERT: all state reset, level=1, transition screen shows
 - [ ] All fallback sums verified correct
 - [ ] `window.gameState`, restartGame recreates components
 - [ ] Transition screens use buttons
+=======
+- [ ] `adjustNumber(which, direction)` increments/decrements `deltaA`/`deltaB` by exactly 1
+- [ ] `updateAdjusterUI(which)` re-renders adj-top and adj-bottom based on current delta
+- [ ] When delta=0: adj-top has `button.adj-minus`, adj-bottom has `button.adj-plus`, no badge
+- [ ] When delta<0: adj-top has `.adj-label.adj-label-minus` (adjusted value), adj-bottom has `button.adj-plus`, badge is red negative
+- [ ] When delta>0: adj-top has `button.adj-minus`, adj-bottom has `.adj-label.adj-label-plus` (adjusted value), badge is green positive
+- [ ] Number box `#number-a-display` / `#number-b-display` always shows original number (never changes with delta)
+- [ ] Answer validation: `parseInt(input) === gameState.correctAnswer` (original sum, NOT adjusted values)
+- [ ] Correct answer: no color change on number boxes or input (audio-only feedback) — CRITICAL
+- [ ] Wrong answer: no color change on number boxes or input (audio-only feedback) — CRITICAL
+- [ ] Wrong answer: lives decrement, progress bar updates, input cleared (`value='', disabled=false`), retry same round
+- [ ] `#btn-check` shows only when input is non-empty; hidden initially and after each load
+- [ ] 9 rounds across 3 levels (rounds 0-2 = level 1, 3-5 = level 2, 6-8 = level 3)
+- [ ] Level transitions at `currentRound === 3` and `currentRound === 6` (after incrementing in roundComplete)
+- [ ] `gameState.levelTimes` records 3 entries (one per level) in ms
+- [ ] `gameState.levelStartTime` reset in `startGame()` and in `setTimeout` inside `showLevelTransition()`
+
+### Design & Layout
+- [ ] CSS uses `var(--mathai-*)` variables for brand colors (PART-020)
+- [ ] `adj-minus` button: `#FFF5F5` bg, `#F5D5D5` border, `#c0392b` color
+- [ ] `adj-plus` button: `#F5FFF5` bg, `#D5F0D5` border, `#219653` color
+- [ ] Delta badge: `.positive` = green; `.negative` = red; `.hidden` when delta=0
+- [ ] Answer input: 80×52px, 22px bold, focus border `#E8D98A` with glow
+- [ ] Check button: `#2563eb` bg, 24px border-radius pill
+- [ ] Number box: 80×60px, 28px bold
+- [ ] Reset button: ghost style, top-right of game screen
+- [ ] ScreenLayout provides max-width 480px wrapper (PART-021/025)
+- [ ] Uses `100dvh` not `100vh` (PART-021)
+- [ ] Progress bar slot: `position: absolute; top: 0` (PART-021)
+- [ ] Timer inside `#timer-container` (PART-006)
+- [ ] Count-up timer with `endTime: 100000` (PART-006 rule)
+
+### Rules Compliance
+- [ ] RULE-001: All HTML onclick handlers (`adjustNumber`, `onInputChange`, `checkAnswer`, `resetAdjustments`, `restartGame`, `claimStars`) in global scope
+- [ ] RULE-002: All functions using `await` have `async` keyword (`checkAnswer`, `endGame`, `waitForPackages`, DOMContentLoaded handler, `testAudio`)
+- [ ] RULE-003: All async calls wrapped in try/catch (`FeedbackManager.init`, `sound.preload`, `sound.play`, `playDynamicFeedback`)
+- [ ] RULE-004: All logging uses `JSON.stringify` — no raw objects in `console.log`/`console.error`
+- [ ] RULE-005: `endGame()` destroys timer, visibilityTracker, progressBar; calls `sound.stopAll()` and `stream.stopAll()`
+- [ ] RULE-006: No `new Audio()`, no `setInterval` for timing, no `SubtitleComponent.show()`, no `sound.register()`
+- [ ] RULE-007: Single file — no external CSS links, no external JS files (except PART-002 CDN packages)
+
+### Anti-Pattern Checks (PART-026)
+- [ ] No hallucinated script URLs — only `storage.googleapis.com/test-dynamic-assets/...` and `browser.sentry-cdn.com/10.23.0/...`
+- [ ] No `sound.register()` — uses `sound.preload([{id, url}])`
+- [ ] No `SubtitleComponent.show()` — uses subtitle prop in `sound.play()`
+- [ ] No `setInterval`/`setTimeout` for timing except the 2000ms level-transition delay
+- [ ] VisibilityTracker `onInactive` uses `sound.pause()` NOT `sound.stopAll()` (PART-026 #19)
+- [ ] VisibilityTracker timer calls pass `{ fromVisibilityTracker: true }` (PART-026)
+- [ ] `gameState` declared as `window.gameState = {...}` NOT `const gameState = {...}` (PART-026)
+- [ ] Count-up timer uses `endTime: 100000` (PART-026 / PART-006 rule)
+- [ ] No inline stub/polyfill for CDN packages (PART-026 #20)
+- [ ] `progressBar.update()` first param is rounds COMPLETED (PART-026 #16)
+- [ ] Level transition uses `duration` only, no `duration + buttons` mix (PART-026 / PART-024)
+- [ ] `restartGame()` recreates timer and visibilityTracker (PART-026 / PART-011)
+>>>>>>> Stashed changes
 
 ### Contract Compliance
-- [ ] gameState, attempts, metrics, duration_data, postMessage schemas
+- [ ] `gameState` matches `contracts/game-state.schema.json`
+- [ ] `gameState.duration_data` matches `contracts/duration-data.schema.json`
+- [ ] Each attempt matches `contracts/attempt.schema.json`
+- [ ] Metrics object matches `contracts/metrics.schema.json`
+- [ ] Outgoing postMessage matches `contracts/postmessage-out.schema.json`
+- [ ] `handlePostMessage` handles `contracts/postmessage-in.schema.json` shape
+
+---
+
+*End of spec — Adjustment Strategy*

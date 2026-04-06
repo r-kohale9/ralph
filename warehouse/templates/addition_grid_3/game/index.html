@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Addition Grid</title>
+<style>
+:root {
+  --mathai-primary: #4a90d9;
+  --mathai-primary-dark: #357abd;
+  --mathai-green: #4caf50;
+  --mathai-green-light: #e8f5e9;
+  --mathai-red: #f44336;
+  --mathai-red-light: #ffebee;
+  --mathai-surface: #f0f4ff;
+  --mathai-white: #fff;
+  --mathai-text: #1a1a2e;
+  --mathai-text-secondary: #666;
+  --mathai-border: #d0d8e8;
+  --mathai-font-size-xl: 1.25rem;
+  --mathai-font-size-lg: 1.1rem;
+  --mathai-font-size-title: 1.5rem;
+  --mathai-font-size-sm: 0.875rem;
+  --mathai-font-size-base: 1rem;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-size: 16px;
+  color: var(--mathai-text);
+  background: #f5f7fb;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Screen Layout (PART-021) */
+.page-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.game-wrapper {
+  width: 100%;
+  max-width: 480px;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--mathai-white);
+  position: relative;
+}
+
+.game-stack {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  position: relative;
+}
+
+/* Grid layout */
+.grid-container {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  gap: 8px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.grid-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  border-radius: 8px;
+  font-size: var(--mathai-font-size-xl);
+  font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.grid-cell.static {
+  background: var(--mathai-surface);
+  color: var(--mathai-text);
+  border: 2px solid var(--mathai-border);
+}
+
+.grid-cell.operator {
+  background: transparent;
+  color: var(--mathai-text-secondary);
+  font-size: var(--mathai-font-size-lg);
+  min-height: auto;
+}
+
+.grid-cell.operator.totals {
+  color: var(--mathai-text);
+  font-size: var(--mathai-font-size-xl);
+  font-weight: 700;
+}
+
+.grid-cell.answer {
+  background: var(--mathai-white);
+  border: 2px solid var(--mathai-primary);
+  flex-direction: column;
+}
+
+.grid-cell.answer.correct {
+  border-color: var(--mathai-green);
+  background: var(--mathai-green-light);
+}
+
+.grid-cell.answer.incorrect {
+  border-color: var(--mathai-red);
+  background: var(--mathai-red-light);
+}
+
+.grid-cell.totals {
+  border-style: dashed;
+}
+
+.cell-input {
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-size: var(--mathai-font-size-xl);
+  font-weight: 600;
+  color: var(--mathai-text);
+  outline: none;
+  -moz-appearance: textfield;
+}
+
+.cell-input::-webkit-outer-spin-button,
+.cell-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.cell-input:focus {
+  outline: none;
+}
+
+.cell-input:disabled {
+  opacity: 0.8;
+  color: var(--mathai-text);
+}
+
+.grid-cell.answer:hover {
+  border-color: var(--mathai-primary-dark);
+}
+
+.grid-cell.answer:focus-within {
+  border-color: var(--mathai-primary-dark);
+  box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.2);
+}
+
+.grid-cell.answer.correct:focus-within,
+.grid-cell.answer.incorrect:focus-within {
+  box-shadow: none;
+}
+
+.grid-cell.answer.empty {
+  border-color: var(--mathai-red);
+  animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* Row 3 separator */
+.grid-cell[data-row="3"] {
+  margin-top: 8px;
+}
+
+/* Totals label */
+.totals-label {
+  text-align: center;
+  font-size: var(--mathai-font-size-sm);
+  color: var(--mathai-text-secondary);
+  margin-top: -4px;
+  margin-bottom: 16px;
+}
+
+/* Correct answer reveal */
+.correct-value {
+  font-size: var(--mathai-font-size-sm);
+  color: var(--mathai-green);
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+/* Preview placeholder */
+.grid-cell.answer.preview-placeholder {
+  color: var(--mathai-primary);
+  font-size: var(--mathai-font-size-xl);
+  font-weight: 600;
+  cursor: default;
+  min-height: 52px;
+}
+
+/* Game header */
+.game-header {
+  text-align: center;
+  padding: 16px 16px 8px;
+}
+
+.game-title {
+  font-size: var(--mathai-font-size-title);
+  color: var(--mathai-text);
+  margin: 0 0 4px;
+}
+
+.game-instruction {
+  font-size: var(--mathai-font-size-sm);
+  color: var(--mathai-text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Button row */
+.button-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 16px;
+}
+
+/* Game buttons (PART-022) */
+.game-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  min-width: 120px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: var(--mathai-font-size-base);
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.game-btn:active {
+  transform: scale(0.96);
+}
+
+.game-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-primary {
+  background: var(--mathai-primary);
+  color: var(--mathai-white);
+  border-color: var(--mathai-primary);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--mathai-primary-dark);
+  border-color: var(--mathai-primary-dark);
+}
+
+.btn-secondary {
+  background: var(--mathai-white);
+  color: var(--mathai-text);
+  border-color: var(--mathai-border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--mathai-surface);
+  border-color: var(--mathai-primary);
+}
+
+/* Results Screen (PART-019) */
+.results-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px;
+  gap: 20px;
+}
+
+.results-stars {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  font-size: 2.5rem;
+}
+
+.star {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.star.earned {
+  color: #ffc107;
+  animation: starPop 0.4s ease forwards;
+}
+
+.star.empty {
+  color: #ddd;
+  opacity: 0.5;
+}
+
+@keyframes starPop {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.results-score {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--mathai-text);
+  text-align: center;
+}
+
+.results-metrics {
+  width: 100%;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--mathai-surface);
+  border-radius: 8px;
+}
+
+.metric-label {
+  font-size: var(--mathai-font-size-sm);
+  color: var(--mathai-text-secondary);
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: var(--mathai-font-size-base);
+  color: var(--mathai-text);
+  font-weight: 600;
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- STEP 1: SentryConfig package -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+<!-- STEP 2: initSentry() function definition (PART-030) -->
+<script>
+function initSentry() {
+  if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+  if (typeof Sentry === 'undefined') return;
+  Sentry.init({
+    dsn: SentryConfig.dsn,
+    environment: SentryConfig.environment,
+    tracesSampleRate: SentryConfig.tracesSampleRate,
+    sampleRate: SentryConfig.sampleRate,
+    maxBreadcrumbs: 50,
+    ignoreErrors: [
+      "ResizeObserver loop limit exceeded",
+      "ResizeObserver loop completed with undelivered notifications",
+      "Non-Error promise rejection captured",
+      "Script error.",
+      "Load failed",
+      "Failed to fetch"
+    ]
+  });
+  window.addEventListener('error', function(e) {
+    Sentry.captureException(e.error || new Error(e.message));
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    Sentry.captureException(e.reason || new Error('Unhandled rejection'));
+  });
+  Sentry.addBreadcrumb({ message: 'Sentry initialized', level: 'info' });
+}
+</script>
+
+<!-- STEP 3: Sentry SDK v10.23.0 -->
+<script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+<!-- STEP 4: Initialize on load -->
+<script>window.addEventListener('load', initSentry);</script>
+
+<!-- STEP 5-7: Game packages -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+<script>
+/* ========== Game State (PART-007) ========== */
+window.gameState = {
+  currentRound: 0,
+  totalRounds: 1,
+  score: 0,
+  attempts: [],
+  events: [],
+  startTime: null,
+  isActive: false,
+  content: null,
+  duration_data: {
+    startTime: null,
+    preview: [],
+    attempts: [],
+    evaluations: [],
+    inActiveTime: [],
+    totalInactiveTime: 0,
+    currentTime: null
+  },
+  grid: [],
+  userAnswers: {},
+  cellStatus: {},
+  totalAnswerCells: 6,
+  correctCells: 0,
+  allSubmitted: false
+};
+const gameState = window.gameState;
+
+let timer = null;
+let visibilityTracker = null;
+let signalCollector = null;
+let previewScreen = null;
+
+/* ========== Fallback Content (PART-028) ========== */
+const fallbackContent = {
+  previewInstruction: '<p>Fill in the missing values. Each row: <b>a + b = c</b>. The last row shows <b>column totals</b>.</p>',
+  previewAudioText: 'Fill in the missing values. Each row is a plus b equals c. The last row shows column totals.',
+  previewAudio: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/a08bc0ef-fa70-45d9-9e2a-00f4dd19aed7.mp3',
+  equations: [
+    { a: 12, b: 15 },
+    { a: 23, b: 14 },
+    { a: 31, b: 22 }
+  ]
+};
+
+/* ========== Content Sets ========== */
+const contentSets = [
+  {
+    previewInstruction: '<p>Fill in the missing values. Each row: <b>a + b = c</b>. The last row shows <b>column totals</b>.</p>',
+    equations: [
+      { a: 3, b: 5 },
+      { a: 6, b: 2 },
+      { a: 4, b: 7 }
+    ]
+  },
+  {
+    previewInstruction: '<p>Fill in the missing values. Each row: <b>a + b = c</b>. The last row shows <b>column totals</b>.</p>',
+    equations: [
+      { a: 24, b: 33 },
+      { a: 18, b: 45 },
+      { a: 37, b: 19 }
+    ]
+  },
+  {
+    previewInstruction: '<p>Fill in the missing values. Each row: <b>a + b = c</b>. The last row shows <b>column totals</b>.</p>',
+    equations: [
+      { a: 187, b: 465 },
+      { a: 329, b: 578 },
+      { a: 746, b: 253 }
+    ]
+  }
+];
+
+/* ========== waitForPackages (PART-003) ========== */
+function waitForPackages() {
+  return new Promise(function(resolve, reject) {
+    var timeout = 10000;
+    var start = Date.now();
+    function check() {
+      if (
+        typeof FeedbackManager !== 'undefined' &&
+        typeof TimerComponent !== 'undefined' &&
+        typeof VisibilityTracker !== 'undefined' &&
+        typeof SignalCollector !== 'undefined'
+      ) {
+        resolve();
+      } else if (Date.now() - start > timeout) {
+        reject(new Error('Package load timeout after 10s'));
+      } else {
+        setTimeout(check, 100);
+      }
+    }
+    check();
+  });
+}
+
+/* ========== Track Event (PART-010) ========== */
+function trackEvent(type, target, data) {
+  data = data || {};
+  gameState.events.push({ type: type, target: target, timestamp: Date.now(), ...data });
+}
+
+/* ========== Record Attempt (PART-009) ========== */
+function recordAttempt(params) {
+  var row = params.row;
+  var col = params.col;
+  var userAnswer = params.userAnswer;
+  var correctAnswer = params.correctAnswer;
+  var correct = params.correct;
+
+  var attempt = {
+    attempt_timestamp: new Date().toISOString(),
+    time_since_start_of_game: (Date.now() - gameState.startTime) / 1000,
+    input_of_user: userAnswer,
+    attempt_number: gameState.attempts.length + 1,
+    correct: correct,
+    metadata: {
+      round: gameState.currentRound,
+      question: 'cell-' + row + '-' + col,
+      correctAnswer: correctAnswer,
+      validationType: 'fixed'
+    }
+  };
+  gameState.attempts.push(attempt);
+  gameState.duration_data.attempts.push({
+    startTime: new Date().toISOString(),
+    time_to_first_attempt: (Date.now() - gameState.startTime) / 1000,
+    duration: 0
+  });
+  console.log('Attempt:', JSON.stringify(attempt, null, 2));
+}
+
+/* ========== Build Correct Answers ========== */
+function buildCorrectAnswers() {
+  var answers = {};
+  for (var r = 0; r < 3; r++) {
+    answers[r + '-4'] = gameState.grid[r].c;
+  }
+  answers['3-0'] = gameState.totals.sumA;
+  answers['3-2'] = gameState.totals.sumB;
+  answers['3-4'] = gameState.totals.sumC;
+  return answers;
+}
+
+/* ========== Build Preview Grid HTML ========== */
+function buildPreviewGridHtml() {
+  var eqs = gameState.content.equations;
+  var cells = '';
+  eqs.forEach(function(eq, r) {
+    cells += '<div class="grid-cell static" data-row="' + r + '" data-col="0">' + eq.a + '</div>';
+    cells += '<div class="grid-cell operator" data-row="' + r + '" data-col="1">+</div>';
+    cells += '<div class="grid-cell static" data-row="' + r + '" data-col="2">' + eq.b + '</div>';
+    cells += '<div class="grid-cell operator" data-row="' + r + '" data-col="3">=</div>';
+    cells += '<div class="grid-cell answer preview-placeholder" data-row="' + r + '" data-col="4">?</div>';
+  });
+  cells += '<div class="grid-cell answer totals preview-placeholder" data-row="3" data-col="0">?</div>';
+  cells += '<div class="grid-cell operator totals" data-row="3" data-col="1">+</div>';
+  cells += '<div class="grid-cell answer totals preview-placeholder" data-row="3" data-col="2">?</div>';
+  cells += '<div class="grid-cell operator totals" data-row="3" data-col="3">=</div>';
+  cells += '<div class="grid-cell answer totals preview-placeholder" data-row="3" data-col="4">?</div>';
+  return '<div class="grid-container">' + cells + '</div>';
+}
+
+/* ========== Show Preview Screen (PART-039) ========== */
+function showPreviewScreen() {
+  var previewHtml = buildPreviewGridHtml();
+  var content = gameState.content || fallbackContent;
+  try {
+    previewScreen.show({
+      instruction: content.previewInstruction || fallbackContent.previewInstruction,
+      audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+      previewContent: previewHtml,
+      onComplete: startGameAfterPreview
+    });
+  } catch (e) {
+    console.error('Preview error:', JSON.stringify(e.message));
+    startGameAfterPreview({ duration: 0 });
+  }
+}
+
+/* ========== Start Game After Preview ========== */
+function startGameAfterPreview(previewData) {
+  previewData = previewData || { duration: 0 };
+  gameState.previewResult = previewData;
+  gameState.duration_data.preview = gameState.duration_data.preview || [];
+  gameState.duration_data.preview.push({ duration: previewData.duration });
+  gameState.startTime = Date.now();
+  gameState.isActive = true;
+  gameState.duration_data.startTime = new Date().toISOString();
+  trackEvent('game_start', 'game');
+  if (signalCollector) {
+    signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+  }
+  var gameScreen = document.getElementById('game-screen');
+  if (gameScreen) gameScreen.style.display = 'block';
+  var firstInput = document.getElementById('input-0-4');
+  if (firstInput) {
+    setTimeout(function() { firstInput.focus(); }, 100);
+  }
+}
+
+/* ========== Setup Game ========== */
+function setupGame() {
+  gameState.content = gameState.content || fallbackContent;
+  var eqs = gameState.content.equations;
+
+  gameState.grid = eqs.map(function(eq) {
+    return { a: eq.a, b: eq.b, c: eq.a + eq.b };
+  });
+
+  gameState.totals = {
+    sumA: eqs.reduce(function(s, eq) { return s + eq.a; }, 0),
+    sumB: eqs.reduce(function(s, eq) { return s + eq.b; }, 0),
+    sumC: eqs.reduce(function(s, eq) { return s + eq.a + eq.b; }, 0)
+  };
+
+  injectGameHTML();
+
+  // Render static cells
+  for (var r = 0; r < 3; r++) {
+    var cellA = document.getElementById('cell-' + r + '-0');
+    var cellB = document.getElementById('cell-' + r + '-2');
+    if (cellA) cellA.textContent = gameState.grid[r].a;
+    if (cellB) cellB.textContent = gameState.grid[r].b;
+  }
+
+  // Clear inputs and reset state
+  var inputIds = ['input-0-4', 'input-1-4', 'input-2-4', 'input-3-0', 'input-3-2', 'input-3-4'];
+  inputIds.forEach(function(id) {
+    var inp = document.getElementById(id);
+    if (inp) {
+      inp.value = '';
+      inp.disabled = false;
+    }
+  });
+
+  // Reset answer cell classes
+  var answerCells = document.querySelectorAll('.grid-cell.answer');
+  answerCells.forEach(function(cell) {
+    cell.classList.remove('correct', 'incorrect', 'empty');
+    var cv = cell.querySelector('.correct-value');
+    if (cv) cv.remove();
+  });
+
+  gameState.userAnswers = {};
+  gameState.cellStatus = {};
+  gameState.correctCells = 0;
+  gameState.allSubmitted = false;
+  gameState.attempts = [];
+  gameState.events = [];
+
+  // Show buttons properly
+  var btnSubmit = document.getElementById('btn-submit');
+  var btnReset = document.getElementById('btn-reset');
+  if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.style.display = ''; }
+  if (btnReset) { btnReset.style.display = ''; }
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('content_render', { trigger: 'round_start', equations: 3 });
+  }
+
+  showPreviewScreen();
+}
+
+/* ========== Inject Game HTML into #gameContent ========== */
+function injectGameHTML() {
+  var gameContent = document.getElementById('gameContent');
+  if (!gameContent) return;
+
+  gameContent.innerHTML = '' +
+    '<div id="game-screen" style="display: none;">' +
+      '<div class="game-header">' +
+        '<h2 class="game-title">Addition Grid</h2>' +
+        '<p class="game-instruction">Fill in the missing values. Each row is an equation: a + b = c. The last row shows column totals.</p>' +
+      '</div>' +
+      '<div class="grid-container" id="grid-container">' +
+        '<!-- Row 0 -->' +
+        '<div class="grid-cell static" data-row="0" data-col="0" id="cell-0-0"></div>' +
+        '<div class="grid-cell operator" data-row="0" data-col="1">+</div>' +
+        '<div class="grid-cell static" data-row="0" data-col="2" id="cell-0-2"></div>' +
+        '<div class="grid-cell operator" data-row="0" data-col="3">=</div>' +
+        '<div class="grid-cell answer" data-row="0" data-col="4" id="cell-0-4">' +
+          '<input type="number" class="cell-input" data-row="0" data-col="4" id="input-0-4" inputmode="numeric" data-signal-id="input-0-4" />' +
+        '</div>' +
+        '<!-- Row 1 -->' +
+        '<div class="grid-cell static" data-row="1" data-col="0" id="cell-1-0"></div>' +
+        '<div class="grid-cell operator" data-row="1" data-col="1">+</div>' +
+        '<div class="grid-cell static" data-row="1" data-col="2" id="cell-1-2"></div>' +
+        '<div class="grid-cell operator" data-row="1" data-col="3">=</div>' +
+        '<div class="grid-cell answer" data-row="1" data-col="4" id="cell-1-4">' +
+          '<input type="number" class="cell-input" data-row="1" data-col="4" id="input-1-4" inputmode="numeric" data-signal-id="input-1-4" />' +
+        '</div>' +
+        '<!-- Row 2 -->' +
+        '<div class="grid-cell static" data-row="2" data-col="0" id="cell-2-0"></div>' +
+        '<div class="grid-cell operator" data-row="2" data-col="1">+</div>' +
+        '<div class="grid-cell static" data-row="2" data-col="2" id="cell-2-2"></div>' +
+        '<div class="grid-cell operator" data-row="2" data-col="3">=</div>' +
+        '<div class="grid-cell answer" data-row="2" data-col="4" id="cell-2-4">' +
+          '<input type="number" class="cell-input" data-row="2" data-col="4" id="input-2-4" inputmode="numeric" data-signal-id="input-2-4" />' +
+        '</div>' +
+        '<!-- Row 3: Totals -->' +
+        '<div class="grid-cell answer totals" data-row="3" data-col="0" id="cell-3-0">' +
+          '<input type="number" class="cell-input" data-row="3" data-col="0" id="input-3-0" inputmode="numeric" data-signal-id="input-3-0" />' +
+        '</div>' +
+        '<div class="grid-cell operator totals" data-row="3" data-col="1">+</div>' +
+        '<div class="grid-cell answer totals" data-row="3" data-col="2" id="cell-3-2">' +
+          '<input type="number" class="cell-input" data-row="3" data-col="2" id="input-3-2" inputmode="numeric" data-signal-id="input-3-2" />' +
+        '</div>' +
+        '<div class="grid-cell operator totals" data-row="3" data-col="3">=</div>' +
+        '<div class="grid-cell answer totals" data-row="3" data-col="4" id="cell-3-4">' +
+          '<input type="number" class="cell-input" data-row="3" data-col="4" id="input-3-4" inputmode="numeric" data-signal-id="input-3-4" />' +
+        '</div>' +
+      '</div>' +
+      '<div class="totals-label">Totals Row: Add each column</div>' +
+      '<div class="button-row">' +
+        '<button class="game-btn btn-primary" id="btn-submit" data-signal-id="submit-btn" onclick="handleSubmit()">Submit</button>' +
+        '<button class="game-btn btn-secondary" id="btn-reset" data-signal-id="reset-btn" onclick="handleReset()">Reset</button>' +
+      '</div>' +
+    '</div>' +
+    '<div id="results-screen" style="display: none;">' +
+      '<div class="results-container">' +
+        '<div class="results-stars" id="results-stars"></div>' +
+        '<div class="results-score" id="results-score"></div>' +
+        '<div class="results-metrics">' +
+          '<div class="metric-row">' +
+            '<span class="metric-label">Correct Cells</span>' +
+            '<span class="metric-value" id="metric-correct-cells"></span>' +
+          '</div>' +
+          '<div class="metric-row">' +
+            '<span class="metric-label">Total Cells</span>' +
+            '<span class="metric-value" id="metric-total-cells"></span>' +
+          '</div>' +
+          '<div class="metric-row">' +
+            '<span class="metric-label">Accuracy</span>' +
+            '<span class="metric-value" id="metric-accuracy"></span>' +
+          '</div>' +
+          '<div class="metric-row">' +
+            '<span class="metric-label">Time</span>' +
+            '<span class="metric-value" id="metric-time"></span>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  // Add focus tracking to inputs
+  var inputs = gameContent.querySelectorAll('.cell-input');
+  inputs.forEach(function(inp) {
+    inp.addEventListener('focus', function() {
+      var row = parseInt(inp.getAttribute('data-row'), 10);
+      var col = parseInt(inp.getAttribute('data-col'), 10);
+      trackEvent('cell_focus', 'grid', { row: row, col: col });
+    });
+    inp.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var nextInput = getNextInput(inp);
+        if (nextInput) {
+          nextInput.focus();
+        } else {
+          handleSubmit();
+        }
+      }
+    });
+  });
+}
+
+/* ========== Get Next Input (Tab order) ========== */
+function getNextInput(currentInput) {
+  var order = ['input-0-4', 'input-1-4', 'input-2-4', 'input-3-0', 'input-3-2', 'input-3-4'];
+  var currentId = currentInput.id;
+  var idx = order.indexOf(currentId);
+  if (idx >= 0 && idx < order.length - 1) {
+    return document.getElementById(order[idx + 1]);
+  }
+  return null;
+}
+
+/* ========== Handle Submit ========== */
+async function handleSubmit() {
+  if (!gameState.isActive) return;
+
+  var inputIds = ['input-0-4', 'input-1-4', 'input-2-4', 'input-3-0', 'input-3-2', 'input-3-4'];
+  var cellIds = ['cell-0-4', 'cell-1-4', 'cell-2-4', 'cell-3-0', 'cell-3-2', 'cell-3-4'];
+  var cellKeys = ['0-4', '1-4', '2-4', '3-0', '3-2', '3-4'];
+
+  // Check for empty inputs
+  var hasEmpty = false;
+  inputIds.forEach(function(id, i) {
+    var inp = document.getElementById(id);
+    var cell = document.getElementById(cellIds[i]);
+    if (inp && inp.value.trim() === '') {
+      hasEmpty = true;
+      if (cell) {
+        cell.classList.add('empty');
+        setTimeout(function() { cell.classList.remove('empty'); }, 500);
+      }
+    }
+  });
+
+  if (hasEmpty) return;
+
+  // Build correct answers
+  var correctAnswers = buildCorrectAnswers();
+  var correctCount = 0;
+
+  // Validate each cell
+  inputIds.forEach(function(id, i) {
+    var inp = document.getElementById(id);
+    var cell = document.getElementById(cellIds[i]);
+    var key = cellKeys[i];
+    var parts = key.split('-');
+    var row = parseInt(parts[0], 10);
+    var col = parseInt(parts[1], 10);
+
+    var userVal = parseInt(inp.value, 10);
+    var correctVal = correctAnswers[key];
+    var isCorrect = userVal === correctVal;
+
+    gameState.userAnswers[key] = userVal;
+    gameState.cellStatus[key] = isCorrect ? 'correct' : 'incorrect';
+
+    if (isCorrect) {
+      correctCount++;
+      cell.classList.add('correct');
+    } else {
+      cell.classList.add('incorrect');
+      // Show correct answer
+      var correctLabel = document.createElement('div');
+      correctLabel.className = 'correct-value';
+      correctLabel.textContent = correctVal;
+      cell.appendChild(correctLabel);
+    }
+
+    recordAttempt({
+      row: row,
+      col: col,
+      userAnswer: userVal,
+      correctAnswer: correctVal,
+      correct: isCorrect
+    });
+  });
+
+  gameState.correctCells = correctCount;
+  gameState.score = correctCount;
+  gameState.allSubmitted = true;
+
+  trackEvent('grid_complete', 'game', {
+    correctCells: correctCount,
+    totalCells: 6,
+    accuracy: Math.round((correctCount / 6) * 100)
+  });
+
+  // Disable all inputs and buttons
+  inputIds.forEach(function(id) {
+    var inp = document.getElementById(id);
+    if (inp) inp.disabled = true;
+  });
+
+  var btnSubmit = document.getElementById('btn-submit');
+  var btnReset = document.getElementById('btn-reset');
+  if (btnSubmit) btnSubmit.disabled = true;
+  if (btnReset) btnReset.style.display = 'none';
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('feedback_display', { correctCells: correctCount, totalCells: 6 });
+  }
+
+  // Play feedback audio
+  try {
+    if (correctCount === 6) {
+      await FeedbackManager.sound.play('celebration');
+    } else {
+      await FeedbackManager.sound.play('encouragement');
+    }
+  } catch (e) {
+    console.error('Audio error:', JSON.stringify(e.message));
+  }
+
+  // End game after delay
+  setTimeout(function() {
+    endGame();
+  }, 500);
+}
+
+/* ========== Handle Reset ========== */
+function handleReset() {
+  var inputIds = ['input-0-4', 'input-1-4', 'input-2-4', 'input-3-0', 'input-3-2', 'input-3-4'];
+
+  inputIds.forEach(function(id) {
+    var inp = document.getElementById(id);
+    if (inp) inp.value = '';
+  });
+
+  var answerCells = document.querySelectorAll('.grid-cell.answer');
+  answerCells.forEach(function(cell) {
+    cell.classList.remove('correct', 'incorrect', 'empty');
+    var cv = cell.querySelector('.correct-value');
+    if (cv) cv.remove();
+  });
+
+  gameState.userAnswers = {};
+  gameState.cellStatus = {};
+
+  var firstInput = document.getElementById('input-0-4');
+  if (firstInput) firstInput.focus();
+}
+
+/* ========== Compute Tries Per Round (PART-011) ========== */
+function computeTriesPerRound(attempts) {
+  return [{ round: 0, triesCount: attempts.length }];
+}
+
+/* ========== End Game (PART-011) ========== */
+function endGame() {
+  if (!gameState.isActive) return;
+  gameState.isActive = false;
+  gameState.duration_data.currentTime = new Date().toISOString();
+
+  var stars = gameState.correctCells === 6 ? 3
+    : gameState.correctCells >= 4 ? 2
+    : gameState.correctCells >= 1 ? 1 : 0;
+
+  var accuracy = Math.round((gameState.correctCells / 6) * 100);
+  var time = (Date.now() - gameState.startTime) / 1000;
+
+  var metrics = {
+    accuracy: accuracy,
+    time: parseFloat(time.toFixed(1)),
+    stars: stars,
+    score: gameState.correctCells,
+    attempts: gameState.attempts,
+    duration_data: gameState.duration_data,
+    totalLives: 1,
+    tries: computeTriesPerRound(gameState.attempts),
+    correctCells: gameState.correctCells,
+    totalCells: 6,
+    gridEquations: 3
+  };
+
+  console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
+  console.log('Attempt History:', JSON.stringify(gameState.attempts, null, 2));
+
+  trackEvent('game_end', 'game', { metrics: metrics });
+
+  var sealResult = null;
+  if (signalCollector) {
+    signalCollector.recordViewEvent('screen_transition', { from: 'game', to: 'results' });
+    sealResult = signalCollector.seal();
+  }
+
+  showResults(metrics);
+
+  var postMessageData = {
+    metrics: metrics,
+    attempts: gameState.attempts,
+    completedAt: new Date().toISOString()
+  };
+  if (sealResult) {
+    postMessageData.signal_event_count = sealResult.eventCount || 0;
+    postMessageData.signal_metadata = sealResult.metadata || {};
+  }
+
+  window.parent.postMessage({
+    type: 'game_complete',
+    data: postMessageData
+  }, '*');
+
+  if (visibilityTracker) visibilityTracker.destroy();
+  if (previewScreen && typeof previewScreen.destroy === 'function') previewScreen.destroy();
+  try {
+    FeedbackManager.sound.pause();
+    FeedbackManager.stream.stopAll();
+  } catch (e) {
+    console.error('Cleanup error:', JSON.stringify(e.message));
+  }
+}
+
+/* ========== Show Results (PART-019) ========== */
+function showResults(metrics) {
+  var gameScreen = document.getElementById('game-screen');
+  var resultsScreen = document.getElementById('results-screen');
+  if (gameScreen) gameScreen.style.display = 'none';
+  if (resultsScreen) resultsScreen.style.display = 'block';
+
+  // Stars
+  var starsHtml = '';
+  for (var i = 0; i < 3; i++) {
+    if (i < metrics.stars) {
+      starsHtml += '<span class="star earned" style="animation-delay: ' + (i * 0.2) + 's">&#11088;</span>';
+    } else {
+      starsHtml += '<span class="star empty">&#9734;</span>';
+    }
+  }
+  var starsEl = document.getElementById('results-stars');
+  if (starsEl) starsEl.innerHTML = starsHtml;
+
+  var scoreEl = document.getElementById('results-score');
+  if (scoreEl) {
+    if (metrics.stars === 3) {
+      scoreEl.textContent = 'Perfect Score!';
+    } else if (metrics.stars >= 2) {
+      scoreEl.textContent = 'Great Job!';
+    } else if (metrics.stars >= 1) {
+      scoreEl.textContent = 'Nice Try!';
+    } else {
+      scoreEl.textContent = 'Keep Practicing!';
+    }
+  }
+
+  var metricCorrect = document.getElementById('metric-correct-cells');
+  var metricTotal = document.getElementById('metric-total-cells');
+  var metricAccuracy = document.getElementById('metric-accuracy');
+  var metricTime = document.getElementById('metric-time');
+
+  if (metricCorrect) metricCorrect.textContent = metrics.correctCells;
+  if (metricTotal) metricTotal.textContent = metrics.totalCells;
+  if (metricAccuracy) metricAccuracy.textContent = metrics.accuracy + '%';
+  if (metricTime) metricTime.textContent = metrics.time + 's';
+}
+
+/* ========== Handle Inactive (PART-005) ========== */
+function handleInactive() {
+  gameState.duration_data.inActiveTime.push({ start: Date.now() });
+  if (signalCollector) {
+    signalCollector.pause();
+    signalCollector.recordCustomEvent('visibility_hidden', {});
+  }
+  try {
+    FeedbackManager.sound.pause();
+    FeedbackManager.stream.pauseAll();
+  } catch (e) {}
+  if (previewScreen) previewScreen.pause();
+  trackEvent('game_paused', 'system');
+}
+
+/* ========== Handle Resume (PART-005) ========== */
+function handleResume() {
+  var inactive = gameState.duration_data.inActiveTime;
+  var last = inactive[inactive.length - 1];
+  if (last && !last.end) {
+    last.end = Date.now();
+    gameState.duration_data.totalInactiveTime += (last.end - last.start);
+  }
+  if (signalCollector) {
+    signalCollector.resume();
+    signalCollector.recordCustomEvent('visibility_visible', {});
+  }
+  try {
+    FeedbackManager.sound.resume();
+    FeedbackManager.stream.resumeAll();
+  } catch (e) {}
+  if (previewScreen) previewScreen.resume();
+  trackEvent('game_resumed', 'system');
+}
+
+/* ========== Handle PostMessage (PART-008) ========== */
+function handlePostMessage(event) {
+  if (!event.data || event.data.type !== 'game_init') return;
+  var d = event.data.data;
+
+  gameState.content = d.content;
+  gameState.signalConfig = d.signalConfig || {};
+
+  if (signalCollector && gameState.signalConfig.flushUrl) {
+    signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+    signalCollector.playId = gameState.signalConfig.playId || null;
+    signalCollector.gameId = gameState.signalConfig.gameId || signalCollector.gameId;
+    signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+    signalCollector.contentSetId = gameState.signalConfig.contentSetId || signalCollector.contentSetId;
+    signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+    signalCollector.startFlushing();
+  }
+
+  setupGame();
+}
+
+/* ========== Debug Functions (PART-012) ========== */
+window.debugGame = function() { console.log('gameState:', JSON.stringify(gameState, null, 2)); };
+window.debugAudio = function() {
+  console.log('Sound:', JSON.stringify(FeedbackManager.sound.getState()));
+  console.log('Stream:', JSON.stringify(FeedbackManager.stream.getState()));
+};
+window.testAudio = async function(id) {
+  try { await FeedbackManager.sound.play(id); console.log('Played:', id); }
+  catch (e) { console.error('Audio error:', e.message); }
+};
+window.testPause = function() { if (visibilityTracker) visibilityTracker.triggerInactive(); };
+window.testResume = function() { if (visibilityTracker) visibilityTracker.triggerResume(); };
+window.debugSignals = function() {
+  if (signalCollector) {
+    signalCollector.debug();
+    console.log('Signal events:', JSON.stringify(signalCollector.getInputEventsCount ? signalCollector.getInputEventsCount() : 'n/a'));
+  }
+};
+window.verifySentry = function() {
+  var client = typeof Sentry !== 'undefined' ? Sentry.getClient() : null;
+  console.log('Sentry loaded:', typeof Sentry !== 'undefined');
+  console.log('Sentry initialized:', !!client);
+  console.log('DSN:', client && client.getDsn ? client.getDsn().toString() : 'none');
+};
+window.testSentry = function() { throw new Error('Test Sentry error from addition-grid'); };
+
+/* ========== DOMContentLoaded (PART-004) ========== */
+window.addEventListener('DOMContentLoaded', async function() {
+  try {
+    // 1. Wait for CDN packages
+    await waitForPackages();
+
+    // 2. Init FeedbackManager
+    await FeedbackManager.init();
+
+    // 3. Preload audio
+    await FeedbackManager.sound.preload([
+      { id: 'celebration', url: 'https://cdn.mathai.ai/audio/celebration.mp3' },
+      { id: 'encouragement', url: 'https://cdn.mathai.ai/audio/encouragement.mp3' }
+    ]);
+
+    // 4. Create SignalCollector
+    signalCollector = new SignalCollector({
+      sessionId: (window.gameVariableState && window.gameVariableState.sessionId) || 'session_' + Date.now(),
+      studentId: (window.gameVariableState && window.gameVariableState.studentId) || null,
+      gameId: 'addition-grid',
+      contentSetId: null
+    });
+    window.signalCollector = signalCollector;
+
+    // 5. ScreenLayout
+    ScreenLayout.inject('app', {
+      slots: { progressBar: false, previewScreen: true, transitionScreen: false }
+    });
+
+    // 6. Create VisibilityTracker — AFTER SignalCollector
+    visibilityTracker = new VisibilityTracker({
+      onInactive: handleInactive,
+      onResume: handleResume,
+      popupProps: {
+        title: 'Game Paused',
+        description: 'Click Resume to continue.',
+        primaryText: 'Resume'
+      }
+    });
+    window.visibilityTracker = visibilityTracker;
+
+    // 7. Create PreviewScreen
+    previewScreen = new PreviewScreenComponent({
+      autoInject: true,
+      slotId: 'mathai-preview-slot',
+      gameContentId: 'gameContent'
+    });
+
+    // 8. Register postMessage listener + send game_ready
+    window.addEventListener('message', handlePostMessage);
+    window.parent.postMessage({ type: 'game_ready' }, '*');
+
+    // 9. Setup game with fallback content
+    setupGame();
+
+  } catch (err) {
+    console.error('Init failed:', JSON.stringify(err.message));
+    if (typeof Sentry !== 'undefined') Sentry.captureException(err);
+  }
+});
+</script>
+</body>
+</html>

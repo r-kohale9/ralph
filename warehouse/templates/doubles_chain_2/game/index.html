@@ -117,7 +117,7 @@ html, body {
   margin: 4px 0;
 }
 
-p.chain-progress {
+.round-info .chain-progress {
   font-size: var(--mathai-font-size-subtitle);
   font-weight: 600;
   color: var(--mathai-purple);
@@ -164,8 +164,9 @@ p.chain-progress {
   user-select: none;
   overflow: hidden;
   color: var(--mathai-text-primary);
-  min-width: 44px;
   min-height: 44px;
+  min-width: 44px;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .grid-cell:hover {
@@ -243,6 +244,7 @@ p.chain-progress {
   transition: all 0.2s ease;
   color: var(--mathai-white);
   min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .game-btn:active {
@@ -319,11 +321,12 @@ p.chain-progress {
   font-family: var(--mathai-font-family);
   border: none;
   border-radius: var(--mathai-border-radius-button);
-  cursor: pointer;
   background: var(--mathai-blue);
   color: var(--mathai-white);
+  cursor: pointer;
   min-height: 44px;
   transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .results-container button:hover {
@@ -444,7 +447,7 @@ function initSentry() {
 <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
 
 <script>
-/* ===== GAME STATE (PART-007) ===== */
+// ===== GAME STATE (PART-007) =====
 window.gameState = {
   currentRound: 0,
   totalRounds: 5,
@@ -483,7 +486,7 @@ var progressBar = null;
 var transitionScreen = null;
 var previewScreen = null;
 
-/* ===== FALLBACK CONTENT (PART-028) ===== */
+// ===== FALLBACK CONTENT (PART-028) =====
 var fallbackContent = {
   previewInstruction: '<p><b>Find the doubles chain!</b></p><p>Tap numbers in order -- each number is <b>double</b> the one before it. Start with the smallest number in the chain.</p>',
   previewAudioText: 'Find the doubles chain! Tap numbers in order. Each number is double the one before it. Start with the smallest number in the chain.',
@@ -495,7 +498,7 @@ var fallbackContent = {
       grid: [
         [5, 2, 9],
         [4, 7, 3],
-        [13, 8, 6]
+        [1, 8, 6]
       ]
     },
     {
@@ -533,7 +536,7 @@ var fallbackContent = {
   ]
 };
 
-/* ===== waitForPackages (PART-003) ===== */
+// ===== WAIT FOR PACKAGES (PART-003) =====
 async function waitForPackages() {
   var timeout = 10000;
   var start = Date.now();
@@ -557,71 +560,7 @@ async function waitForPackages() {
   }
 }
 
-/* ===== validateAnswer (PART-014) ===== */
-function validateAnswer(userAnswer, validationFn) {
-  try {
-    return validationFn(userAnswer);
-  } catch (error) {
-    console.error('Validation error:', JSON.stringify({ error: error.message }, null, 2));
-    return false;
-  }
-}
-
-/* ===== recordAttempt (PART-009) ===== */
-function recordAttempt(data) {
-  var attempt = {
-    attempt_timestamp: new Date().toISOString(),
-    time_since_start_of_game: (Date.now() - gameState.startTime) / 1000,
-    input_of_user: data.userAnswer,
-    attempt_number: gameState.attempts.length + 1,
-    correct: data.correct,
-    metadata: {
-      round: gameState.currentRound,
-      question: data.question,
-      correctAnswer: data.correctAnswer,
-      validationType: data.validationType || 'function'
-    }
-  };
-
-  gameState.attempts.push(attempt);
-  gameState.duration_data.attempts.push({
-    startTime: new Date().toISOString(),
-    time_to_first_attempt: (Date.now() - gameState.startTime) / 1000,
-    duration: 0
-  });
-
-  console.log('Attempt:', JSON.stringify(attempt, null, 2));
-}
-
-/* ===== trackEvent (PART-010) ===== */
-function trackEvent(type, target, data) {
-  var evt = {
-    type: type,
-    target: target,
-    timestamp: Date.now()
-  };
-  if (data) {
-    var keys = Object.keys(data);
-    for (var i = 0; i < keys.length; i++) {
-      evt[keys[i]] = data[keys[i]];
-    }
-  }
-  gameState.events.push(evt);
-}
-
-/* ===== computeTriesPerRound ===== */
-function computeTriesPerRound(attempts) {
-  var rounds = {};
-  attempts.forEach(function(a) {
-    var r = a.metadata.round;
-    rounds[r] = (rounds[r] || 0) + 1;
-  });
-  return Object.keys(rounds).map(function(r) {
-    return { round: Number(r), triesCount: rounds[r] };
-  });
-}
-
-/* ===== showPreviewScreen (PART-039) ===== */
+// ===== SHOW PREVIEW SCREEN (PART-039) =====
 function showPreviewScreen() {
   var content = gameState.content || fallbackContent;
   previewScreen.show({
@@ -634,7 +573,7 @@ function showPreviewScreen() {
   });
 }
 
-/* ===== startGameAfterPreview (PART-039) ===== */
+// ===== START GAME AFTER PREVIEW (PART-039) =====
 function startGameAfterPreview(previewData) {
   gameState.previewResult = previewData;
 
@@ -655,7 +594,7 @@ function startGameAfterPreview(previewData) {
   renderRound();
 }
 
-/* ===== setupGame ===== */
+// ===== SETUP GAME =====
 function setupGame() {
   if (!gameState.content) {
     gameState.content = fallbackContent;
@@ -688,7 +627,7 @@ function setupGame() {
   showPreviewScreen();
 }
 
-/* ===== renderRound ===== */
+// ===== RENDER ROUND =====
 function renderRound() {
   var roundData = gameState.content.rounds[gameState.currentRound];
   gameState.currentChain = roundData.chain;
@@ -727,7 +666,7 @@ function renderRound() {
   }
 }
 
-/* ===== createGrid ===== */
+// ===== CREATE GRID =====
 function createGrid(rows, cols, data) {
   var grid = document.getElementById('game-grid');
   grid.style.setProperty('--cols', cols);
@@ -750,7 +689,7 @@ function createGrid(rows, cols, data) {
   }
 }
 
-/* ===== handleCellClick (RULE-002: async) ===== */
+// ===== HANDLE CELL CLICK (PART-014, async RULE-002) =====
 async function handleCellClick(row, col) {
   if (!gameState.isActive || gameState.isProcessing) return;
 
@@ -867,7 +806,7 @@ async function handleCellClick(row, col) {
   gameState.isProcessing = false;
 }
 
-/* ===== updateChainProgress ===== */
+// ===== UPDATE CHAIN PROGRESS =====
 function updateChainProgress() {
   var el = document.getElementById('chain-progress');
   if (!el) return;
@@ -882,7 +821,7 @@ function updateChainProgress() {
   el.innerHTML = parts.join(' \u2192 ');
 }
 
-/* ===== showFeedback ===== */
+// ===== SHOW FEEDBACK =====
 function showFeedback(message, isCorrect) {
   var area = document.getElementById('feedback-area');
   var text = document.getElementById('feedback-text');
@@ -891,7 +830,7 @@ function showFeedback(message, isCorrect) {
   text.className = isCorrect ? 'feedback-correct' : 'feedback-incorrect';
 }
 
-/* ===== resetRound ===== */
+// ===== RESET ROUND =====
 function resetRound() {
   gameState.chainIndex = 0;
   gameState.selectedCells = [];
@@ -914,7 +853,7 @@ function resetRound() {
   trackEvent('round_reset', 'game', { round: gameState.currentRound + 1 });
 }
 
-/* ===== handleNext ===== */
+// ===== HANDLE NEXT =====
 function handleNext() {
   gameState.currentRound++;
   if (progressBar) progressBar.update(gameState.currentRound, gameState.lives);
@@ -954,7 +893,29 @@ function handleNext() {
   }
 }
 
-/* ===== endGame (PART-011) ===== */
+// ===== VALIDATE ANSWER (PART-014) =====
+function validateAnswer(userAnswer, validationFn) {
+  try {
+    return validationFn(userAnswer);
+  } catch (error) {
+    console.error('Validation error:', JSON.stringify({ error: error.message }, null, 2));
+    return false;
+  }
+}
+
+// ===== COMPUTE TRIES PER ROUND =====
+function computeTriesPerRound(attempts) {
+  var rounds = {};
+  attempts.forEach(function(a) {
+    var r = a.metadata.round;
+    rounds[r] = (rounds[r] || 0) + 1;
+  });
+  return Object.keys(rounds).map(function(r) {
+    return { round: Number(r), triesCount: rounds[r] };
+  });
+}
+
+// ===== END GAME (PART-011) =====
 function endGame() {
   if (!gameState.isActive) return;
   gameState.isActive = false;
@@ -1017,7 +978,7 @@ function endGame() {
       attempts: gameState.attempts,
       completedAt: Date.now(),
       previewResult: gameState.previewResult || null,
-      signal_event_count: sealResult ? sealResult.event_count : 0,
+      signal_event_count: sealResult ? sealResult.eventCount : 0,
       signal_metadata: sealResult ? sealResult.metadata : null
     }
   }, '*');
@@ -1027,10 +988,10 @@ function endGame() {
   if (progressBar) { progressBar.destroy(); progressBar = null; }
   if (previewScreen) { previewScreen.destroy(); previewScreen = null; }
   FeedbackManager.sound.pause();
-  FeedbackManager.stream.pauseAll();
+  FeedbackManager.stream.stopAll();
 }
 
-/* ===== showResults (PART-019) ===== */
+// ===== SHOW RESULTS (PART-019) =====
 function showResults(metrics) {
   document.getElementById('result-score').textContent = metrics.accuracy + '%';
   document.getElementById('result-time').textContent = metrics.time + 's';
@@ -1051,7 +1012,7 @@ function showResults(metrics) {
   }
 }
 
-/* ===== handlePostMessage (PART-008) ===== */
+// ===== HANDLE POST MESSAGE (PART-008) =====
 function handlePostMessage(event) {
   if (!event.data || event.data.type !== 'game_init') return;
   var d = event.data.data;
@@ -1073,7 +1034,42 @@ function handlePostMessage(event) {
   setupGame();
 }
 
-/* ===== Debug Functions (PART-012) ===== */
+// ===== RECORD ATTEMPT (PART-009) =====
+function recordAttempt(data) {
+  var attempt = {
+    attempt_timestamp: new Date().toISOString(),
+    time_since_start_of_game: (Date.now() - gameState.startTime) / 1000,
+    input_of_user: data.userAnswer,
+    attempt_number: gameState.attempts.length + 1,
+    correct: data.correct,
+    metadata: {
+      round: gameState.currentRound,
+      question: data.question,
+      correctAnswer: data.correctAnswer,
+      validationType: data.validationType || 'function'
+    }
+  };
+
+  gameState.attempts.push(attempt);
+  gameState.duration_data.attempts.push({
+    startTime: new Date().toISOString(),
+    time_to_first_attempt: (Date.now() - gameState.startTime) / 1000,
+    duration: 0
+  });
+
+  console.log('Attempt:', JSON.stringify(attempt, null, 2));
+}
+
+// ===== TRACK EVENT (PART-010) =====
+function trackEvent(type, target, data) {
+  gameState.events.push(Object.assign({
+    type: type,
+    target: target,
+    timestamp: Date.now()
+  }, data || {}));
+}
+
+// ===== DEBUG FUNCTIONS (PART-012) =====
 window.debugGame = function() {
   console.log('Game State:', JSON.stringify(gameState, null, 2));
 };
@@ -1136,7 +1132,7 @@ window.loadRound = function(n) {
   renderRound();
 };
 
-/* ===== DOMContentLoaded (PART-004) ===== */
+// ===== DOM CONTENT LOADED (PART-004) =====
 window.addEventListener("DOMContentLoaded", async function() {
   try {
     await waitForPackages();
@@ -1251,18 +1247,8 @@ window.addEventListener("DOMContentLoaded", async function() {
     // Signal ready to parent (PART-008)
     window.parent.postMessage({ type: 'game_ready' }, '*');
 
-    // Show start transition screen
-    if (transitionScreen) {
-      transitionScreen.show({
-        icons: ['\uD83D\uDD17'],
-        iconSize: 'large',
-        title: 'Doubles Chain',
-        subtitle: 'Find the hidden chain of doubles!',
-        buttons: [{ text: "I'm ready!", type: 'primary', action: function() { setupGame(); } }]
-      });
-    } else {
-      setupGame();
-    }
+    // Start game -- preview screen IS the first screen (PART-039)
+    setupGame();
 
   } catch (error) {
     console.error("Initialization failed:", JSON.stringify({ error: error.message }, null, 2));

@@ -1,0 +1,1816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Same Rule?</title>
+<style>
+/* === CSS Variables (PART-020) === */
+:root {
+  --mathai-green: #219653;
+  --mathai-light-green: #eafbf1;
+  --mathai-red: #e35757;
+  --mathai-light-red: #fdecec;
+  --mathai-blue: #2563eb;
+  --mathai-light-blue: #ebf0ff;
+  --mathai-gray: #6b6b6b;
+  --mathai-light-gray: #f2f2f2;
+  --mathai-white: #ffffff;
+  --mathai-black: #1a1a2e;
+  --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mathai-font-size-title: 24px;
+  --mathai-font-size-body: 16px;
+  --mathai-font-size-label: 14px;
+  --mathai-font-size-small: 12px;
+  --mathai-font-size-button: 16px;
+  --mathai-border-radius-card: 12px;
+  --mathai-border-radius-button: 10px;
+  --mathai-padding-small: 10px;
+  --mathai-cell-bg-green: #D9F8D9;
+  --mathai-cell-bg-red: #FFD9D9;
+  --mathai-cell-border-green: #27ae60;
+  --mathai-cell-border-red: #e74c3c;
+}
+
+/* === Reset === */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #f6f6f6;
+  font-family: var(--mathai-font-family);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* === Game Block === */
+.game-block {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 12px;
+}
+
+/* === Stage Label === */
+.stage-label {
+  font-size: var(--mathai-font-size-small);
+  color: var(--mathai-gray);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+/* === Instruction Text === */
+.instruction-text {
+  font-size: var(--mathai-font-size-body);
+  color: var(--mathai-black);
+  text-align: center;
+  line-height: 1.4;
+  font-weight: 500;
+  max-width: 340px;
+}
+
+/* === Scene Cards === */
+.scene-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--mathai-white);
+  border-radius: var(--mathai-border-radius-card);
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: transform 0.4s ease, opacity 0.4s ease;
+}
+
+.scene-card.slide-in {
+  animation: slideIn 0.4s ease forwards;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scene-card.compress {
+  transform: scale(0.92);
+}
+
+.scene-badge {
+  display: inline-block;
+  background: var(--mathai-light-blue);
+  color: var(--mathai-blue);
+  font-size: var(--mathai-font-size-small);
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 20px;
+  margin-bottom: 10px;
+}
+
+.scene-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  padding: 12px 0;
+  min-height: 48px;
+}
+
+.item-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.item-group + .item-group {
+  margin-left: 8px;
+}
+
+.item-emoji {
+  font-size: 28px;
+  line-height: 1;
+}
+
+/* Grouping animation — applied during feedback */
+.item-group.grouped {
+  background: var(--mathai-light-green);
+  box-shadow: 0 0 0 2px var(--mathai-green);
+}
+
+.scene-label {
+  font-size: var(--mathai-font-size-label);
+  color: var(--mathai-gray);
+  text-align: center;
+  line-height: 1.4;
+  margin-top: 8px;
+}
+
+/* === Choice Buttons === */
+.choice-area {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.btn-choice {
+  flex: 1;
+  padding: 14px 8px;
+  border: 2px solid var(--mathai-light-gray);
+  border-radius: var(--mathai-border-radius-card);
+  background: var(--mathai-white);
+  color: var(--mathai-black);
+  font-size: var(--mathai-font-size-body);
+  font-weight: 600;
+  font-family: var(--mathai-font-family);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 48px;
+}
+
+.btn-choice:hover {
+  border-color: var(--mathai-blue);
+  background: var(--mathai-light-blue);
+}
+
+.btn-choice.selected {
+  border-color: var(--mathai-blue);
+  background: var(--mathai-light-blue);
+  color: var(--mathai-blue);
+  font-weight: 700;
+}
+
+.btn-choice.correct {
+  border-color: var(--mathai-green);
+  background: var(--mathai-light-green);
+  color: var(--mathai-green);
+}
+
+.btn-choice.incorrect {
+  border-color: var(--mathai-red);
+  background: var(--mathai-light-red);
+  color: var(--mathai-red);
+}
+
+.btn-choice:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* === Sentence Builder === */
+.sentence-builder {
+  width: 100%;
+  max-width: 360px;
+  background: var(--mathai-white);
+  border-radius: var(--mathai-border-radius-card);
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  animation: slideIn 0.3s ease forwards;
+}
+
+.builder-title {
+  font-size: var(--mathai-font-size-body);
+  font-weight: 600;
+  color: var(--mathai-black);
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.builder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.builder-text {
+  font-size: var(--mathai-font-size-body);
+  color: var(--mathai-gray);
+  font-weight: 500;
+}
+
+.builder-thing {
+  font-size: var(--mathai-font-size-body);
+  color: var(--mathai-black);
+  font-weight: 600;
+}
+
+/* Number Stepper */
+.number-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 2px solid var(--mathai-light-gray);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.stepper-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: var(--mathai-light-gray);
+  color: var(--mathai-black);
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--mathai-font-family);
+  transition: background 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper-btn:hover {
+  background: #e0e0e0;
+}
+
+.stepper-btn:active {
+  background: #d0d0d0;
+}
+
+.stepper-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.stepper-value {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--mathai-font-size-body);
+  font-weight: 700;
+  color: var(--mathai-blue);
+  background: var(--mathai-white);
+}
+
+.number-stepper.locked {
+  border-color: var(--mathai-gray);
+  opacity: 0.6;
+}
+
+.number-stepper.locked .stepper-btn {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* === Buttons (PART-022) === */
+.game-btn {
+  padding: 14px 32px;
+  border: none;
+  border-radius: var(--mathai-border-radius-button);
+  font-size: var(--mathai-font-size-button);
+  font-weight: 600;
+  font-family: var(--mathai-font-family);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 44px;
+  width: 100%;
+  max-width: 360px;
+  color: var(--mathai-white);
+}
+
+.game-btn:active {
+  transform: translateY(0);
+}
+
+.game-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--mathai-green);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(33, 150, 83, 0.4);
+}
+
+.btn-secondary {
+  background: var(--mathai-blue);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+/* === Feedback Container === */
+.feedback-container {
+  width: 100%;
+  max-width: 360px;
+  background: var(--mathai-white);
+  border-radius: var(--mathai-border-radius-card);
+  padding: 20px 16px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  animation: slideIn 0.3s ease forwards;
+}
+
+.feedback-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.feedback-text {
+  font-size: var(--mathai-font-size-body);
+  color: var(--mathai-black);
+  line-height: 1.5;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.feedback-explanation {
+  background: var(--mathai-light-blue);
+  border-left: 4px solid var(--mathai-blue);
+  padding: 12px;
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 12px;
+  text-align: left;
+  font-size: var(--mathai-font-size-label);
+  color: var(--mathai-black);
+  line-height: 1.5;
+}
+
+/* === Results Card (PART-019) === */
+.results-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--mathai-white);
+  border-radius: 16px;
+  padding: 32px 24px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.stars-display {
+  font-size: 40px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.results-title {
+  font-size: var(--mathai-font-size-title);
+  margin-bottom: 8px;
+  color: var(--mathai-black);
+}
+
+.results-subtitle {
+  font-size: var(--mathai-font-size-label);
+  color: var(--mathai-gray);
+  margin-bottom: 24px;
+}
+
+.results-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--mathai-light-gray);
+}
+
+.metric-label {
+  color: var(--mathai-gray);
+  font-size: var(--mathai-font-size-label);
+}
+
+.metric-value {
+  font-weight: 700;
+  font-size: var(--mathai-font-size-body);
+  color: var(--mathai-black);
+}
+
+/* === Utility === */
+.hidden {
+  display: none !important;
+}
+
+/* === Progress bar slot at top (PART-021) === */
+#mathai-progress-slot,
+.mathai-progress-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <template id="game-template">
+    <div id="game-screen" class="game-block game-play-area">
+      <!-- Stage label -->
+      <p class="stage-label" id="stage-label" data-signal-id="stage-label"></p>
+
+      <!-- Instruction text -->
+      <p class="instruction-text" id="instruction-text" data-signal-id="instruction-text">
+        Do these two scenes follow the same rule?
+      </p>
+
+      <!-- Scene A -->
+      <div class="scene-card" id="scene-a-container" style="display: none" data-signal-id="scene-a">
+        <div class="scene-badge">Scene A</div>
+        <div class="scene-items" id="scene-a-items"></div>
+        <p class="scene-label" id="scene-a-label"></p>
+      </div>
+
+      <!-- Scene B -->
+      <div class="scene-card" id="scene-b-container" style="display: none" data-signal-id="scene-b">
+        <div class="scene-badge">Scene B</div>
+        <div class="scene-items" id="scene-b-items"></div>
+        <p class="scene-label" id="scene-b-label"></p>
+      </div>
+
+      <!-- Choice Buttons -->
+      <div class="choice-area" id="choice-area" style="display: none" data-signal-id="choice-area">
+        <button
+          class="game-btn btn-choice"
+          id="btn-same"
+          data-signal-id="btn-same"
+          onclick="handleChoice('same')"
+        >
+          Same Rule
+        </button>
+        <button
+          class="game-btn btn-choice"
+          id="btn-different"
+          data-signal-id="btn-different"
+          onclick="handleChoice('different')"
+        >
+          Different Rule
+        </button>
+      </div>
+
+      <!-- Sentence Builder -->
+      <div class="sentence-builder" id="sentence-builder" style="display: none" data-signal-id="sentence-builder">
+        <p class="builder-title" id="builder-title">What's the "for every" rule?</p>
+        <div class="builder-row">
+          <span class="builder-text">For every</span>
+          <div class="number-stepper" id="stepper-a">
+            <button class="stepper-btn" id="picker-a-minus" data-signal-id="picker-a-minus" onclick="handlePickerChange('a', -1)">−</button>
+            <span class="stepper-value" id="picker-a-value">1</span>
+            <button class="stepper-btn" id="picker-a-plus" data-signal-id="picker-a-plus" onclick="handlePickerChange('a', 1)">+</button>
+          </div>
+          <span class="builder-thing" id="thing-a-name"></span>
+        </div>
+        <div class="builder-row">
+          <span class="builder-text">there are</span>
+          <div class="number-stepper" id="stepper-b">
+            <button class="stepper-btn" id="picker-b-minus" data-signal-id="picker-b-minus" onclick="handlePickerChange('b', -1)">−</button>
+            <span class="stepper-value" id="picker-b-value">1</span>
+            <button class="stepper-btn" id="picker-b-plus" data-signal-id="picker-b-plus" onclick="handlePickerChange('b', 1)">+</button>
+          </div>
+          <span class="builder-thing" id="thing-b-name"></span>
+        </div>
+        <!-- Stage 3 only: commit rule before seeing Scene B -->
+        <button
+          class="game-btn btn-primary"
+          id="btn-commit-rule"
+          style="display: none"
+          data-signal-id="btn-commit-rule"
+          onclick="handleCommitRule()"
+        >
+          I see the rule!
+        </button>
+      </div>
+
+      <!-- Check Button (standalone, bottom) -->
+      <button
+        class="game-btn btn-primary"
+        id="btn-check"
+        style="display: none"
+        data-signal-id="btn-check"
+        onclick="handleCheck()"
+      >
+        Check
+      </button>
+
+      <!-- Feedback -->
+      <div class="feedback-container" id="feedback-container" style="display: none" data-signal-id="feedback">
+        <div class="feedback-icon" id="feedback-icon"></div>
+        <p class="feedback-text" id="feedback-text"></p>
+        <div class="feedback-explanation" id="feedback-explanation" style="display: none"></div>
+        <button class="game-btn btn-primary" id="btn-next" data-signal-id="btn-next" onclick="nextRound()">
+          Next
+        </button>
+      </div>
+    </div>
+
+    <div id="results-screen" class="game-block" style="display: none">
+      <div class="results-card">
+        <div id="stars-display" class="stars-display"></div>
+        <h2 class="results-title" id="results-title">Game Complete!</h2>
+        <p class="results-subtitle" id="results-subtitle"></p>
+        <div class="results-metrics">
+          <div class="metric-row">
+            <span class="metric-label">Score</span>
+            <span class="metric-value" id="result-score">0/10</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Accuracy</span>
+            <span class="metric-value" id="result-accuracy">0%</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Trap Rounds</span>
+            <span class="metric-value" id="result-traps">0/4</span>
+          </div>
+        </div>
+        <button class="game-btn btn-primary" id="btn-restart" data-signal-id="btn-restart" onclick="restartGame()">
+          Play Again
+        </button>
+      </div>
+    </div>
+  </template>
+
+  <!-- STEP 1: SentryConfig package -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+  <!-- STEP 2: initSentry() function definition (PART-030) -->
+  <script>
+  function initSentry() {
+    try {
+      if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled) {
+        Sentry.init({
+          dsn: SentryConfig.dsn,
+          environment: SentryConfig.environment,
+          release: 'same-rule@1.0.0',
+          tracesSampleRate: SentryConfig.tracesSampleRate,
+          sampleRate: SentryConfig.sampleRate,
+          maxBreadcrumbs: 50,
+          ignoreErrors: [
+            'ResizeObserver loop limit exceeded',
+            'ResizeObserver loop completed with undelivered notifications',
+            'Non-Error promise rejection captured',
+            'Script error.',
+            'Load failed',
+            'Failed to fetch',
+          ],
+        });
+        window.addEventListener('error', function(event) {
+          Sentry.captureException(event.error || new Error(event.message), {
+            tags: { errorType: 'unhandled', severity: 'critical' },
+            contexts: { errorEvent: { message: event.message, filename: event.filename, lineno: event.lineno } },
+          });
+        });
+        window.addEventListener('unhandledrejection', function(event) {
+          Sentry.captureException(event.reason || new Error('Unhandled promise rejection'), {
+            tags: { errorType: 'unhandled-promise', severity: 'critical' },
+          });
+        });
+      }
+    } catch (e) {
+      console.error('Sentry init error:', JSON.stringify({ error: e.message }, null, 2));
+    }
+  }
+
+  window.verifySentry = function() {
+    var checks = {
+      sdkLoaded: typeof Sentry !== 'undefined',
+      configLoaded: typeof SentryConfig !== 'undefined',
+      initialized: typeof Sentry !== 'undefined' && Sentry.getClient() !== undefined,
+      dsn: typeof Sentry !== 'undefined' && Sentry.getClient() ? Sentry.getClient().getDsn().toString() : null,
+      configVersion: typeof SentryConfig !== 'undefined' ? SentryConfig.version : null,
+    };
+    console.log('Sentry Status:', JSON.stringify(checks, null, 2));
+    return checks;
+  };
+
+  window.testSentry = function() {
+    try {
+      throw new Error('Test error from testSentry()');
+    } catch (error) {
+      if (typeof Sentry !== 'undefined') Sentry.captureException(error, { tags: { test: true } });
+      console.log('Test error sent to Sentry. Check dashboard.');
+    }
+  };
+  </script>
+
+  <!-- STEP 3: Sentry SDK v10.23.0 (single bundle) -->
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+
+  <!-- STEP 4: Initialize on load -->
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- STEP 5-7: Game packages (exact URLs, in this order) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <script>
+  // ===== GAME STATE (PART-007) =====
+  window.gameState = {
+    gameId: 'game_same_rule',
+    currentRound: 0,
+    totalRounds: 10,
+    score: 0,
+    attempts: [],
+    events: [],
+    startTime: null,
+    isActive: false,
+    content: null,
+    contentSetId: null,
+    signalConfig: null,
+    sessionHistory: [],
+    duration_data: {
+      startTime: null,
+      preview: [],
+      attempts: [],
+      evaluations: [],
+      inActiveTime: [],
+      totalInactiveTime: 0,
+      currentTime: null,
+    },
+    phase: 'idle',
+    userChoice: null,
+    ruleNumA: 1,
+    ruleNumB: 1,
+    additiveTrapCorrect: 0,
+    ruleCommitted: false,
+    gameEnded: false,
+  };
+  var gameState = window.gameState;
+
+  var timer = null;
+  var visibilityTracker = null;
+  var signalCollector = null;
+  var progressBar = null;
+  var transitionScreen = null;
+  var interactionManager = null;
+  var previewScreen = null;
+
+  // ===== FALLBACK CONTENT =====
+  var fallbackContent = {
+    previewInstruction: '<p>Compare two scenes and decide: do they follow the <b>same "for every" rule</b>?</p><p>Build the rule using the number pickers!</p>',
+    previewAudioText: 'Compare two scenes and decide: do they follow the same for every rule? Build the rule using the number pickers!',
+    previewAudio: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/050c90f1-baf1-4838-aa20-4a6bc1927f7c.mp3',
+    rounds: [
+      // === STAGE 1: Easy Matches (Rounds 1-3) ===
+      {
+        stage: 1,
+        sceneA: {
+          label: "Ria's snack plate: 2 cookies and 1 glass of milk",
+          thingA: { name: 'cookies', nameSingular: 'cookie', emoji: '🍪', count: 2 },
+          thingB: { name: 'glasses of milk', nameSingular: 'glass of milk', emoji: '🥛', count: 1 },
+        },
+        sceneB: {
+          label: "Ria's party plate: 4 cookies and 2 glasses of milk",
+          thingA: { name: 'cookies', nameSingular: 'cookie', emoji: '🍪', count: 4 },
+          thingB: { name: 'glasses of milk', nameSingular: 'glass of milk', emoji: '🥛', count: 2 },
+        },
+        answer: 'same',
+        rule: { numA: 2, numB: 1 },
+        isAdditiveTrap: false,
+        trapExplanation: null,
+        correctFeedback: "That's it! For every 2 cookies, 1 glass of milk — same rule, just bigger!",
+      },
+      {
+        stage: 1,
+        sceneA: {
+          label: 'A small flower bed: 3 red flowers and 1 yellow flower',
+          thingA: { name: 'red flowers', nameSingular: 'red flower', emoji: '🌺', count: 3 },
+          thingB: { name: 'yellow flowers', nameSingular: 'yellow flower', emoji: '🌼', count: 1 },
+        },
+        sceneB: {
+          label: 'A bigger flower bed: 6 red flowers and 2 yellow flowers',
+          thingA: { name: 'red flowers', nameSingular: 'red flower', emoji: '🌺', count: 6 },
+          thingB: { name: 'yellow flowers', nameSingular: 'yellow flower', emoji: '🌼', count: 2 },
+        },
+        answer: 'same',
+        rule: { numA: 3, numB: 1 },
+        isAdditiveTrap: false,
+        trapExplanation: null,
+        correctFeedback: 'For every 3 red flowers, 1 yellow flower — the garden grew, but the pattern stayed!',
+      },
+      {
+        stage: 1,
+        sceneA: {
+          label: 'A small fish tank: 4 orange fish and 2 blue fish',
+          thingA: { name: 'orange fish', nameSingular: 'orange fish', emoji: '🐠', count: 4 },
+          thingB: { name: 'blue fish', nameSingular: 'blue fish', emoji: '🐟', count: 2 },
+        },
+        sceneB: {
+          label: 'A bigger tank: 4 orange fish and 5 blue fish',
+          thingA: { name: 'orange fish', nameSingular: 'orange fish', emoji: '🐠', count: 4 },
+          thingB: { name: 'blue fish', nameSingular: 'blue fish', emoji: '🐟', count: 5 },
+        },
+        answer: 'different',
+        rule: { numA: 2, numB: 1 },
+        isAdditiveTrap: false,
+        trapExplanation: null,
+        correctFeedback: "The small tank had 'for every 2 orange, 1 blue' — but the big tank doesn't follow that rule!",
+      },
+      // === STAGE 2: The Additive Trap (Rounds 4-7) ===
+      {
+        stage: 2,
+        sceneA: {
+          label: 'A park bench: 3 birds and 1 squirrel',
+          thingA: { name: 'birds', nameSingular: 'bird', emoji: '🐦', count: 3 },
+          thingB: { name: 'squirrels', nameSingular: 'squirrel', emoji: '🐿️', count: 1 },
+        },
+        sceneB: {
+          label: 'A bigger park: 5 birds and 3 squirrels',
+          thingA: { name: 'birds', nameSingular: 'bird', emoji: '🐦', count: 5 },
+          thingB: { name: 'squirrels', nameSingular: 'squirrel', emoji: '🐿️', count: 3 },
+        },
+        answer: 'different',
+        rule: { numA: 3, numB: 1 },
+        isAdditiveTrap: true,
+        trapExplanation: "Both times there were 2 more birds than squirrels. But the 'for every' rule changed! In the small park it was 'for every 3 birds, 1 squirrel.' In the big park it's different.",
+        correctFeedback: "The difference was the same (2 more birds), but the 'for every' rule changed!",
+      },
+      {
+        stage: 2,
+        sceneA: {
+          label: 'A kitchen shelf: 2 jars of rice and 3 jars of dal',
+          thingA: { name: 'jars of rice', nameSingular: 'jar of rice', emoji: '🍚', count: 2 },
+          thingB: { name: 'jars of dal', nameSingular: 'jar of dal', emoji: '🫘', count: 3 },
+        },
+        sceneB: {
+          label: 'A bigger shelf: 4 jars of rice and 6 jars of dal',
+          thingA: { name: 'jars of rice', nameSingular: 'jar of rice', emoji: '🍚', count: 4 },
+          thingB: { name: 'jars of dal', nameSingular: 'jar of dal', emoji: '🫘', count: 6 },
+        },
+        answer: 'same',
+        rule: { numA: 2, numB: 3 },
+        isAdditiveTrap: true,
+        trapExplanation: "The difference changed — but the 'for every' rule stayed the same! For every 2 jars of rice, there are 3 jars of dal. That's what matters.",
+        correctFeedback: "The difference changed (1 → 2), but the 'for every' rule held — for every 2 rice, 3 dal!",
+      },
+      {
+        stage: 2,
+        sceneA: {
+          label: 'A friendship bracelet: 2 gold beads and 1 black bead',
+          thingA: { name: 'gold beads', nameSingular: 'gold bead', emoji: '🟡', count: 2 },
+          thingB: { name: 'black beads', nameSingular: 'black bead', emoji: '⚫', count: 1 },
+        },
+        sceneB: {
+          label: 'A necklace: 4 gold beads and 3 black beads',
+          thingA: { name: 'gold beads', nameSingular: 'gold bead', emoji: '🟡', count: 4 },
+          thingB: { name: 'black beads', nameSingular: 'black bead', emoji: '⚫', count: 3 },
+        },
+        answer: 'different',
+        rule: { numA: 2, numB: 1 },
+        isAdditiveTrap: true,
+        trapExplanation: "Both had 1 more gold bead than black. But look at the pattern — the bracelet was 'for every 2 gold, 1 black.' The necklace doesn't follow that rule.",
+        correctFeedback: "Same difference (1 more gold), but different 'for every' rule!",
+      },
+      {
+        stage: 2,
+        sceneA: {
+          label: 'A small classroom: 1 table and 4 chairs',
+          thingA: { name: 'tables', nameSingular: 'table', emoji: '🪑', count: 1 },
+          thingB: { name: 'chairs', nameSingular: 'chair', emoji: '💺', count: 4 },
+        },
+        sceneB: {
+          label: 'A bigger classroom: 3 tables and 12 chairs',
+          thingA: { name: 'tables', nameSingular: 'table', emoji: '🪑', count: 3 },
+          thingB: { name: 'chairs', nameSingular: 'chair', emoji: '💺', count: 12 },
+        },
+        answer: 'same',
+        rule: { numA: 1, numB: 4 },
+        isAdditiveTrap: true,
+        trapExplanation: "Way more extra chairs in the big room! But the rule is the same — for every 1 table, there are 4 chairs. The difference changed, the rule didn't.",
+        correctFeedback: 'The difference jumped from 3 to 9, but the rule held — for every 1 table, 4 chairs!',
+      },
+      // === STAGE 3: Kid Leads (Rounds 8-10) ===
+      {
+        stage: 3,
+        sceneA: {
+          label: 'A garden display: 6 sunflowers in 3 pots',
+          thingA: { name: 'sunflowers', nameSingular: 'sunflower', emoji: '🌻', count: 6 },
+          thingB: { name: 'pots', nameSingular: 'pot', emoji: '🪴', count: 3 },
+        },
+        sceneB: {
+          label: 'Another display: 9 sunflowers in 3 pots',
+          thingA: { name: 'sunflowers', nameSingular: 'sunflower', emoji: '🌻', count: 9 },
+          thingB: { name: 'pots', nameSingular: 'pot', emoji: '🪴', count: 3 },
+        },
+        answer: 'different',
+        rule: { numA: 2, numB: 1 },
+        isAdditiveTrap: false,
+        trapExplanation: null,
+        correctFeedback: "Scene A was 'for every 2 sunflowers, 1 pot' — but Scene B has 3 sunflowers per pot. Different rule!",
+      },
+      {
+        stage: 3,
+        sceneA: {
+          label: 'A lemonade recipe: 2 spoons of sugar and 5 cups of water',
+          thingA: { name: 'spoons of sugar', nameSingular: 'spoon of sugar', emoji: '🥄', count: 2 },
+          thingB: { name: 'cups of water', nameSingular: 'cup of water', emoji: '💧', count: 5 },
+        },
+        sceneB: {
+          label: 'A bigger batch: 4 spoons of sugar and 10 cups of water',
+          thingA: { name: 'spoons of sugar', nameSingular: 'spoon of sugar', emoji: '🥄', count: 4 },
+          thingB: { name: 'cups of water', nameSingular: 'cup of water', emoji: '💧', count: 10 },
+        },
+        answer: 'same',
+        rule: { numA: 2, numB: 5 },
+        isAdditiveTrap: false,
+        trapExplanation: null,
+        correctFeedback: 'For every 2 spoons of sugar, 5 cups of water — doubled the recipe, same taste!',
+      },
+      {
+        stage: 3,
+        sceneA: {
+          label: 'A weaving pattern: 3 red threads and 2 white threads',
+          thingA: { name: 'red threads', nameSingular: 'red thread', emoji: '🔴', count: 3 },
+          thingB: { name: 'white threads', nameSingular: 'white thread', emoji: '⚪', count: 2 },
+        },
+        sceneB: {
+          label: 'A bigger loom: 9 red threads and 6 white threads',
+          thingA: { name: 'red threads', nameSingular: 'red thread', emoji: '🔴', count: 9 },
+          thingB: { name: 'white threads', nameSingular: 'white thread', emoji: '⚪', count: 6 },
+        },
+        answer: 'same',
+        rule: { numA: 3, numB: 2 },
+        isAdditiveTrap: false,
+        trapExplanation: null,
+        correctFeedback: "For every 3 red threads, 2 white threads — the loom got bigger but the pattern stayed!",
+      },
+    ],
+  };
+
+  // ===== UTILITY FUNCTIONS =====
+  function delay(ms) {
+    return new Promise(function(resolve) { setTimeout(resolve, ms); });
+  }
+
+  function getThingName(thing, num) {
+    return num === 1 ? thing.nameSingular : thing.name;
+  }
+
+  function renderScene(containerId, scene) {
+    var container = document.getElementById(containerId);
+    container.innerHTML = '';
+
+    var groupA = document.createElement('div');
+    groupA.className = 'item-group';
+    for (var i = 0; i < scene.thingA.count; i++) {
+      var span = document.createElement('span');
+      span.className = 'item-emoji';
+      span.textContent = scene.thingA.emoji;
+      groupA.appendChild(span);
+    }
+    container.appendChild(groupA);
+
+    var groupB = document.createElement('div');
+    groupB.className = 'item-group';
+    for (var j = 0; j < scene.thingB.count; j++) {
+      var span2 = document.createElement('span');
+      span2.className = 'item-emoji';
+      span2.textContent = scene.thingB.emoji;
+      groupB.appendChild(span2);
+    }
+    container.appendChild(groupB);
+  }
+
+  // ===== waitForPackages (PART-003) =====
+  function waitForPackages() {
+    return new Promise(function(resolve, reject) {
+      var timeout = 10000;
+      var start = Date.now();
+      function check() {
+        if (
+          typeof FeedbackManager !== 'undefined' &&
+          typeof TimerComponent !== 'undefined' &&
+          typeof VisibilityTracker !== 'undefined' &&
+          typeof SignalCollector !== 'undefined' &&
+          typeof PreviewScreenComponent !== 'undefined'
+        ) {
+          resolve();
+        } else if (Date.now() - start > timeout) {
+          reject(new Error('Packages failed to load within 10s'));
+        } else {
+          setTimeout(check, 100);
+        }
+      }
+      check();
+    });
+  }
+
+  // ===== trackEvent (PART-010) =====
+  function trackEvent(type, target, data) {
+    data = data || {};
+    gameState.events.push(Object.assign({
+      type: type,
+      target: target,
+      timestamp: Date.now()
+    }, data));
+  }
+
+  // ===== recordAttempt (PART-009) =====
+  function recordAttempt(data) {
+    var attempt = {
+      attempt_timestamp: new Date().toISOString(),
+      time_since_start_of_game: (Date.now() - gameState.startTime) / 1000,
+      input_of_user: data.userAnswer,
+      attempt_number: gameState.attempts.length + 1,
+      correct: data.correct,
+      metadata: {
+        round: gameState.currentRound + 1,
+        question: data.question,
+        correctAnswer: data.correctAnswer,
+        validationType: data.validationType || 'function'
+      }
+    };
+
+    gameState.attempts.push(attempt);
+    gameState.duration_data.attempts.push({
+      startTime: new Date().toISOString(),
+      time_to_first_attempt: (Date.now() - gameState.startTime) / 1000,
+      duration: 0
+    });
+
+    console.log('Attempt:', JSON.stringify(attempt, null, 2));
+  }
+
+  // ===== computeTriesPerRound (PART-011) =====
+  function computeTriesPerRound(attempts) {
+    var rounds = {};
+    attempts.forEach(function(a) {
+      var r = a.metadata.round;
+      rounds[r] = (rounds[r] || 0) + 1;
+    });
+    return Object.keys(rounds).map(function(r) {
+      return { round: Number(r), triesCount: rounds[r] };
+    });
+  }
+
+  // ===== showPreviewScreen (PART-039) =====
+  function showPreviewScreen() {
+    var content = gameState.content || fallbackContent;
+    previewScreen.show({
+      instruction: content.previewInstruction || fallbackContent.previewInstruction,
+      audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+      previewContent: content.previewContent || null,
+      onComplete: startGameAfterPreview
+    });
+  }
+
+  // ===== startGameAfterPreview (PART-039) =====
+  function startGameAfterPreview(previewData) {
+    gameState.previewResult = previewData;
+    gameState.duration_data.preview = gameState.duration_data.preview || [];
+    gameState.duration_data.preview.push({ duration: previewData.duration });
+
+    gameState.startTime = Date.now();
+    gameState.isActive = true;
+    gameState.duration_data.startTime = new Date().toISOString();
+
+    progressBar.update(0, 0);
+    trackEvent('game_start', 'game');
+
+    if (signalCollector) {
+      signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+    }
+
+    showRound();
+  }
+
+  // ===== setupGame =====
+  function setupGame() {
+    if (!gameState.content) {
+      gameState.content = fallbackContent;
+    }
+
+    gameState.currentRound = 0;
+    gameState.score = 0;
+    gameState.attempts = [];
+    gameState.events = [];
+    gameState.additiveTrapCorrect = 0;
+    gameState.userChoice = null;
+    gameState.ruleNumA = 1;
+    gameState.ruleNumB = 1;
+    gameState.ruleCommitted = false;
+    gameState.phase = 'idle';
+    gameState.gameEnded = false;
+
+    showPreviewScreen();
+  }
+
+  // ===== showRound =====
+  var stageLabels = {
+    1: 'Stage 1 — Easy Matches',
+    2: 'Stage 2 — The Additive Trap',
+    3: 'Stage 3 — You Lead!'
+  };
+
+  async function showRound() {
+    var roundIndex = gameState.currentRound;
+    var round = gameState.content.rounds[roundIndex];
+    var roundNumber = roundIndex + 1;
+
+    // Reset UI state
+    gameState.userChoice = null;
+    gameState.ruleNumA = 1;
+    gameState.ruleNumB = 1;
+    gameState.ruleCommitted = false;
+
+    document.getElementById('picker-a-value').textContent = '1';
+    document.getElementById('picker-b-value').textContent = '1';
+
+    // Hide all dynamic elements
+    document.getElementById('choice-area').style.display = 'none';
+    document.getElementById('sentence-builder').style.display = 'none';
+    document.getElementById('btn-check').style.display = 'none';
+    document.getElementById('btn-commit-rule').style.display = 'none';
+    document.getElementById('feedback-container').style.display = 'none';
+    document.getElementById('scene-b-container').style.display = 'none';
+    document.getElementById('scene-a-container').style.display = 'none';
+
+    // Reset choice buttons
+    var btnSame = document.getElementById('btn-same');
+    var btnDifferent = document.getElementById('btn-different');
+    btnSame.classList.remove('selected', 'correct', 'incorrect');
+    btnDifferent.classList.remove('selected', 'correct', 'incorrect');
+    btnSame.disabled = false;
+    btnDifferent.disabled = false;
+
+    // Reset steppers
+    var stepperA = document.getElementById('stepper-a');
+    var stepperB = document.getElementById('stepper-b');
+    stepperA.classList.remove('locked');
+    stepperB.classList.remove('locked');
+    document.getElementById('picker-a-minus').disabled = false;
+    document.getElementById('picker-a-plus').disabled = false;
+    document.getElementById('picker-b-minus').disabled = false;
+    document.getElementById('picker-b-plus').disabled = false;
+
+    // Remove grouped classes
+    var groupedEls = document.querySelectorAll('.item-group.grouped');
+    groupedEls.forEach(function(el) { el.classList.remove('grouped'); });
+
+    // Update stage label
+    document.getElementById('stage-label').textContent = stageLabels[round.stage] || '';
+
+    // Render Scene A
+    renderScene('scene-a-items', round.sceneA);
+    document.getElementById('scene-a-label').textContent = round.sceneA.label;
+
+    // Show Scene A with animation
+    var sceneAContainer = document.getElementById('scene-a-container');
+    sceneAContainer.style.display = 'block';
+    sceneAContainer.classList.remove('slide-in', 'compress');
+    void sceneAContainer.offsetWidth; // force reflow
+    sceneAContainer.classList.add('slide-in');
+
+    // Pre-fill thing names in builder
+    document.getElementById('thing-a-name').textContent = getThingName(round.sceneA.thingA, gameState.ruleNumA);
+    document.getElementById('thing-b-name').textContent = getThingName(round.sceneA.thingB, gameState.ruleNumB);
+
+    // Signal: content_render
+    if (signalCollector) {
+      signalCollector.recordViewEvent('content_render', {
+        screen: 'gameplay',
+        content_snapshot: {
+          round: roundNumber,
+          stage: round.stage,
+          scene_a_label: round.sceneA.label,
+          trigger: 'round_start'
+        },
+        components: {
+          progress: { current: gameState.currentRound, total: gameState.totalRounds }
+        }
+      });
+    }
+
+    if (round.stage === 3) {
+      // Stage 3: Show builder first, Scene B hidden
+      document.getElementById('instruction-text').textContent = "Look at Scene A. What's the 'for every' rule?";
+      document.getElementById('builder-title').textContent = 'What\'s the "for every" rule?';
+      document.getElementById('sentence-builder').style.display = 'block';
+      document.getElementById('btn-commit-rule').style.display = 'block';
+      gameState.phase = 'building';
+    } else {
+      // Stage 1-2: Show both scenes, then choice
+      document.getElementById('instruction-text').textContent = 'Do these two scenes follow the same rule?';
+
+      await delay(800);
+
+      // Render Scene B
+      renderScene('scene-b-items', round.sceneB);
+      document.getElementById('scene-b-label').textContent = round.sceneB.label;
+
+      var sceneBContainer = document.getElementById('scene-b-container');
+      sceneBContainer.style.display = 'block';
+      sceneBContainer.classList.remove('slide-in');
+      void sceneBContainer.offsetWidth;
+      sceneBContainer.classList.add('slide-in');
+
+      // Compress Scene A
+      sceneAContainer.classList.add('compress');
+
+      if (signalCollector) {
+        signalCollector.recordViewEvent('visual_update', { type: 'scene_b_revealed', round: roundNumber });
+      }
+
+      await delay(400);
+
+      // Show choice buttons
+      document.getElementById('choice-area').style.display = 'flex';
+      gameState.phase = 'choosing';
+    }
+  }
+
+  // ===== handleChoice =====
+  function handleChoice(choice) {
+    if (gameState.phase !== 'choosing' || !gameState.isActive) return;
+
+    gameState.userChoice = choice;
+
+    var btnSame = document.getElementById('btn-same');
+    var btnDifferent = document.getElementById('btn-different');
+
+    btnSame.classList.remove('selected');
+    btnDifferent.classList.remove('selected');
+
+    if (choice === 'same') {
+      btnSame.classList.add('selected');
+    } else {
+      btnDifferent.classList.add('selected');
+    }
+
+    trackEvent('choice_made', 'choice-btn', { choice: choice, round: gameState.currentRound + 1 });
+    if (signalCollector) {
+      signalCollector.recordViewEvent('visual_update', { type: 'choice_made', choice: choice });
+    }
+
+    var round = gameState.content.rounds[gameState.currentRound];
+
+    if (round.stage === 3) {
+      // Stage 3: just show check button, builder already shown and locked
+      document.getElementById('btn-check').style.display = 'block';
+      document.getElementById('btn-check').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+      // Stage 1-2: show sentence builder + check
+      document.getElementById('sentence-builder').style.display = 'block';
+      document.getElementById('builder-title').textContent = 'What\'s the "for every" rule?';
+      document.getElementById('btn-check').style.display = 'block';
+      gameState.phase = 'building';
+      document.getElementById('btn-check').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  // ===== handlePickerChange =====
+  function handlePickerChange(picker, delta) {
+    if (gameState.phase !== 'building' || !gameState.isActive) return;
+
+    var round = gameState.content.rounds[gameState.currentRound];
+
+    if (picker === 'a') {
+      var newVal = Math.max(1, Math.min(9, gameState.ruleNumA + delta));
+      gameState.ruleNumA = newVal;
+      document.getElementById('picker-a-value').textContent = newVal;
+      document.getElementById('thing-a-name').textContent = getThingName(round.sceneA.thingA, newVal);
+    } else {
+      var newValB = Math.max(1, Math.min(9, gameState.ruleNumB + delta));
+      gameState.ruleNumB = newValB;
+      document.getElementById('picker-b-value').textContent = newValB;
+      document.getElementById('thing-b-name').textContent = getThingName(round.sceneA.thingB, newValB);
+    }
+  }
+
+  // ===== handleCommitRule (Stage 3) =====
+  async function handleCommitRule() {
+    if (!gameState.isActive || gameState.ruleCommitted) return;
+
+    gameState.ruleCommitted = true;
+
+    // Lock pickers
+    document.getElementById('picker-a-minus').disabled = true;
+    document.getElementById('picker-a-plus').disabled = true;
+    document.getElementById('picker-b-minus').disabled = true;
+    document.getElementById('picker-b-plus').disabled = true;
+    document.getElementById('stepper-a').classList.add('locked');
+    document.getElementById('stepper-b').classList.add('locked');
+
+    // Hide commit button
+    document.getElementById('btn-commit-rule').style.display = 'none';
+
+    trackEvent('rule_committed', 'sentence-builder', {
+      ruleNumA: gameState.ruleNumA,
+      ruleNumB: gameState.ruleNumB,
+      round: gameState.currentRound + 1
+    });
+
+    if (signalCollector) {
+      signalCollector.recordViewEvent('visual_update', {
+        type: 'rule_committed',
+        ruleNumA: gameState.ruleNumA,
+        ruleNumB: gameState.ruleNumB
+      });
+    }
+
+    // Reveal Scene B
+    var round = gameState.content.rounds[gameState.currentRound];
+    renderScene('scene-b-items', round.sceneB);
+    document.getElementById('scene-b-label').textContent = round.sceneB.label;
+
+    var sceneBContainer = document.getElementById('scene-b-container');
+    sceneBContainer.style.display = 'block';
+    sceneBContainer.classList.remove('slide-in');
+    void sceneBContainer.offsetWidth;
+    sceneBContainer.classList.add('slide-in');
+
+    // Compress Scene A
+    document.getElementById('scene-a-container').classList.add('compress');
+
+    // Update instruction
+    document.getElementById('instruction-text').textContent = 'Now — does Scene B follow the same rule?';
+
+    await delay(400);
+
+    // Show choice buttons
+    document.getElementById('choice-area').style.display = 'flex';
+    gameState.phase = 'choosing';
+  }
+
+  // ===== handleCheck =====
+  async function handleCheck() {
+    if (!gameState.isActive || !gameState.userChoice) return;
+
+    gameState.phase = 'feedback';
+
+    var round = gameState.content.rounds[gameState.currentRound];
+
+    var choiceCorrect = gameState.userChoice === round.answer;
+    var ruleCorrect = gameState.ruleNumA === round.rule.numA && gameState.ruleNumB === round.rule.numB;
+    var roundCorrect = choiceCorrect && ruleCorrect;
+
+    recordAttempt({
+      userAnswer: {
+        choice: gameState.userChoice,
+        ruleNumA: gameState.ruleNumA,
+        ruleNumB: gameState.ruleNumB
+      },
+      correct: roundCorrect,
+      question: round.sceneA.label + ' vs ' + round.sceneB.label,
+      correctAnswer: {
+        choice: round.answer,
+        ruleNumA: round.rule.numA,
+        ruleNumB: round.rule.numB
+      },
+      validationType: 'function'
+    });
+
+    if (roundCorrect) {
+      gameState.score++;
+      if (round.isAdditiveTrap) {
+        gameState.additiveTrapCorrect++;
+      }
+    }
+
+    progressBar.update(gameState.currentRound + 1, 0);
+
+    if (signalCollector) {
+      signalCollector.recordCustomEvent(roundCorrect ? 'round_correct' : 'round_incorrect', {
+        round: gameState.currentRound + 1,
+        stage: round.stage,
+        choiceCorrect: choiceCorrect,
+        ruleCorrect: ruleCorrect,
+        isAdditiveTrap: round.isAdditiveTrap
+      });
+    }
+
+    await showFeedback(roundCorrect, choiceCorrect, ruleCorrect, round);
+  }
+
+  // ===== showFeedback =====
+  async function showFeedback(roundCorrect, choiceCorrect, ruleCorrect, round) {
+    // Hide check button, sentence builder
+    document.getElementById('btn-check').style.display = 'none';
+    document.getElementById('sentence-builder').style.display = 'none';
+
+    gameState.phase = 'feedback';
+
+    // Show choice correctness on buttons
+    var btnSame = document.getElementById('btn-same');
+    var btnDifferent = document.getElementById('btn-different');
+
+    btnSame.classList.remove('selected');
+    btnDifferent.classList.remove('selected');
+
+    if (round.answer === 'same') {
+      btnSame.classList.add('correct');
+      if (gameState.userChoice === 'different') {
+        btnDifferent.classList.add('incorrect');
+      }
+    } else {
+      btnDifferent.classList.add('correct');
+      if (gameState.userChoice === 'same') {
+        btnSame.classList.add('incorrect');
+      }
+    }
+    btnSame.disabled = true;
+    btnDifferent.disabled = true;
+
+    // Show choice area with colored buttons
+    document.getElementById('choice-area').style.display = 'flex';
+
+    var feedbackIcon = document.getElementById('feedback-icon');
+    var feedbackText = document.getElementById('feedback-text');
+    var feedbackExplanation = document.getElementById('feedback-explanation');
+
+    // Reset explanation
+    feedbackExplanation.style.display = 'none';
+    feedbackExplanation.textContent = '';
+
+    if (roundCorrect) {
+      feedbackIcon.textContent = '✅';
+      feedbackText.textContent = round.correctFeedback;
+
+      // Grouping animation
+      var itemGroups = document.querySelectorAll('.item-group');
+      itemGroups.forEach(function(g) { g.classList.add('grouped'); });
+
+      try {
+        await FeedbackManager.playDynamicFeedback({ audio_content: 'correct!', subtitle: '' });
+      } catch(e) {
+        console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2));
+      }
+    } else {
+      feedbackIcon.textContent = '💡';
+
+      // Build explanation
+      var explanationParts = [];
+      if (!choiceCorrect && !ruleCorrect) {
+        explanationParts.push('The scenes follow ' + (round.answer === 'same' ? 'the same' : 'a different') + ' rule.');
+        explanationParts.push('The correct rule is: for every ' + round.rule.numA + ' ' + getThingName(round.sceneA.thingA, round.rule.numA) + ', ' + round.rule.numB + ' ' + getThingName(round.sceneA.thingB, round.rule.numB) + '.');
+      } else if (!choiceCorrect) {
+        explanationParts.push('Good rule spotting! But the scenes actually follow ' + (round.answer === 'same' ? 'the same' : 'a different') + ' rule.');
+      } else if (!ruleCorrect) {
+        explanationParts.push('Right choice! But the rule is: for every ' + round.rule.numA + ' ' + getThingName(round.sceneA.thingA, round.rule.numA) + ', ' + round.rule.numB + ' ' + getThingName(round.sceneA.thingB, round.rule.numB) + '.');
+      }
+
+      feedbackText.textContent = explanationParts.join(' ');
+
+      try {
+        await FeedbackManager.playDynamicFeedback({ audio_content: 'not quite', subtitle: '' });
+      } catch(e) {
+        console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2));
+      }
+    }
+
+    // Show trap explanation if applicable
+    if (round.isAdditiveTrap && round.trapExplanation) {
+      feedbackExplanation.textContent = round.trapExplanation;
+      feedbackExplanation.style.display = 'block';
+    }
+
+    // Show feedback container
+    document.getElementById('feedback-container').style.display = 'block';
+    document.getElementById('btn-next').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    trackEvent(roundCorrect ? 'round_correct' : 'round_incorrect', 'game', {
+      round: gameState.currentRound + 1,
+      choiceCorrect: choiceCorrect,
+      ruleCorrect: ruleCorrect
+    });
+
+    if (signalCollector) {
+      signalCollector.recordViewEvent('feedback_display', {
+        screen: 'gameplay',
+        content_snapshot: {
+          feedback_type: roundCorrect ? 'correct' : 'incorrect',
+          round: gameState.currentRound + 1,
+          stage: round.stage,
+          choiceCorrect: choiceCorrect,
+          ruleCorrect: ruleCorrect
+        }
+      });
+    }
+  }
+
+  // ===== nextRound =====
+  function nextRound() {
+    gameState.currentRound++;
+    if (gameState.currentRound >= gameState.totalRounds) {
+      endGame();
+    } else {
+      showRound();
+    }
+  }
+
+  // ===== endGame (PART-011) =====
+  async function endGame() {
+    if (!gameState.isActive) return;
+    gameState.isActive = false;
+    gameState.gameEnded = true;
+    gameState.phase = 'idle';
+    gameState.duration_data.currentTime = new Date().toISOString();
+
+    var correctAttempts = gameState.attempts.filter(function(a) { return a.correct; }).length;
+    var totalAttempts = gameState.attempts.length;
+    var accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
+    var timeTaken = Math.round((Date.now() - gameState.startTime) / 1000);
+
+    // Star calculation
+    var stars = 0;
+    if (gameState.score >= 8 && gameState.additiveTrapCorrect >= 3) {
+      stars = 3;
+    } else if (gameState.score >= 5) {
+      stars = 2;
+    } else if (gameState.score >= 1) {
+      stars = 1;
+    }
+
+    var metrics = {
+      accuracy: accuracy,
+      time: timeTaken,
+      stars: stars,
+      attempts: gameState.attempts,
+      duration_data: gameState.duration_data,
+      totalLives: 1,
+      tries: computeTriesPerRound(gameState.attempts),
+      score: gameState.score,
+      totalRounds: gameState.totalRounds,
+      additiveTrapCorrect: gameState.additiveTrapCorrect,
+      totalTrapRounds: 4,
+    };
+
+    if (gameState.sessionHistory && gameState.sessionHistory.length > 0) {
+      metrics.sessionHistory = gameState.sessionHistory.concat([
+        { totalLives: 1, tries: computeTriesPerRound(gameState.attempts) }
+      ]);
+    }
+
+    console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
+    console.log('Attempt History:', JSON.stringify(gameState.attempts, null, 2));
+
+    trackEvent('game_end', 'game', {
+      score: gameState.score,
+      accuracy: accuracy,
+      stars: stars,
+      additiveTrapCorrect: gameState.additiveTrapCorrect
+    });
+
+    // Seal SignalCollector and capture seal result
+    var sealResult = null;
+    if (signalCollector) {
+      signalCollector.recordViewEvent('screen_transition', {
+        screen: 'results',
+        metadata: { transition_from: 'gameplay', stars: stars, score: gameState.score }
+      });
+      try { sealResult = signalCollector.seal(); } catch(e) { console.error('Seal error:', JSON.stringify({ error: e.message }, null, 2)); }
+    }
+
+    // Show results FIRST (before audio, which may hang)
+    showResults(metrics);
+
+    // Send to platform (PART-008) — include signal_event_count and signal_metadata from seal()
+    window.parent.postMessage({
+      type: 'game_complete',
+      data: {
+        metrics: metrics,
+        attempts: gameState.attempts,
+        completedAt: Date.now(),
+        signal_event_count: sealResult ? sealResult.event_count : 0,
+        signal_metadata: sealResult ? sealResult.metadata : null
+      }
+    }, '*');
+
+    // End-game audio (with timeout to prevent hanging)
+    var audioPromise;
+    if (gameState.score >= 8) {
+      audioPromise = FeedbackManager.playDynamicFeedback({ audio_content: "Amazing! You really understand the 'for every' rule!", subtitle: 'Incredible!' });
+    } else if (gameState.score >= 5) {
+      audioPromise = FeedbackManager.playDynamicFeedback({ audio_content: "Good job! You're getting the hang of it!", subtitle: 'Nice work!' });
+    } else {
+      audioPromise = FeedbackManager.playDynamicFeedback({ audio_content: "Keep practicing! The 'for every' pattern will click soon!", subtitle: 'Keep going!' });
+    }
+    try { await Promise.race([audioPromise, delay(5000)]); } catch(e) {}
+
+    // Cleanup (RULE-005)
+    if (progressBar) { progressBar.destroy(); progressBar = null; }
+    if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
+    if (previewScreen) { try { previewScreen.destroy(); } catch(e) {} previewScreen = null; }
+    try { FeedbackManager.sound.pause(); } catch(e) {}
+    try { FeedbackManager.stream.pauseAll(); } catch(e) {}
+  }
+
+  // ===== showResults (PART-019) =====
+  function showResults(metrics) {
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('results-screen').style.display = 'flex';
+    document.getElementById('results-title').textContent =
+      metrics.stars >= 3 ? "You're a Ratio Detective!" : metrics.stars >= 2 ? 'Great Pattern Spotting!' : 'Keep Exploring!';
+    document.getElementById('results-subtitle').textContent =
+      "You spotted the 'for every' rule " + metrics.score + ' out of 10 times!';
+    document.getElementById('result-score').textContent = metrics.score + '/' + metrics.totalRounds;
+    document.getElementById('result-accuracy').textContent = metrics.accuracy + '%';
+    document.getElementById('result-traps').textContent = metrics.additiveTrapCorrect + '/' + metrics.totalTrapRounds;
+    var starsDisplay = document.getElementById('stars-display');
+    starsDisplay.innerHTML = '';
+    for (var i = 0; i < 3; i++) {
+      starsDisplay.innerHTML += i < metrics.stars ? '⭐' : '☆';
+    }
+  }
+
+  // ===== restartGame =====
+  function restartGame() {
+    if (!gameState.sessionHistory) gameState.sessionHistory = [];
+    gameState.sessionHistory.push({
+      totalLives: 1,
+      tries: computeTriesPerRound(gameState.attempts)
+    });
+
+    window.gameState.gameEnded = false;
+    window.gameState.currentRound = 0;
+    window.gameState.score = 0;
+    window.gameState.attempts = [];
+    window.gameState.events = [];
+    window.gameState.isActive = false;
+    window.gameState.startTime = null;
+    window.gameState.phase = 'idle';
+    window.gameState.userChoice = null;
+    window.gameState.ruleNumA = 1;
+    window.gameState.ruleNumB = 1;
+    window.gameState.additiveTrapCorrect = 0;
+    window.gameState.ruleCommitted = false;
+    window.gameState.duration_data = {
+      startTime: null, preview: [], attempts: [], evaluations: [],
+      inActiveTime: [], totalInactiveTime: 0, currentTime: null
+    };
+
+    // Recreate destroyed components
+    signalCollector = new SignalCollector({
+      sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+      studentId: window.gameVariableState?.studentId || null,
+      gameId: gameState.gameId,
+      contentSetId: gameState.contentSetId
+    });
+    window.signalCollector = signalCollector;
+
+    progressBar = new ProgressBarComponent({
+      autoInject: true, totalRounds: 10, totalLives: 0, slotId: 'mathai-progress-slot'
+    });
+
+    visibilityTracker = new VisibilityTracker({
+      onInactive: handleInactive,
+      onResume: handleResume,
+      popupProps: {
+        title: 'Game Paused',
+        description: 'Click Resume to continue.',
+        primaryText: 'Resume'
+      }
+    });
+
+    document.getElementById('results-screen').style.display = 'none';
+    document.getElementById('game-screen').style.display = 'flex';
+
+    showPreviewScreen();
+  }
+
+  // ===== handlePostMessage (PART-008) =====
+  function handlePostMessage(event) {
+    if (!event.data || event.data.type !== 'game_init') return;
+    var d = event.data.data;
+    gameState.content = d.content;
+    gameState.signalConfig = d.signalConfig || {};
+
+    if (signalCollector && gameState.signalConfig.flushUrl) {
+      signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+      signalCollector.playId = gameState.signalConfig.playId || null;
+      signalCollector.gameId = gameState.signalConfig.gameId || signalCollector.gameId;
+      signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+      signalCollector.contentSetId = gameState.signalConfig.contentSetId || signalCollector.contentSetId;
+      signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+      signalCollector.startFlushing();
+    }
+
+    setupGame();
+  }
+
+  // ===== Visibility Handlers (PART-005) =====
+  function handleInactive() {
+    var inactiveStart = Date.now();
+    gameState.duration_data.inActiveTime.push({ start: inactiveStart });
+    if (signalCollector) {
+      signalCollector.pause();
+      signalCollector.recordCustomEvent('visibility_hidden', {});
+    }
+    try { FeedbackManager.sound.pause(); } catch(e) {}
+    try { FeedbackManager.stream.pauseAll(); } catch(e) {}
+    if (previewScreen) { try { previewScreen.pause(); } catch(e) {} }
+    trackEvent('game_paused', 'system');
+  }
+
+  function handleResume() {
+    var lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+    if (lastInactive && !lastInactive.end) {
+      lastInactive.end = Date.now();
+      gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
+    }
+    if (signalCollector) {
+      signalCollector.resume();
+      signalCollector.recordCustomEvent('visibility_visible', {});
+    }
+    try { FeedbackManager.sound.resume(); } catch(e) {}
+    try { FeedbackManager.stream.resumeAll(); } catch(e) {}
+    if (previewScreen) { try { previewScreen.resume(); } catch(e) {} }
+    trackEvent('game_resumed', 'system');
+  }
+
+  // ===== Debug Functions (PART-012) =====
+  window.debugGame = function() {
+    console.log('Game State:', JSON.stringify(gameState, null, 2));
+  };
+
+  window.debugAudio = function() {
+    console.log('Audio State:', JSON.stringify({
+      sound: FeedbackManager.sound.getState(),
+      stream: FeedbackManager.stream.getState()
+    }, null, 2));
+  };
+
+  window.testAudio = async function(id) {
+    console.log('Testing audio:', id);
+    try {
+      await FeedbackManager.playDynamicFeedback({ audio_content: id || 'test', subtitle: '' });
+    } catch (e) {
+      console.error('Audio test failed:', JSON.stringify({ error: e.message }, null, 2));
+    }
+  };
+
+  window.testPause = function() {
+    if (visibilityTracker) {
+      visibilityTracker.triggerInactive();
+    } else {
+      try { FeedbackManager.sound.pause(); } catch(e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch(e) {}
+    }
+    console.log(JSON.stringify({ event: 'testPause', timerPaused: true }));
+  };
+
+  window.testResume = function() {
+    if (visibilityTracker) {
+      visibilityTracker.triggerResume();
+    } else {
+      try { FeedbackManager.sound.resume(); } catch(e) {}
+      try { FeedbackManager.stream.resumeAll(); } catch(e) {}
+    }
+    console.log(JSON.stringify({ event: 'testResume', timerResumed: true }));
+  };
+
+  window.debugSignals = function() {
+    if (!signalCollector) {
+      console.log('SignalCollector not initialized');
+      return;
+    }
+    console.log('=== Signal Collector Debug ===');
+    signalCollector.debug();
+    console.log('Input events:', signalCollector.getInputEvents().length);
+    console.log('Current view:', JSON.stringify(signalCollector.getCurrentView(), null, 2));
+    console.log('Metadata:', JSON.stringify(signalCollector.getMetadata(), null, 2));
+  };
+
+  // ===== DOMContentLoaded (PART-004) =====
+  window.addEventListener('DOMContentLoaded', async function() {
+    try {
+      // 1. Wait for CDN packages (PART-003)
+      await waitForPackages();
+
+      // 2. Init FeedbackManager (PART-017)
+      await FeedbackManager.init();
+
+      // 3. Create SignalCollector (PART-010)
+      signalCollector = new SignalCollector({
+        sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+        studentId: window.gameVariableState?.studentId || null,
+        gameId: gameState.gameId,
+        contentSetId: gameState.contentSetId,
+      });
+      window.signalCollector = signalCollector;
+
+      // 4. ScreenLayout (PART-025)
+      ScreenLayout.inject('app', {
+        slots: { progressBar: true, previewScreen: true, transitionScreen: true }
+      });
+
+      // 5. Clone game template into #gameContent
+      var gameContent = document.getElementById('gameContent');
+      var template = document.getElementById('game-template');
+      gameContent.appendChild(template.content.cloneNode(true));
+
+      // 6. ProgressBar (PART-023)
+      progressBar = new ProgressBarComponent({
+        autoInject: true,
+        totalRounds: 10,
+        totalLives: 0,
+        slotId: 'mathai-progress-slot',
+      });
+
+      // 7. TransitionScreen (PART-024)
+      transitionScreen = new TransitionScreenComponent({ autoInject: true });
+
+      // 8. VisibilityTracker (PART-005)
+      visibilityTracker = new VisibilityTracker({
+        onInactive: handleInactive,
+        onResume: handleResume,
+        popupProps: {
+          title: 'Game Paused',
+          description: 'Click Resume to continue.',
+          primaryText: 'Resume'
+        }
+      });
+
+      // 9. PreviewScreen (PART-039)
+      previewScreen = new PreviewScreenComponent({
+        autoInject: true,
+        slotId: 'mathai-preview-slot',
+        gameContentId: 'gameContent'
+      });
+
+      // 10. InteractionManager (PART-038)
+      interactionManager = new InteractionManager({
+        selector: '.game-play-area',
+        disableOnAudioFeedback: true,
+        disableOnEvaluation: true
+      });
+      window.interactionManager = interactionManager;
+
+      // 11. Register postMessage listener + send game_ready (PART-008)
+      window.addEventListener('message', handlePostMessage);
+      window.parent.postMessage({ type: 'game_ready' }, '*');
+
+      // 12. Setup game
+      setupGame();
+
+    } catch (error) {
+      console.error('Initialization failed:', JSON.stringify({ error: error.message }, null, 2));
+    }
+  });
+  </script>
+</body>
+</html>

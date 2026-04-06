@@ -144,6 +144,15 @@ let previewScreen = null;
     "previewAudio": {
       "type": "string",
       "description": "CDN URL of generated preview audio (null if not yet generated)"
+    },
+    "previewContent": {
+      "type": "object",
+      "description": "Data for the interactive preview content area (yes/no challenge question)",
+      "properties": {
+        "question": { "type": "string", "description": "Challenge question text" },
+        "options": { "type": "array", "items": { "type": "string" }, "description": "Answer options" }
+      },
+      "required": ["question", "options"]
     }
   },
   "required": ["rounds"]
@@ -158,7 +167,10 @@ const fallbackContent = {
   previewInstruction: '<p><b>Find the doubles chain!</b></p><p>Tap numbers in order -- each number is <b>double</b> the one before it. Start with the smallest number in the chain.</p>',
   previewAudioText: 'Find the doubles chain! Tap numbers in order. Each number is double the one before it. Start with the smallest number in the chain.',
   previewAudio: null,
-  previewContent: null,
+  previewContent: {
+    question: 'Can you do this in under 180 seconds?',
+    options: ['Yes', 'No']
+  },
 
   // Game rounds
   rounds: [
@@ -236,6 +248,7 @@ Generate **3 content sets** at different difficulty levels. All sets must have e
 - `previewInstruction`: HTML string with bold/images describing the game task
 - `previewAudioText`: Plain text narration for TTS generation
 - `previewAudio`: null (pipeline generates audio URL at build time)
+- `previewContent`: `{ question: "Can you do this in under 180 seconds?", options: ["Yes", "No"] }` — interactive yes/no challenge question shown below the instruction. Game code merges this data with `renderPreviewContent()` to produce HTML with clickable buttons. User's choice is captured via `previewScreen.setPreviewData('userChoice', choice)` and included in `gameState.previewResult` → `game_complete` payload.
 
 ---
 
@@ -805,13 +818,31 @@ async function waitForPackages() {
 Called from `setupGame()` after resetting state. Shows the PART-039 preview screen with instruction and optional audio.
 
 ```javascript
+function renderPreviewContent(data) {
+  if (!data || !data.question || !data.options) return null;
+  var html = '<div style="margin-top:24px;text-align:center;">';
+  html += '<p style="font-size:18px;font-weight:600;color:#270F36;margin-bottom:16px;">' + data.question + '</p>';
+  html += '<div style="display:flex;gap:12px;justify-content:center;">';
+  for (var i = 0; i < data.options.length; i++) {
+    var opt = data.options[i];
+    var color = opt.toLowerCase() === 'yes' ? '#667eea' : '#e74c3c';
+    var bg = opt.toLowerCase() === 'yes' ? '#f0f2ff' : '#fff5f5';
+    html += '<button onclick="previewScreen.setPreviewData(\'userChoice\',\'' + opt + '\')" ' +
+      'style="flex:1;max-width:120px;padding:14px 24px;font-size:16px;font-weight:600;' +
+      'border:2px solid ' + color + ';border-radius:12px;background:' + bg + ';cursor:pointer;">' + opt + '</button>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
 function showPreviewScreen() {
   var content = gameState.content || fallbackContent;
+  var previewData = content.previewContent || fallbackContent.previewContent;
   // questionLabel, score, showStar come from game_init payload automatically
   previewScreen.show({
     instruction: content.previewInstruction || fallbackContent.previewInstruction,
     audioUrl: content.previewAudio || null,
-    previewContent: content.previewContent || null,
+    previewContent: renderPreviewContent(previewData),
     onComplete: function(previewData) {
       startGameAfterPreview(previewData);
     }
