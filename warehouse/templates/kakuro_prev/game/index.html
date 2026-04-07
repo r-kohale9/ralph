@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Kakuro</title>
+<style>
+/* === CSS Variables (PART-020) === */
+:root {
+  --mathai-green: #219653;
+  --mathai-light-green: #EAFBF1;
+  --mathai-red: #E35757;
+  --mathai-light-red: #FDECEC;
+  --mathai-blue: #2563eb;
+  --mathai-light-blue: #EBF0FF;
+  --mathai-gray: #828282;
+  --mathai-light-gray: #F2F2F2;
+  --mathai-white: #FFFFFF;
+  --mathai-black: #1A1A2E;
+  --mathai-text-primary: #000000;
+  --mathai-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --mathai-font-size-title: 24px;
+  --mathai-font-size-body: 16px;
+  --mathai-font-size-label: 14px;
+  --mathai-font-size-small: 12px;
+}
+
+/* === Transition Screen overrides === */
+.mathai-ts-screen.active {
+  flex: 1;
+  justify-content: flex-start;
+  padding-top: 16px;
+}
+.mathai-ts-card {
+  min-height: 50dvh;
+}
+
+/* === Reset === */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+body {
+  font-family: var(--mathai-font-family);
+  background: var(--mathai-white);
+  color: var(--mathai-text-primary, #000000);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* === Scrollable game area inside preview wrapper === */
+.mathai-preview-game-container,
+#gameContent {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  min-height: 0;
+}
+.mathai-preview-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.mathai-preview-slot {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* === Game Block === */
+.game-block {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 16px;
+  gap: 8px;
+}
+
+/* === Question Text === */
+.question-text-container {
+  width: 100%;
+  max-width: 340px;
+  margin: 0 auto;
+  padding: 8px 16px;
+}
+
+.instruction-text {
+  font-size: var(--mathai-font-size-body);
+  color: var(--mathai-text-primary, #000000);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.instruction-text strong { font-weight: 700; }
+
+.instruction-text-sub {
+  font-size: var(--mathai-font-size-label);
+  color: var(--mathai-gray);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+/* === KAKURO GRID === */
+.kakuro-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--grid-size, 5), 1fr);
+  gap: 2px;
+  max-width: 340px;
+  width: 100%;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  background: var(--mathai-black);
+  border: 2px solid var(--mathai-black);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.kakuro-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  font-size: 18px;
+  font-weight: 600;
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Black cell */
+.kakuro-cell.cell-black {
+  background: var(--mathai-black);
+}
+
+/* Clue cell */
+.kakuro-cell.cell-clue {
+  background: var(--mathai-black);
+  color: var(--mathai-white);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.clue-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Diagonal line in clue cell */
+.clue-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom right, transparent calc(50% - 0.5px), var(--mathai-gray) calc(50% - 0.5px), var(--mathai-gray) calc(50% + 0.5px), transparent calc(50% + 0.5px));
+  pointer-events: none;
+}
+
+.clue-right {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  font-size: 12px;
+  color: var(--mathai-white);
+  z-index: 1;
+}
+
+.clue-down {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 12px;
+  color: var(--mathai-white);
+  z-index: 1;
+}
+
+/* Fillable cell (drop slot) */
+.kakuro-cell.cell-fillable {
+  background: var(--mathai-white);
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--mathai-text-primary, #000000);
+  border: 2px dashed var(--mathai-gray);
+  transition: all 0.2s ease;
+}
+
+.kakuro-cell.cell-fillable.drag-over {
+  border-color: var(--mathai-blue);
+  background: var(--mathai-light-blue);
+}
+
+.kakuro-cell.cell-fillable.filled {
+  border-style: solid;
+  border-color: var(--mathai-blue);
+  background: var(--mathai-light-blue);
+  cursor: pointer;
+}
+
+.kakuro-cell.cell-fillable.filled:hover {
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+/* Correct/Incorrect states */
+.kakuro-cell.cell-fillable.correct {
+  background: var(--mathai-light-green);
+  border: 2px solid var(--mathai-green);
+}
+
+.kakuro-cell.cell-fillable.incorrect {
+  background: var(--mathai-light-red);
+  border: 2px solid var(--mathai-red);
+}
+
+/* === NUMBER TAG CLUSTER === */
+.tag-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  padding: 12px 8px;
+  margin-top: 4px;
+  min-height: 52px;
+  max-width: 340px;
+  width: 100%;
+  background: var(--mathai-light-gray);
+  border-radius: 12px;
+  border: 1px solid #ddd;
+}
+
+.number-tag {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mathai-blue);
+  color: var(--mathai-white);
+  border-radius: 10px;
+  cursor: grab;
+  font-size: 18px;
+  font-weight: 700;
+  user-select: none;
+  transition: opacity 0.2s, transform 0.2s;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.number-tag:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.number-tag:active { cursor: grabbing; }
+.number-tag.dragging { opacity: 0.4; transform: scale(0.9); }
+.number-tag.used { display: none; }
+
+/* Floating clone for mobile touch drag */
+.number-tag-clone {
+  position: fixed;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mathai-blue);
+  color: var(--mathai-white);
+  border-radius: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.85;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* === BUTTONS (PART-022) === */
+.btn-container {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  width: 100%;
+  max-width: 340px;
+  margin: 4px auto 0;
+}
+
+.game-btn {
+  padding: 12px 32px;
+  border: none;
+  border-radius: 12px;
+  font-size: var(--mathai-font-size-body);
+  font-weight: 600;
+  font-family: var(--mathai-font-family);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 44px;
+  flex: 1;
+}
+
+.btn-primary {
+  background: var(--mathai-green);
+  color: var(--mathai-white);
+}
+.btn-primary:hover { filter: brightness(0.9); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary {
+  background: var(--mathai-light-gray);
+  color: var(--mathai-text-primary, #000000);
+  border: 2px solid #ddd;
+}
+.btn-secondary:hover { background: #e8e8e8; }
+
+/* === FEEDBACK === */
+.feedback-section {
+  text-align: center;
+  padding: 8px 16px;
+  border-radius: 8px;
+  max-width: 340px;
+  width: 100%;
+}
+
+.feedback-section p {
+  margin: 0;
+  font-size: var(--mathai-font-size-label);
+  font-weight: 600;
+}
+</style>
+
+<!-- 1. Sentry Config + SDK FIRST (PART-030) -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+<!-- 2. Game Packages (PART-002) -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* === Game State (PART-007) === */
+window.gameState = {
+  gameId: 'game_1710000000_kakuro001',
+  contentSetId: null,
+  signalConfig: {},
+  sessionHistory: [],
+  currentRound: 0,
+  totalRounds: 1,
+  score: 0,
+  attempts: [],
+  events: [],
+  startTime: null,
+  isActive: false,
+  isProcessing: false,
+  gameEnded: false,
+  content: null,
+  duration_data: {
+    startTime: null,
+    preview: [],
+    attempts: [],
+    evaluations: [],
+    inActiveTime: [],
+    totalInactiveTime: 0,
+    currentTime: null
+  },
+  lives: 3,
+  totalLives: 3,
+  grid: null,
+  solution: null,
+  clues: null,
+  numberTags: [],
+  userValues: {},
+  isShowingFeedback: false,
+  dragState: null,
+  autoScrollInterval: null
+};
+
+var visibilityTracker = null;
+var signalCollector = null;
+var progressBar = null;
+var transitionScreen = null;
+var previewScreen = null;
+var visibilityTrackerConfig = null;
+
+/* === Fallback Content === */
+var fallbackContent = {
+  previewInstruction: '<p><strong>Kakuro!</strong></p><p>Drag number tags from the cluster into the empty cells. Each group of cells must add up to its clue number, and no digit can repeat inside a group. Tap a filled cell to send its tag back. You have 3 lives \u2014 tap <strong>Check</strong> when you are ready.</p>',
+  previewAudioText: 'Welcome to Kakuro! Drag the number tags into the empty cells so that each group adds up to its clue number. No digit may repeat inside a group. Tap a filled cell to return its tag. You have three lives. Tap Check when you are ready.',
+  previewAudio: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/7db6043d-3642-4fbc-a924-a48a1842ced2.mp3',
+  showGameOnPreview: true,
+  gridSize: 5,
+  cells: [
+    { row: 0, col: 0, type: "black" },
+    { row: 0, col: 1, type: "clue", clueDown: 6 },
+    { row: 0, col: 2, type: "clue", clueDown: 9 },
+    { row: 0, col: 3, type: "black" },
+    { row: 0, col: 4, type: "black" },
+    { row: 1, col: 0, type: "clue", clueRight: 3 },
+    { row: 1, col: 1, type: "fillable", answer: 1 },
+    { row: 1, col: 2, type: "fillable", answer: 2 },
+    { row: 1, col: 3, type: "clue", clueDown: 8 },
+    { row: 1, col: 4, type: "clue", clueDown: 9 },
+    { row: 2, col: 0, type: "clue", clueRight: 26 },
+    { row: 2, col: 1, type: "fillable", answer: 5 },
+    { row: 2, col: 2, type: "fillable", answer: 7 },
+    { row: 2, col: 3, type: "fillable", answer: 6 },
+    { row: 2, col: 4, type: "fillable", answer: 8 },
+    { row: 3, col: 0, type: "black" },
+    { row: 3, col: 1, type: "black" },
+    { row: 3, col: 2, type: "clue", clueRight: 3 },
+    { row: 3, col: 3, type: "fillable", answer: 2 },
+    { row: 3, col: 4, type: "fillable", answer: 1 },
+    { row: 4, col: 0, type: "black" },
+    { row: 4, col: 1, type: "black" },
+    { row: 4, col: 2, type: "black" },
+    { row: 4, col: 3, type: "black" },
+    { row: 4, col: 4, type: "black" }
+  ],
+  numberTags: [8, 2, 5, 1, 7, 1, 6, 2]
+};
+
+/* === waitForPackages (PART-003) === */
+async function waitForPackages() {
+  var timeout = 10000;
+  var interval = 50;
+  var elapsed = 0;
+  while (
+    typeof ScreenLayout === 'undefined' ||
+    typeof ProgressBarComponent === 'undefined' ||
+    typeof TransitionScreenComponent === 'undefined' ||
+    typeof PreviewScreenComponent === 'undefined' ||
+    typeof TimerComponent === 'undefined' ||
+    typeof FeedbackManager === 'undefined' ||
+    typeof VisibilityTracker === 'undefined' ||
+    typeof SignalCollector === 'undefined'
+  ) {
+    if (elapsed >= timeout) throw new Error('Packages failed to load within 10s');
+    await new Promise(function(resolve) { setTimeout(resolve, interval); });
+    elapsed += interval;
+  }
+  console.log('[kakuro] All packages loaded');
+}
+
+/* === Sentry Init (PART-030) === */
+function initSentry() {
+  if (typeof Sentry === 'undefined' || typeof SentryConfig === 'undefined') return;
+  if (!SentryConfig.enabled) return;
+  Sentry.init({
+    dsn: SentryConfig.dsn,
+    environment: SentryConfig.environment,
+    release: 'kakuro@1.0.0',
+    tracesSampleRate: SentryConfig.tracesSampleRate,
+    sampleRate: SentryConfig.sampleRate,
+    maxBreadcrumbs: 50,
+    ignoreErrors: [
+      'ResizeObserver loop limit exceeded',
+      'ResizeObserver loop completed with undelivered notifications',
+      'Non-Error promise rejection captured',
+      'Script error.',
+      'Load failed',
+      'Failed to fetch'
+    ]
+  });
+}
+window.addEventListener('load', initSentry);
+
+window.addEventListener('error', function(event) {
+  if (typeof Sentry !== 'undefined') {
+    Sentry.captureException(event.error || new Error(event.message), {
+      tags: { errorType: 'unhandled', severity: 'critical' },
+      contexts: { errorEvent: { message: event.message, filename: event.filename, lineno: event.lineno } }
+    });
+  }
+});
+
+window.addEventListener('unhandledrejection', function(event) {
+  if (typeof Sentry !== 'undefined') {
+    Sentry.captureException(event.reason || new Error('Unhandled promise rejection'), {
+      tags: { errorType: 'unhandled-promise', severity: 'critical' }
+    });
+  }
+});
+
+/* === Helper Functions === */
+
+function formatTime(seconds) {
+  var mins = Math.floor(seconds / 60);
+  var secs = seconds % 60;
+  return mins + ':' + (secs < 10 ? '0' : '') + secs;
+}
+
+function computeTriesPerRound(attempts) {
+  var rounds = {};
+  attempts.forEach(function(a) {
+    var r = a.metadata.round;
+    rounds[r] = (rounds[r] || 0) + 1;
+  });
+  return Object.keys(rounds).map(function(r) {
+    return { round: Number(r), triesCount: rounds[r] };
+  });
+}
+
+function createProgressBar() {
+  if (progressBar) { progressBar.destroy(); progressBar = null; }
+  var container = document.getElementById('progress-bar-container');
+  if (container) container.innerHTML = '';
+  progressBar = new ProgressBarComponent({
+    autoInject: false,
+    containerId: 'progress-bar-container',
+    totalRounds: gameState.totalRounds,
+    totalLives: gameState.totalLives
+  });
+  progressBar.container = container;
+  progressBar.render();
+}
+
+/* === trackEvent (PART-010) === */
+function trackEvent(type, target, data) {
+  var event = {
+    type: type,
+    target: target,
+    timestamp: Date.now(),
+    data: data || {}
+  };
+  gameState.events.push(event);
+  console.log('[Event]', JSON.stringify(event, null, 2));
+
+  if (typeof EventCapture !== 'undefined') {
+    try { EventCapture.track(type, data || {}); } catch(e) {}
+  }
+}
+
+/* === recordAttempt (PART-009) === */
+function recordAttempt(data) {
+  var attempt = {
+    timestamp: Date.now(),
+    userAnswer: data.userAnswer,
+    correctAnswer: data.correctAnswer,
+    correct: data.correct,
+    metadata: {
+      round: gameState.currentRound,
+      question: data.question || 'kakuro_puzzle',
+      validationType: data.validationType || 'function'
+    }
+  };
+  gameState.attempts.push(attempt);
+  gameState.duration_data.attempts.push({ timestamp: new Date().toISOString() });
+  console.log('[Attempt]', JSON.stringify(attempt, null, 2));
+}
+
+/* === buildGroups === */
+function buildGroups(cells, gridSize) {
+  var groups = [];
+  var cellMap = {};
+  cells.forEach(function(c) {
+    cellMap[c.row + '-' + c.col] = c;
+  });
+
+  cells.forEach(function(c) {
+    if (c.type !== 'clue') return;
+
+    if (c.clueRight !== undefined && c.clueRight !== null) {
+      var hCells = [];
+      var col = c.col + 1;
+      while (col < gridSize) {
+        var next = cellMap[c.row + '-' + col];
+        if (next && next.type === 'fillable') {
+          hCells.push({ row: next.row, col: next.col });
+          col++;
+        } else {
+          break;
+        }
+      }
+      if (hCells.length > 0) {
+        groups.push({ clueValue: c.clueRight, direction: 'right', cells: hCells });
+      }
+    }
+
+    if (c.clueDown !== undefined && c.clueDown !== null) {
+      var vCells = [];
+      var row = c.row + 1;
+      while (row < gridSize) {
+        var next = cellMap[row + '-' + c.col];
+        if (next && next.type === 'fillable') {
+          vCells.push({ row: next.row, col: next.col });
+          row++;
+        } else {
+          break;
+        }
+      }
+      if (vCells.length > 0) {
+        groups.push({ clueValue: c.clueDown, direction: 'down', cells: vCells });
+      }
+    }
+  });
+
+  return groups;
+}
+
+/* === validateGroup === */
+function validateGroup(group, userValues) {
+  var values = [];
+  for (var i = 0; i < group.cells.length; i++) {
+    var key = group.cells[i].row + '-' + group.cells[i].col;
+    var val = userValues[key];
+    if (val === undefined || val === null) {
+      return { valid: false, reason: 'incomplete', cells: group.cells };
+    }
+    values.push(val);
+  }
+  var sum = 0;
+  for (var j = 0; j < values.length; j++) { sum += values[j]; }
+  if (sum !== group.clueValue) {
+    return { valid: false, reason: 'sum', cells: group.cells };
+  }
+  var unique = {};
+  for (var k = 0; k < values.length; k++) {
+    if (unique[values[k]]) {
+      return { valid: false, reason: 'duplicate', cells: group.cells };
+    }
+    unique[values[k]] = true;
+  }
+  return { valid: true, cells: group.cells };
+}
+
+/* === showButton (PART-022) === */
+function showButton(buttonId) {
+  var btn = document.getElementById(buttonId);
+  if (btn) btn.style.display = '';
+}
+
+/* === Render Functions === */
+
+function renderGrid() {
+  var gridEl = document.getElementById('kakuro-grid');
+  if (!gridEl) return;
+  gridEl.innerHTML = '';
+  var content = gameState.content || fallbackContent;
+  var gridSize = content.gridSize || 5;
+  gridEl.style.setProperty('--grid-size', gridSize);
+
+  var cells = content.cells || [];
+  cells.forEach(function(c) {
+    var div = document.createElement('div');
+    div.className = 'kakuro-cell';
+
+    if (c.type === 'black') {
+      div.classList.add('cell-black');
+    } else if (c.type === 'clue') {
+      div.classList.add('cell-clue');
+      var container = document.createElement('div');
+      container.className = 'clue-container';
+      if (c.clueRight !== undefined && c.clueRight !== null) {
+        var cr = document.createElement('span');
+        cr.className = 'clue-right';
+        cr.textContent = c.clueRight;
+        container.appendChild(cr);
+      }
+      if (c.clueDown !== undefined && c.clueDown !== null) {
+        var cd = document.createElement('span');
+        cd.className = 'clue-down';
+        cd.textContent = c.clueDown;
+        container.appendChild(cd);
+      }
+      div.appendChild(container);
+    } else if (c.type === 'fillable') {
+      div.classList.add('cell-fillable');
+      div.setAttribute('data-row', c.row);
+      div.setAttribute('data-col', c.col);
+      div.setAttribute('data-signal-id', 'cell-' + c.row + '-' + c.col);
+
+      // Check if already filled (for re-render)
+      var key = c.row + '-' + c.col;
+      if (gameState.userValues[key] !== undefined) {
+        div.textContent = gameState.userValues[key];
+        div.classList.add('filled');
+      }
+
+      div.addEventListener('click', function() {
+        handleCellTap(c.row, c.col, div);
+      });
+    }
+
+    gridEl.appendChild(div);
+  });
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('content_render', {
+      screen: 'gameplay',
+      content_snapshot: {
+        type: 'grid_rendered',
+        grid_size: content.gridSize,
+        fillable_cells: Object.keys(gameState.solution).length,
+        tags_available: gameState.numberTags.length,
+        trigger: 'round_start'
+      },
+      components: {
+        progress: { current: 1, total: gameState.totalRounds }
+      }
+    });
+  }
+}
+
+function renderTags() {
+  var cluster = document.getElementById('tag-cluster');
+  if (!cluster) return;
+  cluster.innerHTML = '';
+
+  gameState.numberTags.forEach(function(num, index) {
+    var tag = document.createElement('div');
+    tag.className = 'number-tag';
+    tag.setAttribute('data-tag-id', index);
+    tag.setAttribute('data-value', num);
+    tag.setAttribute('data-signal-id', 'tag-' + index);
+    tag.textContent = num;
+    tag.setAttribute('draggable', 'true');
+
+    // Check if this tag is already used
+    var isUsed = false;
+    var fillableCells = document.querySelectorAll('.cell-fillable');
+    fillableCells.forEach(function(cell) {
+      if (cell.getAttribute('data-tag-id') === String(index)) {
+        isUsed = true;
+      }
+    });
+    if (isUsed) {
+      tag.classList.add('used');
+    }
+
+    cluster.appendChild(tag);
+  });
+}
+
+/* === Drag and Drop === */
+
+function initDragDrop() {
+  var tags = document.querySelectorAll('.number-tag');
+  var cells = document.querySelectorAll('.cell-fillable');
+
+  // Desktop HTML5 Drag API
+  tags.forEach(function(tag) {
+    tag.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', tag.getAttribute('data-tag-id'));
+      tag.classList.add('dragging');
+    });
+    tag.addEventListener('dragend', function(e) {
+      tag.classList.remove('dragging');
+    });
+  });
+
+  cells.forEach(function(cell) {
+    cell.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      cell.classList.add('drag-over');
+    });
+    cell.addEventListener('dragleave', function(e) {
+      cell.classList.remove('drag-over');
+    });
+    cell.addEventListener('drop', function(e) {
+      e.preventDefault();
+      cell.classList.remove('drag-over');
+      var tagId = e.dataTransfer.getData('text/plain');
+      var row = parseInt(cell.getAttribute('data-row'));
+      var col = parseInt(cell.getAttribute('data-col'));
+      placeTag(tagId, row, col);
+    });
+  });
+
+  // Mobile Touch Events
+  tags.forEach(function(tag) {
+    tag.addEventListener('touchstart', function(e) {
+      if (!gameState.isActive) return;
+      e.preventDefault();
+      var touch = e.touches[0];
+      gameState.dragState = {
+        tagId: tag.getAttribute('data-tag-id'),
+        tagValue: tag.getAttribute('data-value'),
+        element: tag
+      };
+      tag.classList.add('dragging');
+
+      // Create floating clone
+      var clone = document.createElement('div');
+      clone.className = 'number-tag-clone';
+      clone.id = 'drag-clone';
+      clone.textContent = tag.getAttribute('data-value');
+      clone.style.left = touch.clientX + 'px';
+      clone.style.top = touch.clientY + 'px';
+      document.body.appendChild(clone);
+    }, { passive: false });
+  });
+
+  document.addEventListener('touchmove', function(e) {
+    if (!gameState.dragState) return;
+    e.preventDefault();
+    var touch = e.touches[0];
+    var clone = document.getElementById('drag-clone');
+    if (clone) {
+      clone.style.left = touch.clientX + 'px';
+      clone.style.top = touch.clientY + 'px';
+    }
+    autoScrollOnDrag(touch.clientY);
+
+    // Highlight drop target
+    var allCells = document.querySelectorAll('.cell-fillable');
+    allCells.forEach(function(c) { c.classList.remove('drag-over'); });
+    var target = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (target && target.classList && target.classList.contains('cell-fillable')) {
+      target.classList.add('drag-over');
+    }
+  }, { passive: false });
+
+  document.addEventListener('touchend', function(e) {
+    if (!gameState.dragState) return;
+    var clone = document.getElementById('drag-clone');
+    var touch = e.changedTouches[0];
+    if (clone) {
+      clone.remove();
+    }
+    stopAutoScroll();
+
+    gameState.dragState.element.classList.remove('dragging');
+
+    var target = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (target && target.classList && target.classList.contains('cell-fillable')) {
+      target.classList.remove('drag-over');
+      var row = parseInt(target.getAttribute('data-row'));
+      var col = parseInt(target.getAttribute('data-col'));
+      placeTag(gameState.dragState.tagId, row, col);
+    }
+
+    gameState.dragState = null;
+  });
+
+  document.addEventListener('touchcancel', function(e) {
+    if (!gameState.dragState) return;
+    var clone = document.getElementById('drag-clone');
+    if (clone) clone.remove();
+    stopAutoScroll();
+    if (gameState.dragState.element) {
+      gameState.dragState.element.classList.remove('dragging');
+    }
+    gameState.dragState = null;
+  });
+}
+
+function autoScrollOnDrag(clientY) {
+  var EDGE_ZONE = 60;
+  var SCROLL_SPEED = 8;
+  var vh = window.innerHeight;
+
+  if (gameState.autoScrollInterval) clearInterval(gameState.autoScrollInterval);
+
+  if (clientY < EDGE_ZONE) {
+    gameState.autoScrollInterval = setInterval(function() { window.scrollBy(0, -SCROLL_SPEED); }, 16);
+  } else if (clientY > vh - EDGE_ZONE) {
+    gameState.autoScrollInterval = setInterval(function() { window.scrollBy(0, SCROLL_SPEED); }, 16);
+  } else {
+    gameState.autoScrollInterval = null;
+  }
+}
+
+function stopAutoScroll() {
+  if (gameState.autoScrollInterval) {
+    clearInterval(gameState.autoScrollInterval);
+    gameState.autoScrollInterval = null;
+  }
+}
+
+/* === placeTag === */
+function placeTag(tagId, row, col) {
+  var tag = document.querySelector('.number-tag[data-tag-id="' + tagId + '"]');
+  if (!tag) return;
+  var cell = document.querySelector('.cell-fillable[data-row="' + row + '"][data-col="' + col + '"]');
+  if (!cell) return;
+
+  // If cell already has a value, return that tag first
+  var existingTagId = cell.getAttribute('data-tag-id');
+  if (existingTagId !== null && existingTagId !== '') {
+    returnTag(existingTagId, row, col);
+  }
+
+  var tagValue = tag.getAttribute('data-value');
+  cell.textContent = tagValue;
+  cell.classList.add('filled');
+  cell.classList.remove('drag-over');
+  cell.setAttribute('data-tag-id', tagId);
+  tag.classList.add('used');
+  gameState.userValues[row + '-' + col] = Number(tagValue);
+
+  trackEvent('tag_drop', 'game', { tagId: tagId, value: Number(tagValue), row: row, col: col });
+
+  if (typeof EventCapture !== 'undefined') {
+    try { EventCapture.drop('cell-' + row + '-' + col, { tagId: tagId, value: Number(tagValue), row: row, col: col, round: 0 }); } catch(e) {}
+  }
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('visual_update', {
+      screen: 'gameplay',
+      content_snapshot: {
+        type: 'tag_placed',
+        cell: { row: row, col: col },
+        value: Number(tagValue),
+        cells_filled: Object.keys(gameState.userValues).length,
+        trigger: 'user_action'
+      }
+    });
+  }
+}
+
+/* === handleCellTap === */
+function handleCellTap(row, col, cell) {
+  var key = row + '-' + col;
+  if (gameState.userValues[key] === undefined) return;
+  if (gameState.isShowingFeedback) return;
+  if (!gameState.isActive) return;
+
+  var tagId = cell.getAttribute('data-tag-id');
+  if (tagId !== null && tagId !== '') {
+    returnTag(tagId, row, col);
+  }
+}
+
+/* === returnTag === */
+function returnTag(tagId, row, col) {
+  var cell = document.querySelector('.cell-fillable[data-row="' + row + '"][data-col="' + col + '"]');
+  if (cell) {
+    cell.textContent = '';
+    cell.classList.remove('filled');
+    cell.removeAttribute('data-tag-id');
+  }
+
+  var tag = document.querySelector('.number-tag[data-tag-id="' + tagId + '"]');
+  if (tag) {
+    tag.classList.remove('used');
+  }
+
+  delete gameState.userValues[row + '-' + col];
+
+  trackEvent('tag_return', 'game', { tagId: tagId, row: row, col: col });
+
+  if (typeof EventCapture !== 'undefined') {
+    try { EventCapture.buttonPress('cell-' + row + '-' + col, { tagId: tagId, row: row, col: col, round: 0 }); } catch(e) {}
+  }
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('visual_update', {
+      screen: 'gameplay',
+      content_snapshot: {
+        type: 'tag_returned',
+        cell: { row: row, col: col },
+        cells_filled: Object.keys(gameState.userValues).length,
+        trigger: 'user_action'
+      }
+    });
+  }
+}
+
+/* === clearHighlights === */
+function clearHighlights() {
+  var cells = document.querySelectorAll('.cell-fillable');
+  cells.forEach(function(c) {
+    c.classList.remove('correct');
+    c.classList.remove('incorrect');
+  });
+  var feedbackArea = document.getElementById('feedback-area');
+  if (feedbackArea) feedbackArea.style.display = 'none';
+  gameState.isShowingFeedback = false;
+}
+
+/* === resetDragDrop === */
+function resetDragDrop() {
+  if (typeof EventCapture !== 'undefined') {
+    try { EventCapture.buttonPress('btn-reset', { round: 0 }); } catch(e) {}
+  }
+
+  var keys = Object.keys(gameState.userValues);
+  keys.forEach(function(key) {
+    var parts = key.split('-');
+    var row = parseInt(parts[0]);
+    var col = parseInt(parts[1]);
+    var cell = document.querySelector('.cell-fillable[data-row="' + row + '"][data-col="' + col + '"]');
+    if (cell) {
+      var tagId = cell.getAttribute('data-tag-id');
+      if (tagId !== null && tagId !== '') {
+        returnTag(tagId, row, col);
+      }
+    }
+  });
+
+  gameState.userValues = {};
+  clearHighlights();
+}
+
+/* === handleSubmit === */
+async function handleSubmit() {
+  if (gameState.isProcessing || !gameState.isActive) return;
+  gameState.isProcessing = true;
+
+  try {
+    if (typeof EventCapture !== 'undefined') {
+      try { EventCapture.buttonPress('btn-submit', { round: 0 }); } catch(e) {}
+    }
+
+    var content = gameState.content || fallbackContent;
+    var fillableCells = content.cells.filter(function(c) { return c.type === 'fillable'; });
+    var allFilled = fillableCells.every(function(c) {
+      return gameState.userValues[c.row + '-' + c.col] !== undefined;
+    });
+
+    if (!allFilled) {
+      var feedbackArea = document.getElementById('feedback-area');
+      var feedbackText = document.getElementById('feedback-text');
+      if (feedbackArea && feedbackText) {
+        feedbackText.textContent = 'Place all numbers first';
+        feedbackText.style.color = var_color('--mathai-red');
+        feedbackArea.style.display = 'block';
+        setTimeout(function() {
+          feedbackArea.style.display = 'none';
+        }, 2000);
+      }
+      return;
+    }
+
+    var groups = buildGroups(content.cells, content.gridSize);
+    var incorrectCells = {};
+    var correctCells = {};
+
+    groups.forEach(function(group) {
+      var result = validateGroup(group, gameState.userValues);
+      if (result.valid) {
+        result.cells.forEach(function(c) {
+          correctCells[c.row + '-' + c.col] = true;
+        });
+      } else if (result.reason !== 'incomplete') {
+        result.cells.forEach(function(c) {
+          incorrectCells[c.row + '-' + c.col] = true;
+        });
+      }
+    });
+
+    // Remove cells from correct if they appear in incorrect
+    Object.keys(incorrectCells).forEach(function(key) {
+      delete correctCells[key];
+    });
+
+    var isCorrect = Object.keys(incorrectCells).length === 0;
+
+    recordAttempt({
+      userAnswer: JSON.parse(JSON.stringify(gameState.userValues)),
+      correct: isCorrect,
+      question: 'kakuro_puzzle',
+      correctAnswer: gameState.solution,
+      validationType: 'function'
+    });
+
+    if (signalCollector) {
+      signalCollector.recordCustomEvent('round_solved', { correct: isCorrect, answer: gameState.userValues });
+    }
+
+    trackEvent('check_answer', 'game', { allFilled: allFilled, isCorrect: isCorrect });
+
+    if (isCorrect) {
+      // Mark all cells correct
+      var allCells = document.querySelectorAll('.cell-fillable');
+      allCells.forEach(function(c) { c.classList.add('correct'); });
+
+      trackEvent('game_won', 'game', { lives: gameState.lives });
+      gameState.score = 1;
+
+      if (signalCollector) {
+        signalCollector.recordViewEvent('feedback_display', {
+          screen: 'gameplay',
+          content_snapshot: { feedback_type: 'correct', message: 'You solved it!' }
+        });
+      }
+
+      FeedbackManager.sound.play('correct_sound_effect', {
+        sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-20.gif', duration: 2, type: 'IMAGE_GIF' }
+      }).catch(function(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); });
+
+      setTimeout(function() { endGame(); }, 1500);
+
+    } else {
+      gameState.lives--;
+      trackEvent('life_lost', 'game', { livesRemaining: gameState.lives });
+      progressBar.update(0, gameState.lives);
+      gameState.isShowingFeedback = true;
+
+      // Highlight cells
+      Object.keys(incorrectCells).forEach(function(key) {
+        var parts = key.split('-');
+        var cell = document.querySelector('.cell-fillable[data-row="' + parts[0] + '"][data-col="' + parts[1] + '"]');
+        if (cell) cell.classList.add('incorrect');
+      });
+      Object.keys(correctCells).forEach(function(key) {
+        var parts = key.split('-');
+        var cell = document.querySelector('.cell-fillable[data-row="' + parts[0] + '"][data-col="' + parts[1] + '"]');
+        if (cell) cell.classList.add('correct');
+      });
+
+      if (signalCollector) {
+        signalCollector.recordViewEvent('visual_update', {
+          screen: 'gameplay',
+          content_snapshot: {
+            type: 'validation_highlights',
+            incorrect_cells: Object.keys(incorrectCells).length,
+            trigger: 'user_action'
+          }
+        });
+        signalCollector.recordViewEvent('feedback_display', {
+          screen: 'gameplay',
+          content_snapshot: { feedback_type: 'incorrect', message: 'Some fields are wrong!', audio_id: 'pre_recorded' }
+        });
+      }
+
+      if (gameState.lives <= 0) {
+        trackEvent('game_over', 'game', { reason: 'lives_lost' });
+
+        if (signalCollector) {
+          signalCollector.recordViewEvent('feedback_display', {
+            screen: 'gameplay',
+            content_snapshot: { feedback_type: 'game_over', message: 'All lives lost!' }
+          });
+        }
+
+        await handleGameOver();
+      } else {
+        FeedbackManager.sound.play('incorrect_sound_effect', {
+          sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-28.gif', duration: 2, type: 'IMAGE_GIF' }
+        }).catch(function(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); });
+
+        var feedbackArea = document.getElementById('feedback-area');
+        var feedbackText = document.getElementById('feedback-text');
+        if (feedbackArea && feedbackText) {
+          feedbackText.textContent = 'Incorrect! ' + gameState.lives + ' lives remaining';
+          feedbackText.style.color = var_color('--mathai-red');
+          feedbackArea.style.display = 'block';
+        }
+        await new Promise(function(resolve) { setTimeout(resolve, 2000); });
+        clearHighlights();
+      }
+    }
+  } finally {
+    gameState.isProcessing = false;
+  }
+}
+
+function var_color(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#E35757';
+}
+
+/* === handleGameOver === */
+async function handleGameOver() {
+  gameState.isActive = false;
+  gameState.gameEnded = true;
+
+  trackEvent('game_over', 'game', { livesRemaining: 0 });
+
+  if (signalCollector) {
+    signalCollector.recordCustomEvent('game_over', { lives: 0 });
+  }
+
+  if (typeof Sentry !== 'undefined') {
+    Sentry.addBreadcrumb({ category: 'game', message: 'handleGameOver', data: { lives: 0 }, level: 'info' });
+  }
+
+  gameState.duration_data.currentTime = new Date().toISOString();
+  var timeTaken = Math.round((Date.now() - gameState.startTime) / 1000);
+  var metrics = {
+    accuracy: 0,
+    time: timeTaken,
+    stars: 0,
+    attempts: gameState.attempts,
+    duration_data: gameState.duration_data,
+    totalLives: gameState.totalLives,
+    tries: computeTriesPerRound(gameState.attempts),
+    sessionHistory: gameState.sessionHistory || []
+  };
+
+  var sealResult = null;
+  if (signalCollector) {
+    signalCollector.recordViewEvent('screen_transition', { screen: 'game_over', metadata: { transition_from: 'gameplay' } });
+    sealResult = signalCollector.seal();
+  }
+
+  transitionScreen.show({
+    icons: ['\uD83D\uDE14'],
+    iconSize: 'large',
+    title: 'Game Over!',
+    subtitle: 'All lives lost!',
+    persist: true,
+    buttons: [{
+      text: 'Try Again',
+      type: 'primary',
+      action: function() {
+        FeedbackManager._stopCurrentDynamic();
+        restartGame();
+      }
+    }]
+  });
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('overlay_toggle', {
+      screen: 'game_over',
+      content_snapshot: { overlay: 'game_over_screen', visible: true, title: 'Game Over!', lives_remaining: 0 }
+    });
+  }
+
+  window.parent.postMessage({
+    type: 'game_complete',
+    data: {
+      metrics: metrics,
+      attempts: gameState.attempts,
+      completedAt: Date.now(),
+      signal_event_count: sealResult && sealResult.eventCount ? sealResult.eventCount : 0,
+      signal_metadata: sealResult && sealResult.metadata ? sealResult.metadata : {}
+    }
+  }, '*');
+
+  try {
+    await FeedbackManager.sound.play('game_over_sound_effect', {
+      sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-95.gif', duration: 3, type: 'IMAGE_GIF' }
+    });
+  } catch(e) { console.error('game_over_sfx error:', JSON.stringify({ error: e.message }, null, 2)); }
+
+  try {
+    await FeedbackManager.sound.play('game_over');
+  } catch(e) { console.error('game_over audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+
+  if (gameState.gameEnded) {
+    if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
+    try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+    if (progressBar) { progressBar.destroy(); progressBar = null; }
+    if (previewScreen) { previewScreen.destroy(); previewScreen = null; }
+  }
+}
+
+/* === endGame === */
+async function endGame() {
+  if (gameState.gameEnded) return;
+  gameState.gameEnded = true;
+  gameState.isActive = false;
+
+  gameState.duration_data.currentTime = new Date().toISOString();
+  var accuracy = gameState.score > 0 ? 100 : 0;
+  var timeTaken = Math.round((Date.now() - gameState.startTime) / 1000);
+  var stars = gameState.lives >= 3 ? 3 : gameState.lives >= 2 ? 2 : gameState.lives >= 1 ? 1 : 0;
+
+  var metrics = {
+    accuracy: accuracy,
+    time: timeTaken,
+    stars: stars,
+    attempts: gameState.attempts,
+    duration_data: gameState.duration_data,
+    totalLives: gameState.totalLives,
+    tries: computeTriesPerRound(gameState.attempts),
+    sessionHistory: gameState.sessionHistory || []
+  };
+
+  console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
+  trackEvent('game_end', 'game', { score: gameState.score, accuracy: accuracy, stars: stars, lives: gameState.lives });
+
+  if (typeof Sentry !== 'undefined') {
+    Sentry.addBreadcrumb({ category: 'game', message: 'endGame', data: { stars: stars, accuracy: accuracy, lives: gameState.lives }, level: 'info' });
+  }
+
+  var sealResult = null;
+  if (signalCollector) {
+    signalCollector.recordViewEvent('screen_transition', {
+      screen: 'results',
+      metadata: { transition_from: 'gameplay' }
+    });
+    sealResult = signalCollector.seal();
+  }
+
+  showResults(metrics);
+
+  window.parent.postMessage({
+    type: 'game_complete',
+    data: {
+      metrics: metrics,
+      attempts: gameState.attempts,
+      completedAt: Date.now(),
+      signal_event_count: sealResult && sealResult.eventCount ? sealResult.eventCount : 0,
+      signal_metadata: sealResult && sealResult.metadata ? sealResult.metadata : {}
+    }
+  }, '*');
+
+  if (stars === 3) {
+    try { await FeedbackManager.sound.play('victory_sound_effect', { sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-98.gif', duration: 3, type: 'IMAGE_GIF' } }); } catch(e) { console.error('victory_sfx error:', JSON.stringify({ error: e.message }, null, 2)); }
+    try { await FeedbackManager.sound.play('victory'); } catch(e) { console.error('victory audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+  } else if (stars === 2) {
+    try { await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-25.gif', duration: 3, type: 'IMAGE_GIF' } }); } catch(e) { console.error('complete_sfx error:', JSON.stringify({ error: e.message }, null, 2)); }
+    try { await FeedbackManager.sound.play('game_complete_2_star'); } catch(e) { console.error('2star audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+  } else if (stars === 1) {
+    try { await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-25.gif', duration: 3, type: 'IMAGE_GIF' } }); } catch(e) { console.error('complete_sfx error:', JSON.stringify({ error: e.message }, null, 2)); }
+    try { await FeedbackManager.sound.play('game_complete_1_star'); } catch(e) { console.error('1star audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+  }
+
+  if (gameState.gameEnded) {
+    if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
+    try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+    if (progressBar) { progressBar.destroy(); progressBar = null; }
+    if (previewScreen) { previewScreen.destroy(); previewScreen = null; }
+  }
+}
+
+/* === showResults === */
+function showResults(metrics) {
+  var starsHTML = '';
+  for (var i = 0; i < 3; i++) {
+    starsHTML += i < metrics.stars ? '\u2B50' : '\u2606';
+  }
+
+  var metricsHTML = '<div style="text-align:center;padding:16px;">'
+    + '<div style="font-size:40px;margin-bottom:16px;display:flex;justify-content:center;gap:8px;">' + starsHTML + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">'
+    + '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--mathai-light-gray);"><span style="color:var(--mathai-gray);font-size:14px;">Score</span><span style="font-weight:700;font-size:16px;">' + metrics.accuracy + '%</span></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--mathai-light-gray);"><span style="color:var(--mathai-gray);font-size:14px;">Time</span><span style="font-weight:700;font-size:16px;">' + formatTime(metrics.time) + '</span></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--mathai-light-gray);"><span style="color:var(--mathai-gray);font-size:14px;">Correct</span><span style="font-weight:700;font-size:16px;">' + (gameState.score > 0 ? '1' : '0') + '/1</span></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--mathai-light-gray);"><span style="color:var(--mathai-gray);font-size:14px;">Lives Remaining</span><span style="font-weight:700;font-size:16px;">' + gameState.lives + '</span></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--mathai-light-gray);"><span style="color:var(--mathai-gray);font-size:14px;">Accuracy</span><span style="font-weight:700;font-size:16px;">' + metrics.accuracy + '%</span></div>'
+    + '</div></div>';
+
+  transitionScreen.show({
+    title: 'Game Complete!',
+    content: metricsHTML,
+    persist: true,
+    buttons: [{
+      text: 'Play Again',
+      type: 'primary',
+      action: function() {
+        FeedbackManager._stopCurrentDynamic();
+        restartGame();
+      }
+    }]
+  });
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('screen_transition', {
+      screen: 'results',
+      content_snapshot: { score: gameState.score, accuracy: metrics.accuracy, stars: metrics.stars, lives_remaining: gameState.lives },
+      metadata: { transition_from: 'gameplay' }
+    });
+  }
+}
+
+/* === showPreviewScreen === */
+function showPreviewScreen() {
+  var content = gameState.content || fallbackContent;
+  previewScreen.show({
+    instruction: content.previewInstruction || fallbackContent.previewInstruction,
+    audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+    showGameOnPreview: content.showGameOnPreview === true,
+    onComplete: function(previewData) { startGameAfterPreview(previewData); }
+  });
+}
+
+/* === startGameAfterPreview === */
+function startGameAfterPreview(previewData) {
+  gameState.previewResult = previewData;
+  gameState.duration_data.preview = gameState.duration_data.preview || [];
+  gameState.duration_data.preview.push({ duration: previewData && previewData.duration });
+
+  gameState.startTime = Date.now();
+  gameState.isActive = true;
+  gameState.duration_data.startTime = new Date().toISOString();
+
+  trackEvent('game_start', 'game');
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('screen_transition', {
+      screen: 'gameplay',
+      metadata: { transition_from: 'preview' }
+    });
+  }
+}
+
+/* === setupGame === */
+function setupGame() {
+  var content = gameState.content || fallbackContent;
+
+  // Parse cells and build solution
+  var cells = content.cells || [];
+  var solution = {};
+  cells.forEach(function(c) {
+    if (c.type === 'fillable') {
+      solution[c.row + '-' + c.col] = c.answer;
+    }
+  });
+
+  gameState.grid = cells;
+  gameState.solution = solution;
+  gameState.clues = buildGroups(cells, content.gridSize);
+  gameState.numberTags = content.numberTags || [];
+  gameState.userValues = {};
+  gameState.lives = gameState.totalLives;
+  gameState.isShowingFeedback = false;
+
+  renderGrid();
+  renderTags();
+  initDragDrop();
+
+  if (progressBar) {
+    progressBar.update(0, gameState.lives);
+  }
+
+  showPreviewScreen();
+}
+
+/* === startGame === */
+function startGame() {
+  setupGame();
+}
+
+/* === restartGame === */
+function restartGame() {
+  if (!gameState.sessionHistory) gameState.sessionHistory = [];
+  gameState.sessionHistory.push({
+    totalLives: gameState.totalLives,
+    tries: computeTriesPerRound(gameState.attempts)
+  });
+
+  var preserved = {
+    content: gameState.content,
+    contentSetId: gameState.contentSetId,
+    signalConfig: gameState.signalConfig,
+    sessionHistory: gameState.sessionHistory
+  };
+
+  gameState.currentRound = 0;
+  gameState.score = 0;
+  gameState.attempts = [];
+  gameState.events = [];
+  gameState.isActive = false;
+  gameState.isProcessing = false;
+  gameState.gameEnded = false;
+  gameState.isShowingFeedback = false;
+  gameState.lives = 3;
+  gameState.userValues = {};
+  gameState.grid = null;
+  gameState.solution = null;
+  gameState.clues = null;
+  gameState.numberTags = [];
+  gameState.dragState = null;
+  gameState.autoScrollInterval = null;
+
+  gameState.content = preserved.content;
+  gameState.contentSetId = preserved.contentSetId;
+  gameState.signalConfig = preserved.signalConfig;
+  gameState.sessionHistory = preserved.sessionHistory;
+
+  gameState.duration_data = {
+    startTime: null,
+    preview: [],
+    attempts: [],
+    evaluations: [],
+    inActiveTime: [],
+    totalInactiveTime: 0,
+    currentTime: null
+  };
+
+  signalCollector = new SignalCollector({
+    sessionId: (window.gameVariableState && window.gameVariableState.sessionId) ? window.gameVariableState.sessionId : 'session_' + Date.now(),
+    studentId: (window.gameVariableState && window.gameVariableState.studentId) ? window.gameVariableState.studentId : null,
+    gameId: gameState.gameId,
+    contentSetId: gameState.contentSetId
+  });
+  window.signalCollector = signalCollector;
+  if (gameState.signalConfig.flushUrl) {
+    signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+    signalCollector.playId = gameState.signalConfig.playId || null;
+    signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+    signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+    signalCollector.startFlushing();
+  }
+
+  visibilityTracker = new VisibilityTracker(visibilityTrackerConfig);
+
+  createProgressBar();
+  progressBar.update(0, 3);
+
+  setupGame();
+}
+
+/* === handlePostMessage (PART-008) === */
+function handlePostMessage(event) {
+  if (!event.data || event.data.type !== 'game_init') return;
+  var d = event.data.data;
+  gameState.content = d.content;
+  if (d.gameId) gameState.gameId = d.gameId;
+  gameState.contentSetId = d.contentSetId || null;
+  gameState.signalConfig = d.signalConfig || {};
+
+  if (signalCollector && gameState.signalConfig.flushUrl) {
+    signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+    signalCollector.playId = gameState.signalConfig.playId || null;
+    signalCollector.gameId = gameState.gameId;
+    signalCollector.contentSetId = gameState.contentSetId;
+    signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+    signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+    signalCollector.startFlushing();
+  }
+
+  setupGame();
+}
+
+/* === Debug Functions (PART-012) === */
+window.debugGame = function() {
+  console.log('Game State:', JSON.stringify(gameState, null, 2));
+};
+
+window.debugAudio = function() {
+  console.log('Audio State:', JSON.stringify({
+    sound: FeedbackManager.sound.getState(),
+    stream: FeedbackManager.stream.getState()
+  }, null, 2));
+};
+
+window.testAudio = async function(id) {
+  console.log('Testing audio:', id);
+  try {
+    await FeedbackManager.sound.play(id || 'correct_sound_effect');
+  } catch (e) {
+    console.error('Audio test failed:', JSON.stringify({ error: e.message }, null, 2));
+  }
+};
+
+window.testPause = function() {
+  if (visibilityTracker) visibilityTracker.triggerInactive();
+};
+
+window.testResume = function() {
+  if (visibilityTracker) visibilityTracker.triggerResume();
+};
+
+window.debugEventCapture = function() {
+  var summary = EventCapture.getSummary();
+  console.log('EventCapture Debug:', JSON.stringify(summary, null, 2));
+  console.log('All Events:', JSON.stringify(EventCapture.getEvents(), null, 2));
+  return summary;
+};
+
+window.verifySentry = function() {
+  var checks = {
+    sdkLoaded: typeof Sentry !== 'undefined',
+    configLoaded: typeof SentryConfig !== 'undefined',
+    clientActive: typeof Sentry !== 'undefined' && !!Sentry.getClient()
+  };
+  console.log('Sentry Verification:', JSON.stringify(checks, null, 2));
+  return checks;
+};
+
+window.testSentry = function() {
+  try {
+    throw new Error('Test error from testSentry()');
+  } catch (error) {
+    if (typeof Sentry !== 'undefined') {
+      Sentry.captureException(error, { tags: { test: true } });
+      console.log('Test error sent to Sentry');
+    } else {
+      console.warn('Sentry not available');
+    }
+  }
+};
+
+/* === DOMContentLoaded (PART-004) === */
+window.addEventListener('DOMContentLoaded', async function() {
+  try {
+    await waitForPackages();
+    if (typeof Sentry !== 'undefined') {
+      Sentry.addBreadcrumb({ category: 'package-loading', message: 'All packages loaded', level: 'info' });
+    }
+    await FeedbackManager.init();
+
+    // Preload all sound effects (PART-017)
+    try {
+      await FeedbackManager.sound.preload([
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'victory', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/e252bcc4-bd5f-4195-ad04-a02582095b6d.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'game_complete_1_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/2ee85ea3-919b-4010-95a2-40bcd7d90d22.mp3' },
+        { id: 'game_complete_2_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/84f4ff34-6e59-43d6-9663-4d9936cad002.mp3' },
+        { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+        { id: 'game_over', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/5140e0b6-cada-4424-8e5d-f9cd06a0c83f.mp3' }
+      ]);
+    } catch(e) { console.error('Sound preload error:', JSON.stringify({ error: e.message }, null, 2)); }
+
+    // SignalCollector (PART-010 v3)
+    signalCollector = new SignalCollector({
+      sessionId: (window.gameVariableState && window.gameVariableState.sessionId) ? window.gameVariableState.sessionId : 'session_' + Date.now(),
+      studentId: (window.gameVariableState && window.gameVariableState.studentId) ? window.gameVariableState.studentId : null,
+      gameId: gameState.gameId,
+      contentSetId: gameState.contentSetId
+    });
+    window.signalCollector = signalCollector;
+
+    // EventCapture (PART-036)
+    try { if (typeof EventCapture !== 'undefined') EventCapture.init(); } catch (e) { console.error('EventCapture init error:', JSON.stringify({ error: e.message }, null, 2)); }
+
+    // ScreenLayout v2 (PART-025)
+    ScreenLayout.inject('app', {
+      slots: { previewScreen: true, transitionScreen: true }
+    });
+
+    // Build game content into #gameContent
+    var gameContent = document.getElementById('gameContent');
+    gameContent.innerHTML = '<div id="progress-bar-container"></div>'
+      + '<div id="game-screen" class="game-block">'
+      + '<div class="kakuro-grid" id="kakuro-grid" data-signal-id="kakuro-grid" style="--grid-size: 5;"></div>'
+      + '<div class="feedback-section" id="feedback-area" style="display: none;"><p id="feedback-text"></p></div>'
+      + '<div class="tag-cluster" id="tag-cluster" data-signal-id="tag-cluster"></div>'
+      + '<div class="btn-container">'
+      + '<button class="game-btn btn-secondary" data-signal-id="btn-reset" onclick="resetDragDrop()">Reset</button>'
+      + '<button class="game-btn btn-primary" id="btn-submit" data-signal-id="btn-submit" onclick="handleSubmit()">Check</button>'
+      + '</div>'
+      + '</div>';
+
+    // ProgressBar (PART-023)
+    createProgressBar();
+
+    // TransitionScreen (PART-024)
+    transitionScreen = new TransitionScreenComponent({
+      autoInject: true
+    });
+
+    // PreviewScreen v2 (PART-039)
+    previewScreen = new PreviewScreenComponent({
+      slotId: 'mathai-preview-slot'
+    });
+
+    // VisibilityTracker (PART-005)
+    visibilityTrackerConfig = {
+      onInactive: function() {
+        var inactiveStart = Date.now();
+        gameState.duration_data.inActiveTime.push({ start: inactiveStart });
+        if (signalCollector) {
+          signalCollector.pause();
+          signalCollector.recordCustomEvent('visibility_hidden', {});
+        }
+        FeedbackManager.sound.pause();
+        FeedbackManager.stream.pauseAll();
+        if (previewScreen) previewScreen.pause();
+        trackEvent('game_paused', 'system');
+      },
+      onResume: function() {
+        var lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+        if (lastInactive && !lastInactive.end) {
+          lastInactive.end = Date.now();
+          gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
+        }
+        if (signalCollector) {
+          signalCollector.resume();
+          signalCollector.recordCustomEvent('visibility_visible', {});
+        }
+        FeedbackManager.sound.resume();
+        FeedbackManager.stream.resumeAll();
+        if (previewScreen) previewScreen.resume();
+        trackEvent('game_resumed', 'system');
+      },
+      popupProps: {
+        title: 'Game Paused',
+        description: 'Click Resume to continue.',
+        primaryText: 'Resume'
+      }
+    };
+    visibilityTracker = new VisibilityTracker(visibilityTrackerConfig);
+
+    window.addEventListener('message', handlePostMessage);
+
+    // Signal to parent harness (PART-008)
+    window.parent.postMessage({ type: 'game_ready' }, '*');
+
+    // Call setupGame() directly
+    setupGame();
+
+  } catch (error) {
+    console.error('Initialization failed:', JSON.stringify({ error: error.message }, null, 2));
+  }
+});
+</script>
+</body>
+</html>

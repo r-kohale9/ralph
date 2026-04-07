@@ -9,13 +9,14 @@
 ```javascript
 const layout = ScreenLayout.inject('app', {
   slots: {
-    progressBar: {{true/false}},
-    transitionScreen: {{true/false}}
+    previewScreen: true,                    // MANDATORY (PART-039)
+    transitionScreen: {{true/false}},       // For multi-round games
+    progressBar: false                      // Ignored when previewScreen:true
   }
 });
 
 // Returns:
-// layout.progressSlot — 'mathai-progress-slot' or null
+// layout.previewSlot — 'mathai-preview-slot'
 // layout.transitionSlot — 'mathai-transition-slot' or null
 // layout.gameContent — 'gameContent' (always present)
 ```
@@ -26,19 +27,43 @@ const layout = ScreenLayout.inject('app', {
 <div id="app"></div>
 ```
 
-ScreenLayout injects the full page structure (page-center, game-wrapper, game-stack) into this div. Your game content goes inside `#gameContent`.
+## DOM Structure
+
+When `slots.previewScreen: true` (the default for all games per PART-039), ScreenLayout creates a **persistent preview wrapper** that holds the game throughout the entire session:
+
+```
+#app
+  .page-center
+    #mathai-preview-slot                       (the persistent wrapper, always visible)
+      .mathai-preview-header (fixed)           (avatar, label, score, star, progress, timer)
+      .mathai-preview-body (scrollable)
+        .mathai-preview-instruction
+        .mathai-preview-game-container
+          .game-stack
+            #gameContent                       (game renders here)
+            #mathai-transition-slot            (between-round transitions)
+```
+
+Key points:
+- The header bar is `position: fixed` and visible in BOTH preview and game states.
+- Instruction + game content share a single scroll area below the fixed header (no nested scrolling).
+- `#gameContent` and `#mathai-transition-slot` are siblings inside `.game-stack` — no DOM moves at runtime.
+- The progress bar slot (`#mathai-progress-slot`) is NOT created — the preview header has the progress bar.
+- PreviewScreenComponent populates header content and manages state transitions.
+
+When `previewScreen: false` (legacy / no-preview path), the old structure is created instead: `.game-wrapper > .game-stack > #gameContent`.
 
 ## Slot Configurations
 
-| Config | ProgressBar | TransitionScreen | Use When |
-|--------|------------|-----------------|----------|
-| Minimal | `false` | `false` | Simple game, no rounds/levels |
-| With progress | `true` | `false` | Multi-round game with progress |
-| Full | `true` | `true` | Full game with progress + transitions |
+| Config | previewScreen | transitionScreen | Use When |
+|--------|---------------|------------------|----------|
+| Standard | `true` | `false` | Single-round game |
+| With transitions | `true` | `true` | Multi-round game with between-round screens |
+| Legacy | `false` | any | Only for non-PART-039 games (rare) |
 
 ## CRITICAL: Game Content Placement
 
-When using ScreenLayout, **ALL game HTML must render inside `#gameContent`**. ScreenLayout creates the `.page-center > .game-wrapper > .game-stack` structure automatically — your game content slot is `#gameContent` which lives inside this structure.
+When using ScreenLayout, **ALL game HTML must render inside `#gameContent`**. ScreenLayout creates the surrounding structure automatically — when `previewScreen: true`, that structure is the preview wrapper; otherwise it is `.game-wrapper > .game-stack`. Either way, your game content slot is `#gameContent`.
 
 **Wrong — game HTML as sibling of `#app` (content escapes the layout):**
 ```html

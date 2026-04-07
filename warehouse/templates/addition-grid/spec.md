@@ -37,7 +37,7 @@
 | PART-022 | Game Buttons                  | YES             | Submit button per cell or global submit              |
 | PART-023 | ProgressBar Component         | NO              | Grid is self-contained, no round progress needed     |
 | PART-024 | TransitionScreen Component    | NO              | —                                                    |
-| PART-025 | ScreenLayout Component        | YES             | slots: progressBar=false, previewScreen=true, transitionScreen=false |
+| PART-025 | ScreenLayout Component        | YES             | slots: previewScreen=true, transitionScreen=false (preview wrapper owns layout) |
 | PART-026 | Anti-Patterns                 | YES (REFERENCE) | Verification checklist, not code-generating          |
 | PART-027 | Play Area Construction        | YES             | Layout: grid (5 columns x 4 rows)                   |
 | PART-028 | InputSchema Patterns          | YES             | Schema type: grid equations                          |
@@ -102,6 +102,10 @@ let previewScreen = null;
 {
   "type": "object",
   "properties": {
+    "previewInstruction": { "type": "string", "description": "HTML instruction shown on preview screen (PART-039 v2 mandatory)" },
+    "previewAudioText": { "type": "string", "description": "Plain text for TTS audio generation (PART-039 v2 mandatory)" },
+    "previewAudio": { "type": ["string", "null"], "description": "CDN URL of preview audio (PART-039 v2 mandatory; pipeline patches at build time)" },
+    "showGameOnPreview": { "type": "boolean", "description": "If true, show real grid (non-interactable) under preview overlay; default false (blank space). For this game: true." },
     "equations": {
       "type": "array",
       "description": "Exactly 3 equations for rows 0-2",
@@ -117,7 +121,7 @@ let previewScreen = null;
       "maxItems": 3
     }
   },
-  "required": ["equations"]
+  "required": ["previewInstruction", "previewAudioText", "previewAudio", "showGameOnPreview", "equations"]
 }
 ```
 
@@ -125,7 +129,11 @@ let previewScreen = null;
 
 ```javascript
 const fallbackContent = {
+  // PART-039 v2 mandatory preview fields
   previewInstruction: '<p>Fill in the missing values. Each row: <b>a + b = c</b>. The last row shows <b>column totals</b>.</p>',
+  previewAudioText: 'Fill in the missing values. Each row is an equation: a plus b equals c. The last row shows the column totals.',
+  previewAudio: null, // pipeline patches this with TTS-generated CDN URL post-approval
+  showGameOnPreview: true, // show real grid (non-interactable) under the preview overlay
   equations: [
     { a: 12, b: 15 },  // c = 27
     { a: 23, b: 14 },  // c = 37
@@ -158,30 +166,34 @@ Generate 3 content sets at different difficulty levels. Each set has exactly 3 e
 
 ## Screens
 
-### Screen 0: Preview Screen — PART-039 (MANDATORY)
+### Screen 0: Preview Screen — PART-039 v2 (MANDATORY persistent wrapper)
 
-The PreviewScreenComponent (loaded via CDN package) handles all preview UI.
-No custom HTML needed — the component creates its own DOM in the ScreenLayout preview slot.
+The PreviewScreenComponent v2 is a **persistent wrapper** for the entire game session. It is NOT a transient screen — the header bar (avatar, question label, score, star) stays fixed at the top throughout gameplay. It has two states:
+
+1. **`preview` state** — blue progress bar (audio/5s timer), instruction text, the real game grid is visible underneath but covered by a non-interactable overlay, "Skip & show options" button at the bottom
+2. **`game` state** — overlay removed (grid becomes interactable), skip button removed, header persists. Since this game has NO timer, the header progress bar is hidden and no timer text is shown
+
+Use `showGameOnPreview: true` so the actual grid (rendered by `injectGameHTML()` before `previewScreen.show()`) shows through the overlay. Do NOT build a fake placeholder preview.
 
 ScreenLayout configuration:
 ```javascript
 ScreenLayout.inject('app', {
-  slots: { progressBar: false, previewScreen: true, transitionScreen: false }
+  slots: { previewScreen: true, transitionScreen: false }
 });
 ```
 
 PreviewScreen instantiation (in DOMContentLoaded):
 ```javascript
 const previewScreen = new PreviewScreenComponent({
-  autoInject: true,
-  slotId: 'mathai-preview-slot',
-  gameContentId: 'gameContent'
+  slotId: 'mathai-preview-slot'
 });
 ```
 
+**CRITICAL:** ScreenLayout v2 with `previewScreen: true` does NOT create `.game-wrapper` — the preview slot IS the wrapper, and `.game-stack` (containing `#gameContent`) lives directly inside it. Do not write CSS for `.game-wrapper`. Do not toggle its visibility.
+
 ### HTML Body Structure (PART-025)
 
-The `<body>` contains only `<div id="app"></div>`. ScreenLayout.inject('app') generates the page-center/game-wrapper/game-stack structure and creates `#gameContent` inside it. All game screens are injected into `#gameContent` via JavaScript (innerHTML or template cloneNode) after ScreenLayout.inject() completes.
+The `<body>` contains only `<div id="app"></div>`. ScreenLayout.inject('app') with `previewScreen: true` generates the persistent preview wrapper containing `.mathai-preview-header`, `.mathai-preview-body`, `.mathai-preview-instruction`, `.mathai-preview-game-container`, and `.game-stack > #gameContent` inside it. All game screens are injected into `#gameContent` via JavaScript (innerHTML or template cloneNode) after ScreenLayout.inject() completes — and BEFORE `previewScreen.show()` is called (otherwise the preview overlay covers an empty area).
 
 ```html
 <body>
@@ -194,12 +206,9 @@ The `<body>` contains only `<div id="app"></div>`. ScreenLayout.inject('app') ge
 
 ```html
 <!-- This HTML is injected into #gameContent -->
-<div id="game-screen" style="display: none;">
-  <div class="game-header">
-    <h2 class="game-title">Addition Grid</h2>
-    <p class="game-instruction">Fill in the missing values. Each row is an equation: a + b = c. The last row shows column totals.</p>
-  </div>
-
+<!-- NOTE: NO custom .game-header — the preview wrapper's fixed header (avatar, label, score, star) is the only header -->
+<!-- NOTE: NOT hidden by default — preview overlay handles non-interactability in preview state -->
+<div id="game-screen">
   <div class="grid-container" id="grid-container">
     <!-- Row 0: equation row -->
     <div class="grid-cell static" data-row="0" data-col="0" id="cell-0-0"></div>
@@ -399,23 +408,7 @@ The `<body>` contains only `<div id="app"></div>`. ScreenLayout.inject('app') ge
   margin-top: 2px;
 }
 
-/* Game header */
-.game-header {
-  text-align: center;
-  padding: 16px 16px 8px;
-}
-
-.game-title {
-  font-size: var(--mathai-font-size-title, 1.5rem);
-  color: var(--mathai-text, #1a1a2e);
-  margin: 0 0 4px;
-}
-
-.game-instruction {
-  font-size: var(--mathai-font-size-sm, 0.85rem);
-  color: var(--mathai-text-secondary, #666);
-  margin: 0;
-}
+/* NOTE: No .game-header / .game-title / .game-instruction — the preview wrapper's fixed header is the only header */
 
 /* Button row */
 .button-row {
@@ -430,13 +423,7 @@ The `<body>` contains only `<div id="app"></div>`. ScreenLayout.inject('app') ge
   margin-top: 8px;
 }
 
-/* Preview placeholder — reuses .grid-cell.answer but shows "?" text instead of input */
-.grid-cell.answer.preview-placeholder {
-  color: var(--mathai-primary, #4a90d9);
-  font-size: var(--mathai-font-size-xl, 1.25rem);
-  font-weight: 600;
-  cursor: default;
-}
+/* NOTE: No .preview-placeholder needed — showGameOnPreview:true shows the real grid under the overlay */
 ```
 
 ---
@@ -551,46 +538,24 @@ function initSentry() {
 
 ### Global Scope (RULE-001)
 
-**buildPreviewGridHtml()**
+**showPreviewScreen()** (PART-039 v2)
 
-Builds an HTML string reusing the exact same `grid-container` / `grid-cell` classes as the game screen so the preview looks identical (but with "?" instead of inputs):
-```javascript
-function buildPreviewGridHtml() {
-  const eqs = gameState.content.equations;
-  let cells = '';
-  // Equation rows (0-2)
-  eqs.forEach((eq, r) => {
-    cells += `<div class="grid-cell static" data-row="${r}" data-col="0">${eq.a}</div>`;
-    cells += `<div class="grid-cell operator" data-row="${r}" data-col="1">+</div>`;
-    cells += `<div class="grid-cell static" data-row="${r}" data-col="2">${eq.b}</div>`;
-    cells += `<div class="grid-cell operator" data-row="${r}" data-col="3">=</div>`;
-    cells += `<div class="grid-cell answer preview-placeholder" data-row="${r}" data-col="4">?</div>`;
-  });
-  // Totals row (3)
-  cells += `<div class="grid-cell answer totals preview-placeholder" data-row="3" data-col="0">?</div>`;
-  cells += `<div class="grid-cell operator totals" data-row="3" data-col="1">+</div>`;
-  cells += `<div class="grid-cell answer totals preview-placeholder" data-row="3" data-col="2">?</div>`;
-  cells += `<div class="grid-cell operator totals" data-row="3" data-col="3">=</div>`;
-  cells += `<div class="grid-cell answer totals preview-placeholder" data-row="3" data-col="4">?</div>`;
-  return `<div class="grid-container">${cells}</div>`;
-}
-```
-
-**showPreviewScreen()**
-
-- Called from setupGame() after setting gameState.content
-- Builds grid preview HTML via buildPreviewGridHtml()
+- Called from setupGame() **AFTER** `injectGameHTML()` and static cell rendering. The game DOM must already exist before show() is called, so the preview overlay covers the real grid.
 - Calls:
   ```javascript
   // questionLabel, score, showStar come from game_init payload automatically
+  // showGameOnPreview:true makes the real grid (already rendered into #gameContent) visible under the non-interactable overlay
+  // No timerInstance/timerConfig — this game has no timer
   previewScreen.show({
-    instruction: 'Fill in the missing values. Each row: a + b = c. The last row shows column totals.',
-    previewContent: buildPreviewGridHtml(),
+    instruction: gameState.content.previewInstruction || fallbackContent.previewInstruction,
+    audioUrl: gameState.content.previewAudio || fallbackContent.previewAudio || null,
+    showGameOnPreview: true,
     onComplete: startGameAfterPreview
   });
   ```
+- There is NO `buildPreviewGridHtml()` function in v2 — the real game grid IS the preview content.
 
-**startGameAfterPreview(previewData)**
+**startGameAfterPreview(previewData)** (PART-039 v2)
 
 - gameState.previewResult = previewData
 - gameState.duration_data.preview = gameState.duration_data.preview || []
@@ -600,8 +565,8 @@ function buildPreviewGridHtml() {
 - Set gameState.duration_data.startTime = new Date().toISOString()
 - trackEvent('game_start', 'game')
 - signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' })
-- Show #game-screen
 - Focus first input (input-0-4)
+- DO NOT set `#game-screen.style.display = 'block'` — the game screen is already visible (overlay removal in switchToGame() makes it interactable)
 
 **setupGame()**
 
@@ -621,11 +586,12 @@ function buildPreviewGridHtml() {
     sumC: eqs.reduce((s, eq) => s + eq.a + eq.b, 0)
   };
   ```
+- Call `injectGameHTML()` to populate `#gameContent` with the grid markup (BEFORE showPreviewScreen — so the preview overlay covers the real grid)
 - Render static cells: set text content of cell-0-0, cell-0-2, cell-1-0, cell-1-2, cell-2-0, cell-2-2
 - signalCollector.recordViewEvent('content_render', { trigger: 'round_start', equations: 3 })
 - Clear all inputs and reset cellStatus
 - IMPORTANT: Do NOT set gameState.startTime here — it is set in startGameAfterPreview()
-- Call showPreviewScreen()
+- Call showPreviewScreen() as the LAST step of setupGame()
 
 **buildCorrectAnswers()**
 
@@ -884,9 +850,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     window.signalCollector = signalCollector;
 
-    // 5. ScreenLayout (PART-025)
+    // 5. ScreenLayout (PART-025) — previewScreen:true creates the persistent wrapper containing .game-stack
     ScreenLayout.inject('app', {
-      slots: { progressBar: false, previewScreen: true, transitionScreen: false }
+      slots: { previewScreen: true, transitionScreen: false }
     });
 
     // 6. Create VisibilityTracker (PART-005) — AFTER SignalCollector
@@ -901,11 +867,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     window.visibilityTracker = visibilityTracker;
 
-    // 7. Create PreviewScreen (PART-039)
+    // 7. Create PreviewScreen (PART-039 v2 — persistent wrapper)
     previewScreen = new PreviewScreenComponent({
-      autoInject: true,
-      slotId: 'mathai-preview-slot',
-      gameContentId: 'gameContent'
+      slotId: 'mathai-preview-slot'
     });
 
     // 8. Register postMessage listener (PART-008) + send game_ready
@@ -1025,22 +989,31 @@ const FEEDBACK_IDS = {
 > These scenarios are consumed by the ralph loop to generate `tests/game.spec.js`.
 > Every scenario must specify exact selectors, exact actions, and exact assertions.
 
-### Scenario: Preview screen displays and transitions to game
+### Scenario: Preview wrapper displays and transitions to game state (PART-039 v2)
 
 SETUP: Page loaded
 ACTIONS:
 wait for .mathai-preview-header to be visible
 assert .mathai-preview-instruction is visible
+assert .mathai-preview-skip-btn is visible
+assert .mathai-preview-overlay exists (game is non-interactable)
+assert #game-screen exists in DOM and is visible (real grid is showing under overlay since showGameOnPreview:true)
+try to click #input-0-4 → should NOT receive focus (overlay blocks pointer events)
 click .mathai-preview-skip-btn
-wait for #game-screen to be visible
-assert .mathai-preview-header is not visible (preview hidden)
-assert gameState.isActive === true
-assert gameState.startTime is set (> 0)
-EXPECTED: Preview screen shows, skip advances to game, game starts normally
+ASSERT:
+.mathai-preview-header is STILL visible (header persists in game state)
+.mathai-preview-skip-btn is no longer in DOM (removed in game state)
+.mathai-preview-overlay is no longer in DOM (removed → game becomes interactable)
+.mathai-preview-header-progress has class "hidden" (no timer in this game)
+gameState.isActive === true
+gameState.startTime is set (> 0)
+previewScreen.getState() === 'game'
+click #input-0-4 → input receives focus
+EXPECTED: Preview wrapper persists, skip transitions to game state, header stays visible, game becomes interactable
 
 ### Scenario: Grid renders with correct static values
 
-SETUP: Page loaded, game started (skip preview)
+SETUP: Page loaded, click .mathai-preview-skip-btn to enter game state
 ACTIONS:
 wait for #game-screen to be visible
 ASSERT:
@@ -1055,7 +1028,7 @@ EXPECTED: Static cells show equation operands, input cells are empty
 
 ### Scenario: Complete game with all correct answers
 
-SETUP: Page loaded, game started (skip preview)
+SETUP: Page loaded, click .mathai-preview-skip-btn to enter game state
 ACTIONS:
 fill #input-0-4 with "27"
 fill #input-1-4 with "37"
@@ -1076,7 +1049,7 @@ stars display shows 3 stars
 
 ### Scenario: Submit with some incorrect answers
 
-SETUP: Page loaded, game started (skip preview)
+SETUP: Page loaded, click .mathai-preview-skip-btn to enter game state
 ACTIONS:
 fill #input-0-4 with "27"   (correct)
 fill #input-1-4 with "99"   (incorrect — correct is 37)
@@ -1098,7 +1071,7 @@ results screen shows 1 or 2 stars (not 3)
 
 ### Scenario: Submit with all incorrect answers
 
-SETUP: Page loaded, game started (skip preview)
+SETUP: Page loaded, click .mathai-preview-skip-btn to enter game state
 ACTIONS:
 fill #input-0-4 with "1"
 fill #input-1-4 with "1"
@@ -1149,6 +1122,20 @@ game_complete postMessage sent with:
   metrics.attempts.length === 6
   each attempt has: attempt_timestamp, time_since_start, input_of_user, correct, attempt_number
 
+### Scenario: Preview header persists through results screen (PART-039 v2)
+
+SETUP: Page loaded, click .mathai-preview-skip-btn to enter game state
+ACTIONS:
+fill all 6 inputs with correct answers
+click #btn-submit
+wait for #results-screen to be visible
+ASSERT:
+.mathai-preview-header is STILL visible (the preview wrapper persists through the entire game including results)
+.mathai-preview-skip-btn is NOT in DOM
+.mathai-preview-overlay is NOT in DOM
+#results-screen is visible inside the persistent wrapper
+EXPECTED: The preview wrapper persists from page load → preview → game → results. Header is fixed at top throughout.
+
 ### Scenario: Tab navigation between input cells
 
 SETUP: Page loaded, game started
@@ -1184,7 +1171,7 @@ ASSERT: #input-3-4 has focus
 ### Functional
 
 - [ ] `window.gameState` (not const) with all mandatory + game-specific fields (PART-007)
-- [ ] waitForPackages() checks FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector with 10s timeout (PART-003)
+- [ ] waitForPackages() checks FeedbackManager, PreviewScreenComponent, VisibilityTracker, SignalCollector with 10s timeout (PART-003) — NO TimerComponent (this game has no timer)
 - [ ] DOMContentLoaded async with try/catch, calls: waitForPackages → FeedbackManager.init → sound.preload → SignalCollector → ScreenLayout.inject → VisibilityTracker → PreviewScreen → postMessage listener → game_ready → setupGame (PART-004)
 - [ ] VisibilityTracker onInactive: records inActiveTime, pauses SignalCollector + audio + streams (PART-005)
 - [ ] VisibilityTracker onResume: records end time + totalInactiveTime, resumes SignalCollector + audio + streams (PART-005)
@@ -1210,7 +1197,7 @@ ASSERT: #input-3-4 has focus
 
 - [ ] CSS uses `var(--mathai-*)` variables, no hardcoded colors (PART-020)
 - [ ] Gameplay feedback uses correct colors — green for correct, red for incorrect (PART-020)
-- [ ] `.page-center` / `.game-wrapper` / `.game-stack` layout structure (PART-021)
+- [ ] `.page-center` / `#mathai-preview-slot` (preview wrapper) / `.game-stack` layout structure (PART-021 + PART-039 v2) — NO `.game-wrapper`
 - [ ] Max-width 480px, uses 100dvh not 100vh (PART-021)
 - [ ] Buttons use `.game-btn` with `.btn-primary` / `.btn-secondary` classes (PART-022)
 - [ ] ScreenLayout.inject() called before PreviewScreen (PART-025)

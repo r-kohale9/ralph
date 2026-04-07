@@ -1059,8 +1059,16 @@
     console.log("[AudioKit] Pausing");
     this.pauseSound = true;
     var pausedState = this.audioKit.pauseVoice();
-    if (pausedState) this.pausedAudioId = pausedState.id;
-    else this.audioKit.stopAll();
+    if (pausedState) {
+      this.pausedAudioId = pausedState.id;
+    } else if (!this.pausedAudioId) {
+      // Idempotency guard: only stopAll if there is neither an active voice
+      // (pauseVoice returned null) NOR a previously-saved pausedVoice. This
+      // prevents a second pause() call (e.g. from a redundant
+      // handleInactive → previewScreen.pause() chain) from destroying the
+      // pausedVoice saved by the first call.
+      this.audioKit.stopAll();
+    }
     return true;
   };
 

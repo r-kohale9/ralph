@@ -127,12 +127,14 @@ Test the full user journey from start to finish:
 - Results screen shows score/stars/play-again
 - Play Again button resets game to fresh state
 - Timer starts/stops correctly (if applicable)
-- Preview screen appears before game starts (after page load)
-- Preview shows header bar with back button, avatar, question label, score, star
-- Timer progress bar animates from 100% to 0%
-- Preview auto-advances to game when timer ends
-- Skip button immediately advances to game
-- After preview, game starts normally (first round renders)
+- Preview screen wrapper is visible from page load (header bar with back, avatar, question label, score, star is fixed at top)
+- Preview state shows blue progress bar animating 100%→0%, instruction text, "Skip & show options" button
+- Game underneath is non-interactable in preview state (overlay blocks pointer events)
+- Skip button or timer-complete transitions to game state (preview wrapper STAYS visible — header persists)
+- In game state: skip button is removed, game becomes interactable, header timer activates if game has TimerComponent
+- Decreasing timer → orange progress bar synced with timer + timer text in header center
+- Increasing timer → no progress bar fill, timer text only in header center
+- After preview transition, first round renders inside the persistent wrapper
 
 ══════════════════════════════════════
 CATEGORY 2: mechanics
@@ -196,22 +198,31 @@ Test the platform integration contract:
   - signalCollector.recordViewEvent() called on screen transitions and DOM changes
   - signalCollector.seal() called in endGame before postMessage
   - game_complete data includes signal_event_count and signal_metadata (NOT raw signal events)
-- PreviewScreen contract (PART-039, MANDATORY):
-  - ScreenLayout.inject() MUST include previewScreen: true in slots config
+- PreviewScreen contract (PART-039, MANDATORY — persistent wrapper architecture v2):
+  - ScreenLayout.inject() MUST include previewScreen: true in slots config (creates the persistent wrapper containing .game-stack)
   - PreviewScreenComponent instantiated AFTER ScreenLayout.inject()
   - waitForPackages() MUST include typeof PreviewScreenComponent === 'undefined' check
   - showPreviewScreen() and startGameAfterPreview() functions MUST exist
   - DOMContentLoaded MUST call setupGame() directly as last step — NO start TransitionScreen before preview
   - previewScreen.show() MUST pass: instruction: content.previewInstruction || fallbackContent.previewInstruction — NEVER hardcode as string literal
   - previewScreen.show() MUST pass: audioUrl: content.previewAudio || fallbackContent.previewAudio || null — NEVER omit
-  - previewScreen.show() MUST pass: previewContent: content.previewContent || null
+  - previewScreen.show() MAY pass: showGameOnPreview (boolean, default false — when true the game's initial state is visible underneath the non-interactable overlay)
+  - If the game uses TimerComponent, previewScreen.show() MUST pass: timerInstance: <timer ref> AND timerConfig: { type: 'decrease'|'increase', startTime, endTime } so the persistent header can mirror timer state in the game state
   - previewScreen.show() MUST NOT pass questionLabel, score, showStar — these come from game_init automatically
+  - previewScreen.show() MUST NOT pass previewContent — that field is removed in v2 (use showGameOnPreview instead)
+  - Game code MUST NOT call previewScreen.hide() — method REMOVED in v2 (the wrapper is persistent)
+  - Game code MUST NOT render its own header bar inside #gameContent — the preview header is the only header (avatar, question label, score, star, progress bar, timer text all live in .mathai-preview-header)
   - gameState.startTime NOT set until preview ends (set in startGameAfterPreview, NOT in setupGame)
   - gameState.duration_data.preview[] populated with { duration } entry in startGameAfterPreview
   - fallbackContent MUST include previewInstruction (HTML string) and previewAudioText (plain text for TTS)
   - VisibilityTracker onInactive → previewScreen.pause(), onResume → previewScreen.resume()
   - endGame() MUST call previewScreen.destroy() in cleanup
   - No new Audio() for preview audio — FeedbackManager handles all audio
+  - Between-round TransitionScreens render INSIDE the preview wrapper (header remains visible during them) — no special handling needed, the transition slot is a sibling of #gameContent inside the wrapper's .game-stack
+  - RESTART RULE: Preview is shown ONCE per session. restartGame() MUST NOT call previewScreen.show() or showPreviewScreen() again. The PreviewScreenComponent enforces this internally (auto-skips if already shown), but game code should keep the restart path clean: reset state, then call the first gameplay function directly (e.g. showLevelTransition(), renderRound()) without going through setupGame()'s preview call
+  - ORDERING: Game DOM (#gameContent innerHTML) MUST be rendered BEFORE previewScreen.show() is called. setupGame() must call injectGameHTML()/renderInitialState() FIRST, then showPreviewScreen() as the last step. Otherwise the preview overlay covers empty space when showGameOnPreview:true
+  - LAYOUT RULE: When previewScreen:true, ScreenLayout does NOT create #mathai-progress-slot, #mathai-header-slot, or #mathai-question-slot. Those IDs do NOT exist. ProgressBar must render into a local <div id="progress-bar-container"></div> inside #gameContent. Timer container must be a hidden <div id="timer-container" style="display:none;"></div> inside #gameContent. Instructions must be inline inside #gameContent. The ONLY slot IDs that exist are: #mathai-preview-slot, #gameContent, #mathai-transition-slot
+  - LAYOUT RULE: ScreenLayout.inject() MUST use the slots API (e.g. { slots: { previewScreen: true, transitionScreen: true } }) — the "sections" API with header/questionText/progressBar/playArea does NOT exist
 
 ══════════════════════════════════════
 OUTPUT FORMAT (MANDATORY)
@@ -458,8 +469,9 @@ MANDATORY preview fields (PART-039) — ALWAYS include these in the schema prope
   "previewInstruction": { "type": "string", "description": "HTML instruction shown on preview screen" }
   "previewAudioText": { "type": "string", "description": "Plain text for TTS audio generation" }
   "previewAudio": { "type": ["string", "null"], "description": "CDN URL of preview audio" }
-  "previewContent": { "description": "Data for interactive preview content area" }
+  "showGameOnPreview": { "type": "boolean", "description": "If true, show game in initial state (non-interactable) under preview overlay; default false (blank space)" }
 These MUST be in properties when additionalProperties is false, otherwise content set validation fails with "must NOT have additional properties".
+Note: previewContent field is REMOVED in v2 — use showGameOnPreview boolean instead.
 
 Save to: ${path.join(gameDir, 'inputSchema.json')}
 
