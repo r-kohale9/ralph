@@ -1,282 +1,200 @@
-# Why Skills + Claude Orchestrator (and Why Not a Script)
+# Why Alfred (Skills + Orchestrator) — Honest Comparison vs Pipeline-v2
 
-## TL;DR (skim in 30 seconds)
+## TL;DR
 
-- **The job:** turn a game description into a working math game for students.
-- **A script** writes the game by following fixed steps in code. Works until the game is unusual, then breaks.
-- **A skill** is a Markdown file Claude reads before doing the job. Claude does the work; the skill tells Claude HOW.
-- **Why it matters today:** the current pipeline's prompt file is **4007 lines and contradicts itself**. Alfred is **14 small files**, each does one thing. We found a bug today, fixed **one file once**, and every future game is immune.
-- **What Anthropic recommends:** progressive disclosure via SKILL.md files with reference content loaded on demand. Alfred is 8/8 aligned with their published guidance.
-
----
-
-## First Principles: Build Up From Basics
-
-### Step 1 — What is a math game?
-A web page (HTML+CSS+JS) that asks a kid math questions and tracks answers.
-
-### Step 2 — How does a person make one?
-1. Decide what concept to teach (e.g., equivalent ratios)
-2. Decide how to test it (e.g., "same or different?" buttons)
-3. Write 10 questions
-4. Write the code that shows them, takes answers, scores
-5. Test it on a phone
-6. Fix what broke
-
-### Step 3 — How do we automate that?
-Three options. Every automation system is one of these:
-
-| Option | What it does | Example |
-|--------|--------------|---------|
-| Write code that writes code | A program with branching logic produces the HTML | A Python script with `if topic == "ratios"` |
-| Use an LLM with one big prompt | Stuff all the rules into a 4000-line prompt and let the LLM generate | The current pipeline-v2 |
-| Use an LLM with small focused prompts (skills) | Give the LLM small instructions per step, let it compose them | Alfred |
-
-### Step 4 — Which is best, and why?
-Depends on **how varied the input is.**
-
-| Input variety | Best approach |
-|---------------|--------------|
-| 1 type of game forever | Script wins (deterministic, fast, cheap) |
-| 100 varied games with different mechanics | Script becomes a tangled mess. Skills win because each skill stays small. |
-
-This is the heart of the argument. Read on for evidence.
+- Pipeline-v2 also uses Claude Agent SDK. Both systems are "Claude with tools." This doc is NOT "scripts vs LLMs."
+- The real difference is **organizational**: pipeline-v2 keeps all generation knowledge in one 4007-line file (`lib/prompts.js`); Alfred keeps it in ~108 small markdown files, one concern per file.
+- Skills do **not** magically prevent contradictions. Small organized files just make contradictions easier to **find and fix** in code review.
+- Alfred is explicitly designed for **iteration across many sessions** — the system-loop (ship → capture → gauge → iterate) is the core model, not a fix loop bolted on.
+- Alfred is not inherently more correct. It is structurally better at three things: findability, iteration, and progressive disclosure.
 
 ---
 
-## The Evidence Against Scripts
+## What is the SAME between Alfred and pipeline-v2
 
-### From this codebase (today)
+| Dimension | Both systems |
+|-----------|--------------|
+| LLM | Claude (via `@anthropic-ai/claude-agent-sdk`) — see `pipeline-v2/agent.js` line 28 |
+| Sub-agents | Both spawn agents; pipeline-v2 via SDK session resume, Alfred via the Agent tool |
+| Tools | Read/Write/Edit/Bash/Glob/Grep + Playwright MCP |
+| Knowledge in markdown | Both can have skill-style markdown (pipeline-v2 has `pipeline-v2/GAME_PROMPT.md`) |
+| CDN constraints, contracts, archetypes | Same target platform, same FeedbackManager, same `gameState`/`game_complete` schema |
+| Iteration within a build | Both have a test → fix → re-test loop |
+| Categorized testing | Both use the same 5 categories (game-flow, mechanics, level-progression, edge-cases, contract) |
+| Final review + rejection fix | Both have a final review step with up to N rejection-fix attempts |
+| Visual review with screenshots | Both use Playwright to screenshot game states |
 
-| File | Lines | Problem |
-|------|-------|---------|
-| `lib/prompts.js` | 4007 | Single file, 17 prompt builders, contradicts itself |
-| `pipeline-v2/pipeline.js` | 1700+ | Hard-coded 5-category test injection regardless of which failed |
-
-### Concrete contradiction in `lib/prompts.js`
-
-| Section | Says |
-|---------|------|
-| One section | "Always destroy ProgressBarComponent on game end" |
-| Another section | "Never destroy ProgressBarComponent immediately, use 10s setTimeout" |
-| Result | Agent reads both, picks one at random |
-
-### Concrete failure metric
-
-| Metric | Value |
-|--------|-------|
-| Fix-loop rescue rate | 0% |
-| What it means | Once a script-generated game is broken, the script can't fix it because the script doesn't *understand* the game |
-
-### Why scripts get worse over time
-
-| Day | What happens to the script |
-|-----|--------------------------|
-| 1 | Clean script, 200 lines |
-| 30 | Bug found in game type X. Add `if (gameType === X)` branch. 250 lines. |
-| 90 | Bug in game type Y. Add another branch. 400 lines. |
-| 365 | 4007 lines. Branches contradict each other. Nobody understands the file. |
-
-This is exactly what `lib/prompts.js` looks like.
-
-### Why skills don't get worse
-
-| Day | What happens to skills |
-|-----|----------------------|
-| 1 | 14 skill files, ~300 lines each |
-| 30 | Bug found. Update ONE skill. 14 files, ~310 lines avg. |
-| 90 | Same. 14 files, ~330 lines avg. |
-| 365 | Files grow into folders with reference/ subfolder. SKILL.md stays small. |
-
-Anthropic calls this **progressive disclosure**: load only what you need.
+If you compare them on "Does it use Claude SDK? Does it have skills? Does it iterate?" — the answer is **yes** for both. Saying "Alfred has skills" without context is misleading.
 
 ---
 
-## The 8 Architectures We Could Use (Exhaustive)
+## What is ACTUALLY different
 
-### Options
+| Dimension | Pipeline-v2 | Alfred | Why it matters |
+|-----------|-------------|--------|----------------|
+| Knowledge file count | 1 main file (`lib/prompts.js`, 4007 lines) + GAME_PROMPT.md | ~108 small markdown files organized by concern | Updating one rule means touching one small file vs scrolling a giant blob |
+| Largest single file | 4007 lines | Skills target ≤300 lines per `SKILL.md` | A small file fits in a human's head; a 4000-line file does not |
+| Knowledge loaded per build | The whole prompt (every builder concatenates large blocks) | Only the relevant skills via progressive disclosure | LLM context stays focused on what the current step needs |
+| Organization principle | Functions that build prompt strings | One folder per skill, one concern per file, references on demand | Findability via filenames + grep |
+| Iteration model | Inner loop only: test → fix → re-test inside one build | Inner loop **plus** outer loop: ship → student data → gauge → update content/spec → rebuild | Iteration is the lifecycle, not a bug-fix mechanism |
+| Lesson capture | Append a paragraph to the 4000-line prompt | Update the relevant skill file (or its `reference/`) | Both are possible; small files are easier to maintain and review |
+| Anthropic alignment | Big system prompt — pattern Anthropic explicitly recommends against for complex agents | Progressive disclosure pattern from Anthropic's Agent Skills guidance | We are following published guidance, not guessing |
 
-| # | Architecture | What it is |
-|---|-------------|------------|
-| 1 | Hand-written games | Humans write each game |
-| 2 | Templated generator | Fill blanks in pre-made HTML templates |
-| 3 | Fine-tuned model | Train a custom model on past games |
-| 4 | Big-prompt LLM (current) | One huge prompt with all rules |
-| 5 | Skills + LLM orchestrator (Alfred) | Small focused skill files Claude loads as needed |
-| 6 | RAG-based generation | Vector search past games for relevant patterns |
-| 7 | Multi-agent specialized | One agent per role (designer, coder, QA) |
-| 8 | Workflow engine + LLM nodes | Visual DAG with LLM steps |
-
-### Trade-off comparison (✅ strong, ⚠️ partial, ❌ weak)
-
-| Dimension | 1.Hand | 2.Templ | 3.Finet | 4.BigPrompt | 5.Skills | 6.RAG | 7.MultiAgt | 8.Workflow |
-|-----------|--------|---------|---------|-------------|----------|-------|------------|------------|
-| Speed per game | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ |
-| Cost per game | ❌ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ❌ | ⚠️ |
-| Handles novel inputs | ✅ | ❌ | ⚠️ | ⚠️ | ✅ | ⚠️ | ✅ | ⚠️ |
-| Easy to update | ❌ | ⚠️ | ❌ | ❌ | ✅ | ⚠️ | ⚠️ | ⚠️ |
-| Self-explaining | ✅ | ⚠️ | ❌ | ❌ | ✅ | ❌ | ⚠️ | ⚠️ |
-| Composable | ❌ | ⚠️ | ❌ | ❌ | ✅ | ⚠️ | ✅ | ✅ |
-| Debuggable | ✅ | ✅ | ❌ | ❌ | ✅ | ⚠️ | ⚠️ | ⚠️ |
-| Bug fix propagates | N/A | ⚠️ | ❌ | ❌ | ✅ | ❌ | ⚠️ | ⚠️ |
-| Scales to 100s of game types | ❌ | ❌ | ⚠️ | ❌ | ✅ | ⚠️ | ✅ | ⚠️ |
-| Anthropic-recommended | N/A | N/A | N/A | ❌ | ✅ | ⚠️ | ✅ | ⚠️ |
-| **Score (✅ count)** | **3** | **3** | **2** | **1** | **9** | **1** | **5** | **2** |
-
-### Elimination — why each loses or wins
-
-| # | Verdict | Reason |
-|---|---------|--------|
-| 1. Hand-written | LOSE | Doesn't scale. We have 1 person, need 100s of games. |
-| 2. Templated | LOSE | Templates can't handle pedagogical variety (Bloom L1 vs L4 are structurally different). |
-| 3. Fine-tuned | LOSE | Retraining loop is slow (days). We need hourly iteration. Can't explain decisions. |
-| 4. Big-prompt LLM | LOSE | What we're replacing. 4007 lines, contradicts itself, 0% fix-loop rescue. |
-| 5. **Skills + LLM** | **WIN (9/10)** | Each skill stays small. Bug fixes propagate. Anthropic-recommended. |
-| 6. RAG | PARTIAL | Useful as a sub-tool inside skills, not as the main architecture. Can't enforce constraints. |
-| 7. Multi-agent | PARTIAL | Adds value when agents specialize. Alfred's sub-agent spawning IS this pattern. But pure multi-agent loses the knowledge organization win. |
-| 8. Workflow engine | PARTIAL | Useful for orchestration documentation. Hard workflow engines (Temporal) add infra cost. |
-
-### The synthesis
-
-**Alfred is option 5 (Skills) using option 7 (Multi-agent) for execution, with option 8 (Workflow) as documentation.** This combination is what Anthropic recommends in their Agent SDK guidance. We didn't pick this because it's trendy — we picked it because every other approach fails one of the dimensions in the table above.
+The list above is the honest claim. None of these are "magic." They are organizational properties.
 
 ---
 
-## Anthropic's Official Guidance (Incorporated)
+## The contradiction concern (supervisor was right)
 
-### Sources consulted
+> "Self-contradictory statements can also be in skills — skill by default don't fix that == its the content in those files."
 
-| Source | URL |
-|--------|-----|
-| Anthropic — Equipping agents with Skills | https://claude.com/blog/equipping-agents-for-the-real-world-with-agent-skills |
-| Anthropic Agent SDK Workshop — Thariq Shihipar | https://www.youtube.com/watch?v=TqC1qOfiVcQ |
-| First Principles Deep Dive on Skills (Lee Han Chung) | https://leehanchung.github.io/blogs/2025/10/26/claude-skills-deep-dive/ |
-| Agent SDK overview | https://platform.claude.com/docs/en/agent-sdk/overview |
-| Public skills repository | https://github.com/anthropics/skills |
+**Conceded.** Skills are markdown files. A human (or an LLM) can write contradictory markdown files just as easily as contradictory JS strings. The skill format does not enforce correctness.
 
-### Anthropic recommendation vs Alfred implementation
+What the structure actually buys is this:
 
-| Anthropic recommendation | Alfred implementation | Aligned? |
-|--------------------------|----------------------|---------|
-| Progressive disclosure: load only what's needed | SKILL.md ≤300 lines, reference/ subfolder loaded on-demand | ✅ |
-| SKILL.md frontmatter with name + description | Each SKILL.md has Purpose + When to use + Owner | ⚠️ (no YAML frontmatter yet) |
-| Bundle scripts/references/assets in skill folder | Alfred uses `reference/` and `schemas/` subfolders | ✅ |
-| Skills should be composable | 15 skills compose via the orchestration skill | ✅ |
-| Don't bloat the system prompt | Orchestration prompt is ~300 lines that loads skills as needed | ✅ |
-| Naming and description matter for discovery | Each skill has a one-line "When to use" trigger | ✅ |
-| Start by identifying gaps via evaluation | Alfred has eval files (P0/P1/P2 cases per skill) | ⚠️ (only 6/15 skills have evals) |
-| Iterate by capturing successful approaches as new skills | The "lesson loop": bug → update skill → never recurs | ✅ |
+1. **Smaller files → contradictions are visible in code review.** A 300-line file can be read end-to-end in 5 minutes. A 4007-line file cannot.
+2. **One concern per file → cross-file contradictions are findable by grep.** If two files mention `ProgressBarComponent.destroy`, you can list them in one command.
+3. **Tree structure → ownership and locality.** The "progress bar" rule lives in one place; you don't have to wonder where to look.
+4. **Principle 1 (single source of truth) is enforced by file boundaries**, not by hope. It can still be violated, but the violation is observable.
 
-**Score: 6/8 fully aligned, 2/8 partially aligned.** The 2 gaps (YAML frontmatter, full eval coverage) are tracked in the v0 completion checklist (concern doc 02).
+### Concrete contradiction in `lib/prompts.js` (today, real)
 
-### Thariq Shihipar's workshop — patterns incorporated
+| Line | Says |
+|------|------|
+| 93 | "NEVER call progressBar.destroy() immediately in endGame() — use 10s delay: `setTimeout(() => { progressBar?.destroy(); }, 10000);`" |
+| 1541–1559 | "GEN-PROGRESSBAR-DESTROY: NEVER use setTimeout to destroy ProgressBarComponent... `setTimeout(() => { progressBar.destroy(); progressBar = null; }, 10000); // ← NEVER do this`" |
+| 51 | "A delayed destroy via setTimeout IS compliant. Either immediate or delayed cleanup PASSES." |
 
-The video is a 1-hour workshop on the Claude Agent SDK. We could not extract a full transcript, but the patterns are documented in Anthropic's published Agent SDK guidance. Patterns Alfred uses:
+Three statements in one file: "always use 10s setTimeout-destroy", "never use setTimeout-destroy", and "either is fine." A generation agent reads all three and picks one. This is not a hypothetical — these lines are in `lib/prompts.js` right now.
 
-| Workshop pattern | Alfred file/decision |
-|------------------|---------------------|
-| Sub-agent spawning for parallelization | `Agent` tool used throughout the orchestration |
-| Each sub-agent has its own context window | Concern docs are written by separate sub-agents to avoid context pollution |
-| Skills as folder with SKILL.md as entrypoint | Every skill in `alfred/skills/` is a folder with SKILL.md |
-| Allow-listed tools per skill | TODO — not yet implemented; need YAML `allowed-tools` frontmatter |
-| Programmatic Tool Calling for orchestration | Documented in `orchestration.md`; runs in main context, not via Code Tool |
+### How Alfred's structure would catch this
 
-### Gaps to address from workshop guidance
+- The `progressBar` rule would live in one file, e.g. `alfred/skills/game-building/reference/cdn-components.md`, under a `ProgressBarComponent` heading.
+- A grep for `progressBar.destroy` across `alfred/skills/` would return one location, not three.
+- Adding a new rule about cleanup forces an edit to that single file; the diff is reviewable in seconds.
+- It does not prevent a human from writing a self-contradictory rule **inside that file**, but the contradiction would be on adjacent lines, not 1448 lines apart.
 
-| Gap | Action |
-|-----|--------|
-| No YAML frontmatter on SKILL.md files | Add `name`, `description`, `allowed-tools` frontmatter to all 15 skills |
-| Programmatic Tool Calling not used | Consider for v1; current v0 runs orchestration in main context |
-| Eval coverage 6/15 skills | Backfill remaining 9 evals (tracked in concern 02) |
+Honest framing: **organization makes contradictions findable, not impossible.**
 
 ---
 
-## The Honest Counter-Argument
+## The iteration concern (front and center)
 
-### Steel-man for scripts
+> "Are you proposing we won't need iteration to fix game i.e we are not designing for long running agents? and expecting game in one go?"
 
-| Pro-script claim | Where it's strongest |
-|------------------|---------------------|
-| Scripts are deterministic | When the input is uniform |
-| Scripts are cheap (no LLM cost) | When you generate 1000s/day |
-| Scripts are debuggable line by line | Easier than debugging a black-box LLM |
-| Scripts have no hallucinations | True |
+**No.** Alfred is explicitly designed for iteration across many sessions. The current concern doc downplayed this. Here is the iteration model:
 
-### Why each claim breaks for OUR use case
+### Two loops, not one
 
-| Claim | Why it doesn't apply to game generation |
-|-------|----------------------------------------|
-| Determinism | Math game inputs are NOT uniform — every game has different mechanics, pedagogy, content |
-| Cost | We generate ~5 games/day, not 5000. Cost is not the bottleneck. |
-| Debuggability | Alfred is more debuggable: each skill is a small markdown file. The 4007-line script is undebuggable in practice. |
-| No hallucinations | We have constraints + tests + reviews catching hallucinations. Determinism ≠ correctness — `lib/prompts.js` is deterministic AND wrong. |
+| Loop | Where | What it fixes | Time scale |
+|------|-------|---------------|------------|
+| Inner loop (build-time) | `game-testing` skill, `final-review` skill | Bugs found by Playwright tests + visual review during one build | Minutes (within a build) |
+| Outer loop (lifetime) | `gauge` skill + `iteration` skill + Phase 4 of orchestration | Pedagogy/content/spec problems found by real students playing the deployed game | Days/weeks (across many sessions) |
 
----
+Pipeline-v2 has the **inner loop only**. Alfred has both. The outer loop is what the supervisor asked about.
 
-## Concrete Evidence From This Session
+### The outer loop, concretely
 
-### What happened (2026-04-07)
+From `alfred/design/system-loop.md`:
 
-| Event | What it proves |
-|-------|---------------|
-| Built 2 games end-to-end (Scale It Up v2, Match Up) | Pipeline produces playable games |
-| Both games had the same bug (no standalone fallback) | Same agent makes the same mistake twice |
-| Fixed the bug ONCE in `skills/game-building/reference/code-patterns.md` | Lesson loop captured the lesson |
-| Future games will be immune to that bug | Bug fix propagates structurally |
+```
+Game Creator → Pipeline → Deployed Artifact → Student plays → Data captured
+        ↑                                                            │
+        └─── Gauge (Claude + MCP) ←───────────────────────────────────┘
+```
 
-### Skills vs script propagation
+From `alfred/skills/orchestration/SKILL.md` Phase 4:
+- Step 11 — **Gauge**: query MCP for per-round accuracy, top misconceptions, abandonment, completion rate, learning-vs-guessing signal.
+- Step 12 — **Iterate**: pick the cheapest fix that addresses the finding.
 
-| Approach | 1 fix = how many future games immune? |
-|----------|--------------------------------------|
-| Script | 1 (until next game has same bug because prompt didn't change) |
-| Skills (Alfred) | All future games (the skill is read by every build) |
+### Three iteration depths (defined in the gauge skill)
 
-### Honest caveats
+| Depth | Trigger | Cost | Example |
+|-------|---------|------|---------|
+| Content swap | Wrong distractors, bad ordering, one round too hard | Minutes (no rebuild) | Replace round 7 question with an easier bridge |
+| Spec tweak | Pedagogy gap, wrong feedback for a misconception, lives system too punitive | Hours (rebuild) | Add misconception-specific feedback to spec, rebuild |
+| Full rebuild | Code bug, wrong archetype, fundamentally unengaging | Hours (new HTML) | Rebuild from corrected spec with new archetype |
 
-| Caveat | Impact |
-|--------|--------|
-| N = 2 games | Need N = 10+ to call this proven |
-| Lesson loop has run exactly 1 time | Claiming it works on 1 data point is fragile |
-| Cost per game is higher than a script | Win is in maintainability, not speed |
-| Script approach we're comparing against has not been measured head-to-head | Comparison is qualitative, not quantitative |
+The gauge skill explicitly forbids recommending a rebuild when a content swap will do. This is a lifecycle principle, not a build-time check.
+
+### "Long-running agents"
+
+Alfred is designed so the **same game iterates across many sessions over weeks**. The orchestrator stops at gates, the creator returns days later with new student data, gauge runs, and the iteration continues. The pipeline is not "build once and ship" — it is "build, gauge, iterate, repeat."
+
+Pipeline-v2 has no `gauge` step. Iteration after deploy is manual.
 
 ---
 
-## Recommendation
+## Stage-by-stage comparison
 
-| Decision | Defense |
-|----------|---------|
-| Adopt skills + Claude orchestrator | Wins 9/10 dimensions in the comparison table |
-| Reject script approach | Proven failure: 4007 lines, 0% fix-loop rescue, contradicts itself |
-| Reject fine-tuning | Retrain loop too slow, no explainability |
-| Reject pure multi-agent | Loses knowledge organization (no skills = same problem as scripts) |
-| Use multi-agent INSIDE skills | Sub-agents for parallel work, skills for knowledge — Alfred does this |
+| Stage | Pipeline-v2 | Alfred |
+|-------|-------------|--------|
+| Spec creation | Manual (human writes) | Skill: `spec-creation` |
+| Spec validation | Regex + manual | Skill: `spec-review` (24+ checks) |
+| Plan generation | `buildPreGenerationPrompt` in `lib/prompts.js` | Skill: `game-planning` |
+| Build | `buildGeneratePrompt` | Skill: `game-building` |
+| Static + contract validation | `validate-static.js` + `validate-contract.js` | Same modules, invoked from `data-contract` skill |
+| Test + fix (5 categories) | `buildTestFixPrompt` | Skill: `game-testing` (same 5 categories) |
+| Visual review | `buildVisualReviewPrompt` | Skill: `visual-review` |
+| Final review + rejection fix | `buildFinalReviewPrompt` + rejection-fix step | Skill: `final-review` |
+| Deploy + content sets | `buildContentGenPrompt` | Skill: `deployment` |
+| **Gauge** | **None** | **Skill: `gauge` (NEW)** |
+| **Iterate (outer loop)** | **Manual** | **Phase 4 of orchestration + `iteration` skill** |
 
-**This is not a bet on a trend. It is the only architecture that scores 9/10 on the dimensions we care about.**
+The new pieces are gauge and explicit outer-loop iteration. Everything else is reorganized, not invented.
+
+---
+
+## What we lose by going back to pipeline-v2
+
+- One 4000-line prompt file that is hard to read, review, and update without breaking adjacent rules.
+- No explicit outer-loop iteration model — gauging deployed games becomes ad-hoc.
+- No `gauge` skill — no canonical 5 questions to ask after students play.
+- Larger context per generation call (the whole prompt vs only the relevant skill files).
+
+## What pipeline-v2 has that Alfred does not (yet)
+
+Be honest about where pipeline-v2 is ahead:
+
+| Capability | Pipeline-v2 | Alfred |
+|------------|-------------|--------|
+| Production deployment infrastructure | Mature (BullMQ, worker, GCP, Slack, Sentry, metrics) | None — Alfred runs in Claude Code locally |
+| Games shipped | Many (in production today) | Two end-to-end (Scale It Up v2, Match Up) |
+| Parallel build queue | BullMQ-backed | Manual orchestration |
+| Webhook + Slack integration | Wired up | Not built |
+| Health checks, monitoring, retries | Built into worker | Not built |
+| Real-world test hours | Months | Days |
+
+Alfred is the knowledge organization. Pipeline-v2 is the production runtime. The realistic path is to keep pipeline-v2's runtime and migrate its knowledge into Alfred's skill files.
+
+---
+
+## Honest conclusion
+
+Alfred is **structurally** better at three things, not magically better at any:
+
+1. **Findability** — small files organized by concern are easier to read, grep, review, and update than a 4000-line blob.
+2. **Iteration as the system** — gauge + iterate is built into the lifecycle, not bolted on as bug fixing.
+3. **Progressive disclosure** — only the relevant skill files load per step, matching Anthropic's published Agent Skills guidance.
+
+The skill format is the medium. The discipline of organization is the win. A team that wrote 108 self-contradictory markdown files would be in the same place as the current `lib/prompts.js` — the format does not save you from bad content.
 
 ---
 
 ## Review Response
 
-### Reviewer findings addressed
+| Supervisor concern | What changed in this doc |
+|-------------------|--------------------------|
+| "Pipeline-v2 also uses ClaudeSDK and skills — what is different?" | Added "What is the SAME" section. Removed the "scripts vs skills" framing entirely. Confirmed both use `@anthropic-ai/claude-agent-sdk` (see `pipeline-v2/agent.js` line 28). The real difference is organizational. |
+| "Self-contradictory statements can also be in skills — skill by default don't fix that == its the content in those files" | Conceded. Reframed claim from "skills prevent contradictions" to "small organized files make contradictions findable in code review." Showed a real 3-way contradiction in `lib/prompts.js` (lines 51, 93, 1541) and explained that Alfred's structure makes it observable, not impossible. |
+| "Are we not designing for iteration / long-running agents?" | Added explicit "iteration concern" section. Showed two loops (inner build-time + outer lifetime), three iteration depths (content/spec/rebuild), and the system-loop diagram. Confirmed Alfred is designed for iteration across many sessions over weeks. |
 
-| Reviewer | Finding | Where addressed |
-|----------|---------|----------------|
-| CEO | "head-to-head measurement vs script pipeline missing" | Section "Evidence From This Session" — admitted as caveat |
-| CEO | "compound learning loop relies on 1 data point" | Honest caveats table |
-| Skeptic | "Steel-man counter for scripts is missing" | Added "Honest Counter-Argument" section with claim/refutation table |
-| Pedagogy | "doc treats education as code generation" | "What is a math game?" grounds the job in teaching, not generation |
-| Systems | "no architecture comparison" | Added "8 Architectures" elimination table |
-| Engineer | "no Anthropic guidance citation" | Added "Anthropic's Official Guidance" section with 8/8 alignment table |
-| QA | "no measurable success criteria" | Added trade-off comparison table with 10 dimensions and scores |
-| Simple Language | "too much jargon, paragraphs not tables" | Rewrote with first principles steps + tables throughout. TL;DR at top. |
-
-### What still stands (acknowledged limitations)
+## Acknowledged limitations
 
 | Limitation | Status |
 |-----------|--------|
-| Lesson loop claim relies on N=1 data point | Need more games |
-| Cost-per-game advantage of scripts is real for high volume | Not our use case |
-| No head-to-head measurement against script pipeline | TODO |
-| YAML frontmatter on SKILL.md not yet added | Tracked in concern 02 |
-| Eval coverage 6/15 | Tracked in concern 02 |
+| N=2 games shipped end-to-end via Alfred | Need more before claiming proven |
+| No head-to-head measurement vs pipeline-v2 | TODO |
+| Outer loop never run on real student data | Gauge skill exists but unverified at scale |
+| Skill format does not enforce correctness | Acknowledged — discipline does, not the format |
+| Pipeline-v2 production runtime has no Alfred equivalent | Migration plan needed |
