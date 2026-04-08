@@ -18,10 +18,11 @@ For each game moment, exactly which feedback types fire. No ambiguity.
 | Round transition (auto-advance) | ✅ round SFX | — | ✅ dynamic VO | ✅ (per round) | ✅ "Round N" | **Yes** (sequential) |
 | Round transition (with CTA) | ✅ round SFX | — | ✅ dynamic VO | ✅ (per round) | ✅ "Round N" | **Yes** (sequential, CTA interrupts) |
 | Round start | — | — | ✅ reads question | — | ✅ question text | No |
-| Correct (single-step) | ✅ correct SFX | — | sometimes ✅ explanation | ✅ celebration (2s) | sometimes ✅ | **Yes** |
+| Correct (single-step) | ✅ correct SFX | — | ✅ explanation TTS (always) | ✅ celebration (2s) | ✅ explanation subtitle | **Yes** (sequential) |
 | Correct (multi-step mid-round) | ✅ correct SFX | — | — | ✅ celebration (2s) | — | No |
 | Round complete (all matched) | ✅ all-correct SFX | — | — | ✅ (2s) | ✅ "All matched!" | **Yes** |
-| Wrong (lives remaining) | ✅ wrong SFX | — | sometimes ✅ explanation | ✅ sad (2s) | — | **Yes** |
+| Wrong — single-step (lives remaining) | ✅ wrong SFX | — | ✅ explanation TTS (always) | ✅ sad (2s) | ✅ explanation subtitle | **Yes** (sequential) |
+| Wrong — multi-step (lives remaining) | ✅ wrong SFX | — | — | ✅ sad (2s) | — | No |
 | Wrong (last life) | **skipped** | — | — | — | — | N/A |
 | Tile select | ✅ bubble SFX | — | — | — | — | No |
 | Tile deselect | ✅ bubble SFX | — | — | — | — | No |
@@ -92,33 +93,40 @@ Dynamic TTS is NOT used for:
 - Victory/game-over SFX (pre-recorded)
 - Micro-interactions like tile select/deselect (pre-recorded)
 
-## SFX + Dynamic TTS Together (The Combo Rule)
+## SFX + Dynamic TTS Default Rule (by Game Type)
 
-SFX and Dynamic TTS fire together **only when the feedback needs to SAY something content-specific that changes per round**. The sequence is always: **SFX (awaited) → then Dynamic TTS (awaited)**. Never the other way around, never simultaneous.
+**CRITICAL — This determines the default feedback behavior based on the game type.**
 
-### When the combo fires
+### Single-step games (1 interaction completes the round)
 
-| Moment | SFX | Then Dynamic TTS | Example TTS content |
-|--------|-----|-----------------|---------------------|
-| Correct answer with round-specific explanation | ✅ correct SFX | ✅ explanation TTS | "Great! Placing 5 in the thousands place gives 5000" |
-| Wrong answer with round-specific explanation | ✅ wrong SFX | ✅ explanation TTS | "Oops! 5 contributes only 50 from this position" |
-| Puzzle/path complete with celebration | ✅ correct SFX | ✅ celebration TTS | "Excellent! Path complete!" |
+**Default: SFX (awaited) → Dynamic TTS with subtitle + sticker (awaited). ALWAYS.**
 
-### When the combo does NOT fire (SFX alone is enough)
+Every correct and wrong answer plays two sequential audios. The TTS speaks a context-aware explanation using actual numbers/values from that round. The sequence is always: **SFX (awaited) → then Dynamic TTS (awaited)**. Never the other way around, never simultaneous.
 
-| Moment | Why no TTS |
-|--------|-----------|
-| Correct answer with generic feedback | Explanation is in subtitle text ("Right! Divide both by 3"), no need to speak it |
-| Wrong answer with generic feedback | Subtitle covers it ("Not quite. It's 1:2") |
-| Multi-step mid-round match | Don't slow the student — fire-and-forget SFX only |
-| Tile select/deselect | Micro-interaction, ambient SFX only |
-| Round complete (all matched) | SFX + subtitle ("All matched!"), no dynamic narration needed |
+| Moment | SFX | Then Dynamic TTS | Subtitle | Example TTS content |
+|--------|-----|-----------------|----------|---------------------|
+| Correct answer | ✅ correct SFX | ✅ explanation TTS | ✅ same as TTS | "Great! Placing 5 in the thousands place gives 5000" |
+| Wrong answer | ✅ wrong SFX | ✅ explanation TTS | ✅ same as TTS | "Not quite! 5 contributes only 50 from this position" |
 
-### The decision rule
+### Multi-step games (multiple interactions to complete the round)
 
-**Use SFX + Dynamic TTS when:** the explanation involves actual numbers, positions, or reasoning specific to that round's content AND speaking it aloud adds pedagogical value (the student benefits from hearing the explanation, not just reading it).
+**Default: SFX + sticker only. NO dynamic TTS, NO subtitle. Fire-and-forget.**
 
-**Use SFX alone when:** the feedback is generic/rotatable ("Correct!", "Not quite") or the moment needs to be fast (mid-round matches, micro-interactions).
+Mid-round matches/actions only play SFX with a sticker. No dynamic TTS — it would kill the pacing. Student keeps interacting immediately.
+
+| Moment | SFX | Dynamic TTS | Subtitle | Why |
+|--------|-----|------------|----------|-----|
+| Correct match/action | ✅ correct SFX + sticker | ❌ none | ❌ none | Don't slow the student |
+| Wrong match/action | ✅ wrong SFX + sticker | ❌ none | ❌ none | Don't slow the student |
+| Round complete (all matched) | ✅ all-correct SFX + sticker | ❌ none | ✅ "All matched!" | Terminal moment, SFX awaited |
+| Tile select/deselect | ✅ bubble SFX | ❌ none | ❌ none | Pure ambient |
+
+### How to identify the game type
+
+| Game type | Examples |
+|-----------|---------|
+| Single-step | MCQ (tap 1 of 4), type a number, select one correct option, tap the right cell |
+| Multi-step | Match pairs, sort items into buckets, build a chain, drag multiple items, connect dots |
 
 ## Sticker Rules
 

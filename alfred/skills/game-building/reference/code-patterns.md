@@ -76,7 +76,7 @@ Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
 - **CDN script:** `https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js`
 - **Init:** `await FeedbackManager.init()` in DOMContentLoaded
 - **Preload:** `await FeedbackManager.sound.preload([...])` with exact SFX URLs from `feedback/reference/feedbackmanager-api.md`
-- **Static SFX:** `await FeedbackManager.sound.play(id, {sticker: {image, duration, type: 'IMAGE_GIF'}})` — awaited for terminal moments, fire-and-forget for mid-round
+- **Static SFX:** `await FeedbackManager.sound.play(id, {sticker: STICKER_URL})` — sticker is a string URL. Awaited for terminal moments, fire-and-forget for mid-round
 - **Dynamic VO:** `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — all VO is dynamic TTS, never preloaded
 - **Sequential audio (transitions, end-game, SFX+TTS):** Always `await` first audio before starting second. Never fire both simultaneously. Use `audioStopped` flag to prevent second audio if CTA tapped during first:
   ```javascript
@@ -193,9 +193,8 @@ The core game loop MUST follow this order:
 5. Update score/lives, `syncDOM()`
 6. Visual feedback (selected-wrong/selected-correct classes, correct-reveal)
 7. FeedbackManager audio (per `skills/feedback/SKILL.md`):
-   - Single-step correct/wrong: `await FeedbackManager.sound.play(id, {sticker})` — awaited
-   - If content-specific explanation: `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — awaited after SFX
-   - Multi-step mid-round: `FeedbackManager.sound.play(id, {sticker}).catch(...)` — fire-and-forget
+   - **Single-step correct/wrong (DEFAULT):** `await FeedbackManager.sound.play(id, {sticker})` → `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — both awaited sequentially. Dynamic TTS ALWAYS plays with context-aware explanation.
+   - **Multi-step mid-round match:** `FeedbackManager.sound.play(id, {sticker}).catch(...)` — fire-and-forget. NO dynamic TTS, NO subtitle. SFX + sticker only.
    - Last-life wrong: skip wrong SFX, go to game-over
 8. `isProcessing = false`, `trackEvent('round_complete')`, check end conditions, advance round
 

@@ -58,6 +58,19 @@ Every feedback moment uses a combination of these 5 types:
 
 ---
 
+## Default Feedback by Game Type
+
+**CRITICAL — This is the default. No spec override needed.**
+
+| Game type | How to identify | Correct answer feedback | Wrong answer feedback |
+|-----------|----------------|----------------------|---------------------|
+| **Single-step** | 1 interaction completes the round (MCQ, tap correct option, type answer, select one) | SFX (awaited) → dynamic TTS with subtitle + sticker (awaited) | SFX (awaited) → dynamic TTS with subtitle + sticker (awaited) |
+| **Multi-step** | Multiple interactions to complete the round (matching pairs, chains, sorting, drag multiple items) | SFX + sticker only — **fire-and-forget, no dynamic TTS, no subtitle** | SFX + sticker only — **fire-and-forget, no dynamic TTS, no subtitle** |
+
+**Why:** Single-step games have one moment per round to give rich feedback — the student benefits from hearing an explanation. Multi-step games need flow — adding dynamic TTS after every match/action would kill the pacing.
+
+---
+
 ## Behavioral Cases
 
 ### CASE 1: Level Transition Screen
@@ -76,11 +89,11 @@ Play area renders. Timer starts/resumes. In some games, dynamic TTS reads the qu
 
 ### CASE 4: Correct Answer (Single-step games)
 
-Input blocked immediately. Correct element turns green. Correct SFX plays with celebration sticker (2s). **If the round has a content-specific explanation** (involves actual numbers/positions from that round), a dynamic TTS follows after the SFX — e.g., "Great! Placing 5 in the thousands place gives 5000". Sequence is always: SFX (awaited) → then TTS (awaited). If the explanation is generic ("Correct!"), SFX alone is enough — the explanation lives in the subtitle. After all audio finishes, input unblocks. Game auto-advances to next round.
+Input blocked immediately. Correct element turns green. **By default, two sequential audios play:** correct SFX with celebration sticker (awaited), then dynamic TTS with subtitle and sticker (awaited). The TTS speaks a context-aware explanation using actual numbers/values from the round — e.g., "Great! Placing 5 in the thousands place gives 5000". Sequence is always: SFX (awaited) → then TTS (awaited). After both audios finish, input unblocks. Game auto-advances to next round.
 
 ### CASE 5: Correct Match (Multi-step, within same round)
 
-Matched elements turn green. Correct SFX plays with sticker — **fire-and-forget, does NOT block input**. Student can immediately work on next match/chain while SFX plays.
+Matched elements turn green. Correct SFX plays with sticker — **fire-and-forget, does NOT block input**. **No dynamic TTS, no subtitle.** Student can immediately work on next match/chain while SFX plays.
 
 ### CASE 6: All Sub-Actions Complete (Round Finished)
 
@@ -88,7 +101,9 @@ Matched elements turn green. Correct SFX plays with sticker — **fire-and-forge
 
 ### CASE 7: Wrong Answer (Lives Remaining)
 
-Input blocked immediately. Wrong element flashes red (~600ms). Life lost — progress bar updates immediately. Wrong SFX plays with sad sticker (2s). **If the round has a content-specific explanation for the mistake** (involves actual numbers/context from that round), a dynamic TTS follows after the SFX — e.g., "Oops! 5 contributes only 50 from this position". Sequence: SFX (awaited) → then TTS (awaited). If the explanation is generic ("Not quite"), SFX alone is enough. Red flash clears. After all audio, input unblocks. **Student stays on the same round** — retries. Wrong option is either deselected or permanently disabled.
+**Single-step games:** Input blocked immediately. Wrong element flashes red (~600ms). Life lost — progress bar updates immediately. **By default, two sequential audios play:** wrong SFX with sad sticker (awaited), then dynamic TTS with subtitle and sticker (awaited). The TTS speaks a context-aware explanation using actual numbers/values from the round — e.g., "Not quite! 5 contributes only 50 from this position". Sequence: SFX (awaited) → then TTS (awaited). Red flash clears. After both audios finish, input unblocks. **Student stays on the same round** — retries. Wrong option is either deselected or permanently disabled.
+
+**Multi-step games:** Wrong element flashes red (~600ms). Wrong SFX plays with sad sticker — **fire-and-forget, no dynamic TTS, no subtitle**. Life lost if applicable. Student continues interacting immediately.
 
 ### CASE 8: Wrong Answer (Last Life → Game Over)
 
@@ -168,10 +183,11 @@ When new round loads (new grid, tiles, cards), a soft "new cards" SFX plays — 
 | Round transition (auto-advance) | **Yes** (sequential) | SFX → VO awaited in order; audio IS the pacing |
 | Round transition (with CTA) | **Yes** (sequential, CTA interrupts) | SFX → VO awaited in order; CTA stops all |
 | Round start TTS | No | Student should interact immediately |
-| Correct SFX (single-step) | **Yes** | Block input during feedback |
-| Correct SFX (multi-step) | No | Don't interrupt flow |
+| Correct SFX → TTS (single-step) | **Yes** (sequential) | SFX awaited, then dynamic TTS awaited; block input during both |
+| Correct SFX (multi-step) | No | SFX + sticker only, fire-and-forget; don't interrupt flow |
 | Round complete SFX | **Yes** | Gate before next round |
-| Wrong SFX | **Yes** | Block input during feedback |
+| Wrong SFX → TTS (single-step) | **Yes** (sequential) | SFX awaited, then dynamic TTS awaited; block input during both |
+| Wrong SFX (multi-step) | No | SFX + sticker only, fire-and-forget |
 | Tile select/deselect | No | Pure ambient |
 | Partial progress SFX + VO | No | Don't interrupt flow |
 | End-game SFX → VO | **Yes** (sequential) | But CTA visible, student CAN interrupt |
@@ -203,3 +219,5 @@ When new round loads (new grid, tiles, cards), a soft "new cards" SFX plays — 
 8. Not stopping audio when CTA is tapped on transition/results screens.
 9. Playing two audios simultaneously (e.g., SFX + VO at the same time) instead of sequentially awaiting each.
 10. Starting the second audio without `await`-ing the first — the second overrides/overlaps the first.
+11. Adding dynamic TTS to multi-step mid-round matches — kills pacing. Multi-step = SFX + sticker only.
+12. Skipping dynamic TTS on single-step correct/wrong — single-step games ALWAYS play SFX → TTS by default.

@@ -107,24 +107,33 @@ List every distinct round type.
 1. **Round starts** -- [what renders]
 2. **Student sees** -- [question preview content, instruction if applicable]
 3. **Student acts** -- [tap option / type number / drag item / click cell]
-4. **Correct path:**
+4. **Correct path (single-step — SFX + dynamic TTS by default):**
    a. Selected option gets `.selected-correct` styling
    b. `gameState.isProcessing = true` blocks input
    c. `await FeedbackManager.sound.play('correct_sound_effect', {sticker})` — awaited
-   d. If content-specific explanation: `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — awaited
+   d. `await FeedbackManager.playDynamicFeedback({audio_content: '[context-aware explanation]', subtitle: '[same text]', sticker})` — awaited after SFX
    e. Score increments, score display bounces (scoreBounce 400ms)
    f. `gameState.isProcessing = false`, input unblocks, auto-advance to next round
-5. **Wrong path:**
+4alt. **Correct path (multi-step — SFX + sticker only):**
+   a. Matched elements get `.selected-correct` styling
+   b. `FeedbackManager.sound.play('correct_sound_effect', {sticker}).catch(...)` — fire-and-forget, NO dynamic TTS
+   c. Student continues interacting immediately — NO input blocking
+5. **Wrong path (single-step — SFX + dynamic TTS by default):**
    a. Selected option gets `.selected-wrong` styling
    b. Correct option gets `.selected-correct` styling
    c. `.correct-reveal` shows "Answer: [correct answer]"
    d. `gameState.isProcessing = true` blocks input
    e. `await FeedbackManager.sound.play('incorrect_sound_effect', {sticker})` — awaited
-   f. If content-specific explanation: `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — awaited
+   f. `await FeedbackManager.playDynamicFeedback({audio_content: '[context-aware explanation]', subtitle: '[same text]', sticker})` — awaited after SFX
    g. [If lives game: life decremented, progress bar updated, heart-break animation 600ms]
    h. [If lives = 0: skip wrong SFX entirely, go straight to game_over (feedback/SKILL.md Case 8)]
    i. `gameState.isProcessing = false`, input unblocks
    j. Student stays on same round — retries
+5alt. **Wrong path (multi-step — SFX + sticker only):**
+   a. Wrong element flashes `.selected-wrong`
+   b. `FeedbackManager.sound.play('incorrect_sound_effect', {sticker}).catch(...)` — fire-and-forget, NO dynamic TTS
+   c. Life lost if applicable
+   d. Student continues interacting immediately — NO input blocking
 6. **Last round complete:**
    a. Results screen renders FIRST, `game_complete` postMessage sent BEFORE audio
    b. `await FeedbackManager.sound.play('victory_sound_effect', {sticker})` → `await FeedbackManager.playDynamicFeedback({audio_content: '[victory VO]', subtitle, sticker})`
@@ -154,9 +163,10 @@ List every distinct round type.
 | Level transition | Level screen shows | `await sound.play('rounds_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content: 'Level N'})` | "Level N" | CTA visible | Yes (sequential, CTA interrupts) | CTA stops all audio |
 | Round transition (auto) | Round screen shows | `await sound.play('rounds_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content: 'Round N'})` | "Round N" | No CTA | Yes (sequential) | Auto-advance after both |
 | Round transition (CTA) | Round screen shows | `await sound.play('rounds_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content: 'Round N'})` | "Round N" | CTA visible | Yes (sequential, CTA interrupts) | CTA stops all audio |
-| Correct (single-step) | Student selects correct option | `await FeedbackManager.sound.play('correct_sound_effect', {sticker})` | [from Bloom level] | Yes | Yes | Auto-advance |
+| Correct (single-step) | Student selects correct option | `await sound.play('correct_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content: explanation, subtitle, sticker})` | context-aware explanation | Yes | Yes (sequential) | Auto-advance |
 | Correct (multi-step) | Student matches pair/chain | `FeedbackManager.sound.play('correct_sound_effect', {sticker}).catch(...)` | — | No | No (fire-and-forget) | Continue playing |
-| Wrong answer | Student selects wrong option | `await FeedbackManager.sound.play('incorrect_sound_effect', {sticker})` | [from Bloom level] | Yes | Yes | Stay on round, retry |
+| Wrong (single-step) | Student selects wrong option | `await sound.play('incorrect_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content: explanation, subtitle, sticker})` | context-aware explanation | Yes | Yes (sequential) | Stay on round, retry |
+| Wrong (multi-step) | Student selects wrong match | `FeedbackManager.sound.play('incorrect_sound_effect', {sticker}).catch(...)` | — | No | No (fire-and-forget) | Continue playing |
 | Last life wrong | Lives reach 0 | Skip wrong SFX → game-over | — | — | — | Game over screen |
 | Round complete | All sub-actions done | `await FeedbackManager.sound.play('all_correct', {sticker})` | "All matched!" | Yes | Yes | Next round |
 | Victory | All rounds complete | Screen first → `game_complete` → `await sound.play('victory_sound_effect', {sticker})` → `await playDynamicFeedback({audio_content: VO})` | per star tier | CTA visible | Yes (sequential) | CTA stops audio |

@@ -12,23 +12,25 @@ Production games do NOT use fixed setTimeout delays. They `await` the `FeedbackM
 | Round transition (auto-advance, no CTA) | **Yes** (sequential) | SFX awaited, then VO awaited; audio IS the pacing |
 | Round transition (with CTA) | **Yes** (sequential, CTA interrupts) | SFX awaited, then VO awaited; CTA stops all mid-sequence |
 | Round start dynamic TTS | No | Student should interact immediately |
-| Correct SFX (single-step answer) | **Yes** | Block input so student sees the feedback |
-| Correct SFX (multi-step, mid-round match) | No | Don't interrupt flow |
+| Correct SFX → TTS (single-step) | **Yes** (sequential) | SFX awaited, then dynamic TTS awaited; block input during both |
+| Correct SFX (multi-step, mid-round match) | No | SFX + sticker only, fire-and-forget; no dynamic TTS |
 | Round complete SFX | **Yes** | Gate before next round advances |
-| Wrong SFX | **Yes** | Block input, show feedback, then unlock for retry |
+| Wrong SFX → TTS (single-step) | **Yes** (sequential) | SFX awaited, then dynamic TTS awaited; block input during both |
+| Wrong SFX (multi-step) | No | SFX + sticker only, fire-and-forget; no dynamic TTS |
 | Tile select / deselect SFX | No | Pure ambient micro-interaction |
 | Partial progress SFX + VO (chains) | No | Don't interrupt — student starts next chain |
 | End-game SFX → VO (victory/game-over) | **Yes** (sequential) | But screen + CTA already visible, so student CAN interrupt |
 | New cards / content appearing SFX | No | Ambient |
 
-### Awaited Pattern
+### Awaited Pattern (Single-step games — SFX → dynamic TTS, always)
 
 ```javascript
 gameState.isProcessing = true;
 // ... visual feedback (CSS classes) ...
 // ... recordAttempt ...
 try {
-  await FeedbackManager.sound.play('correct_sound_effect', { sticker: {...} });
+  await FeedbackManager.sound.play('correct_sound_effect', { sticker: CORRECT_STICKER });
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'Great! 5 in the thousands place gives 5000', subtitle: 'Great! 5 in the thousands place gives 5000', sticker: CORRECT_STICKER });
 } catch(e) {}
 gameState.isProcessing = false;
 // advance to next round
@@ -38,7 +40,7 @@ gameState.isProcessing = false;
 
 ```javascript
 FeedbackManager.sound.play('correct_sound_effect', {
-  sticker: { image: '...', duration: 2, type: 'IMAGE_GIF' }
+  sticker: CORRECT_STICKER
 }).catch(function(e) { console.error('Audio error:', e.message); });
 // student can interact immediately — no await, no isProcessing block
 ```
@@ -102,8 +104,8 @@ Transition screens always play **two sequential awaited calls**: SFX first, then
 **Round transition (auto-advance, no CTA):**
 ```javascript
 // No CTA — student cannot skip, both audios play fully
-await FeedbackManager.sound.play('rounds_sound_effect', { sticker: { image: ROUND_GIF, duration: 2, type: 'IMAGE_GIF' } });
-await FeedbackManager.playDynamicFeedback({ audio_content: 'Round 3', subtitle: 'Round 3', sticker: { image: ROUND_GIF, duration: 2, type: 'IMAGE_GIF' } });
+await FeedbackManager.sound.play('rounds_sound_effect', { sticker: ROUND_STICKER });
+await FeedbackManager.playDynamicFeedback({ audio_content: 'Round 3', subtitle: 'Round 3', sticker: ROUND_STICKER });
 // Both done → hide transition, start gameplay
 ```
 
@@ -122,9 +124,9 @@ ctaButton.addEventListener('click', function() {
 
 // Play sequentially — await each in order
 try {
-  await FeedbackManager.sound.play('rounds_sound_effect', { sticker: { image: ROUND_GIF, duration: 2, type: 'IMAGE_GIF' } });
+  await FeedbackManager.sound.play('rounds_sound_effect', { sticker: ROUND_STICKER });
   if (audioStopped) return; // CTA was tapped between the two calls
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'Round 3', subtitle: 'Round 3', sticker: { image: ROUND_GIF, duration: 2, type: 'IMAGE_GIF' } });
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'Round 3', subtitle: 'Round 3', sticker: ROUND_STICKER });
 } catch(e) {}
 // If CTA not tapped, screen stays until tapped
 ```
@@ -142,9 +144,9 @@ ctaButton.addEventListener('click', function() {
 });
 
 try {
-  await FeedbackManager.sound.play('rounds_sound_effect', { sticker: { image: LEVEL_GIF, duration: 2, type: 'IMAGE_GIF' } });
+  await FeedbackManager.sound.play('rounds_sound_effect', { sticker: LEVEL_STICKER });
   if (audioStopped) return;
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'Level 2', subtitle: 'Level 2', sticker: { image: LEVEL_GIF, duration: 5, type: 'IMAGE_GIF' } });
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'Level 2', subtitle: 'Level 2', sticker: LEVEL_STICKER });
 } catch(e) {}
 ```
 
@@ -161,36 +163,36 @@ End-game audio always plays as two sequential awaited calls: SFX first, then dyn
 var audioStopped = false;
 ctaButton.onclick = function() { audioStopped = true; FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); restartGame(); };
 try {
-  await FeedbackManager.sound.play('victory_sound_effect', { sticker: { image: VICTORY_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  await FeedbackManager.sound.play('victory_sound_effect', { sticker: VICTORY_STICKER });
   if (audioStopped) return;
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'Victory! 3 stars!', subtitle: 'Victory! 3 stars!', sticker: { image: VICTORY_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'Victory! 3 stars!', subtitle: 'Victory! 3 stars!', sticker: VICTORY_STICKER });
 } catch(e) {}
 ```
 
 **Game complete (2★):**
 ```javascript
 try {
-  await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: COMPLETE_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: COMPLETE_STICKER });
   if (audioStopped) return;
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'Well done! 2 stars!', subtitle: 'Well done! 2 stars!', sticker: { image: COMPLETE_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'Well done! 2 stars!', subtitle: 'Well done! 2 stars!', sticker: COMPLETE_STICKER });
 } catch(e) {}
 ```
 
 **Game complete (1★):**
 ```javascript
 try {
-  await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: COMPLETE_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: COMPLETE_STICKER });
   if (audioStopped) return;
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'Good try! 1 star!', subtitle: 'Good try! 1 star!', sticker: { image: COMPLETE_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'Good try! 1 star!', subtitle: 'Good try! 1 star!', sticker: COMPLETE_STICKER });
 } catch(e) {}
 ```
 
 **Game over:**
 ```javascript
 try {
-  await FeedbackManager.sound.play('game_over_sound_effect', { sticker: { image: GAMEOVER_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  await FeedbackManager.sound.play('game_over_sound_effect', { sticker: GAMEOVER_STICKER });
   if (audioStopped) return;
-  await FeedbackManager.playDynamicFeedback({ audio_content: 'You completed 2 rounds', subtitle: 'You completed 2 rounds', sticker: { image: GAMEOVER_GIF, duration: 3, type: 'IMAGE_GIF' } });
+  await FeedbackManager.playDynamicFeedback({ audio_content: 'You completed 2 rounds', subtitle: 'You completed 2 rounds', sticker: GAMEOVER_STICKER });
 } catch(e) {}
 ```
 
@@ -212,7 +214,8 @@ When an answer is submitted, execute in this exact order:
 4. progressBar.update(round, lives)       — update UI immediately
 5. recordAttempt({...})                   — log attempt BEFORE audio
 6. signalCollector.recordViewEvent(...)   — record feedback event
-7. await FeedbackManager.sound.play(...)  — play audio with sticker
+7a. await FeedbackManager.sound.play(...)  — play SFX with sticker
+7b. [Single-step only] await FeedbackManager.playDynamicFeedback(...)  — play dynamic TTS with subtitle + sticker
 8. gameState.isProcessing = false         — unblock input
 9. Advance (next round / game over)       — proceed
 ```

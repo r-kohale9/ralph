@@ -56,20 +56,13 @@ Plays a pre-recorded, preloaded sound by ID. Used for SFX and voiceovers.
 
 ```javascript
 await FeedbackManager.sound.play('correct_sound_effect', {
-  sticker: {
-    image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif',
-    duration: 2,
-    type: 'IMAGE_GIF'
-  }
+  sticker: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif'
 });
 ```
 
 **Parameters:**
 - `id` (string, required) — matches an `id` from the `preload()` call
-- `options.sticker` (object, optional):
-  - `image` (string) — URL to animated GIF
-  - `duration` (number) — sticker display time in seconds (2s for gameplay, 3–5s for end-game)
-  - `type` (string) — always `'IMAGE_GIF'`
+- `options.sticker` (string, optional) — URL to animated GIF sticker. The FeedbackManager wraps this internally into the required object format.
 - `options.subtitle` (string, optional) — on-screen text, under 60 characters
 
 **Returns:** Promise that resolves when the audio finishes playing.
@@ -189,7 +182,7 @@ Every FeedbackManager call must be wrapped in try/catch:
 
 ```javascript
 try {
-  await FeedbackManager.sound.play('correct_sound_effect', { sticker: {...} });
+  await FeedbackManager.sound.play('correct_sound_effect', { sticker: CORRECT_STICKER_URL });
 } catch (e) {
   console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2));
 }
