@@ -31,7 +31,7 @@ Required on window: `debugGame`, `debugAudio`, `testAudio`, `testPause`, `testRe
 
 ## SignalCollector
 
-Per **PART-010** (SignalCollector section). See `parts/PART-010.md`.
+Per **PART-042** (SignalCollector). See `parts/PART-042.md`.
 
 Alfred-specific rules:
 - All 6 properties must be assigned from signalConfig: `playId`, `gameId`, `sessionId`, `contentSetId`, `studentId`, `flushUrl`

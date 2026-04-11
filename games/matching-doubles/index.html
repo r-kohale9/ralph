@@ -1,1439 +1,1792 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Matching Doubles</title>
-  <style>
-    /* === CSS Variables (PART-020) === */
-    :root {
-      --mathai-green: #219653;
-      --mathai-light-green: #eafbf1;
-      --mathai-red: #e35757;
-      --mathai-light-red: #fdecec;
-      --mathai-blue: #2563eb;
-      --mathai-light-blue: #ebf0ff;
-      --mathai-gray: #828282;
-      --mathai-light-gray: #f2f2f2;
-      --mathai-white: #ffffff;
-      --mathai-black: #1a1a2e;
-      --mathai-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      --mathai-font-size-title: 24px;
-      --mathai-font-size-body: 16px;
-      --mathai-font-size-label: 14px;
-      --mathai-font-size-small: 12px;
-      --mathai-border-radius-card: 12px;
-      --mathai-border-gray: #e0e0e0;
-      --selected-bg: #fff9e0;
-      --selected-border: #e8d98a;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Matching Doubles</title>
 
-    /* === Reset === */
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    body {
-      font-family: var(--mathai-font-family);
-      background: var(--mathai-white);
-      color: var(--mathai-black);
-      -webkit-font-smoothing: antialiased;
-    }
+<!-- STEP 1: SentryConfig package -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
 
-    /* === Game Block === */
-    .game-block {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 16px;
-      gap: 12px;
-    }
-
-    /* === Instruction Area === */
-    .instruction-area {
-      width: 100%;
-      max-width: 340px;
-      margin: 0 auto;
-      text-align: center;
-    }
-
-    .instruction-text {
-      font-size: var(--mathai-font-size-body);
-      color: var(--mathai-black);
-      line-height: 1.5;
-      margin-bottom: 8px;
-    }
-
-    .instruction-text strong {
-      font-weight: 700;
-    }
-
-    .instruction-text-sub {
-      font-size: var(--mathai-font-size-label);
-      color: var(--mathai-gray);
-      line-height: 1.4;
-      margin-bottom: 4px;
-    }
-
-    /* === Matching Area === */
-    .matching-area {
-      width: 100%;
-      max-width: 320px;
-      margin: 8px auto;
-    }
-
-    .column-headers {
-      display: flex;
-      justify-content: space-around;
-      margin-bottom: 12px;
-    }
-
-    .column-header {
-      font-size: var(--mathai-font-size-label);
-      font-weight: 600;
-      color: var(--mathai-gray);
-      width: 45%;
-      text-align: center;
-    }
-
-    /* === Matching Grid === */
-    .matching-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .matching-row {
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      gap: 16px;
-    }
-
-    /* === Number Cell === */
-    .number-cell {
-      width: 70px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 2px solid var(--mathai-border-gray, #e0e0e0);
-      border-radius: 10px;
-      font-size: 20px;
-      font-weight: 600;
-      color: var(--mathai-black);
-      cursor: pointer;
-      user-select: none;
-      transition: all 0.15s ease;
-      background: var(--mathai-white);
-    }
-
-    .number-cell.left-cell:hover:not(.matched):not(.disabled) {
-      border-color: var(--selected-border);
-      background: rgba(255, 249, 224, 0.5);
-    }
-
-    .number-cell.right-cell.disabled {
-      color: var(--mathai-gray);
-      cursor: default;
-      pointer-events: none;
-      opacity: 0.6;
-    }
-
-    .number-cell.right-cell:not(.disabled):not(.matched):hover {
-      border-color: var(--mathai-blue);
-      background: var(--mathai-light-blue);
-    }
-
-    .number-cell.selected {
-      border-color: var(--selected-border);
-      background: var(--selected-bg);
-    }
-
-    .number-cell.matched {
-      border-color: var(--mathai-green);
-      background: var(--mathai-light-green);
-      color: var(--mathai-green);
-      cursor: default;
-      pointer-events: none;
-    }
-
-    .number-cell.wrong {
-      border-color: var(--mathai-red);
-      background: var(--mathai-light-red);
-      color: var(--mathai-red);
-    }
-
-    /* === Buttons (PART-022) === */
-    .game-btn {
-      padding: 12px 32px;
-      border: none;
-      border-radius: 12px;
-      font-size: var(--mathai-font-size-body);
-      font-weight: 600;
-      font-family: var(--mathai-font-family);
-      cursor: pointer;
-      transition: all 0.2s ease;
-      min-height: 44px;
-      width: 100%;
-      max-width: 340px;
-    }
-
-    .btn-primary {
-      background: var(--mathai-green);
-      color: var(--mathai-white);
-    }
-    .btn-primary:hover {
-      filter: brightness(0.9);
-    }
-
-    /* === Results Screen (PART-019) === */
-    .results-card {
-      background: var(--mathai-white);
-      border-radius: 16px;
-      padding: 32px 24px;
-      text-align: center;
-      max-width: 360px;
-      width: 100%;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    .results-title {
-      font-size: var(--mathai-font-size-title);
-      margin-bottom: 24px;
-      color: var(--mathai-black);
-    }
-
-    .stars-display {
-      font-size: 40px;
-      margin-bottom: 16px;
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    .results-metrics {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-
-    .metric-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--mathai-light-gray);
-    }
-
-    .metric-label {
-      color: var(--mathai-gray);
-      font-size: var(--mathai-font-size-label);
-    }
-
-    .metric-value {
-      font-weight: 700;
-      font-size: var(--mathai-font-size-body);
-      color: var(--mathai-black);
-    }
-
-    /* === Utility === */
-    .hidden {
-      display: none !important;
-    }
-  </style>
-</head>
-<body>
-  <div id="app"></div>
-
-  <template id="game-template">
-    <div id="game-screen" class="game-block">
-      <div id="timer-container"></div>
-
-      <div class="instruction-area">
-        <p class="instruction-text">Match the numbers with their <strong>doubles</strong>!</p>
-        <p class="instruction-text-sub">Complete all rounds within 1 minute to earn 3 stars!</p>
-      </div>
-
-      <div class="matching-area" id="matching-area">
-        <div class="column-headers">
-          <span class="column-header">Number</span>
-          <span class="column-header">Doubles</span>
-        </div>
-        <div class="matching-grid" id="matching-grid" data-signal-id="matching-grid">
-          <!-- Rows generated by JavaScript -->
-        </div>
-      </div>
-    </div>
-
-    <div id="results-screen" class="game-block hidden">
-      <div class="results-card">
-        <div id="stars-display" class="stars-display"></div>
-        <h2 class="results-title" id="results-title">Great Job!</h2>
-        <div class="results-metrics">
-          <div class="metric-row">
-            <span class="metric-label">Time</span>
-            <span class="metric-value" id="result-time">0:00</span>
-          </div>
-          <div class="metric-row">
-            <span class="metric-label">Rounds Completed</span>
-            <span class="metric-value" id="result-rounds">0/9</span>
-          </div>
-          <div class="metric-row">
-            <span class="metric-label">Wrong Attempts</span>
-            <span class="metric-value" id="result-wrong">0</span>
-          </div>
-          <div class="metric-row">
-            <span class="metric-label">Accuracy</span>
-            <span class="metric-value" id="result-accuracy">0%</span>
-          </div>
-        </div>
-        <button class="game-btn btn-primary" id="btn-restart" data-signal-id="restart-button" onclick="restartGame()">
-          Play Again
-        </button>
-      </div>
-    </div>
-  </template>
-
-  <!-- 1. Sentry Config + SDK FIRST (PART-030) -->
-  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
-  <script
-    src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js"
-    crossorigin="anonymous"
-  ></script>
-
-  <!-- 2. Game Packages (PART-002) -->
-  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
-  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
-  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
-
-  <script>
-    // ============================================================
-    // Matching Doubles — game_matching_doubles
-    // ============================================================
-
-    // === waitForPackages (PART-003) — polls until all external packages are available ===
-    async function waitForPackages() {
-      const timeout = 10000;
-      const interval = 50;
-      let elapsed = 0;
-      while (
-        typeof ScreenLayout === 'undefined' ||
-        typeof ProgressBarComponent === 'undefined' ||
-        typeof TransitionScreenComponent === 'undefined' ||
-        typeof TimerComponent === 'undefined' ||
-        typeof FeedbackManager === 'undefined' ||
-        typeof VisibilityTracker === 'undefined' ||
-        typeof SignalCollector === 'undefined'
-      ) {
-        if (elapsed >= timeout) {
-          throw new Error('Packages failed to load within 10s');
-        }
-        await new Promise((resolve) => setTimeout(resolve, interval));
-        elapsed += interval;
-      }
-      console.log('[matching-doubles] All packages loaded');
-    }
-
-    // === Sentry Initialization (PART-030) ===
-    function initSentry() {
-      if (typeof Sentry === 'undefined' || typeof SentryConfig === 'undefined') return;
-      if (!SentryConfig.enabled) return;
-
+<!-- STEP 2: initSentry() function definition -->
+<script>
+function initSentry() {
+  try {
+    if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled && typeof Sentry !== 'undefined') {
       Sentry.init({
         dsn: SentryConfig.dsn,
         environment: SentryConfig.environment,
-        release: 'matching-doubles@1.0.0',
+        release: "matching-doubles@1.0.0",
         tracesSampleRate: SentryConfig.tracesSampleRate,
         sampleRate: SentryConfig.sampleRate,
         maxBreadcrumbs: 50,
         ignoreErrors: [
-          'ResizeObserver loop limit exceeded',
-          'ResizeObserver loop completed with undelivered notifications',
-          'Non-Error promise rejection captured',
-          'Script error.',
-          'Load failed',
-          'Failed to fetch',
-        ],
+          "ResizeObserver loop limit exceeded",
+          "ResizeObserver loop completed with undelivered notifications",
+          "Non-Error promise rejection captured",
+          "Script error.",
+          "Load failed",
+          "Failed to fetch"
+        ]
       });
     }
+  } catch (e) { console.error('Sentry init failed:', e.message); }
+}
+</script>
 
-    window.addEventListener('load', initSentry);
+<!-- STEP 3: Sentry SDK v10.23.0 -->
+<script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
 
-    // Global error handlers (PART-030)
-    window.addEventListener('error', (event) => {
-      if (typeof Sentry !== 'undefined') {
-        Sentry.captureException(event.error || new Error(event.message), {
-          tags: { errorType: 'unhandled', severity: 'critical' },
-          contexts: {
-            errorEvent: { message: event.message, filename: event.filename, lineno: event.lineno },
-          },
-        });
-      }
-    });
+<!-- STEP 4: Initialize on load -->
+<script>window.addEventListener('load', initSentry);</script>
 
-    window.addEventListener('unhandledrejection', (event) => {
-      if (typeof Sentry !== 'undefined') {
-        Sentry.captureException(event.reason || new Error('Unhandled promise rejection'), {
-          tags: { errorType: 'unhandled-promise', severity: 'critical' },
-        });
-      }
-    });
+<!-- STEP 5-7: Game packages -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
 
-    // === Game State (PART-007) ===
-    window.gameState = {
-      gameId: 'game_matching_doubles',
-      currentRound: 0,
-      totalRounds: 9,
-      score: 0,
-      attempts: [],
-      events: [],
-      startTime: null,
-      isActive: false,
-      gameEnded: false,
-      isProcessing: false,
-      phase: 'start',
-      content: null,
-      duration_data: {
-        startTime: null,
-        preview: [],
-        attempts: [],
-        evaluations: [],
-        inActiveTime: [],
-        totalInactiveTime: 0,
-        currentTime: null,
-      },
-      // GAME-SPECIFIC
-      lives: 3,
-      totalLives: 3,
-      selectedLeftIndex: null,
-      currentRoundData: null,
-      matchedPairs: new Set(),
-      wrongAttempts: 0,
-      pendingEndProblem: null,
-    };
+<style>
+/* === VARIABLES === */
+:root {
+  --mathai-game-max-width: 480px;
+  --mathai-stack-gap: 10px;
+  --mathai-game-padding-top: 54px;
+  --mathai-primary: #270f36;
+  --mathai-level-text: #270F63;
+  --mathai-purple: #9B51E0;
+  --mathai-green: #219653;
+  --mathai-blue: #667eea;
+  --mathai-red: #E35757;
+  --mathai-orange: #F2994A;
+  --mathai-yellow: #FFDE49;
+  --mathai-white: #ffffff;
+  --mathai-gray: #666666;
+  --mathai-light-gray: #f5f5f5;
+  --mathai-disabled-gray: #E0E0E0;
+  --mathai-text-primary: #4a4a4a;
+  --mathai-border-gray: #e0e0e0;
+  --mathai-cell-bg-green: #D9F8D9;
+  --mathai-cell-bg-yellow: #FCF6D7;
+  --mathai-cell-bg-red: #FFD9D9;
+  --mathai-cell-bg-grey: #E0E0E0;
+  --mathai-cell-border-green: #27ae60;
+  --mathai-cell-border-red: #e74c3c;
+  --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mathai-font-size-title: 32px;
+  --mathai-font-size-subtitle: 18px;
+  --mathai-font-size-button: 16px;
+  --mathai-font-size-body: 16px;
+  --mathai-font-size-small: 14px;
+  --mathai-font-size-large: 24px;
+  --mathai-padding-large: 56px 40px;
+  --mathai-padding-medium: 16px 24px;
+  --mathai-padding-small: 10px;
+  --mathai-border-radius: 24px;
+  --mathai-border-radius-small: 8px;
+  --mathai-border-radius-button: 10px;
+  --mathai-border-radius-card: 12px;
+  --mathai-success: #219653;
+  --mathai-error: #E35757;
+  --mathai-warning: #F2994A;
+}
 
-    let timer = null;
-    let visibilityTracker = null;
-    let progressBar = null;
-    let transitionScreen = null;
-    let signalCollector = null;
+/* === RESET === */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100dvh; overflow: hidden; overscroll-behavior: none; }
+@supports not (height: 100dvh) { html, body { height: 100vh; } }
+body {
+  font-family: var(--mathai-font-family);
+  background: var(--mathai-white);
+  color: var(--mathai-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  line-height: 1.5;
+}
 
-    // === Fallback Content ===
-    const fallbackContent = {
-      rounds: [
-        { numbers: [2, 5, 6], doubles: [10, 12, 4] },
-        { numbers: [3, 7, 4], doubles: [14, 8, 6] },
-        { numbers: [8, 1, 9], doubles: [2, 18, 16] },
-        { numbers: [4, 8, 1, 6], doubles: [16, 2, 12, 8] },
-        { numbers: [7, 3, 9, 5], doubles: [6, 18, 10, 14] },
-        { numbers: [11, 2, 8, 15], doubles: [4, 30, 22, 16] },
-        { numbers: [3, 9, 6, 12, 7], doubles: [18, 14, 24, 6, 12] },
-        { numbers: [5, 11, 4, 8, 13], doubles: [22, 16, 26, 10, 8] },
-        { numbers: [14, 2, 10, 6, 9], doubles: [4, 20, 18, 28, 12] },
+/* === LAYOUT ROOT === */
+.mathai-layout-root { max-width: 480px; margin: 0 auto; }
+
+#app {
+  width: 100%;
+  max-width: var(--mathai-game-max-width);
+  min-height: 100dvh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+@supports not (min-height: 100dvh) {
+  #app { min-height: 100vh; }
+}
+
+/* === PLAY AREA LAYOUT === */
+.mathai-layout-playarea {
+  display: flex;
+  flex-direction: column !important;
+  align-items: center !important;
+  padding: 0 16px 32px !important;
+}
+
+.mathai-ts-screen.active {
+  flex: 1;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 16px;
+}
+
+.mathai-ts-card {
+  min-height: 50dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* === HIDDEN === */
+.hidden { display: none !important; }
+
+/* === MATCHING GAME AREA === */
+.match-area {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.columns-container {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 46%;
+}
+
+.column-header {
+  font-size: var(--mathai-font-size-small);
+  font-weight: 700;
+  color: var(--mathai-gray);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+/* === MATCH ITEM (CARD) === */
+.match-item {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--mathai-border-gray);
+  border-radius: var(--mathai-border-radius-card);
+  background: var(--mathai-white);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--mathai-primary);
+  font-family: var(--mathai-font-family);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  margin-bottom: 10px;
+  padding: 10px 8px;
+  min-width: 44px;
+}
+
+.match-item:active {
+  transform: scale(0.97);
+}
+
+.match-item.selected {
+  border-color: var(--mathai-blue);
+  background: rgba(102, 126, 234, 0.08);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.25);
+}
+
+.match-item.selected-correct {
+  border-color: var(--mathai-cell-border-green);
+  background: var(--mathai-cell-bg-green);
+  color: var(--mathai-success);
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: default;
+}
+
+.match-item.selected-wrong {
+  border-color: var(--mathai-cell-border-red);
+  background: var(--mathai-cell-bg-red);
+  color: var(--mathai-red);
+  animation: shake 0.5s ease-in-out;
+}
+
+.match-item.locked {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: default;
+}
+
+/* === RESULTS SCREEN === */
+#results-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background: var(--mathai-white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  font-family: var(--mathai-font-family);
+}
+
+.results-title {
+  font-size: var(--mathai-font-size-title);
+  font-weight: 800;
+  color: var(--mathai-primary);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.stars-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.star {
+  font-size: 40px;
+  margin-left: 6px;
+  margin-right: 6px;
+  opacity: 0;
+}
+
+.star.star-earned {
+  animation: starPop 0.4s ease forwards;
+}
+
+.star.star-empty {
+  opacity: 0.3;
+  animation: none;
+}
+
+.results-metric {
+  font-size: var(--mathai-font-size-body);
+  color: var(--mathai-text-primary);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.results-metric strong {
+  color: var(--mathai-primary);
+}
+
+.results-btn {
+  min-height: 48px;
+  min-width: 180px;
+  padding: 14px 32px;
+  border: none;
+  border-radius: var(--mathai-border-radius-button);
+  background: var(--mathai-blue);
+  color: var(--mathai-white);
+  font-size: var(--mathai-font-size-button);
+  font-weight: 700;
+  font-family: var(--mathai-font-family);
+  cursor: pointer;
+  touch-action: manipulation;
+  margin-top: 24px;
+  transition: opacity 0.2s;
+}
+
+.results-btn:active {
+  opacity: 0.8;
+}
+
+/* === GAME OVER SCREEN === */
+#gameover-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background: var(--mathai-white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  font-family: var(--mathai-font-family);
+}
+
+.gameover-title {
+  font-size: var(--mathai-font-size-title);
+  font-weight: 800;
+  color: var(--mathai-red);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.gameover-emoji {
+  font-size: 56px;
+  margin-bottom: 20px;
+}
+
+.gameover-info {
+  font-size: var(--mathai-font-size-body);
+  color: var(--mathai-text-primary);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.gameover-btn {
+  min-height: 48px;
+  min-width: 180px;
+  padding: 14px 32px;
+  border: none;
+  border-radius: var(--mathai-border-radius-button);
+  background: var(--mathai-blue);
+  color: var(--mathai-white);
+  font-size: var(--mathai-font-size-button);
+  font-weight: 700;
+  font-family: var(--mathai-font-family);
+  cursor: pointer;
+  touch-action: manipulation;
+  margin-top: 24px;
+  transition: opacity 0.2s;
+}
+
+.gameover-btn:active {
+  opacity: 0.8;
+}
+
+/* === TOUCH TARGETS === */
+button,
+.match-item,
+[role="button"],
+input[type="submit"] {
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
+}
+
+/* === ANIMATIONS === */
+@keyframes scoreBounce {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes starPop {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+@keyframes heartBreak {
+  0% { transform: scale(1); opacity: 1; }
+  30% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.5); opacity: 0; color: var(--mathai-red); }
+}
+
+@keyframes streakGlow {
+  0% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+  50% { box-shadow: 0 0 16px rgba(255, 193, 7, 0.5); }
+  100% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+}
+
+@keyframes confettiFall {
+  0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+.score-bounce { animation: scoreBounce 0.4s ease; }
+.shake-wrong { animation: shake 0.5s ease-in-out; }
+.heart-break { animation: heartBreak 0.6s ease forwards; }
+.star-earned { animation: starPop 0.4s ease forwards; }
+.streak-glow { animation: streakGlow 0.6s ease; }
+.fade-in { animation: fadeIn 0.35s ease; }
+
+/* === LANDSCAPE LOCK === */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  body::before {
+    content: 'Please rotate your phone to portrait mode';
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--mathai-white, #ffffff);
+    color: var(--mathai-primary, #270f36);
+    font-family: var(--mathai-font-family, system-ui, -apple-system, sans-serif);
+    font-size: var(--mathai-font-size-subtitle, 18px);
+    text-align: center;
+    padding: 24px;
+  }
+}
+</style>
+</head>
+<body>
+<div id="app" data-phase="start_screen" data-score="0" data-lives="3"></div>
+
+<script>
+/* ============================================================
+   GAME STATE (PART-007)
+   ============================================================ */
+var gameState = {
+  gameId: 'matching-doubles',
+  phase: 'start_screen',
+  currentRound: 0,
+  totalRounds: 9,
+  score: 0,
+  attempts: [],
+  events: [],
+  startTime: null,
+  isActive: false,
+  content: null,
+  duration_data: {
+    startTime: null,
+    preview: [],
+    attempts: [],
+    evaluations: [],
+    inActiveTime: [],
+    totalInactiveTime: 0,
+    currentTime: null
+  },
+  lives: 3,
+  totalLives: 3,
+  selectedLeft: null,
+  matchedPairs: 0,
+  totalAttempts: 0,
+  roundStartTime: null,
+  isProcessing: false,
+  gameEnded: false,
+  correctAnswer: null,
+  streak: 0,
+  consecutiveWrongs: 0,
+  contentSetId: null,
+  signalConfig: null
+};
+window.gameState = gameState;
+
+var timer = null;
+var visibilityTracker = null;
+var progressBar = null;
+var transitionScreen = null;
+var signalCollector = null;
+
+/* DOM cache (populated after ScreenLayout.inject) */
+var leftColumnEl = null;
+var rightColumnEl = null;
+var gameContentEl = null;
+var scoreDisplayEl = null;
+
+/* ============================================================
+   CONSTANTS
+   ============================================================ */
+var CORRECT_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+var INCORRECT_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+var ROUND_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+var VICTORY_3_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+var COMPLETE_2_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+var COMPLETE_1_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+var GAMEOVER_STICKER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+
+var MAX_SCORE = 36;
+
+/* ============================================================
+   FALLBACK CONTENT (9 rounds from spec)
+   ============================================================ */
+var fallbackContent = {
+  rounds: [
+    {
+      round: 1, stage: 1, type: 'A',
+      pairs: [
+        { number: 3, double: 6 },
+        { number: 7, double: 14 },
+        { number: 5, double: 10 }
       ],
-    };
-
-    // === Utility Functions ===
-    function formatTime(seconds) {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    function trackEvent(type, target, data = {}) {
-      const event = { type, target, timestamp: Date.now(), data };
-      gameState.events.push(event);
-      console.log('Event:', JSON.stringify(event, null, 2));
-    }
-
-    function recordAttempt(data) {
-      const attempt = {
-        attempt_timestamp: new Date().toISOString(),
-        time_since_start_of_game: gameState.startTime ? (Date.now() - gameState.startTime) / 1000 : 0,
-        input_of_user: data.input_of_user,
-        attempt_number: gameState.attempts.length + 1,
-        correct: data.correct,
-        metadata: data.metadata,
-      };
-      gameState.attempts.push(attempt);
-    }
-
-    // === Grid Rendering ===
-    function renderGrid(round) {
-      const grid = document.getElementById('matching-grid');
-      grid.innerHTML = '';
-      for (let i = 0; i < round.numbers.length; i++) {
-        const row = document.createElement('div');
-        row.className = 'matching-row';
-
-        const leftCell = document.createElement('div');
-        leftCell.className = 'number-cell left-cell';
-        leftCell.dataset.leftIndex = i;
-        leftCell.dataset.value = round.numbers[i];
-        leftCell.dataset.signalId = `left-cell-${i}`;
-        leftCell.textContent = round.numbers[i];
-        leftCell.addEventListener('click', () => handleLeftClick(i));
-
-        const rightCell = document.createElement('div');
-        rightCell.className = 'number-cell right-cell disabled';
-        rightCell.dataset.rightIndex = i;
-        rightCell.dataset.value = round.doubles[i];
-        rightCell.dataset.signalId = `right-cell-${i}`;
-        rightCell.textContent = round.doubles[i];
-        rightCell.addEventListener('click', () => handleRightClick(i));
-
-        row.appendChild(leftCell);
-        row.appendChild(rightCell);
-        grid.appendChild(row);
+      misconception_tags: {
+        '3_14': 'magnitude-error', '3_10': 'additive-reasoning',
+        '7_6': 'operation-reversal', '7_10': 'computation-error',
+        '5_6': 'additive-reasoning', '5_14': 'magnitude-error'
       }
-
-      // Record view event for content render
-      if (signalCollector) {
-        signalCollector.recordViewEvent('content_render', {
-          screen: 'gameplay',
-          content_snapshot: {
-            question_text: `Match ${round.numbers.length} numbers with their doubles`,
-            numbers: round.numbers,
-            doubles: round.doubles,
-            round: gameState.currentRound + 1,
-            trigger: 'round_start',
-          },
-          components: {
-            timer: timer ? { value: timer.getCurrentTime(), state: timer.isRunning ? 'running' : 'paused' } : null,
-            progress: { current: gameState.currentRound, total: gameState.totalRounds },
-          },
-        });
+    },
+    {
+      round: 2, stage: 1, type: 'A',
+      pairs: [
+        { number: 4, double: 8 },
+        { number: 9, double: 18 },
+        { number: 2, double: 4 }
+      ],
+      misconception_tags: {
+        '4_18': 'magnitude-error', '4_4': 'identity-confusion',
+        '9_8': 'off-by-one', '9_4': 'operation-reversal',
+        '2_8': 'magnitude-error', '2_18': 'magnitude-error'
+      }
+    },
+    {
+      round: 3, stage: 1, type: 'A',
+      pairs: [
+        { number: 6, double: 12 },
+        { number: 8, double: 16 },
+        { number: 3, double: 6 }
+      ],
+      misconception_tags: {
+        '6_16': 'computation-error', '6_6': 'identity-confusion',
+        '8_12': 'computation-error', '8_6': 'operation-reversal',
+        '3_12': 'magnitude-error', '3_16': 'magnitude-error'
+      }
+    },
+    {
+      round: 4, stage: 2, type: 'A',
+      pairs: [
+        { number: 12, double: 24 },
+        { number: 15, double: 30 },
+        { number: 8, double: 16 },
+        { number: 21, double: 42 }
+      ],
+      misconception_tags: {
+        '12_30': 'additive-reasoning', '12_16': 'computation-error', '12_42': 'magnitude-error',
+        '15_24': 'computation-error', '15_16': 'off-by-one', '15_42': 'magnitude-error',
+        '8_24': 'magnitude-error', '8_30': 'magnitude-error', '8_42': 'magnitude-error',
+        '21_24': 'off-by-one', '21_30': 'additive-reasoning', '21_16': 'operation-reversal'
+      }
+    },
+    {
+      round: 5, stage: 2, type: 'A',
+      pairs: [
+        { number: 18, double: 36 },
+        { number: 25, double: 50 },
+        { number: 11, double: 22 },
+        { number: 30, double: 60 }
+      ],
+      misconception_tags: {
+        '18_50': 'magnitude-error', '18_22': 'additive-reasoning', '18_60': 'magnitude-error',
+        '25_36': 'computation-error', '25_22': 'off-by-one', '25_60': 'additive-reasoning',
+        '11_36': 'magnitude-error', '11_50': 'magnitude-error', '11_60': 'magnitude-error',
+        '30_36': 'additive-reasoning', '30_50': 'computation-error', '30_22': 'operation-reversal'
+      }
+    },
+    {
+      round: 6, stage: 2, type: 'A',
+      pairs: [
+        { number: 14, double: 28 },
+        { number: 22, double: 44 },
+        { number: 9, double: 18 },
+        { number: 27, double: 54 }
+      ],
+      misconception_tags: {
+        '14_44': 'magnitude-error', '14_18': 'additive-reasoning', '14_54': 'magnitude-error',
+        '22_28': 'additive-reasoning', '22_18': 'operation-reversal', '22_54': 'magnitude-error',
+        '9_28': 'magnitude-error', '9_44': 'magnitude-error', '9_54': 'magnitude-error',
+        '27_28': 'off-by-one', '27_44': 'computation-error', '27_18': 'operation-reversal'
+      }
+    },
+    {
+      round: 7, stage: 3, type: 'A',
+      pairs: [
+        { number: 23, double: 46 },
+        { number: 35, double: 70 },
+        { number: 19, double: 38 },
+        { number: 42, double: 84 },
+        { number: 28, double: 56 }
+      ],
+      misconception_tags: {
+        '23_70': 'magnitude-error', '23_38': 'additive-reasoning', '23_84': 'magnitude-error', '23_56': 'magnitude-error',
+        '35_46': 'computation-error', '35_38': 'off-by-one', '35_84': 'magnitude-error', '35_56': 'additive-reasoning',
+        '19_46': 'magnitude-error', '19_70': 'magnitude-error', '19_84': 'magnitude-error', '19_56': 'magnitude-error',
+        '42_46': 'off-by-one', '42_70': 'additive-reasoning', '42_38': 'operation-reversal', '42_56': 'computation-error',
+        '28_46': 'additive-reasoning', '28_70': 'magnitude-error', '28_38': 'computation-error', '28_84': 'magnitude-error'
+      }
+    },
+    {
+      round: 8, stage: 3, type: 'A',
+      pairs: [
+        { number: 33, double: 66 },
+        { number: 47, double: 94 },
+        { number: 16, double: 32 },
+        { number: 38, double: 76 },
+        { number: 25, double: 50 }
+      ],
+      misconception_tags: {
+        '33_94': 'magnitude-error', '33_32': 'identity-confusion', '33_76': 'magnitude-error', '33_50': 'additive-reasoning',
+        '47_66': 'computation-error', '47_32': 'operation-reversal', '47_76': 'additive-reasoning', '47_50': 'off-by-one',
+        '16_66': 'magnitude-error', '16_94': 'magnitude-error', '16_76': 'magnitude-error', '16_50': 'magnitude-error',
+        '38_66': 'additive-reasoning', '38_94': 'magnitude-error', '38_32': 'off-by-one', '38_50': 'computation-error',
+        '25_66': 'magnitude-error', '25_94': 'magnitude-error', '25_32': 'additive-reasoning', '25_76': 'magnitude-error'
+      }
+    },
+    {
+      round: 9, stage: 3, type: 'A',
+      pairs: [
+        { number: 44, double: 88 },
+        { number: 29, double: 58 },
+        { number: 36, double: 72 },
+        { number: 50, double: 100 },
+        { number: 21, double: 42 }
+      ],
+      misconception_tags: {
+        '44_58': 'computation-error', '44_72': 'additive-reasoning', '44_100': 'magnitude-error', '44_42': 'identity-confusion',
+        '29_88': 'magnitude-error', '29_72': 'magnitude-error', '29_100': 'magnitude-error', '29_42': 'additive-reasoning',
+        '36_88': 'magnitude-error', '36_58': 'additive-reasoning', '36_100': 'magnitude-error', '36_42': 'off-by-one',
+        '50_88': 'magnitude-error', '50_58': 'computation-error', '50_72': 'additive-reasoning', '50_42': 'operation-reversal',
+        '21_88': 'magnitude-error', '21_58': 'magnitude-error', '21_72': 'magnitude-error', '21_100': 'magnitude-error'
       }
     }
+  ]
+};
 
-    function enableRightCells() {
-      document.querySelectorAll('.right-cell').forEach((el) => {
-        if (!el.classList.contains('matched')) {
-          el.classList.remove('disabled');
-        }
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function getRounds() {
+  if (gameState.content && gameState.content.rounds && gameState.content.rounds.length >= gameState.totalRounds) {
+    return gameState.content.rounds;
+  }
+  return fallbackContent.rounds;
+}
+
+function waitForPackages() {
+  return new Promise(function(resolve, reject) {
+    var timeout = 120000;
+    var start = Date.now();
+    var check = setInterval(function() {
+      if (
+        typeof FeedbackManager !== 'undefined' &&
+        typeof TimerComponent !== 'undefined' &&
+        typeof VisibilityTracker !== 'undefined' &&
+        typeof SignalCollector !== 'undefined' &&
+        typeof ProgressBarComponent !== 'undefined' &&
+        typeof TransitionScreenComponent !== 'undefined'
+      ) {
+        clearInterval(check);
+        resolve();
+      } else if (Date.now() - start > timeout) {
+        clearInterval(check);
+        reject(new Error('Packages failed to load within ' + timeout + 'ms'));
+      }
+    }, 100);
+  });
+}
+
+/* === syncDOM (PART-007 + test harness) === */
+function syncDOMState() {
+  var app = document.getElementById('app');
+  if (!app) return;
+  app.setAttribute('data-phase', gameState.phase);
+  app.setAttribute('data-score', gameState.score);
+  app.setAttribute('data-lives', Math.max(0, gameState.lives));
+  app.setAttribute('data-round', gameState.currentRound);
+}
+
+/* === Fisher-Yates shuffle === */
+function shuffleArray(arr) {
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = a[i];
+    a[i] = a[j];
+    a[j] = tmp;
+  }
+  return a;
+}
+
+/* === getStars (time-based for this game) === */
+function getStars(totalTimeMs) {
+  if (totalTimeMs <= 60000) return 3;
+  if (totalTimeMs <= 90000) return 2;
+  return 1;
+}
+window.calcStars = function() {
+  var elapsed = gameState.startTime ? Date.now() - gameState.startTime : 0;
+  return getStars(elapsed);
+};
+
+/* === computeTriesPerRound === */
+function computeTriesPerRound(attempts) {
+  var rounds = {};
+  for (var i = 0; i < attempts.length; i++) {
+    var r = attempts[i].round_number;
+    rounds[r] = (rounds[r] || 0) + 1;
+  }
+  var result = [];
+  var keys = Object.keys(rounds);
+  for (var k = 0; k < keys.length; k++) {
+    result.push({ round: Number(keys[k]), triesCount: rounds[keys[k]] });
+  }
+  return result;
+}
+
+/* === formatTime === */
+function formatTime(ms) {
+  var totalSec = Math.floor(ms / 1000);
+  var m = Math.floor(totalSec / 60);
+  var s = totalSec % 60;
+  return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+/* ============================================================
+   RECORD ATTEMPT (PART-009 - 12 fields)
+   ============================================================ */
+function recordAttempt(roundIndex, userInput, correct, metadata) {
+  var round = getRounds()[roundIndex];
+  var misconceptionKey = metadata.number + '_' + metadata.selectedDouble;
+  var tag = correct ? null : ((round.misconception_tags && round.misconception_tags[misconceptionKey]) || null);
+  var attempt = {
+    attempt_timestamp: Date.now(),
+    time_since_start_of_game: gameState.startTime ? Date.now() - gameState.startTime : 0,
+    input_of_user: userInput,
+    correct: correct,
+    round_number: roundIndex + 1,
+    question_id: 'r' + (roundIndex + 1) + '_match_' + metadata.number + 'x2',
+    correct_answer: metadata.number * 2,
+    response_time_ms: gameState.roundStartTime ? Date.now() - gameState.roundStartTime : 0,
+    misconception_tag: tag,
+    difficulty_level: round.stage || 1,
+    is_retry: metadata.is_retry || false,
+    metadata: metadata
+  };
+  gameState.attempts.push(attempt);
+  gameState.duration_data.attempts.push({
+    round: roundIndex + 1,
+    timestamp: Date.now()
+  });
+}
+
+/* === trackEvent (PART-010) === */
+function trackEvent(type, target, data) {
+  var evt = { type: type, target: target, timestamp: Date.now() };
+  if (data) {
+    var keys = Object.keys(data);
+    for (var i = 0; i < keys.length; i++) { evt[keys[i]] = data[keys[i]]; }
+  }
+  gameState.events.push(evt);
+}
+
+/* === createProgressBar (PART-023) === */
+function createProgressBar() {
+  if (progressBar) progressBar.destroy();
+  progressBar = new ProgressBarComponent({
+    slotId: 'mathai-progress-slot',
+    totalRounds: gameState.totalRounds,
+    totalLives: gameState.totalLives
+  });
+}
+
+/* ============================================================
+   RENDER ROUND
+   ============================================================ */
+function renderRound() {
+  var roundData = getRounds()[gameState.currentRound];
+  if (!roundData) return;
+
+  gameState.isProcessing = false;
+  gameState.isActive = true;
+  gameState.selectedLeft = null;
+  gameState.matchedPairs = 0;
+  gameState.correctAnswer = roundData.pairs.map(function(p) { return p.number + ' -> ' + p.double; }).join(', ');
+  gameState.roundStartTime = Date.now();
+  syncDOMState();
+
+  /* Shuffle right-column doubles */
+  var shuffledDoubles = shuffleArray(roundData.pairs.map(function(p) { return p.double; }));
+
+  /* Build left and right columns */
+  if (!leftColumnEl || !rightColumnEl) return;
+
+  leftColumnEl.innerHTML = '';
+  rightColumnEl.innerHTML = '';
+
+  /* Render left items */
+  for (var i = 0; i < roundData.pairs.length; i++) {
+    var leftItem = document.createElement('div');
+    leftItem.className = 'match-item fade-in';
+    leftItem.textContent = roundData.pairs[i].number;
+    leftItem.setAttribute('data-side', 'left');
+    leftItem.setAttribute('data-index', i);
+    leftItem.setAttribute('data-value', roundData.pairs[i].number);
+    leftItem.setAttribute('data-testid', 'left-' + i);
+    leftItem.setAttribute('data-signal-id', 'left-' + i);
+    leftItem.onclick = (function(idx, val) {
+      return function() { handleLeftTap(idx, val); };
+    })(i, roundData.pairs[i].number);
+    leftColumnEl.appendChild(leftItem);
+  }
+
+  /* Render right items */
+  for (var j = 0; j < shuffledDoubles.length; j++) {
+    var rightItem = document.createElement('div');
+    rightItem.className = 'match-item fade-in';
+    rightItem.textContent = shuffledDoubles[j];
+    rightItem.setAttribute('data-side', 'right');
+    rightItem.setAttribute('data-index', j);
+    rightItem.setAttribute('data-value', shuffledDoubles[j]);
+    rightItem.setAttribute('data-testid', 'right-' + j);
+    rightItem.setAttribute('data-signal-id', 'right-' + j);
+    rightItem.onclick = (function(idx, val) {
+      return function() { handleRightTap(idx, val); };
+    })(j, shuffledDoubles[j]);
+    rightColumnEl.appendChild(rightItem);
+  }
+
+  /* Show game content, hide transition */
+  if (gameContentEl) gameContentEl.style.display = '';
+  if (transitionScreen) transitionScreen.hide();
+
+  /* Update progress bar */
+  if (progressBar) progressBar.update(gameState.currentRound, Math.max(0, gameState.lives));
+
+  /* new_cards SFX (fire-and-forget) */
+  try { FeedbackManager.sound.play('new_cards').catch(function(e) {}); } catch (e) {}
+
+  /* Signal collector: content render */
+  if (signalCollector) {
+    signalCollector.recordViewEvent('content_render', {
+      screen: 'gameplay',
+      content_snapshot: { round: gameState.currentRound + 1, stage: roundData.stage, pairs: roundData.pairs.length },
+      components: { progress: { current: gameState.currentRound, total: gameState.totalRounds }, lives: gameState.lives },
+      metadata: { trigger: 'round_start' }
+    });
+  }
+
+  trackEvent('question_shown', 'game', {
+    round: gameState.currentRound + 1,
+    stage: roundData.stage,
+    pairs: roundData.pairs.length
+  });
+}
+
+/* ============================================================
+   LEFT TAP HANDLER
+   ============================================================ */
+function handleLeftTap(index, value) {
+  if (gameState.isProcessing) return;
+  if (gameState.gameEnded) return;
+  if (!gameState.isActive) return;
+
+  if (!leftColumnEl) return;
+  var leftItems = leftColumnEl.children;
+  var tappedItem = leftItems[index];
+  if (!tappedItem) return;
+
+  /* If this item is already matched/locked, ignore */
+  if (tappedItem.classList.contains('locked')) return;
+
+  /* If tapping the same already-selected item -> deselect */
+  if (gameState.selectedLeft !== null && gameState.selectedLeft.index === index) {
+    tappedItem.classList.remove('selected');
+    gameState.selectedLeft = null;
+    try { FeedbackManager.sound.play('sound_bubble_deselect').catch(function(e) {}); } catch (e) {}
+    return;
+  }
+
+  /* If another left item is selected, deselect it first */
+  if (gameState.selectedLeft !== null) {
+    var prevItem = leftItems[gameState.selectedLeft.index];
+    if (prevItem) prevItem.classList.remove('selected');
+    try { FeedbackManager.sound.play('sound_bubble_deselect').catch(function(e) {}); } catch (e) {}
+  }
+
+  /* Select this left item */
+  tappedItem.classList.add('selected');
+  gameState.selectedLeft = { index: index, value: value };
+  try { FeedbackManager.sound.play('sound_bubble_select').catch(function(e) {}); } catch (e) {}
+}
+
+/* ============================================================
+   RIGHT TAP HANDLER
+   ============================================================ */
+async function handleRightTap(index, value) {
+  if (gameState.isProcessing) return;
+  if (gameState.gameEnded) return;
+  if (!gameState.isActive) return;
+
+  if (!rightColumnEl) return;
+  var rightItems = rightColumnEl.children;
+  var tappedRight = rightItems[index];
+  if (!tappedRight) return;
+
+  /* If this right item is already matched/locked, ignore */
+  if (tappedRight.classList.contains('locked')) return;
+
+  /* If no left item is selected, ignore */
+  if (gameState.selectedLeft === null) return;
+
+  if (!leftColumnEl) return;
+  var leftItems = leftColumnEl.children;
+  var selectedLeftItem = leftItems[gameState.selectedLeft.index];
+  var selectedLeftValue = gameState.selectedLeft.value;
+  var isCorrect = (value === selectedLeftValue * 2);
+
+  gameState.totalAttempts++;
+
+  /* Record attempt */
+  var roundData = getRounds()[gameState.currentRound];
+  recordAttempt(gameState.currentRound, { number: selectedLeftValue, selectedDouble: value }, isCorrect, {
+    number: selectedLeftValue,
+    selectedDouble: value,
+    round: gameState.currentRound + 1,
+    stage: roundData.stage,
+    is_retry: false
+  });
+
+  trackEvent('answer_submitted', 'game', {
+    round: gameState.currentRound + 1,
+    correct: isCorrect,
+    number: selectedLeftValue,
+    selectedDouble: value,
+    response_time_ms: gameState.roundStartTime ? Date.now() - gameState.roundStartTime : 0
+  });
+
+  if (signalCollector) {
+    signalCollector.recordCustomEvent('match_attempt', {
+      round: gameState.currentRound + 1,
+      correct: isCorrect,
+      number: selectedLeftValue,
+      selectedDouble: value,
+      correctDouble: selectedLeftValue * 2
+    });
+  }
+
+  if (isCorrect) {
+    handleCorrectMatch(selectedLeftItem, tappedRight, selectedLeftValue);
+  } else {
+    await handleWrongMatch(selectedLeftItem, tappedRight, selectedLeftValue, value);
+  }
+}
+
+/* ============================================================
+   CORRECT MATCH
+   ============================================================ */
+function handleCorrectMatch(leftEl, rightEl, leftValue) {
+  /* Both items turn green and lock */
+  leftEl.classList.remove('selected');
+  leftEl.classList.add('selected-correct', 'locked');
+  rightEl.classList.add('selected-correct', 'locked');
+
+  /* Clear selection */
+  gameState.selectedLeft = null;
+
+  /* Score +1 */
+  gameState.score++;
+  gameState.streak++;
+  gameState.consecutiveWrongs = 0;
+  syncDOMState();
+
+  /* Update progress bar */
+  if (progressBar) progressBar.update(gameState.currentRound, Math.max(0, gameState.lives));
+
+  /* Score bounce on display */
+  if (scoreDisplayEl) {
+    scoreDisplayEl.textContent = 'Score: ' + gameState.score;
+    scoreDisplayEl.classList.remove('score-bounce');
+    void scoreDisplayEl.offsetWidth;
+    scoreDisplayEl.classList.add('score-bounce');
+  }
+
+  /* matchedPairs++ */
+  gameState.matchedPairs++;
+
+  /* Signal collector */
+  if (signalCollector) {
+    signalCollector.recordViewEvent('feedback_display', {
+      screen: 'gameplay',
+      content_snapshot: { feedback_type: 'correct', number: leftValue, double: leftValue * 2 },
+      components: { progress: { current: gameState.currentRound, total: gameState.totalRounds }, lives: gameState.lives },
+      metadata: { trigger: 'user_action' }
+    });
+  }
+
+  /* Correct SFX + sticker (fire-and-forget) */
+  FeedbackManager.sound.play('correct_sound_effect', {
+    sticker: CORRECT_STICKER
+  }).catch(function(e) { console.error('Correct SFX error:', e.message); });
+
+  /* Check if all pairs matched */
+  var roundData = getRounds()[gameState.currentRound];
+  if (gameState.matchedPairs >= roundData.pairs.length) {
+    handleRoundComplete();
+  }
+}
+
+/* ============================================================
+   WRONG MATCH
+   ============================================================ */
+async function handleWrongMatch(leftEl, rightEl, leftValue, rightValue) {
+  /* Both items flash red */
+  leftEl.classList.remove('selected');
+  leftEl.classList.add('selected-wrong');
+  rightEl.classList.add('selected-wrong');
+
+  /* Clear selection */
+  gameState.selectedLeft = null;
+
+  /* Lose a life */
+  gameState.lives--;
+  gameState.streak = 0;
+  gameState.consecutiveWrongs++;
+  syncDOMState();
+
+  /* Update progress bar */
+  if (progressBar) progressBar.update(gameState.currentRound, Math.max(0, gameState.lives));
+
+  /* Signal collector */
+  if (signalCollector) {
+    signalCollector.recordViewEvent('feedback_display', {
+      screen: 'gameplay',
+      content_snapshot: { feedback_type: 'incorrect', number: leftValue, selectedDouble: rightValue, correctDouble: leftValue * 2 },
+      components: { progress: { current: gameState.currentRound, total: gameState.totalRounds }, lives: gameState.lives },
+      metadata: { trigger: 'user_action' }
+    });
+  }
+
+  trackEvent('life_lost', 'game', { livesRemaining: gameState.lives });
+
+  /* Case 8: Last life -> skip wrong SFX, go straight to game over */
+  if (gameState.lives <= 0) {
+    showGameOver();
+    return;
+  }
+
+  /* Wrong SFX + sticker (fire-and-forget) */
+  FeedbackManager.sound.play('incorrect_sound_effect', {
+    sticker: INCORRECT_STICKER
+  }).catch(function(e) { console.error('Wrong SFX error:', e.message); });
+
+  /* After 600ms, remove wrong styling */
+  await new Promise(function(resolve) { setTimeout(resolve, 600); });
+  leftEl.classList.remove('selected-wrong');
+  rightEl.classList.remove('selected-wrong');
+}
+
+/* ============================================================
+   ROUND COMPLETE
+   ============================================================ */
+async function handleRoundComplete() {
+  gameState.isProcessing = true;
+
+  trackEvent('round_complete', 'game', {
+    round: gameState.currentRound + 1,
+    score: gameState.score
+  });
+
+  /* Awaited: round-complete SFX + sticker */
+  try {
+    await FeedbackManager.sound.play('all_correct', {
+      sticker: ROUND_STICKER,
+      subtitle: 'All matched!'
+    });
+  } catch (e) { console.error('Round complete SFX error:', e.message); }
+
+  gameState.isProcessing = false;
+  gameState.currentRound++;
+  syncDOMState();
+
+  /* Check: was that the last round? */
+  if (gameState.currentRound >= gameState.totalRounds) {
+    showVictory();
+  } else {
+    renderRound();
+  }
+}
+
+/* ============================================================
+   NEXT ROUND (exposed for test harness)
+   ============================================================ */
+function nextRound() {
+  if (gameState.currentRound < gameState.totalRounds) {
+    renderRound();
+  }
+}
+
+/* ============================================================
+   END GAME (PART-011)
+   ============================================================ */
+function endGame(isGameOver) {
+  if (gameState.gameEnded) return;
+  gameState.gameEnded = true;
+  gameState.isActive = false;
+  gameState.duration_data.currentTime = new Date().toISOString();
+
+  if (timer) { timer.pause(); }
+
+  var totalTimeMs = gameState.startTime ? Date.now() - gameState.startTime : 0;
+  var stars = isGameOver ? 0 : getStars(totalTimeMs);
+  var correct = gameState.attempts.filter(function(a) { return a.correct; }).length;
+  var total = gameState.attempts.length;
+  var accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+  var timeTaken = Math.round(totalTimeMs / 1000);
+
+  gameState.phase = isGameOver ? 'game_over' : 'results';
+  syncDOMState();
+
+  var metrics = {
+    accuracy: accuracy,
+    time: timeTaken,
+    stars: stars,
+    attempts: gameState.attempts,
+    duration_data: gameState.duration_data,
+    totalLives: gameState.totalLives,
+    tries: computeTriesPerRound(gameState.attempts),
+    livesRemaining: gameState.lives,
+    roundsCompleted: gameState.currentRound,
+    totalTimeMs: totalTimeMs
+  };
+
+  trackEvent('game_end', 'game', { metrics: metrics });
+
+  var signalResult = null;
+  try {
+    signalResult = signalCollector ? signalCollector.seal() : { event_count: 0, metadata: {} };
+  } catch (e) {
+    signalResult = { event_count: 0, metadata: {} };
+  }
+
+  window.parent.postMessage({
+    type: 'game_complete',
+    data: {
+      metrics: metrics,
+      attempts: gameState.attempts,
+      completedAt: Date.now(),
+      signal_event_count: signalResult.event_count,
+      signal_metadata: signalResult.metadata
+    }
+  }, '*');
+}
+
+/* ============================================================
+   SHOW VICTORY (results screen)
+   ============================================================ */
+async function showVictory() {
+  var totalTimeMs = gameState.startTime ? Date.now() - gameState.startTime : 0;
+  var stars = getStars(totalTimeMs);
+  var correct = gameState.attempts.filter(function(a) { return a.correct; }).length;
+  var total = gameState.attempts.length;
+  var accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+  endGame(false);
+
+  /* Hide game content */
+  if (gameContentEl) gameContentEl.style.display = 'none';
+
+  /* Build results screen */
+  var resultsScreen = document.getElementById('results-screen');
+  if (!resultsScreen) {
+    resultsScreen = document.createElement('div');
+    resultsScreen.id = 'results-screen';
+    document.body.appendChild(resultsScreen);
+  }
+
+  var starsHTML = '';
+  for (var i = 0; i < 3; i++) {
+    if (i < stars) {
+      starsHTML += '<span class="star star-earned" style="animation-delay: ' + (i * 0.15) + 's">&#11088;</span>';
+    } else {
+      starsHTML += '<span class="star star-empty">&#11088;</span>';
+    }
+  }
+
+  var audioStopped = false;
+
+  resultsScreen.innerHTML =
+    '<div class="results-title">Well Done!</div>' +
+    '<div class="stars-container">' + starsHTML + '</div>' +
+    '<div class="results-metric"><strong>Time:</strong> ' + formatTime(totalTimeMs) + '</div>' +
+    '<div class="results-metric"><strong>Score:</strong> ' + gameState.score + '/' + MAX_SCORE + '</div>' +
+    '<div class="results-metric"><strong>Accuracy:</strong> ' + accuracy + '%</div>' +
+    '<p id="rounds-completed" class="results-metric">Rounds: ' + gameState.totalRounds + '/' + gameState.totalRounds + '</p>' +
+    '<button class="results-btn" id="play-again-btn" data-testid="btn-play-again">Play Again</button>';
+  resultsScreen.classList.remove('hidden');
+  resultsScreen.style.display = '';
+
+  var playAgainBtn = document.getElementById('play-again-btn');
+  playAgainBtn.onclick = function() {
+    audioStopped = true;
+    try { FeedbackManager.sound.stopAll(); } catch(e) {}
+    try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+    try { FeedbackManager.stream.stopAll(); } catch(e) {}
+    restartGame();
+  };
+
+  if (signalCollector) {
+    try {
+      signalCollector.recordViewEvent('screen_transition', {
+        screen: 'results',
+        content_snapshot: { stars: stars, time: formatTime(totalTimeMs), score: gameState.score, accuracy: accuracy },
+        components: { progress: { current: gameState.totalRounds, total: gameState.totalRounds }, lives: gameState.lives },
+        metadata: { trigger: 'user_action', transition_from: 'gameplay' }
       });
-    }
+    } catch (e) {}
+  }
 
-    function disableRightCells() {
-      document.querySelectorAll('.right-cell').forEach((el) => {
-        if (!el.classList.contains('matched')) {
-          el.classList.add('disabled');
-        }
+  /* Sequential awaited audio: SFX -> VO */
+  var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+  var stickerUrl = stars === 3 ? VICTORY_3_STICKER : (stars === 2 ? COMPLETE_2_STICKER : COMPLETE_1_STICKER);
+  var voText = stars === 3 ? 'Amazing! 3 stars!' : (stars === 2 ? 'Well done! 2 stars!' : 'Good try! 1 star!');
+
+  try {
+    await FeedbackManager.sound.play(sfxId, { sticker: stickerUrl });
+    if (audioStopped) return;
+    await FeedbackManager.playDynamicFeedback({
+      audio_content: voText,
+      subtitle: voText,
+      sticker: stickerUrl
+    });
+  } catch (e) { console.error('Victory audio error:', e.message); }
+}
+
+/* ============================================================
+   SHOW GAME OVER
+   ============================================================ */
+async function showGameOver() {
+  var roundsCompleted = gameState.currentRound;
+
+  endGame(true);
+
+  /* Hide game content */
+  if (gameContentEl) gameContentEl.style.display = 'none';
+
+  /* Build game over screen */
+  var gameoverScreen = document.getElementById('gameover-screen');
+  if (!gameoverScreen) {
+    gameoverScreen = document.createElement('div');
+    gameoverScreen.id = 'gameover-screen';
+    document.body.appendChild(gameoverScreen);
+  }
+
+  var audioStopped = false;
+
+  gameoverScreen.innerHTML =
+    '<div class="gameover-title">Game Over</div>' +
+    '<div class="gameover-emoji">:(</div>' +
+    '<div class="gameover-info">You completed ' + roundsCompleted + ' rounds</div>' +
+    '<div class="gameover-info">Score: ' + gameState.score + '/' + MAX_SCORE + '</div>' +
+    '<button class="gameover-btn" id="try-again-btn" data-testid="btn-try-again">Try Again</button>';
+  gameoverScreen.classList.remove('hidden');
+  gameoverScreen.style.display = '';
+
+  var tryAgainBtn = document.getElementById('try-again-btn');
+  tryAgainBtn.onclick = function() {
+    audioStopped = true;
+    try { FeedbackManager.sound.stopAll(); } catch(e) {}
+    try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+    try { FeedbackManager.stream.stopAll(); } catch(e) {}
+    restartGame();
+  };
+
+  if (signalCollector) {
+    try {
+      signalCollector.recordViewEvent('screen_transition', {
+        screen: 'game_over',
+        content_snapshot: { rounds_completed: roundsCompleted, score: gameState.score },
+        components: { progress: { current: gameState.currentRound, total: gameState.totalRounds }, lives: 0 },
+        metadata: { trigger: 'user_action', transition_from: 'gameplay' }
       });
-    }
+    } catch (e) {}
+  }
 
-    // === Interaction Handlers ===
-    function handleLeftClick(leftIndex) {
-      if (!gameState.isActive) return;
-      if (gameState.matchedPairs.has(leftIndex)) return;
+  /* Sequential awaited audio: game over SFX -> VO */
+  var voText = 'You completed ' + roundsCompleted + ' rounds. Try again!';
+  try {
+    await FeedbackManager.sound.play('game_over_sound_effect', { sticker: GAMEOVER_STICKER });
+    if (audioStopped) return;
+    await FeedbackManager.playDynamicFeedback({
+      audio_content: voText,
+      subtitle: 'You completed ' + roundsCompleted + ' rounds',
+      sticker: GAMEOVER_STICKER
+    });
+  } catch (e) { console.error('Game over audio error:', e.message); }
+}
 
-      // Play tap sound (fire-and-forget)
-      FeedbackManager.sound.play('tap_sound').catch((e) => console.error('tap audio error:', e.message));
+/* ============================================================
+   START GAME
+   ============================================================ */
+function startGame() {
+  if (gameState.isActive) return;
+  gameState.isActive = true;
+  gameState.startTime = Date.now();
+  gameState.duration_data.startTime = new Date().toISOString();
+  gameState.currentRound = 0;
+  gameState.score = 0;
+  gameState.attempts = [];
+  gameState.events = [];
+  gameState.isProcessing = false;
+  gameState.gameEnded = false;
+  gameState.lives = gameState.totalLives;
+  gameState.totalAttempts = 0;
+  gameState.selectedLeft = null;
+  gameState.matchedPairs = 0;
+  gameState.streak = 0;
+  gameState.consecutiveWrongs = 0;
+  gameState.phase = 'gameplay';
+  syncDOMState();
 
-      // Deselect previous
-      document.querySelectorAll('.left-cell.selected').forEach((el) => el.classList.remove('selected'));
+  trackEvent('game_start', 'game', { totalRounds: gameState.totalRounds });
 
-      // Select this one
-      const leftEl = document.querySelector(`.left-cell[data-left-index="${leftIndex}"]`);
-      leftEl.classList.add('selected');
-      gameState.selectedLeftIndex = leftIndex;
+  /* Start timer */
+  if (timer) {
+    try { timer.start(); } catch (e) {}
+  }
 
-      // Enable unmatched right cells
-      enableRightCells();
+  createProgressBar();
+  if (progressBar) progressBar.update(0, gameState.lives);
 
-      trackEvent('select_number', 'left', { index: leftIndex, value: gameState.currentRoundData.numbers[leftIndex] });
+  renderRound();
+}
 
-      if (signalCollector) {
-        signalCollector.recordViewEvent('visual_update', {
-          screen: 'gameplay',
-          content_snapshot: {
-            type: 'number_selected',
-            selected_index: leftIndex,
-            selected_value: gameState.currentRoundData.numbers[leftIndex],
-            matched_count: gameState.matchedPairs.size,
-          },
-        });
-      }
-    }
+/* ============================================================
+   SETUP GAME (called from game_init or standalone fallback)
+   ============================================================ */
+async function setupGame() {
+  if (!gameState.content) {
+    gameState.content = fallbackContent;
+  }
 
-    async function handleRightClick(rightIndex) {
-      if (!gameState.isActive) return;
-      if (gameState.isProcessing) return;
-      if (gameState.selectedLeftIndex === null) return;
+  gameState.totalRounds = gameState.content.rounds.length;
 
-      const rightEl = document.querySelector(`.right-cell[data-right-index="${rightIndex}"]`);
-      if (rightEl.classList.contains('matched')) return;
-      if (rightEl.classList.contains('disabled')) return;
+  /* Show welcome/start screen via transitionScreen */
+  gameState.phase = 'start_screen';
+  gameState.isActive = false;
+  gameState.gameEnded = false;
+  syncDOMState();
 
-      gameState.isProcessing = true;
+  /* Hide results/gameover screens if visible */
+  var resultsScreen = document.getElementById('results-screen');
+  if (resultsScreen) resultsScreen.style.display = 'none';
+  var gameoverScreen = document.getElementById('gameover-screen');
+  if (gameoverScreen) gameoverScreen.style.display = 'none';
 
-      const leftIndex = gameState.selectedLeftIndex;
-      const leftEl = document.querySelector(`.left-cell[data-left-index="${leftIndex}"]`);
-      const round = gameState.currentRoundData;
-      const number = round.numbers[leftIndex];
-      const double = round.doubles[rightIndex];
-      const isCorrect = double === number * 2;
+  /* Hide game content */
+  if (gameContentEl) gameContentEl.style.display = 'none';
 
-      if (isCorrect) {
-        leftEl.classList.remove('selected');
-        leftEl.classList.add('matched');
-        rightEl.classList.add('matched');
-        gameState.matchedPairs.add(leftIndex);
-        gameState.selectedLeftIndex = null;
-        disableRightCells();
-
-        // Play correct sound effect (fire-and-forget) with sticker
-        FeedbackManager.sound
-          .play('correct_sound_effect', {
-            sticker: {
-              image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-20.gif',
-              duration: 2,
-              type: 'IMAGE_GIF',
-            },
-          })
-          .catch((e) => console.error('Audio error:', e.message));
-
-        trackEvent('correct_match', 'grid', { leftIndex, rightIndex, number, double });
-        recordAttempt({
-          input_of_user: { action: 'match', number, selectedDouble: double },
-          correct: true,
-          metadata: {
-            round: gameState.currentRound + 1,
-            question: `What is the double of ${number}?`,
-            correctAnswer: `${number * 2}`,
-            validationType: 'function',
-          },
-        });
-
-        if (signalCollector) {
-          signalCollector.recordViewEvent('feedback_display', {
-            screen: 'gameplay',
-            content_snapshot: { feedback_type: 'correct', message: 'Correct match!', number, double },
-          });
-          signalCollector.recordViewEvent('visual_update', {
-            screen: 'gameplay',
-            content_snapshot: {
-              type: 'pair_matched',
-              left_index: leftIndex,
-              right_index: rightIndex,
-              number,
-              double,
-              matched_count: gameState.matchedPairs.size,
-              total_pairs: round.numbers.length,
-            },
-          });
+  /* Show start screen via TransitionScreen */
+  if (transitionScreen) {
+    await transitionScreen.show({
+      title: 'Matching Doubles',
+      subtitle: 'Match numbers to their doubles (x2)',
+      buttons: [{
+        text: 'Start',
+        type: 'primary',
+        testId: 'btn-start',
+        action: function() {
+          try { FeedbackManager.sound.stopAll(); } catch(e) {}
+          startGame();
         }
+      }],
+      persist: true
+    });
+  }
 
-        if (gameState.matchedPairs.size >= round.numbers.length) {
-          // Keep isProcessing = true during roundComplete to prevent taps during all_correct audio
-          await roundComplete();
-          gameState.isProcessing = false;
-        } else {
-          gameState.isProcessing = false;
-        }
-      } else {
-        rightEl.classList.add('wrong');
-        gameState.lives--;
-        gameState.wrongAttempts++;
-        progressBar.update(gameState.currentRound, gameState.lives);
-
-        // Play incorrect sound effect (fire-and-forget) with sticker
-        FeedbackManager.sound
-          .play('incorrect_sound_effect', {
-            sticker: {
-              image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-28.gif',
-              duration: 2,
-              type: 'IMAGE_GIF',
-            },
-          })
-          .catch((e) => console.error('Audio error:', e.message));
-
-        trackEvent('wrong_match', 'grid', {
-          leftIndex,
-          rightIndex,
-          number,
-          selectedDouble: double,
-          correctDouble: number * 2,
-        });
-        trackEvent('life_lost', 'game', { livesRemaining: gameState.lives });
-        recordAttempt({
-          input_of_user: { action: 'match', number, selectedDouble: double },
-          correct: false,
-          metadata: {
-            round: gameState.currentRound + 1,
-            question: `What is the double of ${number}?`,
-            correctAnswer: `${number * 2}`,
-            validationType: 'function',
-          },
-        });
-
-        if (signalCollector) {
-          signalCollector.recordViewEvent('feedback_display', {
-            screen: 'gameplay',
-            content_snapshot: {
-              feedback_type: 'incorrect',
-              message: 'Try again!',
-              number,
-              selectedDouble: double,
-              correctDouble: number * 2,
-              lives_remaining: gameState.lives,
-            },
-          });
-          signalCollector.recordViewEvent('visual_update', {
-            screen: 'gameplay',
-            content_snapshot: { type: 'wrong_flash', right_index: rightIndex, lives_remaining: gameState.lives },
-          });
-        }
-
-        if (gameState.lives <= 0) {
-          gameState.pendingEndProblem = {
-            id: 'round_' + (gameState.currentRound + 1),
-            outcome: { correct: false, answer: { number, selectedDouble: double } },
-          };
-          if (signalCollector) {
-            signalCollector.recordCustomEvent('round_solved', { correct: false, reason: 'lives_exhausted' });
-          }
-          setTimeout(() => {
-            rightEl.classList.remove('wrong');
-            gameState.isProcessing = false;
-            endGame('game_over');
-          }, 600);
-        } else {
-          setTimeout(() => {
-            rightEl.classList.remove('wrong');
-            leftEl.classList.remove('selected');
-            gameState.selectedLeftIndex = null;
-            disableRightCells();
-            gameState.isProcessing = false;
-          }, 600);
-        }
-      }
-    }
-
-    // === Round & Level Flow ===
-    async function roundComplete() {
-      // Play all_correct audio (await — wait for it to finish before transitioning)
-      try {
-        await FeedbackManager.sound.play('all_correct', {
-          sticker: {
-            image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-35.gif',
-            duration: 2,
-            type: 'IMAGE_GIF',
-          },
-          subtitle: 'Good job! All cards matched!',
-        });
-      } catch (e) {
-        console.error('all_correct audio error:', e.message);
-      }
-
-      // Pause timer during transition screens — will resume in loadRound()
-      if (timer) timer.pause();
-
-      gameState.currentRound++;
-      gameState.score++;
-      progressBar.update(gameState.currentRound, gameState.lives);
-      trackEvent('round_complete', 'game', { round: gameState.currentRound, livesRemaining: gameState.lives });
-
-      // Defer endProblem — will be flushed at next loadRound or endGame
-      gameState.pendingEndProblem = {
-        id: 'round_' + gameState.currentRound,
-        outcome: { correct: true, answer: { matched_all: true, round: gameState.currentRound } },
-      };
-      if (signalCollector) {
-        signalCollector.recordCustomEvent('round_solved', { correct: true, round: gameState.currentRound });
-      }
-
-      if (gameState.currentRound >= gameState.totalRounds) {
-        endGame('victory');
-      } else if (gameState.currentRound % 3 === 0) {
-        // New level (round 3→4 or 6→7)
-        showLevelTransition();
-      } else {
-        showRoundTransition();
-      }
-    }
-
-    async function showLevelTransition() {
-      const levelIndex = Math.floor(gameState.currentRound / 3); // 0, 1, 2
-      const levelNum = levelIndex + 1;
-      const levelAudioIds = ['level_1', 'level_2', 'level_3'];
-      const levelStickers = [
-        { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-40.gif', type: 'IMAGE_GIF' },
-        { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-40.gif', type: 'IMAGE_GIF' },
-        { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-40.gif', type: 'IMAGE_GIF' },
-      ];
-
-      // Play level audio fire-and-forget (user can click "I'm ready" to skip)
-      let levelAudioPlaying = true;
-      FeedbackManager.sound
-        .play(levelAudioIds[levelIndex], { sticker: levelStickers[levelIndex], subtitle: `Level ${levelNum}` })
-        .catch((e) => console.error('Level audio error:', e.message))
-        .finally(() => {
-          levelAudioPlaying = false;
-        });
-
-      await transitionScreen.show({
-        title: `Level ${levelNum}`,
-        buttons: [
-          {
-            text: "I'm ready",
-            type: 'primary',
-            action: () => {
-              if (levelAudioPlaying) {
-                try {
-                  FeedbackManager.sound.stopAll();
-                } catch (e) {}
-              }
-              showRoundTransition();
-            },
-          },
-        ],
+  if (signalCollector) {
+    try {
+      signalCollector.recordViewEvent('screen_transition', {
+        screen: 'ready',
+        content_snapshot: { title: 'Matching Doubles' },
+        components: {},
+        metadata: { trigger: 'user_action', transition_from: 'none' }
       });
+    } catch (e) {}
+  }
+}
+
+/* ============================================================
+   RESTART GAME
+   ============================================================ */
+function restartGame() {
+  try { FeedbackManager.sound.stopAll(); } catch(e) {}
+  try { FeedbackManager.stream.stopAll(); } catch(e) {}
+  try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+
+  /* Re-instantiate SignalCollector (GEN-SIGNAL-RESET) */
+  try {
+    signalCollector = new SignalCollector({
+      sessionId: 'session_' + Date.now(),
+      studentId: null,
+      gameId: gameState.gameId,
+      contentSetId: gameState.contentSetId || null
+    });
+    window.signalCollector = signalCollector;
+
+    if (gameState.signalConfig && gameState.signalConfig.flushUrl) {
+      signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+      signalCollector.playId = gameState.signalConfig.playId || null;
+      signalCollector.gameId = gameState.signalConfig.gameId || signalCollector.gameId;
+      signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+      signalCollector.contentSetId = gameState.signalConfig.contentSetId || signalCollector.contentSetId;
+      signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+      signalCollector.startFlushing();
     }
+  } catch (e) { console.error('SignalCollector restart error:', e.message); }
 
-    async function showRoundTransition() {
-      const roundInLevel = gameState.currentRound % 3; // 0, 1, 2
-      const roundAudioIds = ['round_1', 'round_2', 'round_3'];
-      const roundStickers = [
-        { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-44.gif', type: 'IMAGE_GIF' },
-        { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-47.gif', type: 'IMAGE_GIF' },
-        { image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-52.gif', type: 'IMAGE_GIF' },
-      ];
+  /* Reset all state */
+  gameState.phase = 'start_screen';
+  gameState.currentRound = 0;
+  gameState.score = 0;
+  gameState.attempts = [];
+  gameState.events = [];
+  gameState.isActive = false;
+  gameState.gameEnded = false;
+  gameState.startTime = null;
+  gameState.lives = gameState.totalLives;
+  gameState.totalAttempts = 0;
+  gameState.selectedLeft = null;
+  gameState.matchedPairs = 0;
+  gameState.roundStartTime = null;
+  gameState.isProcessing = false;
+  gameState.streak = 0;
+  gameState.consecutiveWrongs = 0;
+  gameState.correctAnswer = null;
+  gameState.duration_data = {
+    startTime: null,
+    preview: [],
+    attempts: [],
+    evaluations: [],
+    inActiveTime: [],
+    totalInactiveTime: 0,
+    currentTime: null
+  };
 
-      // Show round transition screen (auto-dismiss after audio)
-      transitionScreen.show({ title: `Round ${roundInLevel + 1}` });
+  syncDOMState();
 
-      // Play rounds SFX (awaited) then round announcement (awaited) — same SFX→announcement pattern as endGame
-      try {
-        await FeedbackManager.sound.play('rounds_sound_effect', {
-          sticker: roundStickers[roundInLevel],
-          subtitle: `Round ${roundInLevel + 1}`,
-        });
-      } catch (e) {
-        console.error('Round SFX error:', e.message);
-      }
-      try {
-        await FeedbackManager.sound.play(roundAudioIds[roundInLevel], {
-          sticker: roundStickers[roundInLevel],
-          subtitle: `Round ${roundInLevel + 1}`,
-        });
-      } catch (e) {
-        console.error('Round announcement error:', e.message);
-      }
+  /* Re-create timer */
+  if (timer) {
+    try { timer.destroy(); } catch (e) {}
+  }
+  timer = new TimerComponent('timer-container', {
+    timerType: 'increase',
+    format: 'min',
+    startTime: 0,
+    endTime: 600000,
+    autoStart: false,
+    onEnd: function() {}
+  });
 
-      // Dismiss transition screen overlay before rendering grid
-      try {
-        transitionScreen.hide();
-      } catch (e) {}
+  /* Re-create visibility tracker */
+  if (visibilityTracker) {
+    try { visibilityTracker.destroy(); } catch (e) {}
+  }
+  visibilityTracker = new VisibilityTracker({
+    onInactive: onInactiveHandler,
+    onResume: onResumeHandler,
+    popupProps: { title: 'Game Paused', description: 'Click Resume to continue.', primaryText: 'Resume' }
+  });
 
-      // Load round
-      loadRound();
-    }
+  createProgressBar();
+  if (progressBar) progressBar.update(0, gameState.totalLives);
 
-    function loadRound() {
-      // Flush deferred endProblem from previous round
-      if (signalCollector && gameState.pendingEndProblem) {
-        signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
-        gameState.pendingEndProblem = null;
-      }
+  setupGame();
+}
 
-      const round = gameState.content.rounds[gameState.currentRound];
-      const roundNumber = gameState.currentRound + 1;
+/* ============================================================
+   HANDLE POST MESSAGE (PART-008)
+   ============================================================ */
+function handlePostMessage(event) {
+  if (!event.data || event.data.type !== 'game_init') return;
 
-      // Start signal collection for this round
-      if (signalCollector) {
-        signalCollector.startProblem('round_' + roundNumber, {
-          round_number: roundNumber,
-          question_text: `Match ${round.numbers.length} numbers with their doubles`,
-          correct_answer: round.numbers.map((n) => n * 2),
-          difficulty: round.numbers.length <= 3 ? 'easy' : round.numbers.length <= 4 ? 'medium' : 'hard',
-        });
-      }
+  gameState.phase = 'playing';
+  syncDOMState();
 
-      gameState.currentRoundData = round;
-      gameState.matchedPairs = new Set();
-      gameState.selectedLeftIndex = null;
-      renderGrid(round);
+  var d = event.data.data || event.data;
+  if (d.content) gameState.content = d.content;
 
-      // Start or resume the timer AFTER transitions are done and gameplay grid is visible
-      if (gameState.currentRound === 0 && !timer.isRunning) {
-        timer.start();
-      } else if (timer.isPaused) {
-        timer.resume();
-      }
+  var sc = gameState.signalConfig = d.signalConfig || {};
+  if (signalCollector && sc.flushUrl) {
+    signalCollector.flushUrl = sc.flushUrl;
+    signalCollector.playId = sc.playId || null;
+    signalCollector.gameId = sc.gameId || signalCollector.gameId;
+    signalCollector.sessionId = sc.sessionId || signalCollector.sessionId;
+    signalCollector.contentSetId = sc.contentSetId || signalCollector.contentSetId;
+    signalCollector.studentId = sc.studentId || signalCollector.studentId;
+    signalCollector.startFlushing();
+  }
 
-      // Play new cards appearing sound (fire-and-forget)
-      FeedbackManager.sound.play('new_cards').catch((e) => console.error('new_cards audio error:', e.message));
-    }
+  setupGame();
+}
 
-    // === Start Game ===
-    function startGame() {
-      gameState.startTime = Date.now();
-      gameState.isActive = true;
-      gameState.duration_data.startTime = new Date().toISOString();
-      // NOTE: timer.start() is NOT called here — it starts in loadRound() on the first round
-      progressBar.update(0, gameState.lives);
-      trackEvent('game_start', 'game');
+/* ============================================================
+   VISIBILITY HANDLERS
+   ============================================================ */
+function onInactiveHandler() {
+  gameState.duration_data.inActiveTime.push({ start: Date.now() });
+  if (signalCollector) {
+    try { signalCollector.pause(); } catch(e) {}
+    try { signalCollector.recordCustomEvent('visibility_hidden', {}); } catch(e) {}
+  }
+  if (timer) { try { timer.pause({ fromVisibilityTracker: true }); } catch(e) {} }
+  try { FeedbackManager.sound.pause(); } catch(e) {}
+  try { FeedbackManager.stream.pauseAll(); } catch(e) {}
+  trackEvent('game_paused', 'system');
+}
 
-      if (signalCollector) {
-        signalCollector.recordViewEvent('screen_transition', {
-          screen: 'gameplay',
-          metadata: { transition_from: 'start' },
-        });
-      }
+function onResumeHandler() {
+  var lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+  if (lastInactive && !lastInactive.end) {
+    lastInactive.end = Date.now();
+    gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
+  }
+  if (signalCollector) {
+    try { signalCollector.resume(); } catch(e) {}
+    try { signalCollector.recordCustomEvent('visibility_visible', {}); } catch(e) {}
+  }
+  if (timer && timer.isPaused) { try { timer.resume({ fromVisibilityTracker: true }); } catch(e) {} }
+  try { FeedbackManager.sound.resume(); } catch(e) {}
+  try { FeedbackManager.stream.resumeAll(); } catch(e) {}
+  trackEvent('game_resumed', 'system');
+}
 
-      showLevelTransition();
-    }
+/* ============================================================
+   DEBUG FUNCTIONS (PART-012)
+   ============================================================ */
+window.debugGame = function() {
+  console.log('Game State:', JSON.stringify(gameState, null, 2));
+};
 
-    // === End Game ===
-    async function endGame(reason) {
-      if (gameState.gameEnded) return;
-      gameState.gameEnded = true;
-      gameState.isActive = false;
-      if (timer) timer.pause();
+window.debugAudio = function() {
+  try {
+    console.log('Audio State:', JSON.stringify({
+      sound: FeedbackManager.sound.getState(),
+      stream: FeedbackManager.stream.getState()
+    }, null, 2));
+  } catch(e) { console.log('Audio debug error:', e.message); }
+};
 
-      // Use TimerComponent's gameplay-only elapsed time for star calculation
-      // Wall-clock time includes transition screens and audio waits the student can't control
-      const totalTime = timer ? Math.round(timer.getCurrentTime()) : Math.round((Date.now() - gameState.startTime) / 1000);
-      const correctAttempts = gameState.attempts.filter((a) => a.correct).length;
-      const totalAttempts = gameState.attempts.length;
-      const accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
+window.testAudio = async function(id) {
+  console.log('Testing audio:', id);
+  try { await FeedbackManager.sound.play(id); }
+  catch (e) { console.error('Audio test failed:', e.message); }
+};
 
-      let stars = 0;
-      if (reason === 'victory') {
-        stars = totalTime <= 60 ? 3 : totalTime <= 90 ? 2 : 1;
-      } else {
-        stars = 0;
-      }
+window.testPause = function() {
+  if (visibilityTracker) {
+    visibilityTracker.triggerInactive();
+  } else {
+    if (timer) timer.pause();
+    try { FeedbackManager.sound.pause(); } catch(e) {}
+    try { FeedbackManager.stream.pauseAll(); } catch(e) {}
+  }
+  console.log('testPause triggered');
+};
 
-      const metrics = {
-        accuracy,
-        time: totalTime,
-        stars,
-        attempts: gameState.attempts,
-        duration_data: { ...gameState.duration_data, currentTime: new Date().toISOString() },
-        roundsCompleted: gameState.currentRound,
-        wrongAttempts: gameState.wrongAttempts,
-        livesRemaining: gameState.lives,
-        reason,
-      };
+window.testResume = function() {
+  if (visibilityTracker) {
+    visibilityTracker.triggerResume();
+  } else {
+    if (timer && timer.isPaused) timer.resume();
+    try { FeedbackManager.sound.resume(); } catch(e) {}
+    try { FeedbackManager.stream.resumeAll(); } catch(e) {}
+  }
+  console.log('testResume triggered');
+};
 
-      console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
-      console.log('Attempt History:', JSON.stringify(gameState.attempts, null, 2));
-      trackEvent('game_end', 'game', { reason, roundsCompleted: gameState.currentRound, accuracy, stars, time: totalTime });
+window.verifySentry = function() {
+  var checks = {
+    sdkLoaded: typeof Sentry !== 'undefined',
+    configLoaded: typeof SentryConfig !== 'undefined',
+    initialized: typeof Sentry !== 'undefined' && Sentry.getClient() !== undefined
+  };
+  console.log('Sentry Status:', JSON.stringify(checks, null, 2));
+  return checks;
+};
 
-      if (typeof Sentry !== 'undefined') {
-        Sentry.addBreadcrumb({ category: 'state', message: 'Game complete', level: 'info', data: { score: accuracy, stars, reason } });
-      }
+window.testSentry = function() {
+  try {
+    throw new Error('Test error from testSentry()');
+  } catch (error) {
+    if (typeof Sentry !== 'undefined') Sentry.captureException(error, { tags: { test: true } });
+    console.log('Test error sent to Sentry.');
+  }
+};
 
-      // Flush deferred endProblem before sealing (PART-010)
-      if (signalCollector && gameState.pendingEndProblem) {
-        signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome);
-        gameState.pendingEndProblem = null;
-      }
+window.loadRound = function(n) {
+  gameState.currentRound = n - 1;
+  gameState.isActive = true;
+  gameState.gameEnded = false;
+  gameState.isProcessing = false;
+  renderRound();
+};
 
-      // Seal SignalCollector
-      const signalPayload = signalCollector ? signalCollector.seal() : { events: [], signals: {}, metadata: {} };
+/* ============================================================
+   DOMContentLoaded (PART-004 — 15-step init)
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', async function() {
+  try {
+    /* 1. Wait for packages */
+    await waitForPackages();
 
-      if (reason === 'game_over') {
-        showResults(metrics, reason);
-        // Play game over sounds back-to-back (both awaited)
-        try {
-          await FeedbackManager.sound.play('game_over_sound_effect', {
-            sticker: {
-              image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-95.gif',
-              duration: 3,
-              type: 'IMAGE_GIF',
-            },
-          });
-        } catch (e) {
-          console.error('game_over_sfx error:', e.message);
-        }
-        try {
-          await FeedbackManager.sound.play('game_over');
-        } catch (e) {
-          console.error('game_over audio error:', e.message);
-        }
-      }
+    /* 2. Init FeedbackManager */
+    await FeedbackManager.init();
 
-      if (reason === 'victory') {
-        showResults(metrics, reason);
-        if (stars === 3) {
-          try {
-            await FeedbackManager.sound.play('victory_sound_effect', {
-              sticker: {
-                image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-98.gif',
-                duration: 3,
-                type: 'IMAGE_GIF',
-              },
-            });
-          } catch (e) {
-            console.error('victory_sfx error:', e.message);
-          }
-          try {
-            await FeedbackManager.sound.play('victory');
-          } catch (e) {
-            console.error('victory audio error:', e.message);
-          }
-        } else if (stars === 2) {
-          try {
-            await FeedbackManager.sound.play('game_complete_sound_effect', {
-              sticker: {
-                image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-25.gif',
-                duration: 3,
-                type: 'IMAGE_GIF',
-              },
-            });
-          } catch (e) {
-            console.error('complete_sfx error:', e.message);
-          }
-          try {
-            await FeedbackManager.sound.play('game_complete_2_star');
-          } catch (e) {
-            console.error('2star audio error:', e.message);
-          }
-        } else {
-          // 1 star
-          try {
-            await FeedbackManager.sound.play('game_complete_sound_effect', {
-              sticker: {
-                image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-25.gif',
-                duration: 3,
-                type: 'IMAGE_GIF',
-              },
-            });
-          } catch (e) {
-            console.error('complete_sfx error:', e.message);
-          }
-          try {
-            await FeedbackManager.sound.play('game_complete_1_star');
-          } catch (e) {
-            console.error('1star audio error:', e.message);
-          }
-        }
-      }
+    /* 3. SignalCollector creation */
+    signalCollector = new SignalCollector({
+      sessionId: 'session_' + Date.now(),
+      studentId: null,
+      gameId: gameState.gameId,
+      contentSetId: gameState.contentSetId || null
+    });
+    window.signalCollector = signalCollector;
 
-      window.parent.postMessage(
-        { type: 'game_complete', data: { metrics, attempts: gameState.attempts, ...signalPayload, completedAt: Date.now() } },
-        '*'
-      );
-
-      // Guard: if restartGame() was called during audio playback, it already
-      // recreated components and set gameEnded = false — don't destroy them.
-      if (gameState.gameEnded) {
-        if (timer) {
-          timer.destroy();
-          timer = null;
-        }
-        if (progressBar) {
-          progressBar.destroy();
-          progressBar = null;
-        }
-        if (visibilityTracker) {
-          visibilityTracker.destroy();
-          visibilityTracker = null;
-        }
-        try {
-          FeedbackManager.sound.stopAll();
-          FeedbackManager.stream.stopAll();
-        } catch (e) {}
-      }
-    }
-
-    // === Show Results ===
-    function showResults(metrics, reason) {
-      if (signalCollector) {
-        signalCollector.recordViewEvent('screen_transition', {
-          screen: 'results',
-          metadata: { transition_from: 'gameplay', reason },
-        });
-      }
-
-      document.getElementById('game-screen').classList.add('hidden');
-      const resultsScreen = document.getElementById('results-screen');
-      resultsScreen.classList.remove('hidden');
-      resultsScreen.style.display = 'flex';
-      document.getElementById('results-title').textContent = reason === 'victory' ? 'Great Job!' : 'Game Over';
-      document.getElementById('result-time').textContent = formatTime(metrics.time);
-      document.getElementById('result-rounds').textContent = `${gameState.currentRound}/${gameState.totalRounds}`;
-      document.getElementById('result-wrong').textContent = gameState.wrongAttempts;
-      document.getElementById('result-accuracy').textContent = `${metrics.accuracy}%`;
-
-      const starsDisplay = document.getElementById('stars-display');
-      starsDisplay.innerHTML = '';
-      for (let i = 0; i < 3; i++) {
-        starsDisplay.innerHTML += i < metrics.stars ? '⭐' : '☆';
-      }
-    }
-
-    // === Restart Game ===
-    function restartGame() {
-      // Stop any playing audio
-      try {
-        FeedbackManager.sound.stopAll();
-        FeedbackManager.stream.stopAll();
-      } catch (e) {}
-
-      // Play restart audio with sticker (fire-and-forget)
-      FeedbackManager.sound
-        .play('restart', {
-          sticker: {
-            image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif',
-            duration: 2,
-            type: 'IMAGE_GIF',
-          },
-        })
-        .catch((e) => console.error('restart audio error:', e.message));
-
-      gameState.currentRound = 0;
-      gameState.score = 0;
-      gameState.lives = 3;
-      gameState.wrongAttempts = 0;
-      gameState.selectedLeftIndex = null;
-      gameState.currentRoundData = null;
-      gameState.matchedPairs = new Set();
-      gameState.attempts = [];
-      gameState.events = [];
-      gameState.startTime = null;
-      gameState.isActive = false;
-      gameState.gameEnded = false;
-      gameState.isProcessing = false;
-      gameState.phase = 'start';
-      gameState.duration_data = {
-        startTime: null,
-        preview: [],
-        attempts: [],
-        evaluations: [],
-        inActiveTime: [],
-        totalInactiveTime: 0,
-        currentTime: null,
-      };
-      gameState.pendingEndProblem = null;
-
-      // Recreate destroyed components
-      signalCollector = new SignalCollector({
-        sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
-        studentId: window.gameVariableState?.studentId || null,
-        templateId: gameState.gameId || null,
-      });
-      window.signalCollector = signalCollector;
-
-      timer = new TimerComponent('timer-container', {
-        timerType: 'increase',
-        format: 'min',
-        startTime: 0,
-        endTime: 100000,
-        autoStart: false,
-      });
-
-      progressBar = new ProgressBarComponent({
-        autoInject: true,
-        totalRounds: 9,
-        totalLives: 3,
-        slotId: 'mathai-progress-slot',
-      });
-
-      visibilityTracker = new VisibilityTracker({
-        onInactive: () => {
-          const inactiveStart = Date.now();
-          gameState.duration_data.inActiveTime.push({ start: inactiveStart });
-          if (signalCollector) {
-            signalCollector.pause();
-            signalCollector.recordCustomEvent('visibility_hidden', {});
-          }
-          if (timer) timer.pause({ fromVisibilityTracker: true });
-          FeedbackManager.sound.pause();
-          FeedbackManager.stream.pauseAll();
-          trackEvent('game_paused', 'system');
-        },
-        onResume: () => {
-          const lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
-          if (lastInactive && !lastInactive.end) {
-            lastInactive.end = Date.now();
-            gameState.duration_data.totalInactiveTime += lastInactive.end - lastInactive.start;
-          }
-          if (signalCollector) {
-            signalCollector.resume();
-            signalCollector.recordCustomEvent('visibility_visible', {});
-          }
-          if (timer?.isPaused) timer.resume({ fromVisibilityTracker: true });
-          FeedbackManager.sound.resume();
-          FeedbackManager.stream.resumeAll();
-          trackEvent('game_resumed', 'system');
-        },
-        popupProps: {
-          title: 'Game Paused',
-          description: 'Click Resume to continue.',
-          primaryText: 'Resume',
-        },
-      });
-
-      document.getElementById('results-screen').classList.add('hidden');
-      const gameScreen = document.getElementById('game-screen');
-      gameScreen.classList.remove('hidden');
-      gameScreen.style.display = 'flex';
-
-      transitionScreen.show({
-        icons: ['✖️', '2️⃣'],
-        iconSize: 'large',
-        title: 'Matching Doubles',
-        subtitle: 'Match numbers with their doubles!',
-        buttons: [
-          {
-            text: "Let's go!",
-            type: 'primary',
-            action: () => startGame(),
-          },
-        ],
-      });
-    }
-
-    // === PostMessage Handler (PART-008) ===
-    function handlePostMessage(event) {
-      if (!event.data || event.data.type !== 'game_init') return;
-      try {
-        gameState.content = event.data.data.content;
-        console.log('Content received:', JSON.stringify(gameState.content, null, 2));
-        if (typeof Sentry !== 'undefined') {
-          Sentry.addBreadcrumb({ category: 'postmessage', message: 'game_init received', level: 'info' });
-        }
-      } catch (e) {
-        console.error('PostMessage error:', JSON.stringify({ error: e.message }, null, 2));
-        if (typeof Sentry !== 'undefined') {
-          Sentry.captureException(e, { tags: { phase: 'initialization', severity: 'high' } });
-        }
-      }
-    }
-
-    // === Window Exposure (RULE-001 / PART-026) ===
-    window.endGame = endGame;
-    window.restartGame = restartGame;
-    window.loadRound = loadRound;
-    window.startGame = startGame;
-
-    // === Debug Functions (PART-012) ===
-    window.debugGame = () => {
-      console.log(
-        'Game State:',
-        JSON.stringify(
-          {
-            currentRound: gameState.currentRound,
-            totalRounds: gameState.totalRounds,
-            lives: gameState.lives,
-            score: gameState.score,
-            wrongAttempts: gameState.wrongAttempts,
-            selectedLeftIndex: gameState.selectedLeftIndex,
-            matchedPairs: [...gameState.matchedPairs],
-            isActive: gameState.isActive,
-          },
-          null,
-          2
-        )
-      );
-    };
-
-    window.debugAudio = () => {
-      console.log('FeedbackManager available:', typeof FeedbackManager !== 'undefined');
-    };
-
-    window.testAudio = async (id) => {
-      try {
-        await FeedbackManager.sound.play(id || 'correct_sound_effect');
-        console.log('Audio played successfully');
-      } catch (e) {
-        console.error('Audio test error:', JSON.stringify({ error: e.message }, null, 2));
-      }
-    };
-
-    window.testPause = () => {
-      if (timer) timer.pause();
-    };
-
-    window.testResume = () => {
-      if (timer && gameState.isActive) timer.resume();
-    };
-
-    window.verifySentry = function () {
-      const checks = {
-        sdkLoaded: typeof Sentry !== 'undefined',
-        initialized: typeof Sentry !== 'undefined' && Sentry.getClient() !== undefined,
-        dsn: typeof Sentry !== 'undefined' && Sentry.getClient()?.getDsn()?.toString(),
-      };
-      console.log('Sentry Status:', JSON.stringify(checks, null, 2));
-      return checks;
-    };
-
-    window.testSentry = function () {
-      try {
-        throw new Error('Test error from testSentry()');
-      } catch (error) {
-        if (typeof Sentry !== 'undefined') {
-          Sentry.captureException(error, { tags: { test: true } });
-          console.log('Test error sent to Sentry. Check dashboard.');
-        } else {
-          console.log('Sentry not loaded');
-        }
-      }
-    };
-
-    // === DOMContentLoaded (PART-004) ===
-    window.addEventListener('DOMContentLoaded', async () => {
-      try {
-        await waitForPackages();
-
-        if (typeof Sentry !== 'undefined') {
-          Sentry.addBreadcrumb({ category: 'package-loading', message: 'All packages loaded', level: 'info' });
-        }
-
-        // MANDATORY — always call after waitForPackages()
-        await FeedbackManager.init();
-
-        // Preload all sound effects (PART-017)
-        try {
-          await FeedbackManager.sound.preload([
-            { id: 'level_1', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/daadc184-5a8a-4041-8c36-589dce11e9ad.mp3' },
-            { id: 'level_2', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/2ac37656-6559-4482-ad16-543b275c19da.mp3' },
-            { id: 'level_3', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/dff10ee8-9019-43dc-90fb-9d3ee91208ba.mp3' },
-            { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
-            { id: 'round_1', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/ffef09bc-74ed-4814-bfad-79fdd5a5d5a2.mp3' },
-            { id: 'round_2', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/97d60534-298b-4eba-8b8b-43a50f73cd81.mp3' },
-            { id: 'round_3', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/f9f2cf9f-ceb2-406b-9c45-a43602959d81.mp3' },
-            { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
-            { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
-            { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
-            { id: 'new_cards', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' },
-            { id: 'all_correct', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' },
-            { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
-            { id: 'game_over', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/5140e0b6-cada-4424-8e5d-f9cd06a0c83f.mp3' },
-            { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
-            { id: 'game_complete_1_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/2ee85ea3-919b-4010-95a2-40bcd7d90d22.mp3' },
-            { id: 'game_complete_2_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/84f4ff34-6e59-43d6-9663-4d9936cad002.mp3' },
-            { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
-            { id: 'victory', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/e252bcc4-bd5f-4195-ad04-a02582095b6d.mp3' },
-            { id: 'restart', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/62109bc7-67bd-4e65-b06d-c760c144cd42.mp3' },
-          ]);
-        } catch (e) {
-          console.error('Sound preload error:', JSON.stringify({ error: e.message }, null, 2));
-          if (typeof Sentry !== 'undefined') {
-            Sentry.captureException(e, {
-              tags: { phase: 'audio-playback', component: 'FeedbackManager', severity: 'medium' },
-            });
-          }
-        }
-
-        // SignalCollector (PART-010)
-        signalCollector = new SignalCollector({
-          sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
-          studentId: window.gameVariableState?.studentId || null,
-          templateId: gameState.gameId || null,
-        });
-        window.signalCollector = signalCollector;
-
-        // ScreenLayout (PART-025)
-        const layout = ScreenLayout.inject('app', {
-          slots: { progressBar: true, transitionScreen: true },
-        });
-
-        // Clone template into gameContent
-        const gameContent = document.getElementById('gameContent');
-        const template = document.getElementById('game-template');
-        gameContent.appendChild(template.content.cloneNode(true));
-
-        // Timer (PART-006)
-        timer = new TimerComponent('timer-container', {
-          timerType: 'increase',
-          format: 'min',
-          startTime: 0,
-          endTime: 100000,
-          autoStart: false,
-        });
-
-        // ProgressBar (PART-023)
-        progressBar = new ProgressBarComponent({
-          autoInject: true,
-          totalRounds: 9,
-          totalLives: 3,
-          slotId: 'mathai-progress-slot',
-        });
-
-        // TransitionScreen (PART-024)
-        transitionScreen = new TransitionScreenComponent({
-          autoInject: true,
-        });
-
-        // VisibilityTracker (PART-005)
-        visibilityTracker = new VisibilityTracker({
-          onInactive: () => {
-            const inactiveStart = Date.now();
-            gameState.duration_data.inActiveTime.push({ start: inactiveStart });
-            if (signalCollector) {
-              signalCollector.pause();
-              signalCollector.recordCustomEvent('visibility_hidden', {});
-            }
-            if (timer) timer.pause({ fromVisibilityTracker: true });
-            FeedbackManager.sound.pause();
-            FeedbackManager.stream.pauseAll();
-            trackEvent('game_paused', 'system');
-          },
-          onResume: () => {
-            const lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
-            if (lastInactive && !lastInactive.end) {
-              lastInactive.end = Date.now();
-              gameState.duration_data.totalInactiveTime += lastInactive.end - lastInactive.start;
-            }
-            if (signalCollector) {
-              signalCollector.resume();
-              signalCollector.recordCustomEvent('visibility_visible', {});
-            }
-            if (timer?.isPaused) timer.resume({ fromVisibilityTracker: true });
-            FeedbackManager.sound.resume();
-            FeedbackManager.stream.resumeAll();
-            trackEvent('game_resumed', 'system');
-          },
-          popupProps: {
-            title: 'Game Paused',
-            description: 'Click Resume to continue.',
-            primaryText: 'Resume',
-          },
-        });
-
-        // Fallback content for standalone testing
-        if (!gameState.content) {
-          gameState.content = fallbackContent;
-        }
-
-        // Listen for postMessage (PART-008)
-        window.addEventListener('message', handlePostMessage);
-
-        // Signal parent harness that game is ready (PART-008)
-        window.parent.postMessage({ type: 'game_ready' }, '*');
-
-        // Show start screen
-        transitionScreen.show({
-          icons: ['✖️', '2️⃣'],
-          iconSize: 'large',
-          title: 'Matching Doubles',
-          subtitle: 'Match numbers with their doubles!',
-          buttons: [
-            {
-              text: "Let's go!",
-              type: 'primary',
-              action: () => startGame(),
-            },
-          ],
-        });
-      } catch (e) {
-        console.error('Init error:', JSON.stringify({ error: e.message }, null, 2));
-        if (typeof Sentry !== 'undefined') {
-          Sentry.captureException(e, { tags: { phase: 'initialization', severity: 'critical' } });
-        }
+    /* 4. ScreenLayout inject */
+    ScreenLayout.inject('app', {
+      sections: {
+        header: true,
+        questionText: false,
+        progressBar: true,
+        playArea: true,
+        transitionScreen: true
+      },
+      styles: {
+        header: { background: 'var(--mathai-white, #ffffff)' },
+        progressBar: { padding: '0 16px', maxWidth: '480px', marginLeft: 'auto', marginRight: 'auto', marginTop: '4px', width: '100%' }
       }
     });
-  </script>
+
+    /* 5. Inject timer container into header slot */
+    var headerSlot = document.getElementById('mathai-header-slot');
+    if (headerSlot) {
+      headerSlot.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 16px;width:100%;">' +
+          '<div id="timer-container" style="display:flex;align-items:center;"></div>' +
+          '<div id="score-display" style="font-size:16px;font-weight:700;color:var(--mathai-primary);font-family:var(--mathai-font-family);">Score: 0</div>' +
+        '</div>';
+    }
+
+    /* 6. Build play area HTML into #gameContent */
+    gameContentEl = document.getElementById('gameContent');
+    if (gameContentEl) {
+      gameContentEl.innerHTML =
+        '<div class="match-area">' +
+          '<div class="columns-container">' +
+            '<div class="column">' +
+              '<div class="column-header">Number</div>' +
+              '<div id="left-column"></div>' +
+            '</div>' +
+            '<div class="column">' +
+              '<div class="column-header">Double</div>' +
+              '<div id="right-column"></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+    }
+
+    /* Cache DOM refs after ScreenLayout.inject */
+    gameContentEl = document.getElementById('gameContent');
+    leftColumnEl = document.getElementById('left-column');
+    rightColumnEl = document.getElementById('right-column');
+    scoreDisplayEl = document.getElementById('score-display');
+
+    /* 7. TimerComponent creation */
+    timer = new TimerComponent('timer-container', {
+      timerType: 'increase',
+      format: 'min',
+      startTime: 0,
+      endTime: 600000,
+      autoStart: false,
+      onEnd: function() {}
+    });
+
+    /* 8. InteractionManager creation */
+    var interactionManager = new InteractionManager({
+      selector: '.match-area',
+      disableOnAudioFeedback: false,
+      disableOnEvaluation: true
+    });
+    window.interactionManager = interactionManager;
+
+    /* 9. VisibilityTracker creation */
+    visibilityTracker = new VisibilityTracker({
+      onInactive: onInactiveHandler,
+      onResume: onResumeHandler,
+      popupProps: {
+        title: 'Game Paused',
+        description: 'Click Resume to continue.',
+        primaryText: 'Resume'
+      }
+    });
+
+    /* 10. createProgressBar */
+    createProgressBar();
+
+    /* 11. TransitionScreenComponent creation */
+    transitionScreen = new TransitionScreenComponent({ autoInject: true });
+
+    /* 12. Audio preloading */
+    try {
+      await FeedbackManager.sound.preload([
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'sound_life_lost', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+        { id: 'new_cards', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' },
+        { id: 'all_correct', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' }
+      ]);
+    } catch (e) { console.error('Sound preload error:', e.message); }
+
+    /* 13. Register handlePostMessage listener -- BEFORE game_ready */
+    window.addEventListener('message', handlePostMessage);
+
+    /* 14. Send game_ready postMessage */
+    try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+
+    /* 15. Standalone fallback */
+    setTimeout(function() {
+      if (gameState.phase === 'start_screen' && !gameState.isActive) {
+        setupGame();
+      }
+    }, 1000);
+
+  } catch (error) {
+    console.error('[init] ' + error.message);
+  }
+
+  /* Window exposures (MUST be at bottom of DOMContentLoaded) */
+  window.gameState = gameState;
+  window.endGame = endGame;
+  window.restartGame = restartGame;
+  window.nextRound = nextRound;
+  window.startGame = startGame;
+});
+</script>
 </body>
 </html>

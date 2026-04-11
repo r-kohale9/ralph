@@ -1,6 +1,6 @@
 # PART-011: End Game & Metrics
 
-**Category:** MANDATORY | **Condition:** Every game | **Dependencies:** PART-007, PART-009, PART-010
+**Category:** MANDATORY | **Condition:** Every game | **Dependencies:** PART-007, PART-009, PART-010, PART-042
 
 ---
 
@@ -53,7 +53,7 @@ function endGame() {
 
   trackEvent('game_end', 'game', { metrics });
 
-  // Seal SignalCollector — fires sendBeacon to flush all events to GCS, stops flush timer, detaches listeners (PART-010)
+  // Seal SignalCollector — fires sendBeacon to flush all events to GCS, stops flush timer, detaches listeners (PART-042)
   if (signalCollector) signalCollector.seal();
 
   // Show results (PART-019)
@@ -141,7 +141,7 @@ The `endGame()` function exists in every game, but it only works if something **
 - Set `duration_data.currentTime` to ISO timestamp
 - Log metrics with `JSON.stringify` (RULE-004)
 - Fire `game_end` trackEvent BEFORE signal sealing
-- Flush deferred `endProblem` before sealing (PART-010)
+- Flush deferred `endProblem` before sealing (PART-042)
 - Seal SignalCollector before postMessage — `seal()` performs final flush to GCS, detaches listeners, and is idempotent
 - Call `showResults()` to display results screen (PART-019)
 - Send postMessage with `metrics`, `attempts`, `completedAt` BEFORE cleanup (PART-008). Signal data is streamed to GCS via batch flushing — NOT included in postMessage.

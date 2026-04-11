@@ -60,7 +60,7 @@ Per PART-009. Game-building rules:
 ### trackEvent
 Per PART-010. Game-building rules:
 - Canonical events that MUST fire: `game_start`, `game_end`, `answer_submitted`, `round_complete`.
-- See `parts/PART-010.md` for event schemas and SignalCollector integration.
+- See `parts/PART-010.md` for event schemas.
 
 ### endGame
 Per PART-011. Game-building rules:
@@ -120,9 +120,9 @@ Per PART-023. Game-building rules:
 Per PART-012. See `parts/PART-012.md`.
 
 ### SignalCollector
-Per PART-010. Game-building rules:
+Per PART-042. Game-building rules:
 - `restartGame` must re-instantiate SignalCollector after `seal()` (GEN-SIGNAL-RESET).
-- See `parts/PART-010.md` for full API.
+- See `parts/PART-042.md` for full API.
 
 ---
 

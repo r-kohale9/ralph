@@ -21,7 +21,7 @@ alfred/
   │   ├── PART-007.md                               Game State Object
   │   ├── PART-008.md                               PostMessage Protocol
   │   ├── PART-009.md                               Attempt Tracking
-  │   ├── PART-010.md                               Event Tracking & SignalCollector
+  │   ├── PART-010.md                               Event Tracking
   │   ├── PART-011.md                               End Game & Metrics
   │   ├── PART-012.md                               Debug Functions
   │   ├── PART-013.md                               Validation: Fixed Answer
@@ -49,7 +49,8 @@ alfred/
   │   ├── PART-035.md                               Test Plan Generation
   │   ├── PART-037.md                               Playwright Testing & Ralph Loop
   │   ├── PART-038.md                               InteractionManager
-  │   └── PART-039.md                               Preview Screen
+  │   ├── PART-039.md                               Preview Screen
+  │   └── PART-042.md                               SignalCollector
   │
   ├── design/
   │   ├── system-loop.md                            Ship → capture → gauge → iterate loop
@@ -133,14 +134,22 @@ alfred/
   │   │       ├── emotional-safety.md               Game-over language, failure recovery
   │   │       └── indian-curriculum.md              NCERT/CBSE mapping, Hindi-English vocab
   │   │
-  │   └── mobile/
-  │       ├── SKILL.md                              Quick-reference rules table
-  │       ├── eval.md                               Eval cases for mobile
+  │   ├── mobile/
+  │   │   ├── SKILL.md                              Quick-reference rules table
+  │   │   ├── eval.md                               Eval cases for mobile
+  │   │   └── reference/
+  │   │       ├── layout-and-viewport.md            Viewport, max-width, dvh, safe areas, orientation
+  │   │       ├── touch-and-input.md                Touch targets, thumb zone, keyboard, gestures
+  │   │       ├── cross-browser.md                  Banned features, Safari rules, performance budget
+  │   │       └── css-variables.md                  Complete --mathai-* reference
+  │   │
+  │   └── signal-collector/
+  │       ├── SKILL.md                              Integration points + constraints + anti-patterns
+  │       ├── eval.md                               Eval cases for signal-collector
   │       └── reference/
-  │           ├── layout-and-viewport.md            Viewport, max-width, dvh, safe areas, orientation
-  │           ├── touch-and-input.md                Touch targets, thumb zone, keyboard, gestures
-  │           ├── cross-browser.md                  Banned features, Safari rules, performance budget
-  │           └── css-variables.md                  Complete --mathai-* reference
+  │           ├── signalcollector-api.md             Constructor, methods, view/custom event types
+  │           ├── lifecycle-and-flushing.md          Init, signalConfig, seal, restart, ordering rules
+  │           └── view-event-patterns.md            Copy-paste patterns for each viewType
   │
   ├── principles/
   │   └── knowledgebase.md                          14 principles for knowledge organization
@@ -215,6 +224,7 @@ Framework and conventions: [skills/README.md](skills/README.md)
 | feedback | [SKILL.md](skills/feedback/SKILL.md) | [eval.md](skills/feedback/eval.md) | [feedbackmanager-api.md](skills/feedback/reference/feedbackmanager-api.md), [timing-and-blocking.md](skills/feedback/reference/timing-and-blocking.md), [emotional-arc.md](skills/feedback/reference/emotional-arc.md), [juice-animations.md](skills/feedback/reference/juice-animations.md) |
 | pedagogy | [SKILL.md](skills/pedagogy/SKILL.md) | [eval.md](skills/pedagogy/eval.md) | [bloom-mapping.md](skills/pedagogy/reference/bloom-mapping.md), [misconceptions.md](skills/pedagogy/reference/misconceptions.md), [difficulty-tuning.md](skills/pedagogy/reference/difficulty-tuning.md), [scaffolding.md](skills/pedagogy/reference/scaffolding.md), [emotional-safety.md](skills/pedagogy/reference/emotional-safety.md), [indian-curriculum.md](skills/pedagogy/reference/indian-curriculum.md) |
 | mobile | [SKILL.md](skills/mobile/SKILL.md) | [eval.md](skills/mobile/eval.md) | [layout-and-viewport.md](skills/mobile/reference/layout-and-viewport.md), [touch-and-input.md](skills/mobile/reference/touch-and-input.md), [cross-browser.md](skills/mobile/reference/cross-browser.md), [css-variables.md](skills/mobile/reference/css-variables.md) |
+| signal-collector | [SKILL.md](skills/signal-collector/SKILL.md) | [eval.md](skills/signal-collector/eval.md) | [signalcollector-api.md](skills/signal-collector/reference/signalcollector-api.md), [lifecycle-and-flushing.md](skills/signal-collector/reference/lifecycle-and-flushing.md), [view-event-patterns.md](skills/signal-collector/reference/view-event-patterns.md) |
 
 ## Reading Order
 

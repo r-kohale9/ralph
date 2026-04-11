@@ -96,7 +96,7 @@ Each question maps to an action tagged `content-only` / `spec-change` / `full-re
 
 | Requirement | Status |
 |-------------|--------|
-| `SignalCollector` (PART-010) in shipped games | Implemented |
+| `SignalCollector` (PART-042) in shipped games | Implemented |
 | Gameplay MCP exists | Yes — needs schema audit |
 | Content set API (PART-031) | Implemented |
 | Skill / spec versioning + history | TODO |

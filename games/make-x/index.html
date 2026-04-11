@@ -351,10 +351,10 @@ window.gameState = {
 
 var timer = null;
 var visibilityTracker = null;
-var signalCollector = null;
 var progressBar = null;
 var transitionScreen = null;
 var previewScreen = null;
+var signalCollector = null;
 
 /* ============================================================
    FALLBACK CONTENT (5 rounds, 2 levels — from spec)
@@ -583,13 +583,6 @@ async function handleTileTap(index) {
       tileValue: roundData.tiles[index].value
     });
 
-    if (signalCollector) {
-      signalCollector.recordViewEvent('visual_update', {
-        screen: 'gameplay',
-        content_snapshot: { type: 'tile_deselected', tile_index: index, selected_tiles: gameState.selectedTiles.slice() }
-      });
-    }
-
     updateRunningSum();
   } else {
     /* === SELECT === */
@@ -601,12 +594,6 @@ async function handleTileTap(index) {
       tileValue: roundData.tiles[index].value
     });
 
-    if (signalCollector) {
-      signalCollector.recordViewEvent('visual_update', {
-        screen: 'gameplay',
-        content_snapshot: { type: 'tile_selected', tile_index: index, selected_tiles: gameState.selectedTiles.slice() }
-      });
-    }
 
     var sum = getSelectedSum();
     var target = roundData.target;
@@ -661,6 +648,13 @@ async function handleCorrectAnswer() {
     if (tile) { tile.classList.remove('selected'); tile.classList.add('correct'); }
   });
 
+  if (signalCollector) signalCollector.recordViewEvent('feedback_display', {
+    screen: 'gameplay',
+    content_snapshot: { feedback_type: 'correct', round: gameState.currentRound + 1, target: roundData.target, selected: getSelectedDisplayValues() },
+    components: { progress: { current: gameState.currentRound, total: gameState.totalRounds }, lives: gameState.lives },
+    metadata: { trigger: 'user_action' }
+  });
+
   /* Timer + metrics */
   if (timer) timer.pause();
   var roundTimeMs = Date.now() - gameState.roundStartTime;
@@ -682,19 +676,19 @@ async function handleCorrectAnswer() {
     is_retry: false
   });
 
+  if (signalCollector) signalCollector.recordCustomEvent('round_solved', {
+    round: gameState.currentRound + 1,
+    correct: true,
+    answer: selectedDisplays,
+    correct_answer: roundData.target,
+    time_ms: roundTimeMs
+  });
+
   trackEvent('correct_answer', 'game', {
     round: gameState.currentRound + 1,
     target: roundData.target,
     timeTaken: Math.round(roundTimeSec)
   });
-
-  if (signalCollector) {
-    signalCollector.recordCustomEvent('round_solved', {
-      round: gameState.currentRound + 1,
-      correct: true,
-      timeTaken: Math.round(roundTimeSec)
-    });
-  }
 
   /* Feedback: SFX (awaited) -> Dynamic TTS (awaited) */
   try {
@@ -754,6 +748,13 @@ async function handleOvershoot() {
     }
   });
 
+  if (signalCollector) signalCollector.recordViewEvent('feedback_display', {
+    screen: 'gameplay',
+    content_snapshot: { feedback_type: 'incorrect', round: gameState.currentRound + 1, target: roundData.target, sum: sum, selected: selectedDisplays },
+    components: { progress: { current: gameState.currentRound, total: gameState.totalRounds }, lives: gameState.lives },
+    metadata: { trigger: 'user_action' }
+  });
+
   /* Lose a life */
   gameState.lives--;
   gameState.streak = 0;
@@ -772,19 +773,20 @@ async function handleOvershoot() {
     is_retry: gameState.consecutiveOvershoots > 1
   });
 
+  if (signalCollector) signalCollector.recordCustomEvent('round_solved', {
+    round: gameState.currentRound + 1,
+    correct: false,
+    answer: selectedDisplays,
+    correct_answer: roundData.target,
+    sum: sum
+  });
+
   trackEvent('incorrect_answer', 'game', {
     round: gameState.currentRound + 1,
     target: roundData.target,
     sum: sum
   });
   trackEvent('life_lost', 'game', { livesRemaining: gameState.lives });
-
-  if (signalCollector) {
-    signalCollector.recordViewEvent('feedback_display', {
-      screen: 'gameplay',
-      content_snapshot: { feedback_type: 'incorrect', sum: sum, target: roundData.target }
-    });
-  }
 
   /* Case 8: Last life -> skip incorrect SFX, go straight to game over */
   if (gameState.lives <= 0) {
@@ -902,22 +904,12 @@ async function startRound() {
   }
   gameState.roundStartTime = Date.now();
 
-  if (signalCollector) {
-    signalCollector.recordViewEvent('content_render', {
-      screen: 'gameplay',
-      content_snapshot: {
-        round: gameState.currentRound + 1,
-        level: roundData.level,
-        target: roundData.target,
-        tiles: roundData.tiles.map(function(t) { return t.display; }),
-        trigger: 'round_start'
-      },
-      components: {
-        timer: timer ? { value: timer.getCurrentTime(), state: 'running' } : null,
-        progress: { current: gameState.currentRound, total: gameState.totalRounds }
-      }
-    });
-  }
+  if (signalCollector) signalCollector.recordViewEvent('content_render', {
+    screen: 'gameplay',
+    content_snapshot: { round: gameState.currentRound + 1, target: roundData.target, level: roundData.level, tile_count: roundData.tiles.length },
+    components: { timer: { value: 0, state: 'running' }, progress: { current: gameState.currentRound, total: gameState.totalRounds }, lives: gameState.lives },
+    metadata: { trigger: 'round_start' }
+  });
 
   trackEvent('question_shown', 'game', {
     round: gameState.currentRound + 1,
@@ -960,6 +952,13 @@ async function showWelcomeScreen() {
       action: function() { handleStartGame(); }
     }],
     persist: true
+  });
+
+  if (signalCollector) signalCollector.recordViewEvent('screen_transition', {
+    screen: 'ready',
+    content_snapshot: { title: 'Reach the Target Sum' },
+    components: {},
+    metadata: { trigger: 'user_action', transition_from: 'none' }
   });
 
   /* Audio readiness + welcome VO */
@@ -1013,6 +1012,13 @@ async function showLevelTransition(level) {
       }
     }],
     persist: true
+  });
+
+  if (signalCollector) signalCollector.recordViewEvent('screen_transition', {
+    screen: 'transition',
+    content_snapshot: { title: 'Level ' + level, level: level },
+    components: { progress: { current: gameState.currentRound, total: gameState.totalRounds }, lives: gameState.lives },
+    metadata: { trigger: 'user_action', transition_from: 'gameplay' }
   });
 
   /* Level transition audio: SFX -> VO sequential */
@@ -1081,16 +1087,16 @@ function endGame(isGameOver) {
 
   trackEvent('game_end', 'game', { metrics: metrics });
 
-  if (signalCollector) {
-    try { signalCollector.seal(); } catch(e) {}
-  }
+  var signalResult = signalCollector ? signalCollector.seal() : { event_count: 0, metadata: {} };
 
   window.parent.postMessage({
     type: 'game_complete',
     data: {
       metrics: metrics,
       attempts: gameState.attempts,
-      completedAt: Date.now()
+      completedAt: Date.now(),
+      signal_event_count: signalResult.event_count,
+      signal_metadata: signalResult.metadata
     }
   }, '*');
 
@@ -1141,6 +1147,13 @@ async function showGameComplete() {
     persist: true
   });
 
+  if (signalCollector) signalCollector.recordViewEvent('screen_transition', {
+    screen: 'results',
+    content_snapshot: { stars: stars, avg_time: avgDisplay },
+    components: { progress: { current: gameState.totalRounds, total: gameState.totalRounds }, lives: gameState.lives },
+    metadata: { trigger: 'user_action', transition_from: 'gameplay' }
+  });
+
   /* Victory audio: SFX -> VO sequential */
   try {
     await FeedbackManager.sound.play('sound_game_victory', {
@@ -1174,6 +1187,13 @@ async function showGameOver() {
     persist: true
   });
 
+  if (signalCollector) signalCollector.recordViewEvent('screen_transition', {
+    screen: 'complete',
+    content_snapshot: { outcome: 'game_over', rounds_completed: roundsCompleted },
+    components: { progress: { current: gameState.currentRound, total: gameState.totalRounds }, lives: 0 },
+    metadata: { trigger: 'user_action', transition_from: 'gameplay' }
+  });
+
   try {
     await FeedbackManager.sound.play('sound_game_over', {
       sticker: {
@@ -1200,6 +1220,24 @@ async function showGameOver() {
 function restartGame() {
   try { FeedbackManager.sound.stopAll(); } catch(e) {}
   try { FeedbackManager.stream.stopAll(); } catch(e) {}
+
+  signalCollector = new SignalCollector({
+    sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+    studentId: window.gameVariableState?.studentId || null,
+    gameId: gameState.gameId || null,
+    contentSetId: gameState.contentSetId || null
+  });
+  window.signalCollector = signalCollector;
+
+  if (gameState.signalConfig && gameState.signalConfig.flushUrl) {
+    signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+    signalCollector.playId = gameState.signalConfig.playId || null;
+    signalCollector.gameId = gameState.signalConfig.gameId || signalCollector.gameId;
+    signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+    signalCollector.contentSetId = gameState.signalConfig.contentSetId || signalCollector.contentSetId;
+    signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+    signalCollector.startFlushing();
+  }
 
   window.gameState.phase = 'start_screen';
   window.gameState.currentRound = 0;
@@ -1230,14 +1268,6 @@ function restartGame() {
   };
 
   syncDOMState();
-
-  /* Re-create SignalCollector (seal prevents reuse) */
-  signalCollector = new SignalCollector({
-    sessionId: window.gameVariableState ? window.gameVariableState.sessionId : 'session_' + Date.now(),
-    studentId: window.gameVariableState ? window.gameVariableState.studentId : null,
-    gameId: gameState.gameId
-  });
-  window.signalCollector = signalCollector;
 
   /* Re-create timer */
   timer = new TimerComponent('timer-container', {
@@ -1312,14 +1342,14 @@ function handlePostMessage(event) {
   var d = event.data.data || event.data;
   if (d.content) gameState.content = d.content;
 
-  var signalConfig = d.signalConfig || (event.data.config ? event.data.config.signalConfig : null) || {};
-  if (signalCollector && signalConfig.flushUrl) {
-    signalCollector.flushUrl = signalConfig.flushUrl;
-    signalCollector.playId = signalConfig.playId || null;
-    signalCollector.gameId = signalConfig.gameId || signalCollector.gameId;
-    signalCollector.sessionId = signalConfig.sessionId || signalCollector.sessionId;
-    signalCollector.contentSetId = signalConfig.contentSetId || signalCollector.contentSetId;
-    signalCollector.studentId = signalConfig.studentId || signalCollector.studentId;
+  var sc = gameState.signalConfig = d.signalConfig || {};
+  if (signalCollector && sc.flushUrl) {
+    signalCollector.flushUrl = sc.flushUrl;
+    signalCollector.playId = sc.playId || null;
+    signalCollector.gameId = sc.gameId || signalCollector.gameId;
+    signalCollector.sessionId = sc.sessionId || signalCollector.sessionId;
+    signalCollector.contentSetId = sc.contentSetId || signalCollector.contentSetId;
+    signalCollector.studentId = sc.studentId || signalCollector.studentId;
     signalCollector.startFlushing();
   }
 
@@ -1411,12 +1441,6 @@ window.testResume = function() {
   console.log('testResume triggered');
 };
 
-window.debugSignals = function() {
-  if (!signalCollector) { console.log('SignalCollector not initialized'); return; }
-  console.log('=== Signal Collector Debug ===');
-  signalCollector.debug();
-};
-
 window.verifySentry = function() {
   var checks = {
     sdkLoaded: typeof Sentry !== 'undefined',
@@ -1453,10 +1477,10 @@ window.addEventListener('DOMContentLoaded', async function() {
     await FeedbackManager.init();
 
     signalCollector = new SignalCollector({
-      sessionId: window.gameVariableState ? window.gameVariableState.sessionId : 'session_' + Date.now(),
-      studentId: window.gameVariableState ? window.gameVariableState.studentId : null,
-      gameId: gameState.gameId,
-      contentSetId: gameState.contentSetId
+      sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+      studentId: window.gameVariableState?.studentId || null,
+      gameId: gameState.gameId || null,
+      contentSetId: gameState.contentSetId || null
     });
     window.signalCollector = signalCollector;
 
@@ -1483,13 +1507,13 @@ window.addEventListener('DOMContentLoaded', async function() {
     var gameContentEl = document.getElementById('gameContent');
     gameContentEl.innerHTML =
       '<div class="game-play-area">' +
-        '<div class="target-display" id="target-display">' +
+        '<div class="target-display" id="target-display" data-signal-id="target-display">' +
           '<h2 class="target-title" id="target-title">Make <span id="target-value">0</span></h2>' +
         '</div>' +
-        '<div class="running-sum" id="running-sum">' +
+        '<div class="running-sum" id="running-sum" data-signal-id="running-sum">' +
           '<span class="running-sum-text" id="running-sum-value">\u00A0</span>' +
         '</div>' +
-        '<div class="tile-grid" id="tile-grid"></div>' +
+        '<div class="tile-grid" id="tile-grid" data-signal-id="tile-grid"></div>' +
       '</div>';
 
     timer = new TimerComponent('timer-container', {
