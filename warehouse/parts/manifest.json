@@ -86,12 +86,12 @@
     },
     {
       "id": "PART-010",
-      "name": "Event Tracking & SignalCollector",
-      "version": "2.0.0",
+      "name": "Event Tracking",
+      "version": "3.0.0",
       "category": "MANDATORY",
       "condition": "Every game",
       "file": "PART-010-event-tracking.md",
-      "dependencies": ["PART-003", "PART-004", "PART-007"]
+      "dependencies": ["PART-007"]
     },
     {
       "id": "PART-011",
@@ -100,7 +100,7 @@
       "category": "MANDATORY",
       "condition": "Every game",
       "file": "PART-011-end-game.md",
-      "dependencies": ["PART-007", "PART-009", "PART-010"]
+      "dependencies": ["PART-007", "PART-009", "PART-010", "PART-042"]
     },
     {
       "id": "PART-012",
@@ -344,6 +344,33 @@
       "condition": "Every game (preview/instruction screen before interaction starts)",
       "file": "PART-039-preview-screen.md",
       "dependencies": ["PART-002", "PART-017", "PART-025"]
+    },
+    {
+      "id": "PART-040",
+      "name": "Video Player",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game includes video content (instructional, pattern, story videos)",
+      "file": "PART-040-video-player.md",
+      "dependencies": ["PART-020", "PART-025", "PART-027"]
+    },
+    {
+      "id": "PART-041",
+      "name": "Audio Player",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game includes content audio with visible player UI (instruction audio, listening exercises)",
+      "file": "PART-041-audio-player.md",
+      "dependencies": ["PART-020", "PART-025", "PART-027"]
+    },
+    {
+      "id": "PART-042",
+      "name": "SignalCollector",
+      "version": "1.0.0",
+      "category": "MANDATORY",
+      "condition": "Every game",
+      "file": "PART-042-signal-collector.md",
+      "dependencies": ["PART-003", "PART-004", "PART-007"]
     }
   ],
 
@@ -353,7 +380,7 @@
       "PART-007", "PART-008", "PART-009", "PART-010", "PART-011",
       "PART-012", "PART-019", "PART-020", "PART-021", "PART-022",
       "PART-023", "PART-024", "PART-025",
-      "PART-027", "PART-028", "PART-030", "PART-017", "PART-039"
+      "PART-027", "PART-028", "PART-030", "PART-017", "PART-039", "PART-042"
     ],
     "post_gen": ["PART-034", "PART-035", "PART-037"],
     "verification": ["PART-026"],
@@ -372,7 +399,9 @@
     "has_drag_drop": ["PART-033"],
     "has_grid_interaction": ["PART-033"],
     "has_tag_input": ["PART-033"],
-    "has_interaction_manager": ["PART-038"]
+    "has_interaction_manager": ["PART-038"],
+    "has_video": ["PART-040"],
+    "has_audio_player": ["PART-041"]
   },
 
   "dependency_validation": {
@@ -407,7 +436,7 @@
     "PART-029": "mathai-game-builder/workflows/story-only-games.md",
     "PART-030": "mathai-game-builder/reference/sentry-integration.md",
     "PART-031": "mathai-game-builder/helpers/api-helper.md",
-    "PART-010": "mathai-game-builder/components/signal-collector.md",
+    "PART-042": "mathai-game-builder/components/signal-collector.md",
     "PART-032": "mathai-game-builder/components/analytics-manager.md"
   },
 
@@ -421,7 +450,7 @@
       "visibility-tracker.md": "PART-005",
       "analytics-manager.md": "PART-032",
       "game-analytics-events.md": "PART-032",
-      "signal-collector.md": "PART-010",
+      "signal-collector.md": "PART-042",
       "interaction-manager.md": "N/A — not used in generated games"
     },
     "helpers": {
@@ -462,7 +491,7 @@
       "QUICK-REFERENCE.md": "Deep reference — linked from SPEC.md",
       "story-only-game-example.md": "PART-029",
       "attempt-history-examples.md": "PART-009",
-      "signal-capture-patterns.md": "PART-010"
+      "signal-capture-patterns.md": "PART-042"
     }
   }
 }

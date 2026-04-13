@@ -689,9 +689,9 @@ function initSentry() {
    - VisibilityTracker created with onInactive/onResume (wires previewScreen.pause/resume)
    - Register postMessage listener: `window.addEventListener('message', handlePostMessage)`
    - Send `game_ready` postMessage to parent
-   - Show start transition screen: "Doubles Chain" / "Find the hidden chain of doubles!" / "I'm ready!" button -> calls `setupGame()`
+   - Call `setupGame()` directly (NO start TransitionScreen — preview IS the first screen)
 
-2. **Start screen** -> User clicks "I'm ready!"
+2. **Preview screen** (PART-039) -> shows instruction, audio, timer bar
    - `setupGame()` runs:
      - Load content from `gameState.content` or `fallbackContent`
      - Reset all game state: currentRound=0, score=0, lives=3, attempts=[], events=[], chainIndex=0, selectedCells=[], previewResult=null
@@ -699,9 +699,8 @@ function initSentry() {
      - IMPORTANT: Do NOT set `gameState.isActive` here -- it is set in `startGameAfterPreview()`
      - Update progressBar: `progressBar.update(0, 3)`
      - Call `showPreviewScreen()`
-
-3. **Preview screen** -> shows instruction, audio, timer bar
-   - `showPreviewScreen()` calls `previewScreen.show({ questionLabel, score, showStar, instruction, audioUrl, previewContent, onComplete: startGameAfterPreview })`
+   - `showPreviewScreen()` shows instruction, audio, timer bar
+   - `showPreviewScreen()` calls `previewScreen.show({ instruction, audioUrl, previewContent, onComplete: startGameAfterPreview })` (questionLabel, score, showStar come from game_init automatically)
    - User watches/listens or clicks "Skip & show options"
    - On complete: `startGameAfterPreview(previewData)` runs:
      - Store `gameState.previewResult = previewData`
@@ -808,10 +807,8 @@ Called from `setupGame()` after resetting state. Shows the PART-039 preview scre
 ```javascript
 function showPreviewScreen() {
   var content = gameState.content || fallbackContent;
+  // questionLabel, score, showStar come from game_init payload automatically
   previewScreen.show({
-    questionLabel: 'Q1',
-    score: '0/' + gameState.totalRounds,
-    showStar: true,
     instruction: content.previewInstruction || fallbackContent.previewInstruction,
     audioUrl: content.previewAudio || null,
     previewContent: content.previewContent || null,
@@ -1507,20 +1504,9 @@ window.addEventListener("DOMContentLoaded", async function() {
     // Signal ready to parent (PART-008)
     window.parent.postMessage({ type: 'game_ready' }, '*');
 
-    // Show start transition screen (standalone/fallback mode)
-    // When embedded (with game_init), the parent sends game_init after receiving game_ready,
-    // which calls setupGame() -> showPreviewScreen() -> startGameAfterPreview()
-    if (transitionScreen) {
-      transitionScreen.show({
-        icons: ['\uD83D\uDD17'],
-        iconSize: 'large',
-        title: 'Doubles Chain',
-        subtitle: 'Find the hidden chain of doubles!',
-        buttons: [{ text: "I'm ready!", type: 'primary', action: function() { setupGame(); } }]
-      });
-    } else {
-      setupGame();
-    }
+    // Call setupGame() directly — preview screen IS the first screen (PART-039)
+    // No start TransitionScreen — it would flash briefly before preview takes over
+    setupGame();
 
   } catch (error) {
     console.error("Initialization failed:", JSON.stringify({ error: error.message }, null, 2));
@@ -1682,9 +1668,8 @@ window.loadRound = function(n) {
 ### Scenario: Preview screen displays and transitions to game
 
 ```
-SETUP: Page loaded, start transition screen shown
+SETUP: Page loaded, preview screen shown automatically
 ACTIONS:
-  click "I'm ready!" button on start transition screen (TransitionScreenComponent primary button)
   wait for .mathai-preview-header to be visible (preview screen shown)
   assert .mathai-preview-instruction contains "Find the doubles chain"
   assert .mathai-preview-skip-btn is visible
@@ -1702,7 +1687,7 @@ ASSERT:
 ### Scenario: Complete game with all correct answers (5 rounds, 0 mistakes)
 
 ```
-SETUP: Page loaded, start transition screen shown, click "I'm ready!" button via transition screen
+SETUP: Page loaded, preview screen shown, skip preview screen
   wait for preview screen, click .mathai-preview-skip-btn to skip preview
   wait for gameState.isActive === true and #game-screen visible
 ACTIONS:
@@ -1781,7 +1766,7 @@ ASSERT:
 ### Scenario: Submit incorrect answer (lose a life)
 
 ```
-SETUP: Page loaded, click "I'm ready!" on start transition, skip preview screen, wait for gameState.isActive === true
+SETUP: Page loaded, skip preview screen, wait for gameState.isActive === true
 ACTIONS:
   // Round 1: chain [2, 4, 8]. Click wrong cell (value=5)
   click .grid-cell[data-row="0"][data-col="0"]  // value=5 (wrong, expected=2)
@@ -1799,7 +1784,7 @@ ASSERT:
 ### Scenario: Game over -- all lives lost
 
 ```
-SETUP: Page loaded, click "I'm ready!", skip preview screen, wait for gameState.isActive === true
+SETUP: Page loaded, skip preview screen, wait for gameState.isActive === true
 ACTIONS:
   // Make 3 wrong taps to lose all lives
   // Round 1: chain [2, 4, 8], grid: [[5,2,9],[4,7,3],[1,8,6]]
@@ -1822,7 +1807,7 @@ ASSERT:
 ### Scenario: Reset clears all selections within a round
 
 ```
-SETUP: Page loaded, click "I'm ready!", skip preview screen, wait for gameState.isActive === true
+SETUP: Page loaded, skip preview screen, wait for gameState.isActive === true
 ACTIONS:
   // Round 1: chain [2, 4, 8]
   click .grid-cell[data-row="0"][data-col="1"]  // value=2 (correct, first in chain)
@@ -1844,7 +1829,7 @@ ASSERT:
 ### Scenario: Chain progress display updates correctly
 
 ```
-SETUP: Page loaded, click "I'm ready!", skip preview screen, wait for gameState.isActive === true, Round 1 (chain [2, 4, 8])
+SETUP: Page loaded, skip preview screen, wait for gameState.isActive === true, Round 1 (chain [2, 4, 8])
 ACTIONS:
   // Initially all unknown
   assert #chain-progress innerHTML contains three "?" spans separated by arrows
@@ -1859,7 +1844,7 @@ ASSERT:
 ### Scenario: Correct cell becomes permanently marked and unclickable
 
 ```
-SETUP: Page loaded, click "I'm ready!", skip preview screen, wait for gameState.isActive === true
+SETUP: Page loaded, skip preview screen, wait for gameState.isActive === true
 ACTIONS:
   click .grid-cell[data-row="0"][data-col="1"]  // value=2 (correct, first in chain)
   wait 600ms
@@ -1875,7 +1860,7 @@ ASSERT:
 ### Scenario: Timer counts up during gameplay
 
 ```
-SETUP: Page loaded, click "I'm ready!", skip preview screen, wait for gameState.isActive === true
+SETUP: Page loaded, skip preview screen, wait for gameState.isActive === true
 ACTIONS:
   wait 3000ms
 ASSERT:

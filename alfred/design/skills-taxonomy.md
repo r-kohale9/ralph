@@ -427,7 +427,7 @@ Loading the platform's JavaScript packages in the correct order, waiting for the
 |---------|---------|------|
 | feedback-manager | FeedbackManager, playDynamicFeedback | PART-017 |
 | components | ScreenLayout, ProgressBarComponent, TransitionScreenComponent, SubtitleComponent | PART-025, PART-023, PART-024 |
-| helpers | VisibilityTracker, SignalCollector, MathAIHelpers | PART-005, PART-010, PART-015 |
+| helpers | VisibilityTracker, SignalCollector, MathAIHelpers | PART-005, PART-042, PART-015 |
 
 **Questions:**
 
@@ -524,7 +524,7 @@ Key moments → event records: `game_start`, `game_end`, `answer_submitted`, `ro
 - Do we capture the student's wrong answer AND what the right answer was?
 - How do we capture "the student hesitated" or "the student changed their mind"?
 
-### 4.6 Signal collection (PART-010 SignalCollector)
+### 4.6 Signal collection (PART-042 SignalCollector)
 
 Fine-grained event capture for analytics.
 
@@ -663,7 +663,7 @@ Multi-platform analytics event tracking (Mixpanel, Amplitude, CleverTap).
 
 **Questions:**
 
-- How does AnalyticsManager relate to trackEvent (PART-010) and SignalCollector?
+- How does AnalyticsManager relate to trackEvent (PART-010) and SignalCollector (PART-042)?
 - Three overlapping data capture systems — when does a game use which?
 - What are the 7 mandatory analytics events?
 - Is AnalyticsManager required for all games or only some?
@@ -1157,7 +1157,7 @@ Comparing performance across games on the same concept.
 | Platform | 4.3 | State management | PART-007 |
 | Platform | 4.4 | Communication protocol | PART-008 |
 | Platform | 4.5 | Data capture | PART-009, PART-010 |
-| Platform | 4.6 | Signal collection | PART-010 (SignalCollector) |
+| Platform | 4.6 | Signal collection | PART-042 (SignalCollector) |
 | Platform | 4.7 | Visibility tracking | PART-005 |
 | Platform | 4.8 | Timer | PART-006 |
 | Platform | 4.9 | Error tracking | PART-030 |

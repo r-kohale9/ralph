@@ -17,3 +17,9 @@
 - Playwright selectors timing out on `data-index` attributes (e.g., `.left-cell[data-left-index="0"]`) indicates the game grid is not rendered or populated before the test interacts; ensure the game transitions fully to the play state and cells are present in the DOM before any click assertions.
 - Guard custom element registration with `if (!customElements.get('lottie-player'))` before calling `customElements.define()` to prevent "already been used with this registry" errors when the Lottie player script is loaded multiple times.
 - When a test asserts that a game-state value (e.g., sequence length, score, level) increases over rounds, ensure the underlying game logic actually mutates that value on progression—returning a default or zero means the state-update code path is never reached.
+
+## audio_patrn_mcq (FAILED) — 2026-04-08
+- When building games that rely on audio generation or pattern matching, implement robust error handling and retry logic for API calls to gracefully handle transient 500 server errors rather than letting them crash the build.
+- Design build pipelines to include automatic retry with exponential backoff for external API dependencies, since intermittent server errors (500s) are not caused by code issues and are often resolved on retry.
+- Avoid coupling the entire build success to a single API call without fallback behavior; if an API call fails, the build should either retry, use cached/default assets, or fail with a clear diagnostic message rather than an opaque error.
+- When encountering 500 Internal Server Errors during builds, log the full request context (endpoint, payload size, parameters) so that future debugging can distinguish between payload-related failures and genuine server outages.

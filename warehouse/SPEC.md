@@ -92,6 +92,8 @@ Use `parts/manifest.json` → `capability_matrix` to determine which parts this 
    - `has_analytics` → adds PART-032
    - `has_drag_drop` / `has_grid_interaction` / `has_tag_input` → adds PART-033
    - `has_interaction_manager` → adds PART-038
+   - `has_video` → adds PART-040
+   - `has_audio_player` → adds PART-041
 
 > ⚠️ **Deprecated capability mappings:** `has_progress_bar` and `has_transition_screen` are no longer conditional — PART-023, PART-024, PART-025 are always included. ScreenLayout v1 `slots` API, standalone `#results-screen` divs, and manual `.page-center` layout HTML are deprecated.
 

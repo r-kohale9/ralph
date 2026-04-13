@@ -30,6 +30,8 @@ Design a cohesive environment:
 - **Visual zones** — question area, answer area, feedback area, control area
 - **State indicators** — selected, correct, incorrect, disabled, active
 
+> **CRITICAL: Video and audio player elements do NOT belong in the play area.** If the game has video content (PART-040) or content audio with a visible player (PART-041), place them in a separate `.instruction-area` div ABOVE the play area. The play area is for interactive elements (options, buttons, inputs) that the user taps/clicks. See PART-040 and PART-041 for placement guidance.
+
 ### Step 3: Model Player Behavior
 
 Consider how users will approach the play area:

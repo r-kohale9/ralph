@@ -189,6 +189,7 @@ This is test-driven skill development. The eval is the spec. The skill is the im
 | mobile | Yes | 5 | — | — | Verifying |
 | pedagogy | Yes | 5 | — | — | Verifying |
 | feedback | Yes | 5 | — | — | Verifying |
+| signal-collector | Yes | 8 | 5 | 3 | New |
 | spec-creation | Yes | 10 | — | — | Verifying |
 | spec-review | Yes (skill) | — | — | — | Eval needed |
 | game-planning | Yes (skill) | — | — | — | Eval needed |
@@ -202,7 +203,7 @@ This is test-driven skill development. The eval is the spec. The skill is the im
 | iteration | No | — | — | — | Skill + eval needed |
 | session-design | No | — | — | — | Skill + eval needed |
 
-**Skills: 14/17 written. Evals: 6/17 written. Coverage: 35%.**
+**Skills: 15/18 written. Evals: 7/18 written. Coverage: 39%.**
 
 ---
 

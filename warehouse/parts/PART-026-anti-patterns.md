@@ -362,6 +362,116 @@ previewScreen.show({
 });
 ```
 
+## Anti-Pattern 25: Video Without Controls
+
+```html
+<!-- WRONG — user cannot play the video -->
+<video src="instruction.mp4" playsinline></video>
+```
+
+**Correct:** Always include `controls` + `playsinline` + `controlsList="nofullscreen"`:
+```html
+<video src="instruction.mp4" controls playsinline webkit-playsinline
+       preload="auto" controlsList="nofullscreen"></video>
+```
+
+## Anti-Pattern 26: Autoplay Video
+
+```html
+<!-- WRONG — autoplay is blocked by browser policies, fails silently -->
+<video src="instruction.mp4" autoplay controls playsinline></video>
+```
+
+**Correct:** User must explicitly tap play:
+```html
+<video src="instruction.mp4" controls playsinline controlsList="nofullscreen"></video>
+```
+
+## Anti-Pattern 27: Black Video Background
+
+```css
+/* WRONG — dark background clashes with app theme, hides dark video content */
+.video-container { background: #000; }
+```
+
+**Correct:** White background per production `VideoPart.tsx` pattern:
+```css
+.video-wrapper { background: white; border-radius: 12px; overflow: hidden; }
+```
+
+## Anti-Pattern 28: Forced Aspect Ratio on Video
+
+```css
+/* WRONG — forces video into unnatural proportions, causes black bars */
+.video-container { aspect-ratio: 9 / 16; width: 100%; height: 400px; }
+.video-container video { object-fit: contain; }
+```
+
+**Correct:** Let video determine its own natural dimensions:
+```css
+.video-wrapper { width: 100%; }
+.video-wrapper video { width: 100%; display: block; }
+```
+
+## Anti-Pattern 29: Video in Play Area
+
+```html
+<!-- WRONG — video inside interactive click/tap zone -->
+<div id="gameContent">
+  <div class="game-play-area">
+    <video src="instruction.mp4" controls></video>
+    <div class="options-container"><!-- clickable options --></div>
+  </div>
+</div>
+```
+
+**Correct:** Video in instruction area, interaction elements in play area:
+```html
+<div id="gameContent">
+  <div class="instruction-area">
+    <p class="instruction-text">Watch the pattern</p>
+    <div class="video-wrapper">
+      <video src="instruction.mp4" controls playsinline controlsList="nofullscreen"></video>
+    </div>
+  </div>
+  <div class="game-play-area">
+    <div class="options-container"><!-- clickable options --></div>
+  </div>
+</div>
+```
+
+## Anti-Pattern 30: new Audio() for Content Audio
+
+```javascript
+// WRONG — new Audio() violates RULE-006 and cannot be tracked in DOM
+var audio = new Audio('instruction.mp3');
+audio.play();
+```
+
+**Correct:** Use `<audio>` element in DOM with custom UI (PART-041):
+```html
+<audio id="gameAudio" preload="auto"><source src="instruction.mp3" type="audio/mpeg"></audio>
+```
+```javascript
+document.getElementById('gameAudio').play();
+```
+
+## Anti-Pattern 31: Native Controls on Content Audio
+
+```html
+<!-- WRONG — native controls look different per browser, don't match app design -->
+<audio src="instruction.mp3" controls></audio>
+```
+
+**Correct:** Hidden `<audio>` with custom play/pause icon + progress bar matching `RenderAudioBlock.tsx`:
+```html
+<div class="audio-player">
+  <img class="audio-play-btn" src=".../play-icon-yellow.svg" onclick="toggleAudioPlayback()" />
+  <div class="audio-progress-track"><div class="audio-progress-fill"></div></div>
+  <audio id="gameAudio" preload="auto"><source src="instruction.mp3"></audio>
+</div>
+```
+
 ## Verification
 
 - [ ] All 4 script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` — no relative paths, no `cdn.homeworkapp.ai`, no invented domains
@@ -398,3 +508,10 @@ previewScreen.show({
 - [ ] CSS variables use `--mathai-*` prefix consistently — not `--game-*` or `--stack-*`
 - [ ] If using ScreenLayout (PART-025), do NOT also write manual HTML from PART-021 (double-nested layout)
 - [ ] `window.parent.postMessage({ type: 'game_ready' }, '*')` sent AFTER `window.addEventListener('message', handlePostMessage)` — parent harness waits for this before sending content
+- [ ] If `<video>` present: has `controls`, `playsinline`, `controlsList="nofullscreen"` — no `autoplay`
+- [ ] If `<video>` present: wrapper has `background: white` (not black), no forced `aspect-ratio`
+- [ ] If `<video>` present: video is in instruction/question area, NOT inside interactive play area
+- [ ] If `<audio>` present: NO `autoplay`, NO native `controls` (use custom UI per PART-041)
+- [ ] If `<audio>` present: custom play/pause icon + progress bar with CDN SVGs
+- [ ] If `<audio>` present: audio player in instruction/question area, NOT inside interactive play area
+- [ ] No `new Audio()` anywhere (RULE-006)

@@ -54,7 +54,7 @@ The most common archetype. Fixed rounds, one question per round, tap an option, 
 | **Scoring** | +1 per correct answer. Stars at 90%/66%/33% thresholds. No penalty for wrong. |
 | **Feedback** | `playDynamicFeedback('correct')` on right, `playDynamicFeedback('incorrect')` on wrong. Show correct answer after wrong. Auto-advance after 1.5s. |
 | **Screen state machine** | `start` -> `gameplay` -> (loop N rounds) -> `results`. No `game_over` screen. |
-| **PART flags** | PART-001 (CDN core), PART-004 (init), PART-005 (visibility), PART-007 (state), PART-008 (postMessage), PART-009 (recordAttempt), PART-010 (signals), PART-017 (FeedbackManager), PART-019 (results), PART-021 (mobile layout), PART-023 (progress bar), PART-024 (transitions), PART-025 (screen layout), PART-027 (play area) |
+| **PART flags** | PART-001 (CDN core), PART-004 (init), PART-005 (visibility), PART-007 (state), PART-008 (postMessage), PART-009 (recordAttempt), PART-010 (events), PART-042 (signals), PART-017 (FeedbackManager), PART-019 (results), PART-021 (mobile layout), PART-023 (progress bar), PART-024 (transitions), PART-025 (screen layout), PART-027 (play area) |
 | **Rounds default** | 9 (3 per stage: easy/medium/hard) |
 | **Lives default** | 0 (no lives) |
 | **Timer default** | 0 (no timer) |
@@ -74,7 +74,7 @@ Timed pressure. Answer as many as possible before the clock runs out. Speed matt
 | **Scoring** | +1 per correct. Bonus for streaks or speed. Stars based on total correct (thresholds set by spec). No penalty for wrong (wrong just wastes time). |
 | **Feedback** | `playDynamicFeedback('correct')` / `playDynamicFeedback('incorrect')`. Minimal delay (0.5s or less). Show correct answer briefly. Speed of feedback is critical. |
 | **Screen state machine** | `start` -> `gameplay` -> (loop until timer expires) -> `results`. No `game_over` screen (timer expiry IS the natural end, shown on results). |
-| **PART flags** | PART-001, PART-004, PART-005, PART-006 (timer), PART-007, PART-008, PART-009, PART-010, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-006 (timer), PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027 |
 | **Rounds default** | 0 (unlimited -- timer is the constraint) |
 | **Lives default** | 0 (no lives) |
 | **Timer default** | 60 seconds |
@@ -94,7 +94,7 @@ Stakes game. Wrong answers cost lives. Survival pressure creates engagement.
 | **Scoring** | +1 per correct. -1 life per wrong. Stars at 90%/66%/33%. |
 | **Feedback** | `playDynamicFeedback('correct')` / `playDynamicFeedback('incorrect')`. Show correct answer after wrong. Life loss animation. If lives = 0, transition to game_over. |
 | **Screen state machine** | `start` -> `gameplay` -> (loop rounds, checking lives after each) -> `results` (if all rounds done) OR `game_over` (if lives = 0). Both `results` and `game_over` -> `start` (replay). |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-017, PART-019, PART-021, PART-023 (progress bar with lives display), PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023 (progress bar with lives display), PART-024, PART-025, PART-027 |
 | **Rounds default** | 9 (3 per stage) |
 | **Lives default** | 3 |
 | **Timer default** | 0 (no timer; add PART-006 if spec says timed) |
@@ -116,7 +116,7 @@ Student categorizes items by dragging them into buckets or zones.
 | **Scoring** | Per-item scoring within each round. +1 per correctly placed item. Stars based on total percentage. |
 | **Feedback** | `playDynamicFeedback('correct')` when all items correctly placed in round. Per-item visual feedback (green/red highlight on drop). Show corrections for misplaced items. |
 | **Screen state machine** | `start` -> `gameplay` -> (loop rounds; each round = sort all items) -> `results`. No `game_over` (no lives by default). |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027, PART-033 (drag interaction) |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027, PART-033 (drag interaction) |
 | **Rounds default** | 6 (2 per stage) |
 | **Lives default** | 0 |
 | **Timer default** | 0 |
@@ -136,7 +136,7 @@ Student finds matching pairs by flipping/clicking items. Tests recall or associa
 | **Scoring** | Pairs cleared count. Optional: penalty for mismatches (extra flips), bonus for fewer attempts. Stars based on efficiency (attempts / minimum possible). |
 | **Feedback** | Visual: matched pairs glow/stay. Mismatched pairs shake and flip back. `playDynamicFeedback('correct')` on match, `playDynamicFeedback('incorrect')` on mismatch. |
 | **Screen state machine** | `start` -> `gameplay` -> (loop rounds; each round = clear all pairs) -> `results`. No `game_over`. |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027 |
 | **Rounds default** | 3 (each round is a fresh grid; grid size can increase per round) |
 | **Lives default** | 0 |
 | **Timer default** | 0 |
@@ -156,7 +156,7 @@ A single state to solve. No sequential rounds -- the whole board IS the round. S
 | **Scoring** | Binary solve state per puzzle (solved/not-solved). Stars based on number of puzzles solved or attempts needed. |
 | **Feedback** | Per-action: constraint violation highlighted immediately (e.g., conflicting placement). On solve: `playDynamicFeedback('correct')` + celebration. Undo supported (click again to deselect). |
 | **Screen state machine** | `start` -> `gameplay` -> (solve puzzle; if multiple puzzles: next puzzle) -> `results`. Optional `game_over` if lives are added. |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-017, PART-019, PART-021, PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-024, PART-025, PART-027 |
 | **Rounds default** | 3 (3 puzzles of increasing difficulty) |
 | **Lives default** | 0 |
 | **Timer default** | 0 |
@@ -178,7 +178,7 @@ Student builds something (expression, sequence, structure) from provided parts. 
 | **Scoring** | +1 per correctly constructed expression/sequence. Partial credit possible (e.g., 3/4 parts correct). Stars at 90%/66%/33%. |
 | **Feedback** | On submit: `playDynamicFeedback('correct')` if construction matches target. `playDynamicFeedback('incorrect')` if not -- highlight which parts are wrong. Allow retry (clear and rebuild) or show correct answer. |
 | **Screen state machine** | `start` -> `gameplay` -> (loop rounds) -> `results`. No `game_over`. |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027, PART-033 (drag interaction, if drag-based) |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027, PART-033 (drag interaction, if drag-based) |
 | **Rounds default** | 6 (2 per stage) |
 | **Lives default** | 0 |
 | **Timer default** | 0 |
@@ -198,7 +198,7 @@ Three-phase pedagogy: teacher demonstrates, then student fills blanks, then stud
 | **Scoring** | Per-step scoring in phases 2-3. No scoring in phase 1 (observation only). Stars based on phase 2+3 accuracy. |
 | **Feedback** | Phase 1: no feedback needed (demonstration). Phases 2-3: `playDynamicFeedback('correct')` / `playDynamicFeedback('incorrect')` per step. Show correct step if wrong. |
 | **Screen state machine** | `start` -> `example_phase` -> `faded_phase` -> `practice_phase` -> `results`. No `game_over`. Phase transitions are explicit (not automatic). |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-017, PART-019, PART-021, PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-024, PART-025, PART-027 |
 | **Rounds default** | 0 (not rounds-based; 3 phases with 3-5 steps each) |
 | **Lives default** | 0 |
 | **Timer default** | 0 |
@@ -220,7 +220,7 @@ Safe learning space. Wrong answers are noted but carry no consequence. Designed 
 | **Scoring** | Track correct/incorrect for data purposes but no lives lost, no game-over possible. Stars based on accuracy but framed as encouragement ("Great effort!" not "You failed"). |
 | **Feedback** | `playDynamicFeedback('correct')` on right. On wrong: `playDynamicFeedback('incorrect')` + extended explanation of why the correct answer is correct. Emphasis on teaching, not penalizing. Show correct answer with reasoning. |
 | **Screen state machine** | `start` -> `gameplay` -> (loop N rounds) -> `results`. No `game_over` screen (impossible -- no lives). |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027 |
 | **Rounds default** | 9 (3 per stage) |
 | **Lives default** | 0 (always -- this is definitional) |
 | **Timer default** | 0 (always -- no time pressure in a learning space) |
@@ -242,7 +242,7 @@ Cognitive skill games. Student must track, count, or remember items under time p
 | **Scoring** | Timed accuracy. +1 per correct identification. Speed bonus possible. Stars based on accuracy. |
 | **Feedback** | `playDynamicFeedback('correct')` / `playDynamicFeedback('incorrect')`. Reveal correct answer (highlight what they should have tracked). |
 | **Screen state machine** | `start` -> `gameplay` -> (loop rounds; each round: stimulus display phase -> response phase) -> `results`. |
-| **PART flags** | PART-001, PART-004, PART-005, PART-006 (timer per round), PART-007, PART-008, PART-009, PART-010, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-006 (timer per round), PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027 |
 | **Rounds default** | 9 (3 per stage, increasing difficulty = more items to track) |
 | **Lives default** | 0 |
 | **Timer default** | Per-round timer, not global. Default 5-10 seconds per stimulus display, 15 seconds per response. |

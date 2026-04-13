@@ -12,7 +12,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     await waitForPackages();
     await FeedbackManager.init();
 
-    // {{PART-010: SignalCollector — ALWAYS}}
+    // {{PART-042: SignalCollector — ALWAYS}}
     signalCollector = new SignalCollector({
       sessionId: window.gameVariableState?.sessionId || "session_" + Date.now(),
       studentId: window.gameVariableState?.studentId || null,

@@ -41,7 +41,7 @@ function handlePostMessage(event) {
 }
 ```
 
-**CRITICAL: SignalCollector setup in handlePostMessage** — The code above includes the complete pattern with all 6 signalCollector property assignments from signalConfig (PART-010). This is MANDATORY for every game. Without it, signal events accumulate in memory but never flush to GCS. See PART-010 "Batch Flushing" for details.
+**CRITICAL: SignalCollector setup in handlePostMessage** — The code above includes the complete pattern with all 6 signalCollector property assignments from signalConfig (PART-042). This is MANDATORY for every game. Without it, signal events accumulate in memory but never flush to GCS. See PART-042 "Batch Flushing" for details.
 
 **Note:** `setupGame()` is called BOTH here and in DOMContentLoaded (PART-004). This is intentional:
 - First call (DOMContentLoaded): uses fallback content for standalone testing

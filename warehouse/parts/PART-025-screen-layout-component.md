@@ -4,62 +4,69 @@
 
 ---
 
-> ⚠️ **v2 Update:** This part now uses the `sections` API. The old `slots` API is **deprecated**. All new games MUST use `config.sections`. See [MATHAI-EQUIVALENCE](../../claude-skills/mathai/game-spec/MATHAI-EQUIVALENCE.md) for full review guidelines.
+ScreenLayout supports **two modes**. The `slots` API with `previewScreen: true` is the **primary mode** — all new games MUST use it (PART-039 is mandatory). The `sections` API exists only for backward compatibility with games built before the preview wrapper was introduced; it will be phased out as those games are regenerated.
 
-## Code
+## Mode 1: Slots API — Preview Wrapper (PART-039 games)
 
 ```javascript
 ScreenLayout.inject('app', {
-  sections: {
-    header: true,            // Only if game has timer/HUD — omit or false otherwise
-    questionText: true,      // ALWAYS — displays game instructions
-    progressBar: true,       // ALWAYS — round progress + lives
-    playArea: true,          // ALWAYS — main game content
-    transitionScreen: true   // ALWAYS — welcome/level/results screens
-  },
-  styles: {
-    header: { background: '#1A1A2E' },
-    questionText: {
-      padding: '16px 20px',
-      maxWidth: '600px',
-      marginLeft: 'auto',
-      marginRight: 'auto',
-      width: '100%'
-    },
-    progressBar: {
-      padding: '0 20px',
-      maxWidth: '600px',
-      marginLeft: 'auto',
-      marginRight: 'auto',
-      marginTop: '8px',
-      width: '100%'
-    }
+  slots: {
+    previewScreen: true,                    // MANDATORY (PART-039)
+    transitionScreen: true                  // For multi-round games
   }
 });
 
 // Returns:
-// { header, questionText, progressBar, playArea, transitionSlot, progressSlot, gameContent }
+// { previewSlot, transitionSlot, gameContent }
 ```
 
-## HTML Requirement
+### DOM Structure (slots + previewScreen:true)
 
-```html
-<div id="app"></div>
+```
+#app
+  .page-center
+    #mathai-preview-slot                       (the persistent wrapper, always visible)
+      .mathai-preview-header (fixed)           (avatar, label, score, star, progress, timer)
+      .mathai-preview-body (scrollable)
+        .mathai-preview-instruction
+        .mathai-preview-game-container
+          .game-stack
+            #gameContent                       (game renders here)
+            #mathai-transition-slot            (between-round transitions)
 ```
 
-ScreenLayout injects the full page structure into this div. Your game content goes inside `#gameContent`.
+Key points:
+- The header bar is `position: fixed` and visible in BOTH preview and game states.
+- Instruction + game content share a single scroll area below the fixed header (no nested scrolling).
+- `#gameContent` and `#mathai-transition-slot` are siblings inside `.game-stack` — no DOM moves at runtime.
+- The progress bar slot (`#mathai-progress-slot`) is NOT created — the preview header has the progress bar.
+- PreviewScreenComponent populates header content and manages state transitions.
 
-## Section Configurations
+When `previewScreen: false`, the legacy `.game-wrapper > .game-stack > #gameContent` structure is created instead.
 
-| Section | Required | Default Slot ID | Purpose |
-|---------|----------|----------------|---------|
-| `header` | Only if timer/HUD | `mathai-header-slot` | Sticky top bar for timer |
-| `questionText` | **YES** | `mathai-question-slot` | Game instructions text |
-| `progressBar` | **YES** | `mathai-progress-slot` | Round/level progress + hearts |
-| `playArea` | **YES** (always created) | `gameContent` | Main game content |
-| `transitionScreen` | **YES** | `mathai-transition-slot` | Welcome/level/results cards |
+## Mode 2: Sections API — 4-Section Layout (DEPRECATED — backward compat only)
 
-## DOM Structure Produced (v2)
+```javascript
+ScreenLayout.inject('app', {
+  sections: {
+    header: true,            // Only if game has timer/HUD
+    questionText: true,      // Game instructions
+    progressBar: true,       // Round progress + lives
+    playArea: true,          // Main game content
+    transitionScreen: true   // Welcome/level/results screens
+  },
+  styles: {
+    header: { background: '#1A1A2E' },
+    questionText: { padding: '16px 20px', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto', width: '100%' },
+    progressBar: { padding: '0 20px', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto', marginTop: '8px', width: '100%' }
+  }
+});
+
+// Returns:
+// { header, questionText, progressBar, playArea, transitionSlot, progressSlot, gameContent, previewSlot }
+```
+
+### DOM Structure (sections)
 
 ```
 #app
@@ -72,45 +79,36 @@ ScreenLayout injects the full page structure into this div. Your game content go
       #mathai-transition-slot                        ← sibling of playArea
 ```
 
-Question text and progress bar stay visible above both game content and transition screens.
+### Section Config
+
+| Section | Required | Default Slot ID | Purpose |
+|---------|----------|----------------|---------|
+| `header` | Only if timer/HUD | `mathai-header-slot` | Sticky top bar for timer |
+| `questionText` | **YES** | `mathai-question-slot` | Game instructions text |
+| `progressBar` | **YES** | `mathai-progress-slot` | Round/level progress + hearts |
+| `playArea` | **YES** (always created) | `gameContent` | Main game content |
+| `transitionScreen` | **YES** | `mathai-transition-slot` | Welcome/level/results cards |
+
+## HTML Requirement
+
+```html
+<div id="app"></div>
+```
 
 ## CRITICAL: Game Content Placement
 
-When using ScreenLayout, **ALL game HTML must render inside `#gameContent`**. ScreenLayout creates the layout structure automatically — your game content slot is `#gameContent`.
+**ALL game HTML must render inside `#gameContent`** regardless of which mode is used. Build HTML via JS after inject — never put game HTML directly in `<body>` or in `#app`.
 
-**Wrong — game HTML as sibling of `#app` (content escapes the layout):**
-```html
-<div id="app"></div>
-<!-- WRONG: This renders OUTSIDE the ScreenLayout wrapper -->
-<div id="game-screen">
-  <div class="game-grid">...</div>
-</div>
-```
-
-**Wrong — game HTML directly in `#app` (overwritten by ScreenLayout.inject):**
-```html
-<div id="app">
-  <!-- WRONG: ScreenLayout.inject('app') replaces this -->
-  <div class="game-grid">...</div>
-</div>
-```
-
-**Correct — build game HTML via JavaScript after inject:**
 ```javascript
-ScreenLayout.inject('app', {
-  sections: { questionText: true, progressBar: true, playArea: true, transitionScreen: true }
-});
+// Correct — build game HTML via JavaScript after inject
+ScreenLayout.inject('app', { slots: { previewScreen: true, transitionScreen: true } });
 var gameContent = document.getElementById('gameContent');
-gameContent.innerHTML =
-  '<div id="play-stage" class="play-stage">' +
-    '<div class="target-area" id="target-area">...</div>' +
-    '<div class="options-area" id="options-area"></div>' +
-  '</div>';
+gameContent.innerHTML = '<div id="game-screen">...</div>';
 ```
 
-## CSS Override — CRITICAL
+## CSS Override (sections mode only)
 
-ScreenLayout v2 CSS loads dynamically (after game CSS), so play area overrides MUST use `!important`:
+ScreenLayout sections CSS loads dynamically, so play area overrides MUST use `!important`:
 
 ```css
 .mathai-layout-playarea {
@@ -119,72 +117,34 @@ ScreenLayout v2 CSS loads dynamically (after game CSS), so play area overrides M
   align-items: center !important;
   padding: 0 20px 32px !important;
 }
-
-.mathai-ts-screen.active {
-  flex: 1;
-  justify-content: center;
-}
 ```
 
-## Question Text Pattern
+## Question Text Pattern (sections mode only)
 
 ```javascript
-// Populate at init
 function updateInstructions() {
   var slot = document.getElementById('mathai-question-slot');
   if (!slot || !gameState.content) return;
-  slot.innerHTML =
-    '<div class="instruction-area">' +
-      '<p class="instruction-text">Game instruction here.</p>' +
-    '</div>';
-}
-
-// Hide when game starts (free screen space)
-function startGame() {
-  var questionSlot = document.getElementById('mathai-question-slot');
-  if (questionSlot) questionSlot.style.display = 'none';
-  // ...
-}
-
-// Show on welcome screen
-function showWelcomeScreen() {
-  var questionSlot = document.getElementById('mathai-question-slot');
-  if (questionSlot) questionSlot.style.display = '';
-  // ...
+  slot.innerHTML = '<div class="instruction-area"><p class="instruction-text">Game instruction here.</p></div>';
 }
 ```
 
 ## Rules
 
-- Call `ScreenLayout.inject()` BEFORE creating ProgressBar or TransitionScreen
+- Call `ScreenLayout.inject()` BEFORE creating ProgressBar, TransitionScreen, or PreviewScreen
 - **ALL game content MUST be inside `#gameContent`** — never as a sibling of `#app`
 - Don't manually create `.page-center` / `.game-wrapper` if using this component
 - Build HTML in JS after inject — never put game HTML directly in `<body>` or `#app`
-- Use `!important` on `.mathai-layout-playarea` CSS overrides
-- `header` section is only needed when the game has a timer or HUD element
-- `questionText` is populated at init, hidden during gameplay, shown on restart
-
-## Deprecated: v1 slots API
-
-```javascript
-// ⛔ DEPRECATED — do NOT use in new games
-ScreenLayout.inject('app', {
-  slots: { progressBar: true, transitionScreen: true }
-});
-```
-
-The `slots` API still works for backwards compatibility but produces the old v1 DOM structure (`.page-center > .game-wrapper > .game-stack`). All new games MUST use `sections`.
+- In sections mode: use `!important` on `.mathai-layout-playarea` CSS overrides
+- In slots mode with `previewScreen: true`: no `.game-wrapper`, no `#mathai-progress-slot`, no `#mathai-header-slot`, no `#mathai-question-slot` — those only exist in sections mode
 
 ## Verification
 
-- [ ] `ScreenLayout.inject()` called with `config.sections` (NOT `config.slots`)
-- [ ] `questionText`, `progressBar`, `playArea`, `transitionScreen` all set to `true`
-- [ ] `header` set to `true` only if game has timer/HUD
+- [ ] `ScreenLayout.inject()` called with correct config mode
 - [ ] `#app` div exists in HTML (the ONLY structural div in body before inject)
 - [ ] **ALL game content rendered inside `#gameContent`**
 - [ ] Game HTML built via JS innerHTML after inject (no static HTML in body)
-- [ ] `.mathai-layout-playarea` CSS overrides use `!important`
-- [ ] Question text hidden during gameplay, shown on welcome/restart
+- [ ] Slots match the components used
 
 ## Source Code
 

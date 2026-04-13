@@ -5,4 +5,4 @@
 **Key rules:**
 - `game_ready` must fire AFTER `addEventListener('message', handlePostMessage)`
 - `handlePostMessage` filters for `event.data.type === 'game_init'`, then calls `setupGame()`
-- On `game_init`, configure SignalCollector with `signalConfig.flushUrl` and call `startFlushing()`
+- If PART-042: on `game_init`, configure SignalCollector with `signalConfig.flushUrl` and call `startFlushing()`

@@ -21,45 +21,47 @@
 | PART-002 | Package Scripts               | YES             | —                                                                            |
 | PART-003 | waitForPackages               | YES             | —                                                                            |
 | PART-004 | Initialization Block          | YES             | —                                                                            |
-| PART-005 | VisibilityTracker             | YES             | popupProps: default. onInactive: signalCollector.pause + sound.stopAll. onResume: signalCollector.resume |
+| PART-005 | VisibilityTracker             | YES             | popupProps: default. Uses sound.pause()/stream.pauseAll(), NOT stopAll()     |
 | PART-006 | TimerComponent                | NO              | No time pressure — exploratory learning                                      |
-| PART-007 | Game State Object             | YES             | Custom fields: phase, userChoice, ruleNumA, ruleNumB, additiveTrapCorrect, ruleCommitted, pendingEndProblem |
-| PART-008 | PostMessage Protocol          | YES             | —                                                                            |
+| PART-007 | Game State Object             | YES             | Custom fields: phase, userChoice, ruleNumA, ruleNumB, additiveTrapCorrect, ruleCommitted, contentSetId, signalConfig, sessionHistory |
+| PART-008 | PostMessage Protocol          | YES             | Full 6-property signalCollector pattern in handlePostMessage                 |
 | PART-009 | Attempt Tracking              | YES             | —                                                                            |
-| PART-010 | Event Tracking                | YES             | Custom events: choice_made, rule_submitted, rule_committed, round_correct, round_incorrect. SignalCollector: startProblem per round, deferred endProblem, recordViewEvent on all DOM changes, seal() in endGame |
-| PART-011 | End Game & Metrics            | YES             | Custom star logic: 3★ = 8-10 correct AND ≥3/4 trap rounds; 2★ = 5-7 correct; 1★ = 1-4 correct |
-| PART-012 | Debug Functions               | YES             | —                                                                            |
+| PART-010 | Event Tracking                | YES             | Custom events: choice_made, rule_committed, round_correct, round_incorrect. SignalCollector: recordViewEvent on all DOM changes, recordCustomEvent, seal() in endGame. Uses gameId (not templateId). |
+| PART-011 | End Game & Metrics            | YES             | Custom star logic: 3★ = score ≥ 8 AND additiveTrapCorrect ≥ 3; 2★ = score ≥ 5; 1★ = score ≥ 1. Includes totalLives: 1, tries via computeTriesPerRound. Signal data NOT in postMessage. |
+| PART-012 | Debug Functions               | YES             | testPause/testResume use visibilityTracker.triggerInactive()/triggerResume()  |
 | PART-013 | Validation Fixed              | NO              | —                                                                            |
 | PART-014 | Validation Function           | YES             | Rules: userChoice must match round.answer AND ruleNumA/ruleNumB must match round.rule |
 | PART-015 | Validation LLM                | NO              | —                                                                            |
 | PART-016 | StoriesComponent              | NO              | —                                                                            |
-| PART-017 | Feedback Integration          | YES             | Audio for correct/incorrect, scene reveals, round transitions               |
+| PART-017 | Feedback Integration          | YES             | Uses FeedbackManager.playDynamicFeedback() exclusively — all TTS, no preloaded sounds |
 | PART-018 | Case Converter                | NO              | —                                                                            |
 | PART-019 | Results Screen UI             | YES             | Custom metrics: score, accuracy, trap rounds correct                        |
 | PART-020 | CSS Variables & Colors        | YES             | —                                                                            |
 | PART-021 | Screen Layout CSS             | YES             | —                                                                            |
 | PART-022 | Game Buttons                  | YES             | —                                                                            |
 | PART-023 | ProgressBar Component         | YES             | totalRounds: 10, totalLives: 0 (no lives)                                   |
-| PART-024 | TransitionScreen Component    | YES             | Screens: start                                                               |
-| PART-025 | ScreenLayout Component        | YES             | slots: progressBar=true, transitionScreen=true                               |
+| PART-024 | TransitionScreen Component    | YES             | Start screen only — no victory/game-over transition, results shown via classList toggle |
+| PART-025 | ScreenLayout Component        | YES             | slots: progressBar=true, previewScreen=true, transitionScreen=true           |
 | PART-026 | Anti-Patterns                 | YES (REFERENCE) | Verification checklist                                                       |
 | PART-027 | Play Area Construction        | YES             | Layout: stacked scene cards + choice buttons + sentence builder              |
 | PART-028 | InputSchema Patterns          | YES             | Schema type: rounds array with scene pairs                                   |
 | PART-029 | Story-Only Game               | NO              | —                                                                            |
-| PART-030 | Sentry Error Tracking         | YES             | SentryConfig-based, SDK v10.23.0                                             |
+| PART-030 | Sentry Error Tracking         | YES             | SentryConfig.enabled check, SentryConfig.dsn, single SDK bundle script       |
 | PART-031 | API Helper                    | NO              | —                                                                            |
 | PART-032 | AnalyticsManager              | NO              | —                                                                            |
 | PART-033 | Interaction Patterns          | NO              | —                                                                            |
 | PART-034 | Variable Schema Serialization | YES (POST_GEN)  | Serializes Section 4 to inputSchema.json                                     |
 | PART-035 | Test Plan Generation          | YES (POST_GEN)  | Generates tests.md after HTML                                                |
 | PART-037 | Playwright Testing            | YES (POST_GEN)  | Ralph loop generates tests + fix cycle                                       |
-| PART-038 | InteractionManager            | YES             | Suppress taps during scene animations and feedback display                   |
+| PART-038 | InteractionManager            | YES             | Suppress taps during audio/animations. selector: '.game-play-area'           |
+| PART-039 | Preview Screen                | YES (MANDATORY) | Always included — shows before game starts                                   |
 
 ---
 
 ## 3. Game State
 
 ```javascript
+// CRITICAL: Use window.gameState (not const) — Playwright tests access via window
 window.gameState = {
   // MANDATORY (from PART-007):
   gameId: 'game_same_rule',
@@ -71,7 +73,9 @@ window.gameState = {
   startTime: null,
   isActive: false,
   content: null,
-  gameEnded: false,
+  contentSetId: null,
+  signalConfig: null,
+  sessionHistory: [],
   duration_data: {
     startTime: null,
     preview: [],
@@ -89,16 +93,17 @@ window.gameState = {
   ruleNumB: 1,              // Current value of thingB number picker (1-9)
   additiveTrapCorrect: 0,   // Count of additive trap rounds answered correctly
   ruleCommitted: false,     // Stage 3 only: whether kid has committed their rule before seeing Scene B
-
-  // SIGNAL COLLECTOR (PART-010):
-  pendingEndProblem: null,  // { id, outcome } — deferred endProblem for SignalCollector
+  gameEnded: false,         // Double-call guard for endGame
 };
+const gameState = window.gameState; // Convenience alias
 
+let timer = null;
 let visibilityTracker = null;
+let signalCollector = null;
 let progressBar = null;
 let transitionScreen = null;
-let signalCollector = null;
 let interactionManager = null;
+let previewScreen = null;
 ```
 
 ---
@@ -198,6 +203,9 @@ Pre-defined 10 rounds across 3 stages. Verified: all rules are simplest-form rat
 
 ```javascript
 const fallbackContent = {
+  previewInstruction: '<p>Compare two scenes and decide: do they follow the <b>same "for every" rule</b>?</p><p>Build the rule using the number pickers!</p>',
+  previewAudioText: 'Compare two scenes and decide: do they follow the same for every rule? Build the rule using the number pickers!',
+  previewAudio: null,
   rounds: [
     // === STAGE 1: Easy Matches (Rounds 1-3) ===
     // Round 1 — Cookies and Milk
@@ -406,135 +414,160 @@ const fallbackContent = {
 
 ## 5. Screens & HTML Structure
 
-### Body HTML
+### Screen 0: Preview Screen — PART-039 (MANDATORY)
+
+The PreviewScreenComponent (loaded via CDN package) handles all preview UI.
+No custom HTML needed — the component creates its own DOM in the ScreenLayout preview slot.
+
+ScreenLayout configuration:
+```javascript
+ScreenLayout.inject('app', {
+  slots: { progressBar: true, previewScreen: true, transitionScreen: true }
+});
+```
+
+PreviewScreen instantiation (in DOMContentLoaded):
+```javascript
+previewScreen = new PreviewScreenComponent({
+  autoInject: true,
+  slotId: 'mathai-preview-slot',
+  gameContentId: 'gameContent'
+});
+```
+
+### Body HTML (PART-025)
 
 ```html
-<div id="app"></div>
+<body>
+  <div id="app"></div>
 
-<template id="game-template">
-  <div id="game-screen" class="game-block">
-    <!-- Stage label -->
-    <p class="stage-label" id="stage-label" data-signal-id="stage-label"></p>
+  <template id="game-template">
+    <div id="game-screen" class="game-block game-play-area">
+      <!-- Stage label -->
+      <p class="stage-label" id="stage-label" data-signal-id="stage-label"></p>
 
-    <!-- Instruction text -->
-    <p class="instruction-text" id="instruction-text" data-signal-id="instruction-text">
-      Do these two scenes follow the same rule?
-    </p>
+      <!-- Instruction text -->
+      <p class="instruction-text" id="instruction-text" data-signal-id="instruction-text">
+        Do these two scenes follow the same rule?
+      </p>
 
-    <!-- Scene A -->
-    <div class="scene-card" id="scene-a-container" style="display: none" data-signal-id="scene-a">
-      <div class="scene-badge">Scene A</div>
-      <div class="scene-items" id="scene-a-items"></div>
-      <p class="scene-label" id="scene-a-label"></p>
-    </div>
-
-    <!-- Scene B -->
-    <div class="scene-card" id="scene-b-container" style="display: none" data-signal-id="scene-b">
-      <div class="scene-badge">Scene B</div>
-      <div class="scene-items" id="scene-b-items"></div>
-      <p class="scene-label" id="scene-b-label"></p>
-    </div>
-
-    <!-- Choice Buttons -->
-    <div class="choice-area" id="choice-area" style="display: none" data-signal-id="choice-area">
-      <button
-        class="game-btn btn-choice"
-        id="btn-same"
-        data-signal-id="btn-same"
-        onclick="handleChoice('same')"
-      >
-        Same Rule
-      </button>
-      <button
-        class="game-btn btn-choice"
-        id="btn-different"
-        data-signal-id="btn-different"
-        onclick="handleChoice('different')"
-      >
-        Different Rule
-      </button>
-    </div>
-
-    <!-- Sentence Builder -->
-    <div class="sentence-builder" id="sentence-builder" style="display: none" data-signal-id="sentence-builder">
-      <p class="builder-title" id="builder-title">What's the "for every" rule?</p>
-      <div class="builder-row">
-        <span class="builder-text">For every</span>
-        <div class="number-stepper" id="stepper-a">
-          <button class="stepper-btn" id="picker-a-minus" data-signal-id="picker-a-minus" onclick="handlePickerChange('a', -1)">−</button>
-          <span class="stepper-value" id="picker-a-value">1</span>
-          <button class="stepper-btn" id="picker-a-plus" data-signal-id="picker-a-plus" onclick="handlePickerChange('a', 1)">+</button>
-        </div>
-        <span class="builder-thing" id="thing-a-name"></span>
+      <!-- Scene A -->
+      <div class="scene-card" id="scene-a-container" style="display: none" data-signal-id="scene-a">
+        <div class="scene-badge">Scene A</div>
+        <div class="scene-items" id="scene-a-items"></div>
+        <p class="scene-label" id="scene-a-label"></p>
       </div>
-      <div class="builder-row">
-        <span class="builder-text">there are</span>
-        <div class="number-stepper" id="stepper-b">
-          <button class="stepper-btn" id="picker-b-minus" data-signal-id="picker-b-minus" onclick="handlePickerChange('b', -1)">−</button>
-          <span class="stepper-value" id="picker-b-value">1</span>
-          <button class="stepper-btn" id="picker-b-plus" data-signal-id="picker-b-plus" onclick="handlePickerChange('b', 1)">+</button>
-        </div>
-        <span class="builder-thing" id="thing-b-name"></span>
+
+      <!-- Scene B -->
+      <div class="scene-card" id="scene-b-container" style="display: none" data-signal-id="scene-b">
+        <div class="scene-badge">Scene B</div>
+        <div class="scene-items" id="scene-b-items"></div>
+        <p class="scene-label" id="scene-b-label"></p>
       </div>
-      <!-- Stage 3 only: commit rule before seeing Scene B -->
+
+      <!-- Choice Buttons -->
+      <div class="choice-area" id="choice-area" style="display: none" data-signal-id="choice-area">
+        <button
+          class="game-btn btn-choice"
+          id="btn-same"
+          data-signal-id="btn-same"
+          onclick="handleChoice('same')"
+        >
+          Same Rule
+        </button>
+        <button
+          class="game-btn btn-choice"
+          id="btn-different"
+          data-signal-id="btn-different"
+          onclick="handleChoice('different')"
+        >
+          Different Rule
+        </button>
+      </div>
+
+      <!-- Sentence Builder -->
+      <div class="sentence-builder" id="sentence-builder" style="display: none" data-signal-id="sentence-builder">
+        <p class="builder-title" id="builder-title">What's the "for every" rule?</p>
+        <div class="builder-row">
+          <span class="builder-text">For every</span>
+          <div class="number-stepper" id="stepper-a">
+            <button class="stepper-btn" id="picker-a-minus" data-signal-id="picker-a-minus" onclick="handlePickerChange('a', -1)">−</button>
+            <span class="stepper-value" id="picker-a-value">1</span>
+            <button class="stepper-btn" id="picker-a-plus" data-signal-id="picker-a-plus" onclick="handlePickerChange('a', 1)">+</button>
+          </div>
+          <span class="builder-thing" id="thing-a-name"></span>
+        </div>
+        <div class="builder-row">
+          <span class="builder-text">there are</span>
+          <div class="number-stepper" id="stepper-b">
+            <button class="stepper-btn" id="picker-b-minus" data-signal-id="picker-b-minus" onclick="handlePickerChange('b', -1)">−</button>
+            <span class="stepper-value" id="picker-b-value">1</span>
+            <button class="stepper-btn" id="picker-b-plus" data-signal-id="picker-b-plus" onclick="handlePickerChange('b', 1)">+</button>
+          </div>
+          <span class="builder-thing" id="thing-b-name"></span>
+        </div>
+        <!-- Stage 3 only: commit rule before seeing Scene B -->
+        <button
+          class="game-btn btn-primary"
+          id="btn-commit-rule"
+          style="display: none"
+          data-signal-id="btn-commit-rule"
+          onclick="handleCommitRule()"
+        >
+          I see the rule!
+        </button>
+      </div>
+
+      <!-- Check Button (standalone, bottom) -->
       <button
         class="game-btn btn-primary"
-        id="btn-commit-rule"
+        id="btn-check"
         style="display: none"
-        data-signal-id="btn-commit-rule"
-        onclick="handleCommitRule()"
+        data-signal-id="btn-check"
+        onclick="handleCheck()"
       >
-        I see the rule!
+        Check
       </button>
-    </div>
 
-    <!-- Check Button (standalone, bottom) -->
-    <button
-      class="game-btn btn-primary"
-      id="btn-check"
-      style="display: none"
-      data-signal-id="btn-check"
-      onclick="handleCheck()"
-    >
-      Check
-    </button>
-
-    <!-- Feedback -->
-    <div class="feedback-container" id="feedback-container" style="display: none" data-signal-id="feedback">
-      <div class="feedback-icon" id="feedback-icon"></div>
-      <p class="feedback-text" id="feedback-text"></p>
-      <div class="feedback-explanation" id="feedback-explanation" style="display: none"></div>
-      <button class="game-btn btn-primary" id="btn-next" data-signal-id="btn-next" onclick="nextRound()">
-        Next
-      </button>
-    </div>
-  </div>
-
-  <div id="results-screen" class="game-block" style="display: none">
-    <div class="results-card">
-      <div id="stars-display" class="stars-display"></div>
-      <h2 class="results-title" id="results-title">Game Complete!</h2>
-      <p class="results-subtitle" id="results-subtitle"></p>
-      <div class="results-metrics">
-        <div class="metric-row">
-          <span class="metric-label">Score</span>
-          <span class="metric-value" id="result-score">0/10</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Accuracy</span>
-          <span class="metric-value" id="result-accuracy">0%</span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Trap Rounds</span>
-          <span class="metric-value" id="result-traps">0/4</span>
-        </div>
+      <!-- Feedback -->
+      <div class="feedback-container" id="feedback-container" style="display: none" data-signal-id="feedback">
+        <div class="feedback-icon" id="feedback-icon"></div>
+        <p class="feedback-text" id="feedback-text"></p>
+        <div class="feedback-explanation" id="feedback-explanation" style="display: none"></div>
+        <button class="game-btn btn-primary" id="btn-next" data-signal-id="btn-next" onclick="nextRound()">
+          Next
+        </button>
       </div>
-      <button class="game-btn btn-primary" id="btn-restart" data-signal-id="btn-restart" onclick="restartGame()">
-        Play Again
-      </button>
     </div>
-  </div>
-</template>
+
+    <div id="results-screen" class="game-block" style="display: none">
+      <div class="results-card">
+        <div id="stars-display" class="stars-display"></div>
+        <h2 class="results-title" id="results-title">Game Complete!</h2>
+        <p class="results-subtitle" id="results-subtitle"></p>
+        <div class="results-metrics">
+          <div class="metric-row">
+            <span class="metric-label">Score</span>
+            <span class="metric-value" id="result-score">0/10</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Accuracy</span>
+            <span class="metric-value" id="result-accuracy">0%</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Trap Rounds</span>
+            <span class="metric-value" id="result-traps">0/4</span>
+          </div>
+        </div>
+        <button class="game-btn btn-primary" id="btn-restart" data-signal-id="btn-restart" onclick="restartGame()">
+          Play Again
+        </button>
+      </div>
+    </div>
+  </template>
+
+  <!-- Scripts inserted here (see Section 7) -->
+</body>
 ```
 
 ---
@@ -554,12 +587,19 @@ const fallbackContent = {
   --mathai-light-gray: #f2f2f2;
   --mathai-white: #ffffff;
   --mathai-black: #1a1a2e;
-  --mathai-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mathai-font-size-title: 24px;
   --mathai-font-size-body: 16px;
   --mathai-font-size-label: 14px;
   --mathai-font-size-small: 12px;
+  --mathai-font-size-button: 16px;
   --mathai-border-radius-card: 12px;
+  --mathai-border-radius-button: 10px;
+  --mathai-padding-small: 10px;
+  --mathai-cell-bg-green: #D9F8D9;
+  --mathai-cell-bg-red: #FFD9D9;
+  --mathai-cell-border-green: #27ae60;
+  --mathai-cell-border-red: #e74c3c;
 }
 
 /* === Reset === */
@@ -570,10 +610,11 @@ const fallbackContent = {
   margin: 0;
   padding: 0;
 }
-body {
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #f6f6f6;
   font-family: var(--mathai-font-family);
-  background: var(--mathai-light-gray);
-  color: var(--mathai-black);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -844,10 +885,10 @@ body {
 
 /* === Buttons (PART-022) === */
 .game-btn {
-  padding: 12px 32px;
+  padding: 14px 32px;
   border: none;
-  border-radius: 12px;
-  font-size: var(--mathai-font-size-body);
+  border-radius: var(--mathai-border-radius-button);
+  font-size: var(--mathai-font-size-button);
   font-weight: 600;
   font-family: var(--mathai-font-family);
   cursor: pointer;
@@ -855,20 +896,34 @@ body {
   min-height: 44px;
   width: 100%;
   max-width: 360px;
+  color: var(--mathai-white);
+}
+
+.game-btn:active {
+  transform: translateY(0);
+}
+
+.game-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-primary {
   background: var(--mathai-green);
-  color: var(--mathai-white);
 }
 
-.btn-primary:hover {
-  filter: brightness(0.9);
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(33, 150, 83, 0.4);
 }
 
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: default;
+.btn-secondary {
+  background: var(--mathai-blue);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
 /* === Feedback Container === */
@@ -968,40 +1023,145 @@ body {
 .hidden {
   display: none !important;
 }
+
+/* === Progress bar slot at top (PART-021) === */
+#mathai-progress-slot,
+.mathai-progress-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
 ```
 
 ---
 
-## 7. Game Flow
+## 7. Script Loading (copy these EXACT tags — never invent URLs)
+
+```html
+<!-- STEP 1: SentryConfig package -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+<!-- STEP 2: initSentry() function definition (see PART-030 for full code) -->
+<script>
+function initSentry() {
+  try {
+    if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled) {
+      Sentry.init({
+        dsn: SentryConfig.dsn,
+        environment: SentryConfig.environment,
+        release: 'same-rule@1.0.0',
+        tracesSampleRate: SentryConfig.tracesSampleRate,
+        sampleRate: SentryConfig.sampleRate,
+        maxBreadcrumbs: 50,
+        ignoreErrors: [
+          'ResizeObserver loop limit exceeded',
+          'ResizeObserver loop completed with undelivered notifications',
+          'Non-Error promise rejection captured',
+          'Script error.',
+          'Load failed',
+          'Failed to fetch',
+        ],
+      });
+      window.addEventListener('error', (event) => {
+        Sentry.captureException(event.error || new Error(event.message), {
+          tags: { errorType: 'unhandled', severity: 'critical' },
+          contexts: { errorEvent: { message: event.message, filename: event.filename, lineno: event.lineno } },
+        });
+      });
+      window.addEventListener('unhandledrejection', (event) => {
+        Sentry.captureException(event.reason || new Error('Unhandled promise rejection'), {
+          tags: { errorType: 'unhandled-promise', severity: 'critical' },
+        });
+      });
+    }
+  } catch (e) {
+    console.error('Sentry init error:', JSON.stringify({ error: e.message }, null, 2));
+  }
+}
+
+window.verifySentry = function() {
+  var checks = {
+    sdkLoaded: typeof Sentry !== 'undefined',
+    configLoaded: typeof SentryConfig !== 'undefined',
+    initialized: typeof Sentry !== 'undefined' && Sentry.getClient() !== undefined,
+    dsn: typeof Sentry !== 'undefined' && Sentry.getClient() ? Sentry.getClient().getDsn().toString() : null,
+    configVersion: typeof SentryConfig !== 'undefined' ? SentryConfig.version : null,
+  };
+  console.log('Sentry Status:', JSON.stringify(checks, null, 2));
+  return checks;
+};
+
+window.testSentry = function() {
+  try {
+    throw new Error('Test error from testSentry()');
+  } catch (error) {
+    if (typeof Sentry !== 'undefined') Sentry.captureException(error, { tags: { test: true } });
+    console.log('Test error sent to Sentry. Check dashboard.');
+  }
+};
+</script>
+
+<!-- STEP 3: Sentry SDK v10.23.0 (single bundle) -->
+<script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+
+<!-- STEP 4: Initialize on load -->
+<script>window.addEventListener('load', initSentry);</script>
+
+<!-- STEP 5-7: Game packages (exact URLs, in this order) -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+```
+
+---
+
+## 8. Game Flow
 
 1. **Page loads** → DOMContentLoaded fires
-   - waitForPackages(), FeedbackManager.init()
-   - **SignalCollector init** (PART-010): `new SignalCollector({ sessionId, studentId, templateId })`
-   - ScreenLayout.inject, clone template
-   - ProgressBarComponent (totalRounds: 10, totalLives: 0)
-   - TransitionScreen, VisibilityTracker (with signalCollector.pause/resume)
-   - InteractionManager.init()
-   - Show start transition screen
+   - waitForPackages() (PART-003)
+   - FeedbackManager.init() (PART-017)
+   - SignalCollector init (PART-010): `new SignalCollector({ sessionId, studentId, gameId, contentSetId })`
+   - ScreenLayout.inject('app', { slots: { progressBar: true, previewScreen: true, transitionScreen: true } })
+   - Clone game template into #gameContent
+   - ProgressBarComponent(totalRounds: 10, totalLives: 0)
+   - TransitionScreenComponent
+   - VisibilityTracker with pause/resume (PART-005)
+   - PreviewScreenComponent (PART-039)
+   - InteractionManager (PART-038)
+   - Register handlePostMessage listener, send game_ready
+   - Call setupGame()
 
-2. **startGame()** from start screen:
+2. **setupGame()** runs:
    - Load content from gameState.content or fallbackContent
    - Reset all game-specific state fields
-   - Set startTime, isActive, duration_data.startTime
+   - IMPORTANT: Do NOT set gameState.startTime here — it is set in startGameAfterPreview()
+   - Call showPreviewScreen()
+
+3. **showPreviewScreen()** shows the preview:
+   - Calls previewScreen.show({ instruction, onComplete: startGameAfterPreview })
+   - Note: questionLabel, score, showStar are read automatically from game_init payload
+
+4. **startGameAfterPreview(previewData)** starts the actual game:
+   - Store previewData in gameState.previewResult
+   - Record preview duration in duration_data.preview[]
+   - Set gameState.startTime = Date.now()
+   - Set gameState.isActive = true
+   - Set gameState.duration_data.startTime = new Date().toISOString()
    - progressBar.update(0, 0)
-   - trackEvent('game_start')
-   - **recordViewEvent('screen_transition')** — ready → gameplay
+   - trackEvent('game_start', 'game')
+   - signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' })
    - Call showRound()
 
-3. **showRound()** — renders the current round:
-   - **Flush deferred endProblem** from previous round (if pending)
-   - **signalCollector.startProblem()** for current round
+5. **showRound()** — renders the current round:
    - Get current round data from content
    - Update stage label, instruction text
    - Reset UI: hide choice area, builder, feedback, check button
    - Reset gameState.userChoice, ruleNumA, ruleNumB, ruleCommitted
    - Render Scene A items (emojis in groups)
    - Show Scene A with slide-in animation
-   - **recordViewEvent('content_render')** — round start
+   - signalCollector.recordViewEvent('content_render') — round start
    - **If Stage 1-2:**
      - After 800ms delay, show Scene B with slide-in animation
      - Compress Scene A slightly
@@ -1013,7 +1173,7 @@ body {
      - Pre-fill thing names in builder
      - Set phase = 'building'
 
-4. **Stage 1-2 interaction loop:**
+6. **Stage 1-2 interaction loop:**
    - Kid taps Same Rule or Different Rule → handleChoice()
      - Highlight selected button, dim other
      - Store userChoice
@@ -1026,7 +1186,7 @@ body {
      - Update display, update thing name (singular/plural)
    - Kid taps Check → handleCheck()
 
-5. **Stage 3 interaction loop:**
+7. **Stage 3 interaction loop:**
    - Kid adjusts pickers and taps "I see the rule!" → handleCommitRule()
      - Lock pickers (disabled, grey)
      - Set ruleCommitted = true
@@ -1041,58 +1201,39 @@ body {
      - trackEvent('choice_made')
    - Kid taps Check → handleCheck()
 
-6. **handleCheck() — validate and show feedback:**
+8. **handleCheck() — validate and show feedback:**
    - Determine correctness:
      - choiceCorrect = (userChoice === round.answer)
      - ruleCorrect = (ruleNumA === round.rule.numA && ruleNumB === round.rule.numB)
      - roundCorrect = choiceCorrect && ruleCorrect
    - recordAttempt with all data
    - If roundCorrect: score++, additiveTrapCorrect++ if isAdditiveTrap
-   - If roundCorrect AND isAdditiveTrap: additiveTrapCorrect++
    - progressBar.update(currentRound + 1, 0)
-   - **Defer endProblem** with outcome
+   - signalCollector.recordCustomEvent('round_correct' or 'round_incorrect')
    - showFeedback(roundCorrect, choiceCorrect, ruleCorrect, round)
 
-7. **showFeedback(roundCorrect, choiceCorrect, ruleCorrect, round):**
+9. **showFeedback(roundCorrect, choiceCorrect, ruleCorrect, round):**
    - Hide check button, choice area, builder
    - Set phase = 'feedback'
-   - **If roundCorrect:**
-     - Green checkmark icon, correctFeedback text
-     - Animate grouping on both scenes (add .grouped class to item-groups)
-     - Play correct sound
-   - **If wrong:**
-     - Gentle feedback icon
-     - If choice wrong: show what the correct answer was
-     - If rule wrong: show the correct "for every" numbers
-     - Show correct grouping animation gently
-     - Play soft incorrect sound
-   - **If additive trap round and wrong:** show trapExplanation in callout box
+   - If roundCorrect: green checkmark, correctFeedback text, grouping animation, play correct TTS
+   - If wrong: gentle feedback icon, explanation of what was wrong, play gentle TTS
+   - If additive trap round: show trapExplanation in callout box
    - Show feedback container with Next button
-   - trackEvent('round_correct' or 'round_incorrect')
-   - **recordViewEvent('feedback_display')**
+   - trackEvent + signalCollector.recordViewEvent('feedback_display')
 
-8. **nextRound():**
-   - currentRound++
-   - If currentRound >= totalRounds → endGame()
-   - Else → showRound()
+10. **nextRound():**
+    - currentRound++
+    - If currentRound >= totalRounds → endGame()
+    - Else → showRound()
 
-9. **endGame():** (PART-011)
-   - isActive = false, gameEnded = true
-   - Stars calculation:
-     - If score >= 8 AND additiveTrapCorrect >= 3 → 3 stars
-     - If score >= 5 → 2 stars
-     - If score >= 1 → 1 star
-     - Else → 0 stars
-   - trackEvent('game_end') BEFORE signal sealing
-   - **Flush deferred endProblem** (PART-010)
-   - **signalCollector.seal()** → signalPayload
-   - **recordViewEvent('screen_transition')** — gameplay → results
-   - showResults, postMessage with ...signalPayload
-   - Cleanup: progressBar, visibilityTracker
+11. **End condition(s) — EVERY path that calls endGame():**
+    - **Trigger 1:** All 10 rounds completed → nextRound() calls endGame() when currentRound >= totalRounds
+    - endGame() calculates metrics, shows results, sends postMessage, cleans up
+    - **There is NO game state where the player is stuck with no path to endGame()**
 
 ---
 
-## 8. Functions
+## 9. Functions
 
 ### Global Scope (RULE-001)
 
@@ -1107,444 +1248,548 @@ body {
 **renderScene(containerId, scene)** — populate scene with emoji groups
 
 - Clear container
-- Create .item-group div for thingA, append count × emoji spans
-- Create .item-group div for thingB, append count × emoji spans
+- Create .item-group div for thingA, append count x emoji spans with class .item-emoji
+- Create .item-group div for thingB, append count x emoji spans with class .item-emoji
 - Append both groups to container
 
-**startGame()**
+**showPreviewScreen()** (PART-039)
 
-- const content = gameState.content || fallbackContent
-- gameState.content = content
-- gameState.currentRound = 0
-- gameState.score = 0
-- gameState.attempts = []
-- gameState.events = []
-- gameState.additiveTrapCorrect = 0
-- gameState.userChoice = null
-- gameState.ruleNumA = 1
-- gameState.ruleNumB = 1
-- gameState.ruleCommitted = false
-- gameState.phase = 'idle'
-- gameState.pendingEndProblem = null
-- gameState.startTime = Date.now()
-- gameState.isActive = true
-- gameState.duration_data.startTime = new Date().toISOString()
-- progressBar.update(0, 0)
-- trackEvent('game_start', 'game')
-- if (signalCollector) signalCollector.recordViewEvent('screen_transition', { screen: 'gameplay', metadata: { transition_from: 'start' } })
-- showRound()
+- Called from setupGame() after setting gameState.content
+- Calls:
+  ```javascript
+  // questionLabel, score, showStar come from game_init payload automatically — do NOT pass them
+  const content = gameState.content || fallbackContent;
+  previewScreen.show({
+    instruction: content.previewInstruction || fallbackContent.previewInstruction,
+    audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+    onComplete: startGameAfterPreview
+  });
+  ```
+
+**startGameAfterPreview(previewData)** (PART-039)
+
+```javascript
+function startGameAfterPreview(previewData) {
+  gameState.previewResult = previewData;
+  gameState.duration_data.preview = gameState.duration_data.preview || [];
+  gameState.duration_data.preview.push({ duration: previewData.duration });
+
+  // NOW start the actual game
+  gameState.startTime = Date.now();
+  gameState.isActive = true;
+  gameState.duration_data.startTime = new Date().toISOString();
+
+  progressBar.update(0, 0);
+  trackEvent('game_start', 'game');
+
+  if (signalCollector) {
+    signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+  }
+
+  showRound();
+}
+```
+
+**setupGame()**
+
+- Parse content:
+  ```javascript
+  if (!gameState.content) {
+    gameState.content = fallbackContent;
+  }
+  ```
+- Reset all game-specific state:
+  - gameState.currentRound = 0
+  - gameState.score = 0
+  - gameState.attempts = []
+  - gameState.events = []
+  - gameState.additiveTrapCorrect = 0
+  - gameState.userChoice = null
+  - gameState.ruleNumA = 1
+  - gameState.ruleNumB = 1
+  - gameState.ruleCommitted = false
+  - gameState.phase = 'idle'
+  - gameState.gameEnded = false
+- IMPORTANT: Do NOT set gameState.startTime here — it is set in startGameAfterPreview()
+- Call showPreviewScreen()
 
 **async showRound()**
 
-- // Flush deferred endProblem from previous round
-- if (signalCollector && gameState.pendingEndProblem) { signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome); gameState.pendingEndProblem = null; }
 - const roundIndex = gameState.currentRound
 - const round = gameState.content.rounds[roundIndex]
 - const roundNumber = roundIndex + 1
-- // Start signal collection for this round
-- if (signalCollector) { signalCollector.startProblem('round_' + roundNumber, { round_number: roundNumber, stage: round.stage, answer: round.answer, is_additive_trap: round.isAdditiveTrap }) }
-- // Reset UI
-- gameState.userChoice = null
-- gameState.ruleNumA = 1
-- gameState.ruleNumB = 1
-- gameState.ruleCommitted = false
-- document.getElementById('picker-a-value').textContent = '1'
-- document.getElementById('picker-b-value').textContent = '1'
-- document.getElementById('choice-area').style.display = 'none'
-- document.getElementById('sentence-builder').style.display = 'none'
-- document.getElementById('btn-check').style.display = 'none'
-- document.getElementById('btn-commit-rule').style.display = 'none'
-- document.getElementById('feedback-container').style.display = 'none'
-- document.getElementById('scene-b-container').style.display = 'none'
-- document.getElementById('scene-a-container').style.display = 'none'
-- // Remove old selection classes
-- document.getElementById('btn-same').classList.remove('selected', 'correct', 'incorrect')
-- document.getElementById('btn-different').classList.remove('selected', 'correct', 'incorrect')
-- document.getElementById('btn-same').disabled = false
-- document.getElementById('btn-different').disabled = false
-- document.getElementById('stepper-a').classList.remove('locked')
-- document.getElementById('stepper-b').classList.remove('locked')
-- // Enable stepper buttons
-- document.querySelectorAll('.stepper-btn').forEach(btn => btn.disabled = false)
-- // Remove grouping classes
-- document.querySelectorAll('.item-group').forEach(g => g.classList.remove('grouped'))
-- // Update stage label
-- const stageLabels = { 1: 'Stage 1 — Easy Matches', 2: 'Stage 2 — The Additive Trap', 3: 'Stage 3 — You Lead!' }
-- document.getElementById('stage-label').textContent = stageLabels[round.stage] || ''
-- // Render Scene A
-- renderScene('scene-a-items', round.sceneA)
-- document.getElementById('scene-a-label').textContent = round.sceneA.label
-- document.getElementById('scene-a-container').style.display = ''
-- document.getElementById('scene-a-container').classList.add('slide-in')
-- // Pre-fill thing names in builder
-- document.getElementById('thing-a-name').textContent = round.sceneA.thingA.name
-- document.getElementById('thing-b-name').textContent = round.sceneA.thingB.name
-- // SignalCollector view event
-- if (signalCollector) signalCollector.recordViewEvent('content_render', { screen: 'gameplay', content_snapshot: { round: roundNumber, stage: round.stage, scene_a_label: round.sceneA.label, trigger: 'round_start' }, components: { progress: { current: gameState.currentRound, total: gameState.totalRounds } } })
-- if (round.stage === 3) {
-    // Stage 3: show builder immediately, Scene B hidden
-    document.getElementById('instruction-text').textContent = "Look at Scene A. What's the 'for every' rule?"
-    await delay(600)
-    document.getElementById('sentence-builder').style.display = ''
-    document.getElementById('btn-commit-rule').style.display = ''
-    document.getElementById('builder-title').textContent = "What's the 'for every' rule for Scene A?"
-    gameState.phase = 'building'
-  } else {
-    // Stage 1-2: show both scenes, then choice
-    document.getElementById('instruction-text').textContent = 'Do these two scenes follow the same rule?'
-    await delay(800)
-    renderScene('scene-b-items', round.sceneB)
-    document.getElementById('scene-b-label').textContent = round.sceneB.label
-    document.getElementById('scene-b-container').style.display = ''
-    document.getElementById('scene-b-container').classList.add('slide-in')
-    document.getElementById('scene-a-container').classList.add('compress')
-    if (signalCollector) signalCollector.recordViewEvent('visual_update', { screen: 'gameplay', content_snapshot: { type: 'scene_b_revealed', round: roundNumber } })
-    await delay(400)
-    document.getElementById('choice-area').style.display = ''
-    gameState.phase = 'choosing'
-  }
+- Reset UI:
+  - gameState.userChoice = null
+  - gameState.ruleNumA = 1
+  - gameState.ruleNumB = 1
+  - gameState.ruleCommitted = false
+  - document.getElementById('picker-a-value').textContent = '1'
+  - document.getElementById('picker-b-value').textContent = '1'
+  - Hide: choice-area, sentence-builder, btn-check, btn-commit-rule, feedback-container, scene-b-container, scene-a-container
+  - Remove selection/feedback classes from btn-same, btn-different; enable them
+  - Remove .locked from steppers, enable stepper buttons
+  - Remove .grouped from all .item-group elements
+- Update stage label: { 1: 'Stage 1 — Easy Matches', 2: 'Stage 2 — The Additive Trap', 3: 'Stage 3 — You Lead!' }
+- Render Scene A: renderScene('scene-a-items', round.sceneA)
+- Set scene-a-label text, show scene-a-container with slide-in
+- Pre-fill thing names in builder from round.sceneA
+- signalCollector.recordViewEvent('content_render', { screen: 'gameplay', content_snapshot: { round: roundNumber, stage: round.stage, scene_a_label: round.sceneA.label, trigger: 'round_start' }, components: { progress: { current: gameState.currentRound, total: gameState.totalRounds } } })
+- If Stage 3:
+  - Update instruction text, show sentence builder + btn-commit-rule
+  - Set phase = 'building'
+- Else (Stage 1-2):
+  - Set instruction to "Do these two scenes follow the same rule?"
+  - await delay(800), render Scene B, show with slide-in, compress Scene A
+  - signalCollector.recordViewEvent('visual_update', { type: 'scene_b_revealed', round: roundNumber })
+  - await delay(400), show choice-area
+  - Set phase = 'choosing'
 
 **handleChoice(choice)** (onclick handler — global scope)
 
 - if (gameState.phase !== 'choosing' || !gameState.isActive) return
 - gameState.userChoice = choice
-- // Highlight selected button
-- document.getElementById('btn-same').classList.toggle('selected', choice === 'same')
-- document.getElementById('btn-different').classList.toggle('selected', choice === 'different')
+- Toggle .selected class on btn-same/btn-different
 - trackEvent('choice_made', 'choice-btn', { choice, round: gameState.currentRound + 1 })
-- if (signalCollector) signalCollector.recordViewEvent('visual_update', { screen: 'gameplay', content_snapshot: { type: 'choice_made', choice } })
-- const round = gameState.content.rounds[gameState.currentRound]
-- if (round.stage === 3) {
-    // Stage 3: choice after rule commit — show Check button
-    document.getElementById('btn-check').style.display = ''
-  } else {
-    // Stage 1-2: show sentence builder after choice
-    document.getElementById('sentence-builder').style.display = ''
-    document.getElementById('builder-title').textContent = "What's the 'for every' rule?"
-    document.getElementById('btn-check').style.display = ''
-    gameState.phase = 'building'
-  }
+- signalCollector.recordViewEvent('visual_update', { type: 'choice_made', choice })
+- If Stage 3: just show btn-check
+- Else (Stage 1-2): show sentence-builder, set builder-title, show btn-check, set phase = 'building'
 
 **handlePickerChange(picker, delta)** (onclick handler — global scope)
 
 - if (gameState.phase !== 'building' || !gameState.isActive) return
-- const key = picker === 'a' ? 'ruleNumA' : 'ruleNumB'
-- const newVal = Math.max(1, Math.min(9, gameState[key] + delta))
-- gameState[key] = newVal
-- document.getElementById('picker-' + picker + '-value').textContent = newVal
-- // Update thing name for singular/plural
-- const round = gameState.content.rounds[gameState.currentRound]
-- const thing = picker === 'a' ? round.sceneA.thingA : round.sceneA.thingB
-- document.getElementById('thing-' + picker + '-name').textContent = getThingName(thing, newVal)
+- Compute new value: Math.max(1, Math.min(9, current + delta))
+- Update gameState.ruleNumA or ruleNumB
+- Update picker display text
+- Update thing name (singular/plural) via getThingName()
 
-**handleCommitRule()** (onclick handler — global scope, Stage 3 only)
+**async handleCommitRule()** (onclick handler — global scope, Stage 3 only)
 
 - if (!gameState.isActive || gameState.ruleCommitted) return
 - gameState.ruleCommitted = true
-- // Lock pickers
-- document.querySelectorAll('.stepper-btn').forEach(btn => btn.disabled = true)
-- document.getElementById('stepper-a').classList.add('locked')
-- document.getElementById('stepper-b').classList.add('locked')
-- document.getElementById('btn-commit-rule').style.display = 'none'
-- trackEvent('rule_committed', 'sentence-builder', { ruleNumA: gameState.ruleNumA, ruleNumB: gameState.ruleNumB, round: gameState.currentRound + 1 })
-- if (signalCollector) signalCollector.recordViewEvent('visual_update', { screen: 'gameplay', content_snapshot: { type: 'rule_committed', ruleNumA: gameState.ruleNumA, ruleNumB: gameState.ruleNumB } })
-- // Reveal Scene B
-- const round = gameState.content.rounds[gameState.currentRound]
-- renderScene('scene-b-items', round.sceneB)
-- document.getElementById('scene-b-label').textContent = round.sceneB.label
-- document.getElementById('scene-b-container').style.display = ''
-- document.getElementById('scene-b-container').classList.add('slide-in')
-- document.getElementById('scene-a-container').classList.add('compress')
-- document.getElementById('instruction-text').textContent = 'Now — does Scene B follow the same rule?'
-- await delay(400)
-- document.getElementById('choice-area').style.display = ''
-- gameState.phase = 'choosing'
+- Lock pickers: disable stepper buttons, add .locked class
+- Hide btn-commit-rule
+- trackEvent('rule_committed', 'sentence-builder', { ruleNumA, ruleNumB, round })
+- signalCollector.recordViewEvent('visual_update', { type: 'rule_committed', ruleNumA, ruleNumB })
+- Reveal Scene B: renderScene, show with slide-in, compress Scene A
+- Update instruction: "Now — does Scene B follow the same rule?"
+- await delay(400), show choice-area
+- Set phase = 'choosing'
 
 **async handleCheck()** (onclick handler — global scope)
 
-- if (!gameState.isActive) return
-- if (!gameState.userChoice) return // No choice made
+- if (!gameState.isActive || !gameState.userChoice) return
 - gameState.phase = 'feedback'
-- const round = gameState.content.rounds[gameState.currentRound]
-- const choiceCorrect = gameState.userChoice === round.answer
-- const ruleCorrect = gameState.ruleNumA === round.rule.numA && gameState.ruleNumB === round.rule.numB
-- const roundCorrect = choiceCorrect && ruleCorrect
-- // Record attempt
-- recordAttempt({
-    input_of_user: {
-      action: 'check',
-      choice: gameState.userChoice,
-      ruleNumA: gameState.ruleNumA,
-      ruleNumB: gameState.ruleNumB,
-    },
+- Determine correctness:
+  ```javascript
+  const choiceCorrect = gameState.userChoice === round.answer;
+  const ruleCorrect = gameState.ruleNumA === round.rule.numA && gameState.ruleNumB === round.rule.numB;
+  const roundCorrect = choiceCorrect && ruleCorrect;
+  ```
+- recordAttempt:
+  ```javascript
+  recordAttempt({
+    userAnswer: { choice: gameState.userChoice, ruleNumA: gameState.ruleNumA, ruleNumB: gameState.ruleNumB },
     correct: roundCorrect,
-    metadata: {
-      round: gameState.currentRound + 1,
-      stage: round.stage,
-      expectedChoice: round.answer,
-      expectedRuleA: round.rule.numA,
-      expectedRuleB: round.rule.numB,
-      choiceCorrect,
-      ruleCorrect,
-      isAdditiveTrap: round.isAdditiveTrap,
-      validationType: 'function',
-    },
-  })
-- if (roundCorrect) {
-    gameState.score++
-    if (round.isAdditiveTrap) gameState.additiveTrapCorrect++
-  }
+    question: round.sceneA.label + ' vs ' + round.sceneB.label,
+    correctAnswer: { choice: round.answer, ruleNumA: round.rule.numA, ruleNumB: round.rule.numB },
+    validationType: 'function'
+  });
+  ```
+- If roundCorrect: score++, if isAdditiveTrap: additiveTrapCorrect++
 - progressBar.update(gameState.currentRound + 1, 0)
-- // Defer endProblem
-- gameState.pendingEndProblem = { id: 'round_' + (gameState.currentRound + 1), outcome: { correct: roundCorrect, answer: { choice: gameState.userChoice, ruleA: gameState.ruleNumA, ruleB: gameState.ruleNumB } } }
-- if (signalCollector) signalCollector.recordCustomEvent(roundCorrect ? 'round_correct' : 'round_incorrect', { round: gameState.currentRound + 1, stage: round.stage, choiceCorrect, ruleCorrect, isAdditiveTrap: round.isAdditiveTrap })
+- signalCollector.recordCustomEvent(roundCorrect ? 'round_correct' : 'round_incorrect', { round: gameState.currentRound + 1, stage: round.stage, choiceCorrect, ruleCorrect, isAdditiveTrap: round.isAdditiveTrap })
 - await showFeedback(roundCorrect, choiceCorrect, ruleCorrect, round)
 
 **async showFeedback(roundCorrect, choiceCorrect, ruleCorrect, round)**
 
-- // Hide interactive elements
-- document.getElementById('btn-check').style.display = 'none'
-- document.getElementById('choice-area').style.display = 'none'
-- document.getElementById('sentence-builder').style.display = 'none'
-- // Show choice correctness on buttons briefly
-- document.getElementById('btn-same').classList.add(round.answer === 'same' ? 'correct' : 'incorrect')
-- document.getElementById('btn-different').classList.add(round.answer === 'different' ? 'correct' : 'incorrect')
-- document.getElementById('btn-same').disabled = true
-- document.getElementById('btn-different').disabled = true
-- document.getElementById('choice-area').style.display = ''
-- const feedbackIcon = document.getElementById('feedback-icon')
-- const feedbackText = document.getElementById('feedback-text')
-- const feedbackExplanation = document.getElementById('feedback-explanation')
-- feedbackExplanation.style.display = 'none'
-- if (roundCorrect) {
-    feedbackIcon.textContent = '✅'
-    feedbackText.textContent = round.correctFeedback
-    // Animate grouping on scenes
-    document.querySelectorAll('.item-group').forEach(g => g.classList.add('grouped'))
-    try { await FeedbackManager.playDynamicFeedback({ audio_content: 'correct!', subtitle: '' }); } catch(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
-  } else {
-    feedbackIcon.textContent = '💡'
-    let explanation = ''
-    if (!choiceCorrect && !ruleCorrect) {
-      explanation = 'The answer was "' + (round.answer === 'same' ? 'Same Rule' : 'Different Rule') + '" — and the rule is: for every ' + round.rule.numA + ' ' + getThingName(round.sceneA.thingA, round.rule.numA) + ', there are ' + round.rule.numB + ' ' + getThingName(round.sceneA.thingB, round.rule.numB) + '.'
-    } else if (!choiceCorrect) {
-      explanation = 'Your rule was right! But it was actually "' + (round.answer === 'same' ? 'Same Rule' : 'Different Rule') + '." Look again at how the two scenes compare.'
-    } else {
-      explanation = 'Good eye on ' + (round.answer === 'same' ? 'Same' : 'Different') + ' Rule! But the "for every" rule is: for every ' + round.rule.numA + ' ' + getThingName(round.sceneA.thingA, round.rule.numA) + ', there are ' + round.rule.numB + ' ' + getThingName(round.sceneA.thingB, round.rule.numB) + '.'
-    }
-    feedbackText.textContent = explanation
-    try { await FeedbackManager.playDynamicFeedback({ audio_content: 'not quite', subtitle: '' }); } catch(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
-  }
-- // Show additive trap explanation if applicable
-- if (round.isAdditiveTrap && round.trapExplanation) {
-    feedbackExplanation.textContent = round.trapExplanation
-    feedbackExplanation.style.display = ''
-  }
-- document.getElementById('feedback-container').style.display = ''
+- Hide btn-check, choice-area, sentence-builder
+- Show choice correctness: btn-same gets .correct or .incorrect class, same for btn-different; disable both
+- Show choice-area again (so colored buttons are visible)
+- If roundCorrect:
+  - feedbackIcon = '✅', feedbackText = round.correctFeedback
+  - Animate grouping on all .item-group elements (add .grouped)
+  - try { await FeedbackManager.playDynamicFeedback({ audio_content: 'correct!', subtitle: '' }); } catch(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+- Else:
+  - feedbackIcon = '💡'
+  - Build explanation text based on which part was wrong (both, choice only, rule only)
+  - try { await FeedbackManager.playDynamicFeedback({ audio_content: 'not quite', subtitle: '' }); } catch(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+- If additive trap round with trapExplanation: show in .feedback-explanation
+- Show feedback-container
 - trackEvent(roundCorrect ? 'round_correct' : 'round_incorrect', 'game', { round: gameState.currentRound + 1, choiceCorrect, ruleCorrect })
-- if (signalCollector) signalCollector.recordViewEvent('feedback_display', { screen: 'gameplay', content_snapshot: { feedback_type: roundCorrect ? 'correct' : 'incorrect', round: gameState.currentRound + 1, stage: round.stage, choiceCorrect, ruleCorrect } })
+- signalCollector.recordViewEvent('feedback_display', { screen: 'gameplay', content_snapshot: { feedback_type: roundCorrect ? 'correct' : 'incorrect', round: gameState.currentRound + 1, stage: round.stage, choiceCorrect, ruleCorrect } })
 
 **nextRound()** (onclick handler — global scope)
 
 - gameState.currentRound++
-- if (gameState.currentRound >= gameState.totalRounds) {
-    endGame()
-  } else {
-    showRound()
-  }
+- if (gameState.currentRound >= gameState.totalRounds) → endGame()
+- else → showRound()
 
-**async endGame()**
+**computeTriesPerRound(attempts)** (PART-011 helper)
 
-- if (gameState.gameEnded) return
-- gameState.gameEnded = true
-- gameState.isActive = false
-- gameState.phase = 'idle'
-- gameState.duration_data.currentTime = new Date().toISOString()
-- const correctAttempts = gameState.attempts.filter(a => a.correct).length
-- const totalAttempts = gameState.attempts.length
-- const accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0
-- // Star calculation
-- let stars = 0
-- if (gameState.score >= 8 && gameState.additiveTrapCorrect >= 3) {
-    stars = 3
+```javascript
+function computeTriesPerRound(attempts) {
+  var rounds = {};
+  attempts.forEach(function(a) {
+    var r = a.metadata.round;
+    rounds[r] = (rounds[r] || 0) + 1;
+  });
+  return Object.keys(rounds).map(function(r) {
+    return { round: Number(r), triesCount: rounds[r] };
+  });
+}
+```
+
+**async endGame()** (PART-011)
+
+```javascript
+async function endGame() {
+  if (!gameState.isActive) return;
+  gameState.isActive = false;
+  gameState.gameEnded = true;
+  gameState.phase = 'idle';
+  gameState.duration_data.currentTime = new Date().toISOString();
+
+  const correctAttempts = gameState.attempts.filter(a => a.correct).length;
+  const totalAttempts = gameState.attempts.length;
+  const accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
+  const timeTaken = Math.round((Date.now() - gameState.startTime) / 1000);
+
+  // Star calculation (game-specific)
+  let stars = 0;
+  if (gameState.score >= 8 && gameState.additiveTrapCorrect >= 3) {
+    stars = 3;
   } else if (gameState.score >= 5) {
-    stars = 2
+    stars = 2;
   } else if (gameState.score >= 1) {
-    stars = 1
+    stars = 1;
   }
-- const metrics = {
+
+  const metrics = {
     accuracy,
+    time: timeTaken,
     stars,
     attempts: gameState.attempts,
-    duration_data: { ...gameState.duration_data, currentTime: new Date().toISOString() },
+    duration_data: gameState.duration_data,
+    totalLives: 1,
+    tries: computeTriesPerRound(gameState.attempts),
     score: gameState.score,
     totalRounds: gameState.totalRounds,
     additiveTrapCorrect: gameState.additiveTrapCorrect,
     totalTrapRounds: 4,
+  };
+
+  // If game has restart history
+  if (gameState.sessionHistory && gameState.sessionHistory.length > 0) {
+    metrics.sessionHistory = [
+      ...gameState.sessionHistory,
+      { totalLives: 1, tries: computeTriesPerRound(gameState.attempts) }
+    ];
   }
-- console.log('Final Metrics:', JSON.stringify(metrics, null, 2))
-- console.log('Attempt History:', JSON.stringify(gameState.attempts, null, 2))
-- trackEvent('game_end', 'game', { score: gameState.score, accuracy, stars, additiveTrapCorrect: gameState.additiveTrapCorrect })
-- // Flush deferred endProblem before sealing (PART-010)
-- if (signalCollector && gameState.pendingEndProblem) { signalCollector.endProblem(gameState.pendingEndProblem.id, gameState.pendingEndProblem.outcome); gameState.pendingEndProblem = null; }
-- // Seal SignalCollector (PART-010)
-- const signalPayload = signalCollector ? signalCollector.seal() : { events: [], signals: {}, metadata: {} }
-- if (gameState.score >= 8) {
+
+  console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
+  console.log('Attempt History:', JSON.stringify(gameState.attempts, null, 2));
+
+  trackEvent('game_end', 'game', { score: gameState.score, accuracy, stars, additiveTrapCorrect: gameState.additiveTrapCorrect });
+
+  // Seal SignalCollector — fires sendBeacon to flush all events to GCS (PART-010)
+  if (signalCollector) {
+    signalCollector.recordViewEvent('screen_transition', { screen: 'results', metadata: { transition_from: 'gameplay', stars, score: gameState.score } });
+    signalCollector.seal();
+  }
+
+  // End-game audio feedback
+  if (gameState.score >= 8) {
     try { await FeedbackManager.playDynamicFeedback({ audio_content: "Amazing! You really understand the 'for every' rule!", subtitle: 'Incredible!' }); } catch(e) {}
   } else if (gameState.score >= 5) {
     try { await FeedbackManager.playDynamicFeedback({ audio_content: "Good job! You're getting the hang of it!", subtitle: 'Nice work!' }); } catch(e) {}
   } else {
     try { await FeedbackManager.playDynamicFeedback({ audio_content: "Keep practicing! The 'for every' pattern will click soon!", subtitle: 'Keep going!' }); } catch(e) {}
   }
-- if (signalCollector) signalCollector.recordViewEvent('screen_transition', { screen: 'results', metadata: { transition_from: 'gameplay', stars, score: gameState.score } })
-- showResults(metrics)
-- window.parent.postMessage({ type: 'game_complete', data: { metrics, attempts: gameState.attempts, ...signalPayload, completedAt: Date.now() } }, '*')
-- if (progressBar) { progressBar.destroy(); progressBar = null; }
-- if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
-- try { FeedbackManager.sound.stopAll(); FeedbackManager.stream.stopAll(); } catch(e) {}
 
-**showResults(metrics)**
+  showResults(metrics);
 
-- document.getElementById('game-screen').style.display = 'none'
-- document.getElementById('results-screen').style.display = 'flex'
-- document.getElementById('results-title').textContent = metrics.stars >= 3 ? "You're a Ratio Detective!" : metrics.stars >= 2 ? 'Great Pattern Spotting!' : 'Keep Exploring!'
-- document.getElementById('results-subtitle').textContent = "You spotted the 'for every' rule " + metrics.score + ' out of 10 times!'
-- document.getElementById('result-score').textContent = metrics.score + '/' + metrics.totalRounds
-- document.getElementById('result-accuracy').textContent = metrics.accuracy + '%'
-- document.getElementById('result-traps').textContent = metrics.additiveTrapCorrect + '/' + metrics.totalTrapRounds
-- const starsDisplay = document.getElementById('stars-display')
-- starsDisplay.innerHTML = ''
-- for (let i = 0; i < 3; i++) { starsDisplay.innerHTML += i < metrics.stars ? '⭐' : '☆'; }
+  // Send to platform (PART-008) — signal data NOT included, streamed to GCS via batch flushing
+  window.parent.postMessage({
+    type: 'game_complete',
+    data: {
+      metrics,
+      attempts: gameState.attempts,
+      completedAt: Date.now()
+    }
+  }, '*');
+
+  // Cleanup (RULE-005)
+  if (progressBar) { progressBar.destroy(); progressBar = null; }
+  if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
+  FeedbackManager.sound.stopAll();
+  FeedbackManager.stream.stopAll();
+}
+```
+
+**showResults(metrics)** (PART-019)
+
+```javascript
+function showResults(metrics) {
+  document.getElementById('game-screen').style.display = 'none';
+  document.getElementById('results-screen').style.display = 'flex';
+  document.getElementById('results-title').textContent =
+    metrics.stars >= 3 ? "You're a Ratio Detective!" : metrics.stars >= 2 ? 'Great Pattern Spotting!' : 'Keep Exploring!';
+  document.getElementById('results-subtitle').textContent =
+    "You spotted the 'for every' rule " + metrics.score + ' out of 10 times!';
+  document.getElementById('result-score').textContent = metrics.score + '/' + metrics.totalRounds;
+  document.getElementById('result-accuracy').textContent = metrics.accuracy + '%';
+  document.getElementById('result-traps').textContent = metrics.additiveTrapCorrect + '/' + metrics.totalTrapRounds;
+  const starsDisplay = document.getElementById('stars-display');
+  starsDisplay.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    starsDisplay.innerHTML += i < metrics.stars ? '⭐' : '☆';
+  }
+}
+```
 
 **restartGame()** (onclick handler — global scope)
 
-- gameState.gameEnded = false
-- gameState.currentRound = 0
-- gameState.score = 0
-- gameState.attempts = []
-- gameState.events = []
-- gameState.isActive = false
-- gameState.startTime = null
-- gameState.phase = 'idle'
-- gameState.userChoice = null
-- gameState.ruleNumA = 1
-- gameState.ruleNumB = 1
-- gameState.additiveTrapCorrect = 0
-- gameState.ruleCommitted = false
-- gameState.pendingEndProblem = null
-- gameState.duration_data = { startTime: null, preview: [], attempts: [], evaluations: [], inActiveTime: [], totalInactiveTime: 0, currentTime: null }
-- // Recreate SignalCollector
-- signalCollector = new SignalCollector({ sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(), studentId: window.gameVariableState?.studentId || null, templateId: gameState.gameId || null })
-- window.signalCollector = signalCollector
-- // Recreate progressBar
-- progressBar = new ProgressBarComponent({ autoInject: true, totalRounds: 10, totalLives: 0, slotId: 'mathai-progress-slot' })
-- // Recreate visibilityTracker
-- visibilityTracker = new VisibilityTracker({
-    onInactive: () => {
-      if (signalCollector) signalCollector.pause();
-      try { FeedbackManager.sound.stopAll(); } catch(e) {}
-      gameState.duration_data.inActiveTime.push({ start: Date.now() });
-    },
-    onResume: () => {
-      if (signalCollector) signalCollector.resume();
-      const last = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
-      if (last && !last.end) { last.end = Date.now(); gameState.duration_data.totalInactiveTime += (last.end - last.start); }
+```javascript
+function restartGame() {
+  // Push session snapshot before reset
+  if (!gameState.sessionHistory) gameState.sessionHistory = [];
+  gameState.sessionHistory.push({
+    totalLives: 1,
+    tries: computeTriesPerRound(gameState.attempts)
+  });
+
+  // Reset gameState
+  window.gameState.gameEnded = false;
+  window.gameState.currentRound = 0;
+  window.gameState.score = 0;
+  window.gameState.attempts = [];
+  window.gameState.events = [];
+  window.gameState.isActive = false;
+  window.gameState.startTime = null;
+  window.gameState.phase = 'idle';
+  window.gameState.userChoice = null;
+  window.gameState.ruleNumA = 1;
+  window.gameState.ruleNumB = 1;
+  window.gameState.additiveTrapCorrect = 0;
+  window.gameState.ruleCommitted = false;
+  window.gameState.duration_data = {
+    startTime: null, preview: [], attempts: [], evaluations: [],
+    inActiveTime: [], totalInactiveTime: 0, currentTime: null
+  };
+
+  // Recreate destroyed components (endGame nulls these)
+  signalCollector = new SignalCollector({
+    sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
+    studentId: window.gameVariableState?.studentId || null,
+    gameId: gameState.gameId,
+    contentSetId: gameState.contentSetId
+  });
+  window.signalCollector = signalCollector;
+
+  progressBar = new ProgressBarComponent({
+    autoInject: true, totalRounds: 10, totalLives: 0, slotId: 'mathai-progress-slot'
+  });
+
+  visibilityTracker = new VisibilityTracker({
+    onInactive: handleInactive,
+    onResume: handleResume,
+    popupProps: {
+      title: 'Game Paused',
+      description: 'Click Resume to continue.',
+      primaryText: 'Resume'
     }
-  })
-- document.getElementById('results-screen').style.display = 'none'
-- document.getElementById('game-screen').style.display = 'flex'
-- transitionScreen.show({ icons: ['⚖️'], iconSize: 'large', title: 'Same Rule?', subtitle: "Compare scenes and find the 'for every' pattern!", buttons: [{ text: "Let's go!", type: 'primary', action: () => startGame() }] })
+  });
 
-**handlePostMessage(event)**
+  // Show game screen, hide results
+  document.getElementById('results-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'flex';
 
-- if (!event.data || event.data.type !== 'game_init') return
-- try: gameState.content = event.data.data.content
-- catch(e): console.error('PostMessage error:', JSON.stringify({ error: e.message }, null, 2))
+  // Show preview screen for restart
+  showPreviewScreen();
+}
+```
 
-**recordAttempt(data)**
+**handlePostMessage(event)** (PART-008)
 
-- Standard attempt shape from PART-009:
-- gameState.attempts.push({ ...data, attempt_number: gameState.attempts.length + 1, attempt_timestamp: new Date().toISOString(), time_since_start: gameState.startTime ? Date.now() - gameState.startTime : 0 })
-- gameState.duration_data.attempts.push(new Date().toISOString())
+```javascript
+function handlePostMessage(event) {
+  if (!event.data || event.data.type !== 'game_init') return;
+  var d = event.data.data;
+  gameState.content = d.content;
+  gameState.signalConfig = d.signalConfig || {};
 
-**trackEvent(type, target, data = {})**
+  // Configure SignalCollector with harness-provided metadata (PART-010 — all 6 properties)
+  if (signalCollector && gameState.signalConfig.flushUrl) {
+    signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+    signalCollector.playId = gameState.signalConfig.playId || null;
+    signalCollector.gameId = gameState.signalConfig.gameId || signalCollector.gameId;
+    signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+    signalCollector.contentSetId = gameState.signalConfig.contentSetId || signalCollector.contentSetId;
+    signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+    signalCollector.startFlushing();
+  }
 
-- Standard event tracking from PART-010:
-- gameState.events.push({ type, target, data, timestamp: new Date().toISOString() })
+  setupGame();
+}
+```
+
+**recordAttempt(data)** (PART-009)
+
+```javascript
+function recordAttempt(data) {
+  const attempt = {
+    attempt_timestamp: new Date().toISOString(),
+    time_since_start_of_game: (Date.now() - gameState.startTime) / 1000,
+    input_of_user: data.userAnswer,
+    attempt_number: gameState.attempts.length + 1,
+    correct: data.correct,
+    metadata: {
+      round: gameState.currentRound + 1,
+      question: data.question,
+      correctAnswer: data.correctAnswer,
+      validationType: data.validationType || 'function'
+    }
+  };
+
+  gameState.attempts.push(attempt);
+  gameState.duration_data.attempts.push({
+    startTime: new Date().toISOString(),
+    time_to_first_attempt: (Date.now() - gameState.startTime) / 1000,
+    duration: 0
+  });
+
+  console.log('Attempt:', JSON.stringify(attempt, null, 2));
+}
+```
+
+**trackEvent(type, target, data = {})** (PART-010)
+
+```javascript
+function trackEvent(type, target, data = {}) {
+  gameState.events.push({
+    type,
+    target,
+    timestamp: Date.now(),
+    ...data
+  });
+}
+```
+
+**handleInactive()** (PART-005 — VisibilityTracker onInactive)
+
+```javascript
+function handleInactive() {
+  const inactiveStart = Date.now();
+  gameState.duration_data.inActiveTime.push({ start: inactiveStart });
+  if (signalCollector) {
+    signalCollector.pause();
+    signalCollector.recordCustomEvent('visibility_hidden', {});
+  }
+  // No timer in this game — skip timer.pause()
+  FeedbackManager.sound.pause();
+  FeedbackManager.stream.pauseAll();
+  if (previewScreen) previewScreen.pause();
+  trackEvent('game_paused', 'system');
+}
+```
+
+**handleResume()** (PART-005 — VisibilityTracker onResume)
+
+```javascript
+function handleResume() {
+  const lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+  if (lastInactive && !lastInactive.end) {
+    lastInactive.end = Date.now();
+    gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
+  }
+  if (signalCollector) {
+    signalCollector.resume();
+    signalCollector.recordCustomEvent('visibility_visible', {});
+  }
+  // No timer in this game — skip timer.resume()
+  FeedbackManager.sound.resume();
+  FeedbackManager.stream.resumeAll();
+  if (previewScreen) previewScreen.resume();
+  trackEvent('game_resumed', 'system');
+}
+```
 
 ### Inside DOMContentLoaded (PART-004)
 
 ```javascript
 window.addEventListener('DOMContentLoaded', async () => {
   try {
+    // 1. Wait for CDN packages (PART-003)
     await waitForPackages();
+
+    // 2. Init FeedbackManager (PART-017)
     await FeedbackManager.init();
 
-    // Sentry initialization (PART-030)
-    try {
-      const sentryConfig = new SentryConfig({
-        gameId: 'game_same_rule',
-        version: '1.0.0',
-      });
-      Sentry.init(sentryConfig.getConfig());
-    } catch (e) {
-      console.error('Sentry init error:', JSON.stringify({ error: e.message }, null, 2));
-    }
-
-    // SignalCollector init (PART-010)
+    // 3. Create SignalCollector (PART-010) — uses gameId, NOT templateId
     signalCollector = new SignalCollector({
       sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
       studentId: window.gameVariableState?.studentId || null,
-      templateId: gameState.gameId || null,
+      gameId: gameState.gameId,
+      contentSetId: gameState.contentSetId,
     });
     window.signalCollector = signalCollector;
 
-    // InteractionManager init (PART-038)
-    interactionManager = new InteractionManager();
+    // 4. ScreenLayout (PART-025) — includes previewScreen slot
+    ScreenLayout.inject('app', {
+      slots: { progressBar: true, previewScreen: true, transitionScreen: true }
+    });
 
-    const layout = ScreenLayout.inject('app', { slots: { progressBar: true, transitionScreen: true } });
+    // 5. Clone game template into #gameContent
     const gameContent = document.getElementById('gameContent');
     const template = document.getElementById('game-template');
     gameContent.appendChild(template.content.cloneNode(true));
 
+    // 6. ProgressBar (PART-023)
     progressBar = new ProgressBarComponent({
       autoInject: true,
       totalRounds: 10,
       totalLives: 0,
       slotId: 'mathai-progress-slot',
     });
+
+    // 7. TransitionScreen (PART-024) — used for restart only
     transitionScreen = new TransitionScreenComponent({ autoInject: true });
+
+    // 8. VisibilityTracker (PART-005) — AFTER SignalCollector
     visibilityTracker = new VisibilityTracker({
-      onInactive: () => {
-        if (signalCollector) signalCollector.pause();
-        try {
-          FeedbackManager.sound.stopAll();
-        } catch (e) {}
-        gameState.duration_data.inActiveTime.push({ start: Date.now() });
-      },
-      onResume: () => {
-        if (signalCollector) signalCollector.resume();
-        const last = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
-        if (last && !last.end) {
-          last.end = Date.now();
-          gameState.duration_data.totalInactiveTime += last.end - last.start;
-        }
-      },
+      onInactive: handleInactive,
+      onResume: handleResume,
+      popupProps: {
+        title: 'Game Paused',
+        description: 'Click Resume to continue.',
+        primaryText: 'Resume'
+      }
     });
 
-    if (!gameState.content) gameState.content = fallbackContent;
+    // 9. PreviewScreen (PART-039)
+    previewScreen = new PreviewScreenComponent({
+      autoInject: true,
+      slotId: 'mathai-preview-slot',
+      gameContentId: 'gameContent'
+    });
+
+    // 10. InteractionManager (PART-038)
+    interactionManager = new InteractionManager({
+      selector: '.game-play-area',
+      disableOnAudioFeedback: true,
+      disableOnEvaluation: true
+    });
+    window.interactionManager = interactionManager;
+
+    // 11. Register postMessage listener + send game_ready (PART-008)
     window.addEventListener('message', handlePostMessage);
     window.parent.postMessage({ type: 'game_ready' }, '*');
 
-    transitionScreen.show({
-      icons: ['⚖️'],
-      iconSize: 'large',
-      title: 'Same Rule?',
-      subtitle: "Compare scenes and find the 'for every' pattern!",
-      buttons: [{ text: "Let's go!", type: 'primary', action: () => startGame() }],
-    });
-  } catch (e) {
-    console.error('Init error:', JSON.stringify({ error: e.message }, null, 2));
+    // 12. Setup game (calls showPreviewScreen — preview IS the first screen)
+    setupGame();
+
+  } catch (error) {
+    console.error('Initialization failed:', JSON.stringify({ error: error.message }, null, 2));
   }
 });
 ```
@@ -1552,73 +1797,71 @@ window.addEventListener('DOMContentLoaded', async () => {
 ### Window-Attached Debug (PART-012)
 
 ```javascript
-window.debugGame = () => {
-  console.log(
-    'Game State:',
-    JSON.stringify(
-      {
-        currentRound: gameState.currentRound,
-        totalRounds: gameState.totalRounds,
-        score: gameState.score,
-        phase: gameState.phase,
-        userChoice: gameState.userChoice,
-        ruleNumA: gameState.ruleNumA,
-        ruleNumB: gameState.ruleNumB,
-        ruleCommitted: gameState.ruleCommitted,
-        additiveTrapCorrect: gameState.additiveTrapCorrect,
-        isActive: gameState.isActive,
-        pendingEndProblem: gameState.pendingEndProblem,
-      },
-      null,
-      2,
-    ),
-  );
+window.debugGame = function() {
+  console.log('Game State:', JSON.stringify(gameState, null, 2));
 };
-window.debugAudio = () => {
-  console.log('FeedbackManager available:', typeof FeedbackManager !== 'undefined');
+
+window.debugAudio = function() {
+  console.log('Audio State:', JSON.stringify({
+    sound: FeedbackManager.sound.getState(),
+    stream: FeedbackManager.stream.getState()
+  }, null, 2));
 };
-window.testAudio = async (id) => {
+
+window.testAudio = async function(id) {
+  console.log('Testing audio:', id);
   try {
     await FeedbackManager.playDynamicFeedback({ audio_content: id || 'test', subtitle: '' });
   } catch (e) {
-    console.error(JSON.stringify({ error: e.message }, null, 2));
-  }
-};
-window.testPause = () => {
-  // No timer in this game
-  console.log('No timer — game has no time pressure');
-};
-window.testResume = () => {
-  console.log('No timer — game has no time pressure');
-};
-window.debugSignals = () => {
-  if (signalCollector) {
-    console.log('Signal Debug:', JSON.stringify(signalCollector.debug(), null, 2));
-  } else {
-    console.log('SignalCollector not initialized');
+    console.error('Audio test failed:', JSON.stringify({ error: e.message }, null, 2));
   }
 };
 
-// Window exposure block
-window.handleChoice = handleChoice;
-window.handlePickerChange = handlePickerChange;
-window.handleCommitRule = handleCommitRule;
-window.handleCheck = handleCheck;
-window.nextRound = nextRound;
-window.restartGame = restartGame;
-window.startGame = startGame;
+window.testPause = function() {
+  if (visibilityTracker) {
+    visibilityTracker.triggerInactive();
+  } else {
+    FeedbackManager.sound.pause();
+    FeedbackManager.stream.pauseAll();
+  }
+  console.log(JSON.stringify({ event: 'testPause', timerPaused: true }));
+};
+
+window.testResume = function() {
+  if (visibilityTracker) {
+    visibilityTracker.triggerResume();
+  } else {
+    FeedbackManager.sound.resume();
+    FeedbackManager.stream.resumeAll();
+  }
+  console.log(JSON.stringify({ event: 'testResume', timerResumed: true }));
+};
+
+window.debugSignals = function() {
+  if (!signalCollector) {
+    console.log('SignalCollector not initialized');
+    return;
+  }
+  console.log('=== Signal Collector Debug ===');
+  signalCollector.debug();
+  console.log('Input events:', signalCollector.getInputEvents().length);
+  console.log('Current view:', JSON.stringify(signalCollector.getCurrentView(), null, 2));
+  console.log('Metadata:', JSON.stringify(signalCollector.getMetadata(), null, 2));
+};
 ```
 
 ---
 
-## 9. Event Schema
+## 10. Event Schema
 
 ### Game Lifecycle Events
 
-| Event      | Target | When Fired  |
-| ---------- | ------ | ----------- |
-| game_start | game   | startGame() |
-| game_end   | game   | endGame()   |
+| Event      | Target | When Fired                |
+| ---------- | ------ | ------------------------- |
+| game_start | game   | startGameAfterPreview()   |
+| game_end   | game   | endGame()                 |
+| game_paused | system | VisibilityTracker onInactive |
+| game_resumed | system | VisibilityTracker onResume |
 
 ### Game-Specific Events
 
@@ -1633,23 +1876,23 @@ window.startGame = startGame;
 
 | View Type         | When Emitted                                                            | Key Data                                      |
 | ----------------- | ----------------------------------------------------------------------- | --------------------------------------------- |
-| screen_transition | startGame (start→gameplay), endGame (gameplay→results)                  | screen, metadata.transition_from              |
+| screen_transition | startGameAfterPreview (preview → game), endGame (gameplay → results)    | screen, from/to or metadata.transition_from   |
 | content_render    | showRound — new round starts                                            | round, stage, scene_a_label, trigger          |
 | visual_update     | Scene B revealed, choice made, rule committed                           | type (scene_b_revealed/choice_made/rule_committed) |
 | feedback_display  | showFeedback — after validation                                         | feedback_type, round, stage, choiceCorrect, ruleCorrect |
 
-### SignalCollector Problem Lifecycle
+### SignalCollector Custom Events
 
-| Method                | When Called                                               | Data                                         |
-| --------------------- | --------------------------------------------------------- | -------------------------------------------- |
-| startProblem          | showRound() — after flush                                 | 'round_N' with round_number, stage, answer   |
-| endProblem (deferred) | showRound() / endGame() — flush from pendingEndProblem    | correct, answer (choice + rule values)       |
-| recordCustomEvent     | handleCheck — round_correct or round_incorrect            | round, stage, choiceCorrect, ruleCorrect     |
-| seal()                | endGame() — before postMessage                            | Returns { events, signals, metadata }        |
+| Event              | When Called                                            | Data                                         |
+| ------------------ | ------------------------------------------------------ | -------------------------------------------- |
+| round_correct      | handleCheck — correct answer                           | round, stage, choiceCorrect, ruleCorrect     |
+| round_incorrect    | handleCheck — incorrect answer                         | round, stage, choiceCorrect, ruleCorrect     |
+| visibility_hidden  | VisibilityTracker onInactive                           | {}                                           |
+| visibility_visible | VisibilityTracker onResume                             | {}                                           |
 
 ---
 
-## 10. Scaffold Points
+## 11. Scaffold Points
 
 | Point            | Function       | When                          | What Can Be Injected                              |
 | ---------------- | -------------- | ----------------------------- | ------------------------------------------------- |
@@ -1666,7 +1909,7 @@ window.startGame = startGame;
 
 ---
 
-## 11. Feedback Triggers
+## 12. Feedback Triggers
 
 | Moment              | Trigger Function | Feedback Type           | Notes                              |
 | ------------------- | ---------------- | ----------------------- | ---------------------------------- |
@@ -1677,7 +1920,7 @@ window.startGame = startGame;
 | Trap explanation    | showFeedback()   | visual callout          | Blue-bordered explanation box      |
 | Game end (3★)       | endGame()        | dynamic TTS celebration | Celebratory message                |
 | Game end (2★)       | endGame()        | dynamic TTS encouraging | "Good job!" energy                 |
-| Game end (1★)       | endGame()        | dynamic TTS supportive  | "Keep going!" energy               |
+| Game end (≤1★)      | endGame()        | dynamic TTS supportive  | "Keep going!" energy               |
 
 ### Audio Pattern
 
@@ -1685,28 +1928,44 @@ This game uses `FeedbackManager.playDynamicFeedback()` exclusively (no pre-regis
 
 ---
 
-## 12. Visual Specifications
+## 13. Visual Specifications
 
 - **Layout:** Vertical stack of scene cards, max-width 360px, centered, 12px gap between sections
 - **Color palette:** CSS variables throughout. Scene cards white with light shadow. Choice buttons white with blue highlight on selection. Feedback green/blue accents.
-- **Typography:** var(--mathai-font-family), title 24px, body 16px, label 14px, small 12px
+- **Typography:** var(--mathai-font-family) = 'Epilogue', title 24px, body 16px, label 14px, small 12px
 - **Spacing:** Container padding 12px 16px, scene card padding 16px, builder padding 16px
 - **Interactive states:** Choice buttons — border highlight on hover, blue fill on selected, green/red on correct/incorrect result. Stepper buttons — hover darken, disabled opacity 0.3. Locked steppers — grey border, reduced opacity.
-- **Transitions:** Scene cards slide in (translateY 20px→0, 0.4s ease). Sentence builder slides in (0.3s). Feedback slides in (0.3s). Scene A compresses (scale 0.92) when Scene B appears.
+- **Transitions:** Scene cards slide in (translateY 20px → 0, 0.4s ease). Sentence builder slides in (0.3s). Feedback slides in (0.3s). Scene A compresses (scale 0.92) when Scene B appears.
 - **Emojis:** 28px font-size, centered in flex-wrap groups with 4px gap within groups, 8px gap between groups
-- **Responsive:** Max-width 480px wrapper, 100dvh, all elements scale within container. Touch targets minimum 44px.
+- **Responsive:** Max-width 480px wrapper (via ScreenLayout), 100dvh, all elements scale within container. Touch targets minimum 44px.
 
 ---
 
-## 13. Test Scenarios
+## 14. Test Scenarios
 
 > These scenarios are consumed by the ralph loop to generate `tests/game.spec.js`.
 > Every scenario must specify exact selectors, exact actions, and exact assertions.
 
+### Scenario: Preview screen displays and transitions to game
+
+```
+SETUP: Page loaded
+ACTIONS:
+  wait for .mathai-preview-header to be visible
+  assert .mathai-preview-instruction contains "same" or "for every"
+  assert .mathai-preview-skip-btn is visible
+  click .mathai-preview-skip-btn
+  wait for #game-screen to be visible
+  assert .mathai-preview-header is not visible (preview hidden)
+  assert gameState.isActive === true
+  assert gameState.startTime is set (> 0)
+EXPECTED: Preview screen shows, skip advances to game, game starts normally
+```
+
 ### Scenario: Complete game with all correct answers
 
 ```
-SETUP: Page loaded, TransitionScreen start dismissed, gameState.isActive === true
+SETUP: Page loaded, preview skipped, gameState.isActive === true
 ACTIONS:
   // Round 1 (Stage 1): Same Rule, rule 2:1
   Wait for #scene-a-container visible AND #scene-b-container visible AND #choice-area visible
@@ -1788,14 +2047,13 @@ ASSERT:
   #result-accuracy text is "100%"
   #result-traps text is "4/4"
   stars display shows 3 stars
-  signalCollector.seal() was called
-  postMessage data includes events, signals, metadata keys
+  game_complete postMessage sent with metrics, attempts, completedAt (no signal data in postMessage)
 ```
 
 ### Scenario: Stage 1 round — correct Same Rule choice
 
 ```
-SETUP: Page loaded, game started, round 1 active (Stage 1)
+SETUP: Page loaded, preview skipped, round 1 active (Stage 1)
 ACTIONS:
   Wait for #scene-a-container visible
   Wait for #scene-b-container visible
@@ -1814,7 +2072,7 @@ ASSERT:
 ### Scenario: Incorrect choice on round 1
 
 ```
-SETUP: Page loaded, game started, round 1
+SETUP: Page loaded, preview skipped, round 1
 ACTIONS:
   Click #btn-different
   Click #picker-a-plus (value → 2)
@@ -1831,7 +2089,7 @@ ASSERT:
 ### Scenario: Incorrect rule numbers on round 1
 
 ```
-SETUP: Page loaded, game started, round 1
+SETUP: Page loaded, preview skipped, round 1
 ACTIONS:
   Click #btn-same
   Click #picker-a-plus four times (value → 5)
@@ -1839,8 +2097,8 @@ ACTIONS:
   Click #btn-check
 ASSERT:
   gameState.attempts[0].correct == false
-  gameState.attempts[0].metadata.choiceCorrect == true
-  gameState.attempts[0].metadata.ruleCorrect == false
+  gameState.attempts[0].metadata.correctAnswer.ruleNumA == 2
+  gameState.attempts[0].metadata.correctAnswer.ruleNumB == 1
   #feedback-container visible
   feedback text mentions correct rule numbers
 ```
@@ -1893,7 +2151,7 @@ ASSERT:
 ### Scenario: Number picker bounds (1-9)
 
 ```
-SETUP: Page loaded, sentence builder visible
+SETUP: Page loaded, preview skipped, sentence builder visible
 ACTIONS:
   Click #picker-a-minus (try to go below 1)
 ASSERT:
@@ -1931,8 +2189,9 @@ ASSERT:
   gameState.isActive == false
   gameState.gameEnded == true
   game_complete postMessage sent
-  metrics contains: score, totalRounds, stars, accuracy, additiveTrapCorrect, totalTrapRounds, attempts, duration_data
-  postMessage data includes ...signalPayload (events, signals, metadata from SignalCollector)
+  postMessage data contains: metrics, attempts, completedAt
+  metrics contains: score, totalRounds, stars, accuracy, additiveTrapCorrect, totalTrapRounds, attempts, duration_data, totalLives, tries
+  Signal data NOT in postMessage (streamed to GCS via batch flushing)
 ```
 
 ### Scenario: Star rating logic
@@ -1956,16 +2215,16 @@ ACTIONS:
   Click #btn-restart
 ASSERT:
   #results-screen is hidden
-  #game-screen is visible
   gameState.score == 0
   gameState.currentRound == 0
   gameState.additiveTrapCorrect == 0
   gameState.userChoice == null
   gameState.ruleCommitted == false
-  gameState.pendingEndProblem == null
+  gameState.gameEnded == false
   signalCollector recreated (new instance)
   progressBar, visibilityTracker recreated
-  transition screen shows
+  sessionHistory has one entry from previous session
+  preview screen shows again
 ```
 
 ### Scenario: PostMessage game_init loads custom content
@@ -1973,110 +2232,111 @@ ASSERT:
 ```
 SETUP: Page loaded
 ACTIONS:
-  Send postMessage { type: 'game_init', data: { content: { rounds: [/* custom 10 rounds */] } } }
+  Send postMessage { type: 'game_init', data: { content: { rounds: [/* custom 10 rounds */] }, signalConfig: { flushUrl: 'https://example.com/flush', playId: 'play_123' } } }
 ASSERT:
   gameState.content.rounds.length == 10
   gameState.content matches sent data
+  signalCollector.flushUrl == 'https://example.com/flush'
+  signalCollector.playId == 'play_123'
 ```
 
-### Scenario: VisibilityTracker pauses/resumes SignalCollector
+### Scenario: VisibilityTracker pauses/resumes correctly
 
 ```
 SETUP: Game active
 ACTIONS:
-  Trigger visibility change (tab hidden)
+  Trigger visibility change (tab hidden) via visibilityTracker.triggerInactive()
 ASSERT:
-  signalCollector.pause() called
-  FeedbackManager.sound.stopAll() called
+  signalCollector paused
+  FeedbackManager.sound.pause() called (NOT stopAll)
+  FeedbackManager.stream.pauseAll() called
   duration_data.inActiveTime has new entry with start timestamp
+  trackEvent('game_paused') fired
+  signalCollector recordCustomEvent('visibility_hidden') called
 ACTIONS:
-  Trigger visibility change (tab visible)
+  Trigger visibility change (tab visible) via visibilityTracker.triggerResume()
 ASSERT:
-  signalCollector.resume() called
+  signalCollector resumed
+  FeedbackManager.sound.resume() called
+  FeedbackManager.stream.resumeAll() called
   duration_data.inActiveTime last entry has end timestamp
   duration_data.totalInactiveTime is updated
+  trackEvent('game_resumed') fired
+  signalCollector recordCustomEvent('visibility_visible') called
 ```
 
 ---
 
-## 14. Verification Checklist
+## 15. Verification Checklist
 
 ### Structural
 
 - [ ] DOCTYPE, meta charset, meta viewport
-- [ ] Package scripts in correct order (PART-002)
+- [ ] Package scripts in correct order (PART-002): SentryConfig → SDK → FeedbackManager → Components → Helpers
 - [ ] Single style + single script (RULE-007)
-- [ ] #app, #game-screen, #results-screen
+- [ ] `<div id="app"></div>` in body
 - [ ] `<template id="game-template">` wraps game content
-- [ ] `data-signal-id` on stage-label, instruction-text, scene-a, scene-b, choice-area, btn-same, btn-different, sentence-builder, picker buttons, btn-commit-rule, btn-check, feedback, btn-next, btn-restart
+- [ ] #game-screen, #results-screen exist inside template
+- [ ] `data-signal-id` on: stage-label, instruction-text, scene-a, scene-b, choice-area, btn-same, btn-different, sentence-builder, picker buttons, btn-commit-rule, btn-check, feedback, btn-next, btn-restart
 
 ### Functional
 
-- [ ] waitForPackages with 10s timeout (PART-003)
-- [ ] Init sequence correct (PART-004)
-- [ ] VisibilityTracker with signalCollector.pause/resume (PART-005)
+- [ ] waitForPackages with 10s timeout checking FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector (PART-003)
+- [ ] DOMContentLoaded async with try/catch (PART-004)
+- [ ] Init sequence correct: waitForPackages → FeedbackManager.init → SignalCollector → ScreenLayout.inject → clone template → ProgressBar → TransitionScreen → VisibilityTracker → PreviewScreen → InteractionManager → message listener → game_ready → setupGame
+- [ ] VisibilityTracker uses sound.pause()/stream.pauseAll() NOT stopAll() (PART-005)
+- [ ] VisibilityTracker records visibility_hidden/visibility_visible custom events on signalCollector (PART-005)
+- [ ] VisibilityTracker fires trackEvent('game_paused'/'game_resumed') (PART-005)
 - [ ] No TimerComponent — game has no timer (PART-006: NO)
-- [ ] PostMessage handling (PART-008)
+- [ ] `window.gameState = {...}` with gameId, contentSetId, signalConfig, sessionHistory fields (PART-007)
+- [ ] handlePostMessage includes full 6-property signalCollector pattern + startFlushing() (PART-008)
+- [ ] `window.parent.postMessage({ type: 'game_ready' }, '*')` sent AFTER message listener registration (PART-008)
 - [ ] Fallback content with 10 rounds of verified data (PART-008)
-- [ ] recordAttempt shape (PART-009)
+- [ ] recordAttempt produces correct attempt shape with all mandatory fields (PART-009)
+- [ ] SignalCollector uses `gameId` in constructor, NOT `templateId` (PART-010)
 - [ ] trackEvent fires at all interaction points (PART-010)
-- [ ] `gameId: 'game_same_rule'` is first property in gameState
-- [ ] `gameEnded` flag in gameState, checked/set in endGame, reset in restartGame
-- [ ] `window.parent.postMessage({ type: 'game_ready' }, '*')` after message listener registration
-- [ ] Sentry initialized via SentryConfig in DOMContentLoaded (PART-030)
-- [ ] Window exposure block: handleChoice, handlePickerChange, handleCommitRule, handleCheck, nextRound, restartGame, startGame
-- [ ] endGame: double-call guard via gameEnded, flush deferred endProblem → seal SignalCollector → show results → postMessage with signalPayload → cleanup (PART-011)
-- [ ] Debug functions on window (PART-012)
-- [ ] Validation function: userChoice matches answer AND ruleNumA/ruleNumB match rule (PART-014)
-- [ ] showResults populates all fields (PART-019)
+- [ ] endGame: guard via isActive, seal() before postMessage, signal data NOT spread into postMessage (PART-011)
+- [ ] endGame: metrics include totalLives: 1 and tries via computeTriesPerRound() (PART-011)
+- [ ] computeTriesPerRound() helper exists in global scope (PART-011)
+- [ ] Debug functions: debugGame, debugAudio, testAudio, testPause, testResume, debugSignals (PART-012)
+- [ ] testPause/testResume use visibilityTracker.triggerInactive()/triggerResume() (PART-012)
+- [ ] Validation function checks BOTH choice AND rule numbers (PART-014)
+- [ ] showResults populates all fields including trap rounds (PART-019)
 - [ ] No anti-patterns (PART-026)
-- [ ] InteractionManager initialized (PART-038)
-
-### SignalCollector (PART-010)
-
-- [ ] `signalCollector` variable declared at top level
-- [ ] SignalCollector initialized in DOMContentLoaded after FeedbackManager.init()
-- [ ] `window.signalCollector` assigned
-- [ ] `gameState.pendingEndProblem` field in gameState
-- [ ] `startProblem('round_N')` called in showRound() after flushing previous
-- [ ] Deferred `endProblem` pattern: pendingEndProblem set in handleCheck
-- [ ] Flush in showRound() before startProblem
-- [ ] Flush in endGame() before seal()
-- [ ] `seal()` called in endGame AFTER flush, BEFORE postMessage
-- [ ] `...signalPayload` spread in postMessage data
-- [ ] `recordViewEvent('screen_transition')` in startGame and endGame
-- [ ] `recordViewEvent('content_render')` in showRound (round start)
-- [ ] `recordViewEvent('feedback_display')` in showFeedback
-- [ ] `recordViewEvent('visual_update')` in showRound (scene B revealed), handleChoice, handleCommitRule
-- [ ] `recordCustomEvent('round_correct')` / `recordCustomEvent('round_incorrect')` in handleCheck
-- [ ] `signalCollector.pause()` in VisibilityTracker onInactive
-- [ ] `signalCollector.resume()` in VisibilityTracker onResume
-- [ ] SignalCollector recreated in restartGame()
-- [ ] `window.debugSignals` function attached
-- [ ] **No inline SignalCollector stub** (Anti-Pattern 18)
+- [ ] Sentry uses SentryConfig.enabled check and SentryConfig.dsn, NOT new SentryConfig() (PART-030)
+- [ ] Single Sentry SDK script: bundle.tracing.replay.feedback.min.js (PART-030)
+- [ ] verifySentry() and testSentry() debug functions exist (PART-030)
+- [ ] InteractionManager initialized with selector '.game-play-area', assigned to window.interactionManager (PART-038)
+- [ ] PreviewScreenComponent instantiated with correct options (PART-039)
+- [ ] ScreenLayout.inject includes previewScreen: true in slots (PART-039)
+- [ ] setupGame calls showPreviewScreen() instead of directly starting game (PART-039)
+- [ ] startGameAfterPreview sets startTime AFTER preview ends (PART-039)
+- [ ] duration_data.preview[] populated with { duration } (PART-039)
+- [ ] previewScreen.pause()/resume() in VisibilityTracker callbacks (PART-039)
 
 ### Design & Layout
 
-- [ ] CSS variables (PART-020)
+- [ ] CSS uses `var(--mathai-*)` variables, no hardcoded colors for feedback states (PART-020)
 - [ ] Gameplay feedback uses correct colors — green/blue/red for correct/info/incorrect (PART-020)
-- [ ] `.page-center` / `.game-wrapper` / `.game-stack` layout structure (PART-021)
-- [ ] 480px max, 100dvh (PART-021)
-- [ ] game-btn + btn-primary (PART-022)
+- [ ] ScreenLayout auto-generates .page-center/.game-wrapper/.game-stack structure (PART-021/025)
+- [ ] 480px max-width via ScreenLayout, 100dvh (PART-021)
+- [ ] game-btn + btn-primary styling (PART-022)
 - [ ] ProgressBar: 10 rounds, 0 lives (PART-023)
-- [ ] update() with rounds COMPLETED (PART-023)
-- [ ] TransitionScreen: start screen (PART-024)
-- [ ] ScreenLayout.inject before components (PART-025)
-- [ ] Template cloneNode (PART-025)
+- [ ] progressBar.update() called with rounds COMPLETED (0 at start) (PART-023)
+- [ ] TransitionScreen available for restart flow (PART-024)
+- [ ] ScreenLayout.inject called before ProgressBar/TransitionScreen/PreviewScreen (PART-025)
+- [ ] Template cloneNode into #gameContent (PART-025)
+- [ ] Progress bar slot at position: absolute; top: 0 (PART-021)
 
-### Rules
+### Rules Compliance
 
-- [ ] RULE-001: All onclick handlers (handleChoice, handlePickerChange, handleCommitRule, handleCheck, nextRound, restartGame) in global scope + window exposure block
+- [ ] RULE-001: All onclick handlers (handleChoice, handlePickerChange, handleCommitRule, handleCheck, nextRound, restartGame) defined in global scope
 - [ ] RULE-002: All async functions have async keyword (showRound, handleCommitRule, handleCheck, showFeedback, endGame)
 - [ ] RULE-003: All async calls in try/catch
 - [ ] RULE-004: All logging uses JSON.stringify
 - [ ] RULE-005: Cleanup in endGame: progressBar, visibilityTracker, audio
-- [ ] RULE-006: No new Audio(), setInterval for timer, SubtitleComponent.show()
-- [ ] RULE-007: Single file, no external CSS/JS
+- [ ] RULE-006: No new Audio(), no setInterval for timer, no SubtitleComponent.show()
+- [ ] RULE-007: Single file, no external CSS/JS (except CDN packages)
 
 ### Game-Specific
 
@@ -2090,16 +2350,17 @@ ASSERT:
 - [ ] Locked steppers show .locked class, stepper-btn disabled
 - [ ] Validation checks BOTH choice AND rule numbers
 - [ ] additiveTrapCorrect incremented only when trap round answered correctly
-- [ ] Star rating: 3★ requires score≥8 AND trapCorrect≥3; 2★ requires score≥5; 1★ requires score≥1
-- [ ] Trap explanation shown in .feedback-explanation for all additive trap rounds (correct or incorrect)
+- [ ] Star rating: 3★ requires score ≥ 8 AND trapCorrect ≥ 3; 2★ requires score ≥ 5; 1★ requires score ≥ 1
+- [ ] Trap explanation shown in .feedback-explanation for additive trap rounds
 - [ ] Grouping animation (.grouped class) on item-groups during correct feedback
 - [ ] Choice buttons show .correct/.incorrect classes during feedback
 - [ ] Results subtitle: "You spotted the 'for every' rule X out of 10 times!"
 - [ ] Results show trap round score (X/4)
 - [ ] progressBar.update called with (roundsCompleted, 0) — no lives
 - [ ] Dynamic audio uses FeedbackManager.playDynamicFeedback, not new Audio()
-- [ ] `window.gameState`, restartGame recreates all components + signalCollector
+- [ ] restartGame recreates all destroyed components + signalCollector + pushes to sessionHistory
 - [ ] Phase machine prevents double-taps: handleChoice checks phase === 'choosing'
+- [ ] #game-screen has class game-play-area for InteractionManager selector
 
 ### Contract Compliance
 
@@ -2107,5 +2368,4 @@ ASSERT:
 - [ ] Attempts match contracts/attempt.schema.json
 - [ ] Metrics match contracts/metrics.schema.json
 - [ ] duration_data matches contracts/duration-data.schema.json
-- [ ] postMessage out matches contracts/postmessage-out.schema.json
-- [ ] postMessage data includes ...signalPayload (events, signals, metadata from SignalCollector)
+- [ ] postMessage out matches contracts/postmessage-out.schema.json (metrics, attempts, completedAt only — no signal data)

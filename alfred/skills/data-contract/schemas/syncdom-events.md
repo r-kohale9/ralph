@@ -31,14 +31,14 @@ Required on window: `debugGame`, `debugAudio`, `testAudio`, `testPause`, `testRe
 
 ## SignalCollector
 
-Per **PART-010** (SignalCollector section). See `parts/PART-010.md`.
+Per **PART-042** (SignalCollector). See `parts/PART-042.md`.
 
 Alfred-specific rules:
 - All 6 properties must be assigned from signalConfig: `playId`, `gameId`, `sessionId`, `contentSetId`, `studentId`, `flushUrl`
 - `signalConfig` extracted from `event.data.config.signalConfig` in game_init handler
 - `seal()` called in endGame BEFORE game_complete postMessage
 - game_complete data must include `signal_event_count` and `signal_metadata` from seal() result
-- `restartGame` must re-instantiate SignalCollector (seal prevents reuse) — per GEN-SIGNAL-RESET
+- `restartGame` must call `signalCollector.reset()` — do NOT seal + re-instantiate — per GEN-SIGNAL-RESET
 
 ## FeedbackManager Contract Rules
 

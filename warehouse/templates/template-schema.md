@@ -63,6 +63,8 @@ A table showing which warehouse parts are included. This tells the LLM exactly w
 | PART-035 | Test Plan Generation            | YES (POST_GEN)  | Generates tests.md after HTML                                       |
 | PART-037 | Playwright Testing              | YES (POST_GEN)  | Ralph loop generates tests + fix cycle                              |
 | PART-039 | Preview Screen                  | YES (MANDATORY) | Always included — shows before game starts                          |
+| PART-040 | Video Player                    | {{YES/NO}}      | Video content: white bg, native controls, no fullscreen             |
+| PART-041 | Audio Player                    | {{YES/NO}}      | Content audio: custom play/pause UI + progress bar, no native controls |
 ```
 
 ### 3. Game State

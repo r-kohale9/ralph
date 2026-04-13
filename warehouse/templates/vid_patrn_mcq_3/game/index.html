@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Video Pattern MCQ</title>
+<style>
+/* === CSS Reset & Variables (PART-020, PART-021 v2) === */
+:root {
+  --mathai-primary: #6c5ce7;
+  --mathai-primary-light: #a29bfe;
+  --mathai-primary-dark: #5a4bd1;
+  --mathai-success: #27ae60;
+  --mathai-error: #e74c3c;
+  --mathai-warning: #f39c12;
+  --mathai-bg: #f8f9fa;
+  --mathai-surface: #ffffff;
+  --mathai-text-primary: #1a1a2e;
+  --mathai-text-secondary: #666;
+  --mathai-border: #e0e0e0;
+  --mathai-radius: 12px;
+  --mathai-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--mathai-bg);
+  color: var(--mathai-text-primary);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+#app {
+  width: 100%;
+  min-height: 100dvh;
+  position: relative;
+}
+
+/* ScreenLayout v2 overrides (PART-025) */
+.mathai-layout-playarea {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-bottom: 20px !important;
+}
+
+/* === Video Pattern MCQ === */
+
+/* Video wrapper — inside .mathai-preview-instruction (preview component has video { width:100% } built in) */
+.video-wrapper {
+  width: 100%;
+  margin: 10px 0;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.video-wrapper video {
+  width: 100%;
+  display: block;
+}
+
+/* ── Game play area: options + submit ONLY (inside #gameContent) ── */
+.game-play-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0 16px;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* Options grid */
+.options-container {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.option-card {
+  width: min(100px, calc((100% - 24px) / 3));
+  aspect-ratio: 1;
+  border: 3px solid #e0e0e0;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  background: #fff;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.option-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.option-card:hover {
+  border-color: var(--mathai-primary, #6c5ce7);
+  transform: scale(1.03);
+}
+
+.option-card.selected {
+  border-color: var(--mathai-primary, #6c5ce7);
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.25);
+  background: #f0edff;
+}
+
+.option-card.correct {
+  border-color: var(--mathai-success, #27ae60);
+  background: #eafaf1;
+  box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.25);
+}
+
+.option-card.incorrect {
+  border-color: var(--mathai-error, #e74c3c);
+  background: #fdf2f2;
+  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.25);
+}
+
+.option-card.disabled {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Button row */
+.button-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Game buttons (PART-022) */
+.game-btn {
+  padding: 12px 32px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease, opacity 0.2s ease;
+  min-height: 44px;
+  min-width: 44px;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.game-btn:active {
+  transform: scale(0.97);
+}
+
+.game-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-primary {
+  background: var(--mathai-primary, #6c5ce7);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--mathai-primary-dark, #5a4bd1);
+}
+
+/* Results metrics */
+.results-metrics {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  margin: 16px 0;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.metric-label {
+  font-size: 13px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--mathai-text-primary, #1a1a2e);
+}
+
+/* Responsive */
+@media (max-width: 360px) {
+  .option-card {
+    width: min(80px, calc((100% - 16px) / 3));
+  }
+  .options-container {
+    gap: 8px;
+  }
+}
+</style>
+
+<!-- STEP 1: SentryConfig package -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+<!-- STEP 2: initSentry() function definition (PART-030) -->
+<script>
+function initSentry() {
+  if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled && typeof Sentry !== 'undefined') {
+    Sentry.init({
+      dsn: SentryConfig.dsn,
+      environment: SentryConfig.environment,
+      release: 'game-video-pattern-mcq@1.0.0',
+      tracesSampleRate: SentryConfig.tracesSampleRate,
+      sampleRate: SentryConfig.sampleRate,
+      maxBreadcrumbs: 50,
+      ignoreErrors: [
+        'ResizeObserver loop limit exceeded',
+        'ResizeObserver loop completed with undelivered notifications',
+        'Non-Error promise rejection captured',
+        'Script error.',
+        'Load failed',
+        'Failed to fetch'
+      ]
+    });
+  }
+}
+
+window.addEventListener('error', function(event) {
+  if (typeof Sentry !== 'undefined') {
+    Sentry.captureException(event.error || new Error(event.message), {
+      tags: { errorType: 'unhandled', severity: 'critical' },
+      contexts: { errorEvent: { message: event.message, filename: event.filename, lineno: event.lineno } }
+    });
+  }
+});
+
+window.addEventListener('unhandledrejection', function(event) {
+  if (typeof Sentry !== 'undefined') {
+    Sentry.captureException(event.reason || new Error('Unhandled promise rejection'), {
+      tags: { errorType: 'unhandled-promise', severity: 'critical' }
+    });
+  }
+});
+</script>
+
+<!-- STEP 3: Sentry SDK v10.23.0 (3 scripts, NO integrity attribute) -->
+<script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+<!-- STEP 4: Initialize on load -->
+<script>window.addEventListener('load', initSentry);</script>
+
+<!-- STEP 5-7: Game packages (exact URLs, in this order) -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============================================================
+   Video Pattern MCQ — Game Logic (vid_patrn_mcq_3)
+   ============================================================ */
+
+// === Fallback Content (PART-028) ===
+var fallbackContent = {
+  previewInstruction: "Watch the video and find the <b>pattern</b>! Can you figure out what replaces the question mark?",
+  previewAudioText: "Watch the video and find the pattern. Can you figure out what replaces the question mark?",
+  videoUrl: "https://ik.imagekit.io/thehomeworkapp/Personalised_videos/Logic/Q1.mp4?updatedAt=1731901431160",
+  prompt: "Tap and select the option that will replace the question mark in the video \ud83d\udc47",
+  options: [
+    { imageUrl: "https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1731766055285.png", label: "Option A" },
+    { imageUrl: "https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1731766065591.png", label: "Option B" },
+    { imageUrl: "https://cdn.homeworkapp.ai/sets-gamify-assets/dev/home-explore/document/1731766074368.png", label: "Option C" }
+  ],
+  correctIndex: 2
+};
+
+// === Game State (PART-007) ===
+window.gameState = {
+  gameId: 'game_video_pattern_mcq',
+  currentRound: 0,
+  totalRounds: 1,
+  score: 0,
+  attempts: [],
+  events: [],
+  startTime: null,
+  isActive: false,
+  content: null,
+  contentSetId: null,
+  signalConfig: null,
+  sessionHistory: [],
+  duration_data: {
+    startTime: null,
+    preview: [],
+    attempts: [],
+    evaluations: [],
+    inActiveTime: [],
+    totalInactiveTime: 0,
+    currentTime: null
+  },
+  // Game-specific
+  selectedOption: null,
+  videoPlayed: false,
+  phase: 'idle',
+  gameEnded: false
+};
+var gameState = window.gameState;
+
+var timer = null;
+var visibilityTracker = null;
+var transitionScreen = null;
+var signalCollector = null;
+var previewScreen = null;
+var interactionManager = null;
+
+// === waitForPackages (PART-003) ===
+function waitForPackages() {
+  return new Promise(function(resolve) {
+    var requiredGlobals = ['ScreenLayout', 'TransitionScreenComponent', 'FeedbackManager', 'SignalCollector', 'PreviewScreenComponent'];
+    var maxWait = 10000;
+    var interval = 100;
+    var elapsed = 0;
+
+    function check() {
+      var allReady = requiredGlobals.every(function(g) {
+        return typeof window[g] !== 'undefined';
+      });
+      if (allReady || elapsed >= maxWait) {
+        if (!allReady) {
+          console.log('[waitForPackages] Timeout. Missing: ' + JSON.stringify(requiredGlobals.filter(function(g) { return typeof window[g] === 'undefined'; })));
+        }
+        resolve();
+      } else {
+        elapsed += interval;
+        setTimeout(check, interval);
+      }
+    }
+    check();
+  });
+}
+
+// === Track Event (PART-010) ===
+function trackEvent(type, target, data) {
+  var evt = {
+    type: type,
+    target: target,
+    data: data || {},
+    timestamp: Date.now()
+  };
+  gameState.events.push(evt);
+  console.log('[Event] ' + JSON.stringify(evt));
+}
+
+// === Record Attempt (PART-009) ===
+function recordAttempt(data) {
+  var attempt = {
+    round: data.round,
+    input_of_user: data.input_of_user,
+    correct_answer: data.correct_answer,
+    correct: data.correct,
+    timestamp: Date.now(),
+    timeTaken: gameState.startTime ? (Date.now() - gameState.startTime) / 1000 : 0
+  };
+  gameState.attempts.push(attempt);
+  console.log('[Attempt] ' + JSON.stringify(attempt));
+}
+
+// === Handle PostMessage (PART-008) ===
+function handlePostMessage(event) {
+  try {
+    var data = event.data;
+    if (!data || !data.type) return;
+
+    if (data.type === 'game_init') {
+      console.log('[PostMessage] game_init received');
+      var payload = data.payload || {};
+
+      if (payload.content) {
+        gameState.content = payload.content;
+      }
+      if (payload.contentSetId) {
+        gameState.contentSetId = payload.contentSetId;
+      }
+      if (payload.signalConfig) {
+        gameState.signalConfig = payload.signalConfig;
+      }
+      if (payload.sessionHistory) {
+        gameState.sessionHistory = payload.sessionHistory;
+      }
+
+      gameState.totalRounds = 1;
+
+      // Signal collector setup — assign all 6 properties from signalConfig
+      if (signalCollector && payload.signalConfig) {
+        try {
+          var sc = payload.signalConfig;
+          if (sc.flushUrl) signalCollector.flushUrl = sc.flushUrl;
+          if (sc.playId) signalCollector.playId = sc.playId;
+          if (sc.gameId) signalCollector.gameId = sc.gameId;
+          if (sc.sessionId) signalCollector.sessionId = sc.sessionId;
+          if (sc.contentSetId) signalCollector.contentSetId = sc.contentSetId;
+          if (sc.studentId) signalCollector.studentId = sc.studentId;
+          signalCollector.configure(payload.signalConfig);
+          if (signalCollector.startFlushing) {
+            signalCollector.startFlushing();
+          }
+          console.log('[SignalCollector] Configured and flushing started');
+        } catch (e) {
+          console.log('[SignalCollector] configure error: ' + JSON.stringify(e.message));
+        }
+      }
+
+      if (!gameState.isActive && gameState.content) {
+        console.log('[PostMessage] Content loaded: ' + JSON.stringify(Object.keys(gameState.content)));
+      }
+    }
+  } catch (e) {
+    console.log('[PostMessage] Error: ' + JSON.stringify(e.message));
+  }
+}
+
+// === Video Ended Handler ===
+function onVideoEnded() {
+  gameState.videoPlayed = true;
+  trackEvent('video_played', 'video', {});
+}
+
+// === Select Option (RULE-001: global scope) ===
+function selectOption(index) {
+  if (gameState.phase === 'feedback') return;
+  if (interactionManager && interactionManager.isSuppressed && interactionManager.isSuppressed()) return;
+
+  gameState.selectedOption = index;
+  gameState.phase = 'choosing';
+
+  // Remove selected from all
+  var cards = document.querySelectorAll('.option-card');
+  cards.forEach(function(card) {
+    card.classList.remove('selected');
+  });
+
+  // Add selected to chosen
+  var selectedCard = document.querySelector('.option-card[data-index="' + index + '"]');
+  if (selectedCard) {
+    selectedCard.classList.add('selected');
+  }
+
+  // Enable submit
+  var submitBtn = document.getElementById('btn-submit');
+  if (submitBtn) {
+    submitBtn.disabled = false;
+  }
+
+  trackEvent('option_selected', 'option', { index: index });
+}
+
+// === Handle Submit (RULE-001: global scope) ===
+function handleSubmit() {
+  if (gameState.selectedOption === null) return;
+  if (gameState.phase === 'feedback') return;
+
+  gameState.phase = 'feedback';
+
+  // Suppress interactions during feedback (PART-038)
+  if (interactionManager && interactionManager.suppress) {
+    try { interactionManager.suppress(); } catch (e) { console.log('[InteractionManager] suppress error: ' + JSON.stringify(e.message)); }
+  }
+
+  var content = gameState.content;
+  var isCorrect = gameState.selectedOption === content.correctIndex;
+
+  // Record attempt timing
+  var attemptStartTime = gameState.duration_data.attempts.length > 0
+    ? gameState.duration_data.attempts[gameState.duration_data.attempts.length - 1].endTime
+    : gameState.startTime;
+  var now = Date.now();
+  gameState.duration_data.attempts.push({
+    startTime: attemptStartTime,
+    endTime: now,
+    duration: now - attemptStartTime
+  });
+
+  recordAttempt({
+    round: 1,
+    input_of_user: gameState.selectedOption,
+    correct_answer: content.correctIndex,
+    correct: isCorrect
+  });
+
+  if (isCorrect) {
+    gameState.score++;
+  }
+
+  // Visual feedback
+  var correctCard = document.querySelector('.option-card[data-index="' + content.correctIndex + '"]');
+  if (correctCard) {
+    correctCard.classList.remove('selected');
+    correctCard.classList.add('correct');
+  }
+
+  if (!isCorrect) {
+    var wrongCard = document.querySelector('.option-card[data-index="' + gameState.selectedOption + '"]');
+    if (wrongCard) {
+      wrongCard.classList.remove('selected');
+      wrongCard.classList.add('incorrect');
+    }
+  }
+
+  // Disable all options
+  var allCards = document.querySelectorAll('.option-card');
+  allCards.forEach(function(card) {
+    card.classList.add('disabled');
+  });
+
+  // Disable submit button
+  var submitBtn = document.getElementById('btn-submit');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+  }
+
+  // Audio feedback (PART-017)
+  try {
+    if (typeof FeedbackManager !== 'undefined') {
+      if (isCorrect) {
+        FeedbackManager.playDynamicFeedback({ type: 'correct' });
+      } else {
+        FeedbackManager.playDynamicFeedback({ type: 'incorrect' });
+      }
+    }
+  } catch (e) {
+    console.log('Feedback error: ' + JSON.stringify(e.message));
+  }
+
+  trackEvent('answer_submitted', 'game', {
+    correct: isCorrect,
+    selected: gameState.selectedOption,
+    correctIndex: content.correctIndex
+  });
+
+  // End game after feedback delay
+  setTimeout(function() {
+    endGame();
+  }, 1500);
+}
+
+// === End Game (PART-011) ===
+function endGame() {
+  if (gameState.gameEnded) return;
+  gameState.gameEnded = true;
+  gameState.isActive = false;
+
+  var totalTime = (Date.now() - gameState.startTime) / 1000;
+  var accuracy = gameState.score === 1 ? 100 : 0;
+  var stars = gameState.score === 1 ? 3 : 0;
+
+  var metrics = {
+    accuracy: accuracy,
+    time: parseFloat(totalTime.toFixed(1)),
+    stars: stars,
+    star_thresholds: { 3: 100, 2: 100, 1: 100, 0: 0 },
+    attempts: gameState.attempts,
+    duration_data: gameState.duration_data,
+    totalLives: 1,
+    tries: [{ round: 1, triesCount: gameState.attempts.length }]
+  };
+
+  trackEvent('game_end', 'game', {
+    score: gameState.score,
+    accuracy: accuracy,
+    stars: stars
+  });
+
+  // Signal collector seal
+  var sealResult = null;
+  if (signalCollector && signalCollector.seal) {
+    try {
+      sealResult = signalCollector.seal();
+      console.log('[SignalCollector] sealed: ' + JSON.stringify(sealResult));
+    } catch (e) { console.log('[SignalCollector] seal error: ' + JSON.stringify(e.message)); }
+  }
+
+  // Add signal data to metrics
+  if (sealResult) {
+    metrics.signal_event_count = sealResult.eventCount || (sealResult.event_count || 0);
+    metrics.signal_metadata = sealResult.metadata || sealResult || {};
+  } else {
+    metrics.signal_event_count = 0;
+    metrics.signal_metadata = {};
+  }
+
+  metrics.completedAt = Date.now();
+
+  // Release interaction suppression
+  if (interactionManager && interactionManager.release) {
+    try { interactionManager.release(); } catch (e) { console.log('[InteractionManager] release error: ' + JSON.stringify(e.message)); }
+  }
+
+  // Pause video
+  try {
+    var video = document.getElementById('patternVideo');
+    if (video) { video.pause(); }
+  } catch (e) {}
+
+  // Cleanup preview screen (PART-039)
+  if (previewScreen && previewScreen.destroy) {
+    try { previewScreen.destroy(); } catch (e) { console.log('[PreviewScreen] destroy error: ' + JSON.stringify(e.message)); }
+  }
+
+  showResults(metrics);
+
+  // Send postMessage
+  try {
+    window.parent.postMessage({
+      type: 'game_complete',
+      data: {
+        metrics: metrics,
+        completedAt: metrics.completedAt
+      }
+    }, '*');
+  } catch (e) {
+    console.log('[PostMessage] Send error: ' + JSON.stringify(e.message));
+  }
+}
+
+// === Show Results (PART-019 v2) ===
+function showResults(metrics) {
+  try {
+    if (typeof FeedbackManager !== 'undefined') {
+      if (metrics.stars === 3) {
+        FeedbackManager.playDynamicFeedback({ type: 'celebration' });
+      } else {
+        FeedbackManager.playDynamicFeedback({ type: 'encouragement' });
+      }
+    }
+  } catch (e) {
+    console.log('[Feedback] Results audio error: ' + JSON.stringify(e.message));
+  }
+
+  if (transitionScreen && transitionScreen.show) {
+    transitionScreen.show({
+      stars: metrics.stars,
+      title: metrics.stars === 3 ? 'Correct! Well Done!' : 'Not quite!',
+      content: '<div class="results-metrics">' +
+        '<div class="metric"><span class="metric-label">Result</span><span class="metric-value">' + (gameState.score === 1 ? 'Correct' : 'Incorrect') + '</span></div>' +
+        '</div>',
+      persist: true,
+      buttons: [{ text: 'Play Again', type: 'primary', action: function() { restartGame(); } }]
+    });
+  }
+}
+
+// === Restart Game (RESTART RULE: preview shown only once — skip preview on restart) ===
+function restartGame() {
+  gameState.currentRound = 0;
+  gameState.score = 0;
+  gameState.attempts = [];
+  gameState.events = [];
+  gameState.selectedOption = null;
+  gameState.videoPlayed = false;
+  gameState.phase = 'idle';
+  gameState.gameEnded = false;
+  gameState.isActive = false;
+  gameState.startTime = null;
+  gameState.duration_data = {
+    startTime: null,
+    preview: [],
+    attempts: [],
+    evaluations: [],
+    inActiveTime: [],
+    totalInactiveTime: 0,
+    currentTime: null
+  };
+
+  // Hide TransitionScreen (results overlay)
+  if (transitionScreen && transitionScreen.hide) {
+    try { transitionScreen.hide(); } catch (e) { console.log('[TransitionScreen] hide error: ' + JSON.stringify(e.message)); }
+  }
+
+  // Re-inject game HTML (but NOT preview — preview only shows once)
+  var gameContent = document.getElementById('gameContent');
+  if (gameContent) {
+    gameContent.innerHTML =
+      '<div class="game-play-area">' +
+        '<div class="options-container" id="optionsContainer"></div>' +
+        '<div class="button-row" id="buttonRow">' +
+          '<button class="game-btn btn-primary" id="btn-submit" disabled>Submit</button>' +
+        '</div>' +
+      '</div>';
+
+    var submitBtn = document.getElementById('btn-submit');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', handleSubmit);
+    }
+  }
+
+  // Reset video to beginning if it exists
+  var video = document.getElementById('patternVideo');
+  if (video) {
+    video.currentTime = 0;
+  }
+
+  // Start game directly (skip preview on restart)
+  startGameAfterPreview({ duration: 0 });
+}
+
+// === Render Question ===
+function renderQuestion() {
+  var content = gameState.content;
+  if (!content) {
+    console.log('[renderQuestion] No content available');
+    return;
+  }
+
+  // Video, instruction text, and prompt are already rendered in preview instruction area
+  // Generate option cards in the game play area
+  var optionsHtml = content.options.map(function(opt, i) {
+    return '<div class="option-card" data-index="' + i + '" onclick="selectOption(' + i + ')">' +
+      '<img src="' + opt.imageUrl + '" alt="' + (opt.label || 'Option ' + (i + 1)) + '" />' +
+      '</div>';
+  }).join('');
+
+  var optionsContainer = document.getElementById('optionsContainer');
+  if (optionsContainer) {
+    optionsContainer.innerHTML = optionsHtml;
+  }
+
+  // Reset state
+  gameState.selectedOption = null;
+  gameState.videoPlayed = false;
+  gameState.phase = 'watching';
+
+  // Disable submit
+  var submitBtn = document.getElementById('btn-submit');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+  }
+
+  // Signal collector record view
+  if (signalCollector && signalCollector.recordViewEvent) {
+    try { signalCollector.recordViewEvent('question_start', {}); } catch (e) {}
+  }
+}
+
+// === Show Preview Screen (PART-039) ===
+function showPreviewScreen() {
+  if (previewScreen && previewScreen.show) {
+    try {
+      var content = gameState.content || fallbackContent;
+
+      // Build instruction HTML: previewInstruction + video + prompt (all in one scroll area)
+      var instructionHtml =
+        '<p>' + (content.previewInstruction || fallbackContent.previewInstruction) + '</p>' +
+        '<div class="video-wrapper">' +
+          '<video id="patternVideo" controls playsinline webkit-playsinline ' +
+                 'preload="auto" controlsList="nofullscreen">' +
+            '<source src="' + (content.videoUrl || fallbackContent.videoUrl) + '" type="video/mp4">' +
+          '</video>' +
+        '</div>' +
+        '<p>' + (content.prompt || fallbackContent.prompt) + '</p>';
+
+      previewScreen.show({
+        instruction: instructionHtml,
+        audioUrl: null,
+        showGameOnPreview: true,
+        onComplete: startGameAfterPreview
+      });
+    } catch (e) {
+      console.log('[PreviewScreen] show error: ' + JSON.stringify(e.message));
+      startGameAfterPreview({ duration: 0 });
+    }
+  } else {
+    console.log('[PreviewScreen] Not available, starting game directly');
+    startGameAfterPreview({ duration: 0 });
+  }
+}
+
+// === Start Game After Preview ===
+function startGameAfterPreview(previewData) {
+  previewData = previewData || { duration: 0 };
+
+  gameState.previewResult = previewData;
+  gameState.duration_data.preview = gameState.duration_data.preview || [];
+  gameState.duration_data.preview.push({ duration: previewData.duration || 0 });
+
+  gameState.startTime = Date.now();
+  gameState.isActive = true;
+  gameState.duration_data.startTime = new Date().toISOString();
+
+  trackEvent('game_start', 'game');
+
+  if (signalCollector && signalCollector.recordViewEvent) {
+    try {
+      signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+    } catch (e) {}
+  }
+
+  // Attach video event listeners (video is now in preview DOM)
+  var patternVideo = document.getElementById('patternVideo');
+  if (patternVideo) {
+    patternVideo.addEventListener('ended', onVideoEnded);
+    patternVideo.addEventListener('error', function(e) {
+      console.error('[Video Error]', JSON.stringify(e.target.error));
+    });
+  }
+
+  renderQuestion();
+}
+
+// === Setup Game ===
+function setupGame() {
+  // Set content from gameState or fallback
+  if (!gameState.content) {
+    gameState.content = fallbackContent;
+  }
+
+  // Build game play area HTML into #gameContent (ONLY options + submit — NO video)
+  var gameContent = document.getElementById('gameContent');
+  if (gameContent) {
+    gameContent.innerHTML =
+      '<div class="game-play-area">' +
+        '<div class="options-container" id="optionsContainer"></div>' +
+        '<div class="button-row" id="buttonRow">' +
+          '<button class="game-btn btn-primary" id="btn-submit" disabled>Submit</button>' +
+        '</div>' +
+      '</div>';
+
+    // Attach submit handler
+    var submitBtn = document.getElementById('btn-submit');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', handleSubmit);
+    }
+
+    // ORDERING: Pre-render option cards so they're visible during preview (showGameOnPreview: true)
+    var content = gameState.content || fallbackContent;
+    var optionsHtml = content.options.map(function(opt, i) {
+      return '<div class="option-card" data-index="' + i + '" onclick="selectOption(' + i + ')">' +
+        '<img src="' + opt.imageUrl + '" alt="' + (opt.label || 'Option ' + (i + 1)) + '" />' +
+        '</div>';
+    }).join('');
+    var optionsContainer = document.getElementById('optionsContainer');
+    if (optionsContainer) {
+      optionsContainer.innerHTML = optionsHtml;
+    }
+  }
+
+  // IMPORTANT: Do NOT set gameState.startTime here — it is set in startGameAfterPreview()
+  // IMPORTANT: Do NOT attach video listeners here — video is injected by previewScreen.show() later
+
+  // Show preview screen
+  showPreviewScreen();
+}
+
+// === Debug Functions (PART-012) ===
+window.debugGame = function() {
+  console.log('[Debug] gameState: ' + JSON.stringify({
+    phase: gameState.phase,
+    score: gameState.score,
+    selectedOption: gameState.selectedOption,
+    videoPlayed: gameState.videoPlayed,
+    isActive: gameState.isActive,
+    gameEnded: gameState.gameEnded,
+    attempts: gameState.attempts.length,
+    events: gameState.events.length
+  }));
+  return gameState;
+};
+
+window.debugAudio = function() {
+  console.log('[Debug Audio] FeedbackManager available: ' + (typeof FeedbackManager !== 'undefined'));
+  return { feedbackManager: typeof FeedbackManager !== 'undefined' };
+};
+
+window.testAudio = function() {
+  try {
+    if (typeof FeedbackManager !== 'undefined') {
+      FeedbackManager.playDynamicFeedback({ type: 'correct' });
+      return 'Playing test audio';
+    }
+    return 'FeedbackManager not available';
+  } catch (e) {
+    return 'Error: ' + JSON.stringify(e.message);
+  }
+};
+
+window.testPause = function() {
+  try {
+    if (typeof FeedbackManager !== 'undefined' && FeedbackManager.pause) {
+      FeedbackManager.pause();
+    }
+    return 'Paused';
+  } catch (e) {
+    return 'Error: ' + JSON.stringify(e.message);
+  }
+};
+
+window.testResume = function() {
+  try {
+    if (typeof FeedbackManager !== 'undefined' && FeedbackManager.resume) {
+      FeedbackManager.resume();
+    }
+    return 'Resumed';
+  } catch (e) {
+    return 'Error: ' + JSON.stringify(e.message);
+  }
+};
+
+// === DOMContentLoaded — Init Sequence (PART-004) ===
+document.addEventListener('DOMContentLoaded', async function() {
+  try {
+    // STEP 1: Wait for packages
+    await waitForPackages();
+    console.log('[Init] Packages loaded');
+
+    // STEP 2: Init FeedbackManager
+    try {
+      if (typeof FeedbackManager !== 'undefined') {
+        FeedbackManager.init();
+        console.log('[Init] FeedbackManager initialized');
+      }
+    } catch (e) {
+      console.log('[Init] FeedbackManager init error: ' + JSON.stringify(e.message));
+    }
+
+    // STEP 3: VisibilityTracker (PART-005)
+    try {
+      if (typeof VisibilityTracker !== 'undefined') {
+        visibilityTracker = new VisibilityTracker({
+          onInactive: function() {
+            var inactiveStart = Date.now();
+            gameState.duration_data.inActiveTime.push({ start: inactiveStart });
+            try {
+              if (typeof FeedbackManager !== 'undefined' && FeedbackManager.pause) {
+                FeedbackManager.pause();
+              }
+              if (previewScreen && previewScreen.pause) {
+                previewScreen.pause();
+              }
+              var video = document.getElementById('patternVideo');
+              if (video && !video.paused) { video.pause(); }
+            } catch (e) {}
+          },
+          onResume: function() {
+            var inactiveArr = gameState.duration_data.inActiveTime;
+            if (inactiveArr.length > 0) {
+              var last = inactiveArr[inactiveArr.length - 1];
+              if (last && !last.end) {
+                last.end = Date.now();
+                last.duration = last.end - last.start;
+                gameState.duration_data.totalInactiveTime += last.duration;
+              }
+            }
+            try {
+              if (typeof FeedbackManager !== 'undefined' && FeedbackManager.resume) {
+                FeedbackManager.resume();
+              }
+              if (previewScreen && previewScreen.resume) {
+                previewScreen.resume();
+              }
+            } catch (e) {}
+          }
+        });
+        console.log('[Init] VisibilityTracker created');
+      }
+    } catch (e) {
+      console.log('[Init] VisibilityTracker error: ' + JSON.stringify(e.message));
+    }
+
+    // STEP 4: SignalCollector
+    try {
+      if (typeof SignalCollector !== 'undefined') {
+        signalCollector = new SignalCollector();
+        console.log('[Init] SignalCollector created');
+      }
+    } catch (e) {
+      console.log('[Init] SignalCollector error: ' + JSON.stringify(e.message));
+    }
+
+    // STEP 5: InteractionManager (PART-038)
+    try {
+      if (typeof InteractionManager !== 'undefined') {
+        interactionManager = new InteractionManager({
+          selector: '.game-play-area'
+        });
+        console.log('[Init] InteractionManager created');
+      }
+    } catch (e) {
+      console.log('[Init] InteractionManager error: ' + JSON.stringify(e.message));
+    }
+
+    // STEP 6: ScreenLayout v2 (PART-025)
+    try {
+      if (typeof ScreenLayout !== 'undefined') {
+        ScreenLayout.inject('app', {
+          slots: {
+            previewScreen: true,
+            transitionScreen: true
+          }
+        });
+        console.log('[Init] ScreenLayout injected');
+      }
+    } catch (e) {
+      console.log('[Init] ScreenLayout error: ' + JSON.stringify(e.message));
+    }
+
+    // STEP 7: TransitionScreen (PART-024)
+    try {
+      var TSClass = typeof TransitionScreenComponent !== 'undefined' ? TransitionScreenComponent :
+                    (typeof TransitionScreen !== 'undefined' ? TransitionScreen : null);
+      if (TSClass) {
+        transitionScreen = new TSClass();
+        console.log('[Init] TransitionScreen created');
+      } else {
+        console.log('[Init] TransitionScreen class not found');
+      }
+    } catch (e) {
+      console.log('[Init] TransitionScreen error: ' + JSON.stringify(e.message));
+    }
+
+    // STEP 8: PreviewScreenComponent (PART-039)
+    try {
+      if (typeof PreviewScreenComponent !== 'undefined') {
+        previewScreen = new PreviewScreenComponent({
+          autoInject: true,
+          slotId: 'mathai-preview-slot',
+          gameContentId: 'gameContent'
+        });
+        console.log('[Init] PreviewScreenComponent created');
+      }
+    } catch (e) {
+      console.log('[Init] PreviewScreenComponent error: ' + JSON.stringify(e.message));
+    }
+
+    // STEP 9: Setup game
+    setupGame();
+
+    // STEP 10: Listen for postMessages
+    window.addEventListener('message', handlePostMessage);
+
+    console.log('[Init] Game setup complete');
+
+  } catch (e) {
+    console.log('[Init] Critical error: ' + JSON.stringify(e.message));
+    // Fallback: try to setup game anyway
+    try { setupGame(); } catch (e2) {
+      console.log('[Init] Fallback setup error: ' + JSON.stringify(e2.message));
+    }
+  }
+});
+</script>
+</body>
+</html>

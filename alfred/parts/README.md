@@ -14,7 +14,7 @@
 | [PART-007](PART-007.md) | Game State Object | Global `window.gameState` tracking | Yes |
 | [PART-008](PART-008.md) | PostMessage Protocol | iframe-parent communication | Yes |
 | [PART-009](PART-009.md) | Attempt Tracking | Records every user answer attempt | Yes |
-| [PART-010](PART-010.md) | Event Tracking & SignalCollector | Game-level events + atomic interaction signals | Yes |
+| [PART-010](PART-010.md) | Event Tracking | Game-level event logging to `gameState.events[]` | Yes |
 | [PART-011](PART-011.md) | End Game & Metrics | Final metrics, seal signals, show results | Yes |
 | [PART-012](PART-012.md) | Debug Functions | Exposes debug/test functions on `window` | Yes |
 | [PART-013](PART-013.md) | Validation — Fixed Answer | Validate with known correct values | Conditional (fixed answers) |
@@ -43,3 +43,4 @@
 | [PART-037](PART-037.md) | Playwright Testing & Ralph Loop | Automated test + fix loop | Post-generation |
 | [PART-038](PART-038.md) | InteractionManager | Suppress interaction during feedback | Conditional (feedback suppression) |
 | [PART-039](PART-039.md) | Preview Screen | Instruction/preview before gameplay | Yes |
+| [PART-042](PART-042.md) | SignalCollector | Atomic interaction capture + batch flushing to GCS | Yes |

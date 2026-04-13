@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Word Problem Workshop</title>
+
+  <!-- 1. SentryConfig package -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+  <!-- 2. initSentry() function definition -->
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled && typeof Sentry !== 'undefined') {
+        Sentry.init({
+          dsn: SentryConfig.dsn,
+          environment: SentryConfig.environment,
+          release: 'word-problem-workshop@1.0.0',
+          tracesSampleRate: SentryConfig.tracesSampleRate,
+          sampleRate: SentryConfig.sampleRate,
+          maxBreadcrumbs: 50,
+          ignoreErrors: [
+            'ResizeObserver loop limit exceeded',
+            'ResizeObserver loop completed with undelivered notifications',
+            'Non-Error promise rejection captured',
+            'Script error.',
+            'Load failed',
+            'Failed to fetch'
+          ]
+        });
+      }
+    }
+
+    window.addEventListener('error', function(event) {
+      if (typeof Sentry !== 'undefined') {
+        Sentry.captureException(event.error || new Error(event.message), {
+          tags: { errorType: 'unhandled', severity: 'critical' },
+          contexts: { errorEvent: { message: event.message, filename: event.filename, lineno: event.lineno } }
+        });
+      }
+    });
+
+    window.addEventListener('unhandledrejection', function(event) {
+      if (typeof Sentry !== 'undefined') {
+        Sentry.captureException(event.reason || new Error('Unhandled promise rejection'), {
+          tags: { errorType: 'unhandled-promise', severity: 'critical' }
+        });
+      }
+    });
+  </script>
+
+  <!-- 3. Sentry SDK (3 scripts, NO integrity attribute) -->
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+  <!-- 4. Initialize Sentry on load -->
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- 5-7. Game packages (exact URLs, this order: FeedbackManager -> Components -> Helpers) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    /* === CSS Variables (PART-020) === */
+    :root {
+      --mathai-green: #219653;
+      --mathai-light-green: #D9F8D9;
+      --mathai-red: #E35757;
+      --mathai-light-red: #FFD9D9;
+      --mathai-blue: #2563eb;
+      --mathai-light-blue: #EBF0FF;
+      --mathai-orange: #F2994A;
+      --mathai-light-orange: #FFF3E0;
+      --mathai-purple: #7C3AED;
+      --mathai-light-purple: #F3E8FF;
+      --mathai-gray: #828282;
+      --mathai-light-gray: #F2F2F2;
+      --mathai-border-gray: #E0E0E0;
+      --mathai-white: #FFFFFF;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mathai-font-size-title: 24px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-label: 14px;
+      --mathai-font-size-small: 12px;
+    }
+
+    /* === Reset === */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-light-gray);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #gameContent { max-width: 480px; margin: 0 auto; padding: 8px 16px; }
+    .question-text-container { text-align: center; padding: 8px 0 12px; }
+    .question-text { font-size: var(--mathai-font-size-body); font-weight: 700; color: var(--mathai-text-primary); }
+    .question-sub-text { font-size: var(--mathai-font-size-small); color: var(--mathai-gray); margin-top: 2px; }
+    .mathai-ts-screen.active { flex: 1; justify-content: flex-start; padding-top: 16px; }
+    .mathai-ts-card { min-height: 50dvh; }
+
+    /* === Game Block === */
+    .game-block {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      gap: 16px;
+    }
+
+    /* === Expression Card === */
+    .expression-card {
+      width: 100%;
+      max-width: 360px;
+      background: var(--mathai-white);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      text-align: center;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .expression-label {
+      font-size: var(--mathai-font-size-label);
+      color: var(--mathai-gray);
+      margin-bottom: 12px;
+      font-weight: 500;
+    }
+
+    .expression-display {
+      font-size: clamp(20px, 5vw, 36px);
+      font-weight: 800;
+      color: var(--mathai-purple);
+      background: var(--mathai-light-purple);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 12px;
+      font-family: 'Courier New', Courier, monospace;
+      letter-spacing: 2px;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+
+    .expression-hint-text {
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-gray);
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    /* === Writing Area === */
+    .writing-area {
+      width: 100%;
+      max-width: 360px;
+      background: var(--mathai-white);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      animation: slideInUp 0.4s ease;
+    }
+
+    .input-label {
+      font-size: var(--mathai-font-size-label);
+      color: var(--mathai-gray);
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .word-problem-input {
+      width: 100%;
+      border: 2px solid var(--mathai-border-gray);
+      border-radius: 12px;
+      padding: 12px;
+      font-size: var(--mathai-font-size-body);
+      font-family: var(--mathai-font-family);
+      color: var(--mathai-text-primary);
+      resize: none;
+      outline: none;
+      transition: border-color 0.2s ease;
+      line-height: 1.5;
+      margin-bottom: 4px;
+    }
+    .word-problem-input:focus {
+      border-color: var(--mathai-purple);
+    }
+
+    .char-count {
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-gray);
+      text-align: right;
+      margin-bottom: 12px;
+    }
+
+    /* === Inline Error === */
+    .inline-error {
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-red);
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    /* === Buttons (PART-022) === */
+    .game-btn {
+      width: 100%;
+      padding: 14px 32px;
+      border: none;
+      border-radius: 12px;
+      font-size: var(--mathai-font-size-body);
+      font-weight: 600;
+      font-family: var(--mathai-font-family);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-primary {
+      background: var(--mathai-green);
+      color: var(--mathai-white);
+    }
+    .btn-primary:hover { filter: brightness(0.9); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: var(--mathai-light-gray);
+      color: var(--mathai-text-primary);
+    }
+    .btn-secondary:hover { filter: brightness(0.95); }
+
+    .feedback-next-btn {
+      margin-top: 16px;
+      animation: slideInUp 0.3s ease;
+    }
+
+    /* === Evaluation Badge === */
+    .evaluation-badge {
+      width: 100%;
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      font-size: var(--mathai-font-size-body);
+      font-weight: 700;
+      margin-bottom: 16px;
+      animation: slideInUp 0.3s ease;
+    }
+
+    .evaluation-badge.correct-match {
+      background: var(--mathai-light-green);
+      border-left: 4px solid var(--mathai-green);
+      color: var(--mathai-green);
+    }
+    .evaluation-badge.partial-match {
+      background: var(--mathai-light-orange);
+      border-left: 4px solid var(--mathai-orange);
+      color: var(--mathai-orange);
+    }
+    .evaluation-badge.no-match {
+      background: var(--mathai-light-red);
+      border-left: 4px solid var(--mathai-red);
+      color: var(--mathai-red);
+    }
+
+    /* === Feedback Area === */
+    .feedback-area {
+      width: 100%;
+      max-width: 360px;
+      background: var(--mathai-white);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      animation: slideInUp 0.4s ease;
+    }
+
+    .feedback-section {
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--mathai-light-gray);
+    }
+    .feedback-section:last-of-type {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .feedback-label {
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-gray);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .feedback-value {
+      font-size: var(--mathai-font-size-body);
+      font-weight: 700;
+      color: var(--mathai-purple);
+    }
+
+    .feedback-user-problem {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary);
+      line-height: 1.5;
+      font-style: italic;
+    }
+
+    .feedback-reasoning {
+      font-size: var(--mathai-font-size-body);
+      color: var(--mathai-text-primary);
+      line-height: 1.5;
+    }
+
+    .feedback-points {
+      font-size: var(--mathai-font-size-title);
+      font-weight: 700;
+      color: var(--mathai-green);
+    }
+
+    .feedback-hint {
+      background: var(--mathai-light-blue);
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 12px;
+    }
+
+    .hint-label {
+      font-size: var(--mathai-font-size-label);
+      font-weight: 700;
+      color: var(--mathai-blue);
+      margin-bottom: 4px;
+    }
+
+    .hint-text {
+      font-size: var(--mathai-font-size-label);
+      color: var(--mathai-text-primary);
+      line-height: 1.4;
+    }
+
+    .feedback-example {
+      background: var(--mathai-light-purple);
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 8px;
+    }
+
+    .example-label {
+      font-size: var(--mathai-font-size-label);
+      font-weight: 700;
+      color: var(--mathai-purple);
+      margin-bottom: 4px;
+    }
+
+    .example-text {
+      font-size: var(--mathai-font-size-label);
+      color: var(--mathai-text-primary);
+      line-height: 1.4;
+      font-style: italic;
+    }
+
+    /* === Button Spinner (inside submit button) === */
+    .btn-spinner {
+      display: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+    }
+    .btn-primary:disabled .btn-spinner { display: inline-block; }
+
+    /* === Loading Indicator === */
+    .loading-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px;
+      color: var(--mathai-gray);
+      font-size: var(--mathai-font-size-label);
+      width: 100%;
+      max-width: 360px;
+    }
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid var(--mathai-light-gray);
+      border-top-color: var(--mathai-purple);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* === Button Container (Reset + Submit side-by-side) === */
+    .btn-container {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      width: 100%;
+      max-width: 360px;
+      margin: 4px auto 0;
+    }
+
+    /* === Results Metrics (injected into TransitionScreen content slot) === */
+    .results-stars {
+      text-align: center;
+      font-size: 40px;
+      margin-bottom: 16px;
+      letter-spacing: 8px;
+    }
+    .results-metric-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--mathai-light-gray);
+      font-size: var(--mathai-font-size-body);
+    }
+    .results-metric-row:last-child {
+      border-bottom: none;
+    }
+    .results-metric-label {
+      color: var(--mathai-gray);
+      font-weight: 500;
+    }
+    .results-metric-value {
+      font-weight: 700;
+      color: var(--mathai-text-primary);
+    }
+    .results-metric-value.highlight {
+      color: var(--mathai-green);
+    }
+
+    /* === Animations === */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    /* ========================================
+       GAME: Word Problem Workshop
+       All var, no let/const, no optional chaining
+       ======================================== */
+
+    /* === Sticker URLs === */
+    var CORRECT_STICKER_URL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-20.gif';
+    var INCORRECT_STICKER_URL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-28.gif';
+    var VICTORY_STICKER_URL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-98.gif';
+    var GAME_COMPLETE_STICKER_URL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1754587201419-25.gif';
+    var ROUND_STICKERS = [
+      'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-44.gif',
+      'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-47.gif',
+      'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1743761988949-52.gif'
+    ];
+
+    /* === Fallback Content === */
+    var fallbackContent = {
+      "gameId": "word-problem-workshop",
+      "previewInstruction": "<p>See a math expression, then <b>write a real-world word problem</b> that matches it.</p><p>There is no single right answer \u2014 be creative! You have <b>10 rounds</b> across 3 stages. Earn up to 3 points per round for 3 stars!</p>",
+      "previewAudioText": "See a math expression, then write a real-world word problem that matches it. There is no single right answer, so be creative! You have ten rounds across three stages. Earn up to three points per round for three stars!",
+      "previewAudio": null,
+      "showGameOnPreview": false,
+      "rounds": [
+        {
+          "roundNumber": 1,
+          "stage": 1,
+          "expression": "5 + 3",
+          "expressionDisplay": "5 + 3 = 8",
+          "result": 8,
+          "operation": "addition",
+          "rubric": "A correct word problem must describe a situation where 5 things and 3 things are combined to make 8 total. The two quantities must be clearly 5 and 3. The action must represent addition (joining, combining, getting more). Accept any real-world context.",
+          "exampleWordProblem": "Tom had 5 apples. His friend gave him 3 more. How many apples does Tom have now?",
+          "hints": {
+            "thinkAbout": "Think about putting two groups together. What has 5 of something and then gets 3 more?",
+            "revealExplanation": "5 plus 3 means starting with 5 things and adding 3 more to get 8 total."
+          }
+        },
+        {
+          "roundNumber": 2,
+          "stage": 1,
+          "expression": "12 - 4",
+          "expressionDisplay": "12 - 4 = 8",
+          "result": 8,
+          "operation": "subtraction",
+          "rubric": "A correct word problem must describe a situation where you start with 12 things and 4 are removed/lost/given away, leaving 8. The starting quantity must be 12 and the amount removed must be 4. The action must represent subtraction (taking away, losing, giving away, eating, etc.).",
+          "exampleWordProblem": "Maria had 12 stickers. She gave 4 to her sister. How many stickers does Maria have left?",
+          "hints": {
+            "thinkAbout": "Think about starting with a group and taking some away. What starts at 12 and loses 4?",
+            "revealExplanation": "12 minus 4 means starting with 12 things and taking 4 away, leaving 8."
+          }
+        },
+        {
+          "roundNumber": 3,
+          "stage": 1,
+          "expression": "6 * 3",
+          "expressionDisplay": "6 x 3 = 18",
+          "result": 18,
+          "operation": "multiplication",
+          "rubric": "A correct word problem must describe a situation with 6 groups of 3 things each (or 3 groups of 6 things) totaling 18. The word problem must clearly show equal groups or repeated addition. Accept either 6 groups of 3 OR 3 groups of 6 since multiplication is commutative.",
+          "exampleWordProblem": "There are 6 bags with 3 oranges in each bag. How many oranges are there in total?",
+          "hints": {
+            "thinkAbout": "Think about equal groups. What has 6 sets of 3 things each?",
+            "revealExplanation": "6 times 3 means 6 groups with 3 in each group, which gives 18 total."
+          }
+        },
+        {
+          "roundNumber": 4,
+          "stage": 1,
+          "expression": "20 / 4",
+          "expressionDisplay": "20 / 4 = 5",
+          "result": 5,
+          "operation": "division",
+          "rubric": "A correct word problem must describe a situation where 20 things are split equally into 4 groups (giving 5 each) OR split into groups of 4 (giving 5 groups). The starting quantity must be 20 and the divisor must be 4. The action must represent fair sharing or equal grouping.",
+          "exampleWordProblem": "A teacher has 20 pencils to share equally among 4 students. How many pencils does each student get?",
+          "hints": {
+            "thinkAbout": "Think about sharing equally. If you have 20 things and split them into 4 equal groups, how many in each group?",
+            "revealExplanation": "20 divided by 4 means splitting 20 things into 4 equal groups of 5 each."
+          }
+        },
+        {
+          "roundNumber": 5,
+          "stage": 2,
+          "expression": "3 * 4 + 2",
+          "expressionDisplay": "3 x 4 + 2 = 14",
+          "result": 14,
+          "operation": "multi-step",
+          "rubric": "A correct word problem must describe a two-step situation: first, 3 groups of 4 things (or 4 groups of 3), then adding 2 more. The final total must be 14. The order of operations matters \u2014 the multiplication must happen conceptually before the addition. Accept stories where someone has equal groups of items and then gets a few extra.",
+          "exampleWordProblem": "Sara bought 3 packs of 4 stickers each. Then she found 2 more stickers on the ground. How many stickers does Sara have now?",
+          "hints": {
+            "thinkAbout": "This has two parts: first multiply 3 times 4, then add 2 more. What story has equal groups plus some extra?",
+            "revealExplanation": "3 times 4 equals 12, then adding 2 more makes 14. Think of it as 3 groups of 4 plus 2 extra."
+          }
+        },
+        {
+          "roundNumber": 6,
+          "stage": 2,
+          "expression": "5 * 6 - 3",
+          "expressionDisplay": "5 x 6 - 3 = 27",
+          "result": 27,
+          "operation": "multi-step",
+          "rubric": "A correct word problem must describe a two-step situation: first, 5 groups of 6 things (totaling 30), then 3 are removed. The final answer must be 27. The multiplication must conceptually happen before the subtraction. Accept stories where someone starts with equal groups and then loses/uses some.",
+          "exampleWordProblem": "A bakery made 5 trays of 6 cupcakes each. 3 cupcakes fell on the floor. How many cupcakes are left?",
+          "hints": {
+            "thinkAbout": "First figure out 5 groups of 6 (that's 30), then take away 3. What story works for that?",
+            "revealExplanation": "5 times 6 equals 30, then subtracting 3 gives 27. Think of equal groups where a few get removed."
+          }
+        },
+        {
+          "roundNumber": 7,
+          "stage": 2,
+          "expression": "24 / 6 + 5",
+          "expressionDisplay": "24 / 6 + 5 = 9",
+          "result": 9,
+          "operation": "multi-step",
+          "rubric": "A correct word problem must describe a two-step situation: first, 24 things are divided into 6 equal groups (giving 4 each), then 5 more are added. The final answer must be 9. The division must conceptually happen before the addition. Accept stories involving sharing/splitting followed by receiving more.",
+          "exampleWordProblem": "Mom divided 24 cookies equally among 6 children. Then grandma gave each child 5 more cookies. How many cookies does each child have now?",
+          "hints": {
+            "thinkAbout": "First split 24 into 6 equal parts (that's 4 each), then add 5 more. What real-life situation fits?",
+            "revealExplanation": "24 divided by 6 equals 4, then adding 5 gives 9. Think of sharing equally and then getting more."
+          }
+        },
+        {
+          "roundNumber": 8,
+          "stage": 3,
+          "expression": "4 * 5 + 3 * 2",
+          "expressionDisplay": "(4 x 5) + (3 x 2) = 26",
+          "result": 26,
+          "operation": "mixed",
+          "rubric": "A correct word problem must describe a situation with TWO separate groups: 4 groups of 5 things AND 3 groups of 2 things, combined for a total of 26. Both multiplication parts must be clearly represented. Accept stories involving two types of items or two separate purchases/collections.",
+          "exampleWordProblem": "A store has 4 shelves with 5 big books each and 3 shelves with 2 small books each. How many books are there in total?",
+          "hints": {
+            "thinkAbout": "This expression has two parts added together: 4 groups of 5 AND 3 groups of 2. Think of two different kinds of groups combined.",
+            "revealExplanation": "4 times 5 equals 20, and 3 times 2 equals 6. Together that's 26. Think of two separate groups of items added together."
+          }
+        },
+        {
+          "roundNumber": 9,
+          "stage": 3,
+          "expression": "50 - 3 * 8",
+          "expressionDisplay": "50 - (3 x 8) = 26",
+          "result": 26,
+          "operation": "mixed",
+          "rubric": "A correct word problem must describe a situation where you start with 50 things, then remove 3 groups of 8 (removing 24 total), leaving 26. The multiplication (3 groups of 8 removed) must happen before the subtraction conceptually. Order of operations matters. Accept stories involving a starting amount where groups of items are taken away.",
+          "exampleWordProblem": "A jar had 50 marbles. Three friends each took 8 marbles. How many marbles are left in the jar?",
+          "hints": {
+            "thinkAbout": "Start with 50, then remove 3 groups of 8. That's 24 taken away, leaving 26. What scenario works?",
+            "revealExplanation": "3 times 8 equals 24. 50 minus 24 equals 26. Think of starting with a large number and removing equal groups."
+          }
+        },
+        {
+          "roundNumber": 10,
+          "stage": 3,
+          "expression": "36 / 4 + 2 * 7",
+          "expressionDisplay": "(36 / 4) + (2 x 7) = 23",
+          "result": 23,
+          "operation": "mixed",
+          "rubric": "A correct word problem must describe a situation with TWO parts: 36 things divided into 4 groups (giving 9) AND 2 groups of 7 things (14), combined for a total of 23. Both the division and multiplication must be clearly represented as separate actions that combine. Accept stories with two distinct activities whose results are added.",
+          "exampleWordProblem": "A teacher shared 36 crayons equally among 4 tables. Then she gave each table 2 packs of 7 markers. How many coloring supplies does one table have now?",
+          "hints": {
+            "thinkAbout": "Two things happen: 36 split into 4 groups (that's 9) AND 2 groups of 7 (that's 14). Together that's 23.",
+            "revealExplanation": "36 divided by 4 is 9, and 2 times 7 is 14. Adding them gives 23. Think of two separate actions whose totals combine."
+          }
+        }
+      ]
+    };
+
+    /* === Game State (PART-007) === */
+    window.gameState = {
+      gameId: 'word-problem-workshop',
+      currentRound: 0,
+      totalRounds: 10,
+      score: 0,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      gameEnded: false,
+      phase: 'start',
+      isProcessing: false,
+      content: null,
+      duration_data: {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0,
+        currentTime: null
+      },
+      currentStage: 1,
+      totalPoints: 0,
+      wordProblemText: '',
+      evaluationResult: null,
+      feedbackText: '',
+      roundData: null,
+      correctCount: 0,
+      partialCount: 0,
+      contentSetId: null,
+      signalConfig: null,
+      sessionHistory: [],
+      currentDynamicAudio: null,
+      voGameStartPlayed: false
+    };
+
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var visibilityTrackerConfig = null;
+
+    /* === Stage Names/Descriptions === */
+    var stageNames = { 1: 'Simple Operations', 2: 'Multi-Step', 3: 'Mixed Operations' };
+    var stageDescs = { 1: 'One operation \u2014 build a simple story!', 2: 'Two steps \u2014 your story needs two parts!', 3: 'Multiple operations \u2014 create a complex story!' };
+    var stageHints = {
+      1: 'Think of a real-life situation with this operation.',
+      2: 'This has two steps \u2014 your story needs two parts!',
+      3: 'This combines multiple operations \u2014 build a story with different actions!'
+    };
+
+    /* === Helper Functions === */
+
+    function trackEvent(eventName, category, data) {
+      var eventObj = {
+        event: eventName,
+        category: category || 'game',
+        timestamp: Date.now(),
+        data: data || {}
+      };
+      gameState.events.push(eventObj);
+      try {
+        if (typeof Sentry !== 'undefined') {
+          Sentry.addBreadcrumb({ category: 'game-event', message: eventName, data: data || {}, level: 'info' });
+        }
+      } catch(e) {}
+    }
+
+    function recordAttempt(attemptData) {
+      var attempt = {
+        timestamp: Date.now(),
+        round: gameState.currentRound + 1,
+        input_of_user: attemptData.input_of_user || {},
+        correct: attemptData.correct || false,
+        metadata: attemptData.metadata || {}
+      };
+      gameState.attempts.push(attempt);
+      gameState.duration_data.attempts.push({
+        round: gameState.currentRound + 1,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    function computeTriesPerRound(attempts) {
+      var rounds = {};
+      attempts.forEach(function(a) {
+        var r = (a.metadata && a.metadata.round) ? a.metadata.round : 0;
+        rounds[r] = (rounds[r] || 0) + 1;
+      });
+      return Object.keys(rounds).map(function(r) {
+        return { round: Number(r), triesCount: rounds[r] };
+      });
+    }
+
+    function formatTime(seconds) {
+      var m = Math.floor(seconds / 60);
+      var s = seconds % 60;
+      return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function createProgressBar() {
+      if (progressBar) { try { progressBar.destroy(); } catch(e) {} progressBar = null; }
+      try {
+        progressBar = new ProgressBarComponent({
+          autoInject: false,
+          totalRounds: gameState.totalRounds || 10,
+          totalLives: 0
+        });
+        var container = document.getElementById('progress-bar-container');
+        if (container) {
+          progressBar.container = container;
+          progressBar.render();
+        }
+      } catch(e) {
+        console.error('ProgressBar creation error:', e.message);
+        progressBar = null;
+      }
+    }
+
+    function canPlayAudio() {
+      return typeof FeedbackManager !== 'undefined' && FeedbackManager && FeedbackManager.sound && typeof FeedbackManager.sound.play === 'function';
+    }
+
+    /* === Game Content HTML === */
+    var gameContentHTML = ''
+      + '<div id="progress-bar-container"></div>'
+      + '<div class="question-text-container">'
+      + '  <p class="question-text" id="question-text">Word Problem Workshop</p>'
+      + '  <p class="question-sub-text" id="question-sub-text">Turn math expressions into real-world stories!</p>'
+      + '</div>'
+      + '<div id="game-screen" class="game-block">'
+      + '  <div class="expression-card" id="expression-card">'
+      + '    <p class="expression-label">Write a word problem for:</p>'
+      + '    <div class="expression-display" id="expression-display"></div>'
+      + '    <p class="expression-hint-text" id="expression-hint-text"></p>'
+      + '  </div>'
+      + '  <div class="writing-area" id="writing-area">'
+      + '    <label class="input-label" for="word-problem-input">Your word problem:</label>'
+      + '    <textarea id="word-problem-input" class="word-problem-input" rows="3" maxlength="500"'
+      + '      placeholder="Write a real-world story that matches this math expression..."'
+      + '      data-signal-id="word-problem-input"></textarea>'
+      + '    <div class="char-count"><span id="char-count">0</span>/500</div>'
+      + '    <p class="inline-error" id="writing-error" style="display:none;"></p>'
+      + '  </div>'
+      + '  <div class="btn-container" id="btn-container">'
+      + '    <button class="game-btn btn-secondary" id="btn-reset" data-signal-id="btn-reset">Reset</button>'
+      + '    <button class="game-btn btn-primary" id="btn-submit-problem" data-signal-id="btn-submit-problem">'
+      + '      <span class="btn-spinner" id="btn-submit-spinner"></span>'
+      + '      <span id="btn-submit-text">Submit Word Problem</span>'
+      + '    </button>'
+      + '  </div>'
+      + '  <div id="loading-indicator" class="loading-indicator" style="display:none;">'
+      + '    <div class="spinner"></div>'
+      + '    <span>Evaluating your word problem...</span>'
+      + '  </div>'
+      + '  <div class="feedback-area" id="feedback-area" style="display:none;">'
+      + '    <div class="evaluation-badge" id="evaluation-badge"></div>'
+      + '    <div class="feedback-section">'
+      + '      <p class="feedback-label">The expression</p>'
+      + '      <p class="feedback-value" id="feedback-expression"></p>'
+      + '    </div>'
+      + '    <div class="feedback-section">'
+      + '      <p class="feedback-label">Your word problem</p>'
+      + '      <p class="feedback-user-problem" id="feedback-user-problem"></p>'
+      + '    </div>'
+      + '    <div class="feedback-section">'
+      + '      <p class="feedback-label">Feedback</p>'
+      + '      <p class="feedback-reasoning" id="feedback-reasoning"></p>'
+      + '    </div>'
+      + '    <div class="feedback-section">'
+      + '      <p class="feedback-label">Points this round</p>'
+      + '      <p class="feedback-points" id="feedback-points"></p>'
+      + '    </div>'
+      + '    <div class="feedback-hint" id="feedback-hint" style="display:none;">'
+      + '      <p class="hint-label">Tip:</p>'
+      + '      <p class="hint-text" id="hint-text"></p>'
+      + '    </div>'
+      + '    <div class="feedback-example" id="feedback-example" style="display:none;">'
+      + '      <p class="example-label">Example word problem:</p>'
+      + '      <p class="example-text" id="example-text"></p>'
+      + '    </div>'
+      + '  </div>'
+      + '</div>';
+
+    /* === waitForPackages (PART-003) === */
+    function waitForPackages(timeout) {
+      var requiredPackages = [
+        'ScreenLayout', 'ProgressBarComponent', 'TransitionScreenComponent',
+        'PreviewScreenComponent', 'FeedbackManager', 'VisibilityTracker',
+        'SignalCollector', 'MathAIHelpers'
+      ];
+      return new Promise(function(resolve, reject) {
+        var startTime = Date.now();
+        var checkInterval = setInterval(function() {
+          var allLoaded = true;
+          for (var i = 0; i < requiredPackages.length; i++) {
+            if (typeof window[requiredPackages[i]] === 'undefined') {
+              allLoaded = false;
+              break;
+            }
+          }
+          if (allLoaded) {
+            clearInterval(checkInterval);
+            resolve();
+          } else if (Date.now() - startTime > (timeout || 10000)) {
+            clearInterval(checkInterval);
+            var missing = requiredPackages.filter(function(p) { return typeof window[p] === 'undefined'; });
+            console.error('Missing packages after timeout:', JSON.stringify(missing, null, 2));
+            resolve(); // resolve anyway to allow fallback behavior
+          }
+        }, 100);
+      });
+    }
+
+    /* === LLM Evaluation (PART-015) === */
+    async function validateWordProblemLLM(wordProblem, expression, expressionDisplay, expectedResult, rubric) {
+      try {
+        var sanitizedProblem = wordProblem.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
+
+        var result = await MathAIHelpers.SubjectiveEvaluation.evaluate({
+          components: [{
+            component_id: 'wp_' + gameState.currentRound,
+            evaluation_prompt: 'Math expression: "' + expressionDisplay + '" (result = ' + expectedResult + ')\n'
+              + 'Student\'s word problem: "' + sanitizedProblem + '"\n'
+              + 'Rubric: ' + rubric + '\n\n'
+              + 'Evaluate whether the student\'s word problem correctly represents the given math expression.\n\n'
+              + 'Be GENEROUS and BROAD in your evaluation \u2014 this is a Grade 4 student being creative. Accept any word problem that demonstrates understanding of the math, even if:\n'
+              + '- The items are different types\n'
+              + '- The wording is informal, uses slang, or has minor grammar/spelling mistakes\n'
+              + '- The story is silly, fantastical, or uses unusual scenarios\n'
+              + '- The student describes the result explicitly rather than posing it as a question\n\n'
+              + 'IMPORTANT: Profanity, insults, abuse, and offensive language are NEVER correct. They are ALWAYS no_match.\n'
+              + 'The word "idk" or "I don\'t know" as a standalone answer means the student doesn\'t know \u2014 classify as no_match.\n\n'
+              + 'What matters is:\n'
+              + '1. The correct quantities from the expression appear in the story\n'
+              + '2. The relationship between quantities matches the operation\n'
+              + '3. The math works out to the correct result\n\n'
+              + 'Return ONLY one of these three words \u2014 nothing else, no quotes, no explanation:\n'
+              + 'correct_match\npartial_match\nno_match',
+            feedback_prompt: 'You are a friendly math tutor helping a Grade 4 student learn to write word problems.\n\n'
+              + 'Math expression: "' + expressionDisplay + '"\n'
+              + 'Student\'s word problem: "' + sanitizedProblem + '"\n'
+              + 'Evaluation: {{evaluation}}\n\n'
+              + 'Provide a short (2-3 sentence) encouraging feedback.\n'
+              + 'Keep it warm and age-appropriate for a Grade 4 student. Use simple language.'
+          }],
+          timeout: 30000
+        });
+
+        if (!result || !result.data || !result.data[0]) {
+          console.error('Subjective evaluation returned malformed response:', JSON.stringify(result, null, 2));
+          return { tier: 'no_match', evaluation: '', feedback: 'We couldn\'t evaluate your word problem this time. Keep trying!' };
+        }
+
+        var componentResult = result.data[0];
+        var evalText = (componentResult.evaluation || '').trim().toLowerCase().replace(/[^a-z_]/g, '');
+
+        var tier = 'no_match';
+        if (evalText.indexOf('correct_match') !== -1) tier = 'correct_match';
+        else if (evalText.indexOf('partial_match') !== -1) tier = 'partial_match';
+
+        return {
+          tier: tier,
+          evaluation: componentResult.evaluation || '',
+          feedback: componentResult.feedback || ''
+        };
+      } catch (error) {
+        console.error('LLM validation error:', JSON.stringify({ error: error.message }, null, 2));
+        if (typeof Sentry !== 'undefined') {
+          Sentry.captureException(error, { tags: { phase: 'llm-evaluation', component: 'SubjectiveEvaluation', severity: 'high' } });
+        }
+        return { tier: 'no_match', evaluation: '', feedback: 'We couldn\'t evaluate your word problem this time. Keep trying!' };
+      }
+    }
+
+    /* === showFeedbackUI === */
+    function showFeedbackUI(roundData, result, roundPoints, wordProblem) {
+      var badge = document.getElementById('evaluation-badge');
+      badge.className = 'evaluation-badge ' + result.tier.replace(/_/g, '-');
+      if (result.tier === 'correct_match') {
+        badge.textContent = '\u2705 Great Match! Your word problem fits the expression perfectly!';
+      } else if (result.tier === 'partial_match') {
+        badge.textContent = '\uD83D\uDD36 Partial Match! You\'re on the right track, but some details need fixing.';
+      } else {
+        badge.textContent = '\u274C Not a Match. Let\'s look at what the expression means.';
+      }
+
+      document.getElementById('feedback-expression').textContent = roundData.expressionDisplay;
+      document.getElementById('feedback-user-problem').textContent = wordProblem;
+      document.getElementById('feedback-reasoning').textContent = result.feedback || '';
+      document.getElementById('feedback-points').textContent = roundPoints + ' / 3';
+
+      if (result.tier !== 'correct_match') {
+        document.getElementById('hint-text').textContent = roundData.hints.thinkAbout;
+        document.getElementById('feedback-hint').style.display = 'block';
+        document.getElementById('example-text').textContent = roundData.exampleWordProblem;
+        document.getElementById('feedback-example').style.display = 'block';
+      } else {
+        document.getElementById('feedback-hint').style.display = 'none';
+        document.getElementById('feedback-example').style.display = 'none';
+      }
+
+      document.getElementById('expression-card').style.display = 'none';
+      document.getElementById('writing-area').style.display = 'none';
+      document.getElementById('loading-indicator').style.display = 'none';
+      document.getElementById('feedback-area').style.display = 'block';
+
+      var btnReset = document.getElementById('btn-reset');
+      if (btnReset) btnReset.style.display = 'none';
+
+      var btnSubmit = document.getElementById('btn-submit-problem');
+      var btnText = document.getElementById('btn-submit-text');
+      var isLastRound = (gameState.currentRound >= gameState.totalRounds - 1);
+      btnText.textContent = isLastRound ? 'See Results' : 'Next Round';
+      btnSubmit.disabled = false;
+      btnSubmit.onclick = handleNextRound;
+    }
+
+    /* === updateQuestionText === */
+    function updateQuestionText(roundData) {
+      var qt = document.getElementById('question-text');
+      var qst = document.getElementById('question-sub-text');
+      if (qt) qt.textContent = 'Round ' + roundData.roundNumber + ' \u2014 Stage ' + roundData.stage + ': ' + stageNames[roundData.stage];
+      if (qst) qst.textContent = 'Write a word problem for the expression below';
+    }
+
+    /* === setupRound === */
+    function setupRound() {
+      var roundData = gameState.content.rounds[gameState.currentRound];
+      gameState.roundData = roundData;
+      gameState.currentStage = roundData.stage;
+      gameState.wordProblemText = '';
+      gameState.evaluationResult = null;
+      gameState.feedbackText = '';
+      gameState.isProcessing = false;
+      gameState.phase = 'writing';
+
+      updateQuestionText(roundData);
+
+      document.getElementById('expression-display').textContent = roundData.expressionDisplay;
+      document.getElementById('expression-hint-text').textContent = stageHints[roundData.stage] || '';
+
+      var input = document.getElementById('word-problem-input');
+      input.value = '';
+      input.disabled = false;
+      document.getElementById('char-count').textContent = '0';
+
+      document.getElementById('expression-card').style.display = 'block';
+      document.getElementById('writing-area').style.display = 'block';
+      document.getElementById('feedback-area').style.display = 'none';
+      document.getElementById('feedback-hint').style.display = 'none';
+      document.getElementById('feedback-example').style.display = 'none';
+      document.getElementById('writing-error').style.display = 'none';
+      document.getElementById('loading-indicator').style.display = 'none';
+
+      var btnReset = document.getElementById('btn-reset');
+      if (btnReset) btnReset.style.display = 'flex';
+
+      var btnSubmit = document.getElementById('btn-submit-problem');
+      var btnText = document.getElementById('btn-submit-text');
+      btnSubmit.disabled = false;
+      btnSubmit.onclick = handleProblemSubmit;
+      btnText.textContent = 'Submit Word Problem';
+
+      if (progressBar) progressBar.update(gameState.currentRound + 1, 0);
+
+      setTimeout(function() { input.focus(); }, 300);
+
+      trackEvent('round_start', 'game', { round: gameState.currentRound + 1, stage: roundData.stage, expression: roundData.expression });
+
+      if (signalCollector) {
+        signalCollector.recordViewEvent('content_render', {
+          screen: 'gameplay',
+          content_snapshot: {
+            expression: roundData.expressionDisplay,
+            round: gameState.currentRound + 1,
+            stage: roundData.stage,
+            operation: roundData.operation,
+            trigger: 'round_start'
+          },
+          components: {
+            progress: { current: gameState.currentRound, total: gameState.totalRounds }
+          }
+        });
+      }
+    }
+
+    /* === handleProblemSubmit === */
+    async function handleProblemSubmit() {
+      if (!gameState.isActive || gameState.isProcessing) return;
+      gameState.isProcessing = true;
+
+      var wordProblem = document.getElementById('word-problem-input').value.trim();
+
+      if (wordProblem.length < 10) {
+        document.getElementById('writing-error').textContent = 'Please write at least a sentence describing a real-world situation.';
+        document.getElementById('writing-error').style.display = 'block';
+        gameState.isProcessing = false;
+        return;
+      }
+
+      document.getElementById('writing-error').style.display = 'none';
+      gameState.wordProblemText = wordProblem;
+
+      trackEvent('word_problem_submit', 'game', { wordProblem: wordProblem, round: gameState.currentRound + 1, expression: gameState.roundData.expression });
+
+      var btnSubmit = document.getElementById('btn-submit-problem');
+      var btnText = document.getElementById('btn-submit-text');
+      btnSubmit.disabled = true;
+      btnText.textContent = 'Evaluating...';
+
+      var input = document.getElementById('word-problem-input');
+      input.disabled = true;
+
+      document.getElementById('loading-indicator').style.display = 'flex';
+
+      var roundData = gameState.roundData;
+
+      try {
+        var result = await validateWordProblemLLM(
+          wordProblem,
+          roundData.expression,
+          roundData.expressionDisplay,
+          roundData.result,
+          roundData.rubric
+        );
+
+        gameState.evaluationResult = result.tier;
+        gameState.feedbackText = result.feedback;
+
+        var roundPoints = 0;
+        if (gameState.evaluationResult === 'correct_match') roundPoints = 3;
+        else if (gameState.evaluationResult === 'partial_match') roundPoints = 1;
+        gameState.totalPoints += roundPoints;
+        if (gameState.evaluationResult === 'correct_match') gameState.correctCount++;
+        if (gameState.evaluationResult === 'partial_match') gameState.partialCount++;
+
+        trackEvent('evaluation_complete', 'game', {
+          wordProblem: wordProblem,
+          tier: gameState.evaluationResult,
+          feedback: result.feedback,
+          roundPoints: roundPoints,
+          round: gameState.currentRound + 1
+        });
+
+        showFeedbackUI(roundData, result, roundPoints, wordProblem);
+
+        var isCorrect = gameState.evaluationResult === 'correct_match';
+        if (isCorrect) {
+          FeedbackManager.sound.play('correct_sound_effect', {
+            sticker: { image: CORRECT_STICKER_URL, duration: 2, type: 'IMAGE_GIF' }
+          }).catch(function(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); });
+        } else {
+          FeedbackManager.sound.play('incorrect_sound_effect', {
+            sticker: { image: INCORRECT_STICKER_URL, duration: 2, type: 'IMAGE_GIF' }
+          }).catch(function(e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); });
+        }
+
+        var feedbackText = result.feedback || roundData.hints.revealExplanation;
+        btnText.textContent = 'Playing Feedback...';
+        gameState.currentDynamicAudio = FeedbackManager.playDynamicFeedback({
+          audio_content: feedbackText,
+          subtitle: feedbackText,
+          sticker: isCorrect ? CORRECT_STICKER_URL : INCORRECT_STICKER_URL
+        });
+        await gameState.currentDynamicAudio;
+        gameState.currentDynamicAudio = null;
+
+        var isLastRound = (gameState.currentRound >= gameState.totalRounds - 1);
+        btnText.textContent = isLastRound ? 'See Results' : 'Next Round';
+        btnSubmit.disabled = false;
+        btnSubmit.onclick = handleNextRound;
+
+        if (signalCollector) {
+          signalCollector.recordViewEvent('feedback_display', {
+            screen: 'gameplay',
+            content_snapshot: {
+              feedback_type: gameState.evaluationResult,
+              round_points: roundPoints,
+              round: gameState.currentRound + 1,
+              trigger: 'user_action'
+            }
+          });
+        }
+
+        recordAttempt({
+          input_of_user: { wordProblem: gameState.wordProblemText },
+          correct: gameState.evaluationResult === 'correct_match',
+          metadata: {
+            round: gameState.currentRound + 1,
+            expression: gameState.roundData.expressionDisplay,
+            result: gameState.roundData.result,
+            evaluationTier: gameState.evaluationResult,
+            roundPoints: roundPoints,
+            validationType: 'subjective',
+            llmFeedback: result.feedback
+          }
+        });
+
+        if (signalCollector) {
+          signalCollector.recordCustomEvent('round_solved', {
+            correct: gameState.evaluationResult === 'correct_match',
+            round: gameState.currentRound + 1,
+            evaluationTier: gameState.evaluationResult,
+            roundPoints: roundPoints
+          });
+        }
+
+      } catch (error) {
+        console.error('Word problem evaluation failed:', JSON.stringify({ error: error.message }, null, 2));
+        if (typeof Sentry !== 'undefined') {
+          Sentry.captureException(error, { tags: { phase: 'word-problem-evaluation', severity: 'high' } });
+        }
+
+        document.getElementById('loading-indicator').style.display = 'none';
+        showFeedbackUI(roundData, { tier: 'no_match', feedback: 'We couldn\'t evaluate your word problem this time. Your answer was saved!' }, 0, wordProblem);
+
+        recordAttempt({
+          input_of_user: { wordProblem: wordProblem },
+          correct: false,
+          metadata: {
+            round: gameState.currentRound + 1,
+            expression: roundData.expressionDisplay,
+            result: roundData.result,
+            evaluationTier: 'no_match',
+            roundPoints: 0,
+            validationType: 'subjective',
+            error: error.message
+          }
+        });
+
+        var isLastRound2 = (gameState.currentRound >= gameState.totalRounds - 1);
+        btnText.textContent = isLastRound2 ? 'See Results' : 'Next Round';
+        btnSubmit.disabled = false;
+        btnSubmit.onclick = handleNextRound;
+      }
+
+      gameState.isProcessing = false;
+    }
+
+    /* === handleNextRound === */
+    function handleNextRound() {
+      try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+
+      var btnSubmit = document.getElementById('btn-submit-problem');
+      btnSubmit.onclick = handleProblemSubmit;
+
+      trackEvent('round_complete', 'game', { round: gameState.currentRound + 1 });
+      gameState.currentRound++;
+      if (progressBar) progressBar.update(gameState.currentRound, 0);
+
+      if (gameState.currentRound >= gameState.totalRounds) {
+        endGame();
+      } else {
+        showRoundTransition();
+      }
+    }
+
+    /* === handleReset === */
+    function handleReset() {
+      if (gameState.isProcessing) return;
+      if (gameState.evaluationResult !== null) return;
+
+      try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+
+      var input = document.getElementById('word-problem-input');
+      input.value = '';
+      input.disabled = false;
+      document.getElementById('char-count').textContent = '0';
+      document.getElementById('writing-error').style.display = 'none';
+      document.getElementById('loading-indicator').style.display = 'none';
+      document.getElementById('feedback-area').style.display = 'none';
+
+      document.getElementById('expression-card').style.display = 'block';
+      document.getElementById('writing-area').style.display = 'block';
+
+      var btnSubmit = document.getElementById('btn-submit-problem');
+      var btnText = document.getElementById('btn-submit-text');
+      btnSubmit.disabled = false;
+      btnSubmit.onclick = handleProblemSubmit;
+      btnText.textContent = 'Submit Word Problem';
+
+      gameState.wordProblemText = '';
+      trackEvent('answer_reset', 'game', { round: gameState.currentRound + 1 });
+    }
+
+    /* === showRoundTransition === */
+    function showRoundTransition() {
+      try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+
+      var roundIndex = gameState.currentRound;
+      var roundData = gameState.content.rounds[roundIndex];
+      var roundNum = roundData.roundNumber;
+
+      if (roundIndex > 0) {
+        var prevRound = gameState.content.rounds[roundIndex - 1];
+        if (prevRound && prevRound.stage !== roundData.stage) {
+          showStageTransition(roundData);
+          return;
+        }
+      }
+
+      transitionScreen.show({
+        icons: ['\u270F\uFE0F'],
+        iconSize: 'normal',
+        title: 'Round ' + roundNum,
+        subtitle: 'Write a word problem for: ' + roundData.expressionDisplay,
+        persist: true,
+        buttons: [{ text: "Let's Go!", type: 'primary', action: function() {
+          try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+          transitionScreen.hide();
+          setupRound();
+        }}]
+      });
+
+      var stickerIndex = roundIndex % ROUND_STICKERS.length;
+      try {
+        gameState.currentDynamicAudio = FeedbackManager.playDynamicFeedback({
+          audio_content: 'Round ' + roundNum + '! Write a word problem for ' + roundData.expressionDisplay + '.',
+          subtitle: 'Round ' + roundNum + ': ' + roundData.expressionDisplay,
+          sticker: ROUND_STICKERS[stickerIndex]
+        });
+      } catch(e) { console.error('Round VO error:', JSON.stringify({ error: e.message }, null, 2)); }
+    }
+
+    /* === showStageTransition === */
+    function showStageTransition(roundData) {
+      try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+
+      transitionScreen.show({
+        icons: ['\u270F\uFE0F'],
+        iconSize: 'large',
+        title: 'Stage ' + roundData.stage + ': ' + stageNames[roundData.stage],
+        subtitle: stageDescs[roundData.stage],
+        persist: true,
+        buttons: [{ text: "I'm Ready!", type: 'primary', action: function() {
+          try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+          transitionScreen.hide();
+          setupRound();
+        }}]
+      });
+
+      var stickerIndex = (roundData.stage - 1) % ROUND_STICKERS.length;
+      try {
+        gameState.currentDynamicAudio = FeedbackManager.playDynamicFeedback({
+          audio_content: 'Stage ' + roundData.stage + ': ' + stageNames[roundData.stage] + '! ' + stageDescs[roundData.stage],
+          subtitle: stageNames[roundData.stage],
+          sticker: ROUND_STICKERS[stickerIndex]
+        });
+      } catch(e) { console.error('Stage VO error:', JSON.stringify({ error: e.message }, null, 2)); }
+    }
+
+    /* === showResults === */
+    function showResults(metrics, stars) {
+      var starDisplay = '';
+      for (var i = 0; i < 3; i++) {
+        starDisplay += (i < stars) ? '\u2B50' : '\u2606';
+      }
+
+      var metricsHTML = ''
+        + '<div class="results-stars">' + starDisplay + '</div>'
+        + '<div class="results-metric-row">'
+        + '  <span class="results-metric-label">Total Points</span>'
+        + '  <span class="results-metric-value highlight">' + gameState.totalPoints + ' / 30</span>'
+        + '</div>'
+        + '<div class="results-metric-row">'
+        + '  <span class="results-metric-label">Perfect Matches</span>'
+        + '  <span class="results-metric-value">' + gameState.correctCount + ' / ' + gameState.totalRounds + '</span>'
+        + '</div>'
+        + '<div class="results-metric-row">'
+        + '  <span class="results-metric-label">Partial Matches</span>'
+        + '  <span class="results-metric-value">' + gameState.partialCount + '</span>'
+        + '</div>'
+        + '<div class="results-metric-row">'
+        + '  <span class="results-metric-label">Time</span>'
+        + '  <span class="results-metric-value">' + formatTime(metrics.time) + '</span>'
+        + '</div>';
+
+      var titleText = 'Keep Practicing!';
+      if (stars >= 3) titleText = 'Excellent!';
+      else if (stars >= 2) titleText = 'Good Try!';
+
+      var buttonText = stars >= 3 ? 'Play Again' : 'Retry for more stars';
+
+      transitionScreen.show({
+        title: titleText,
+        content: metricsHTML,
+        persist: true,
+        buttons: [{ text: buttonText, type: stars >= 3 ? 'primary' : 'secondary', action: function() {
+          try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+          restartGame();
+        }}]
+      });
+    }
+
+    /* === endGame === */
+    async function endGame() {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = 'results';
+      gameState.duration_data.currentTime = new Date().toISOString();
+
+      var timeTaken = Math.round((Date.now() - gameState.startTime) / 1000);
+      var accuracy = gameState.totalRounds > 0 ? Math.round((gameState.correctCount / gameState.totalRounds) * 100) : 0;
+      var stars = 1;
+      if (gameState.totalPoints >= 24) stars = 3;
+      else if (gameState.totalPoints >= 15) stars = 2;
+
+      var metrics = {
+        accuracy: accuracy,
+        time: timeTaken,
+        stars: stars,
+        attempts: gameState.attempts,
+        duration_data: gameState.duration_data,
+        totalLives: 1,
+        tries: computeTriesPerRound(gameState.attempts),
+        totalPoints: gameState.totalPoints,
+        correctCount: gameState.correctCount,
+        partialCount: gameState.partialCount,
+        totalRounds: gameState.totalRounds
+      };
+
+      if (gameState.sessionHistory && gameState.sessionHistory.length > 0) {
+        metrics.sessionHistory = gameState.sessionHistory.concat([{
+          totalLives: 1,
+          tries: computeTriesPerRound(gameState.attempts)
+        }]);
+      }
+
+      trackEvent('game_end', 'game', { metrics: { stars: stars, accuracy: accuracy, totalPoints: gameState.totalPoints } });
+
+      if (typeof Sentry !== 'undefined') {
+        Sentry.addBreadcrumb({ category: 'game', message: 'endGame', data: { stars: stars, accuracy: accuracy, totalPoints: gameState.totalPoints }, level: 'info' });
+      }
+
+      var sealResult = null;
+      if (signalCollector) {
+        signalCollector.recordViewEvent('screen_transition', {
+          screen: 'results',
+          metadata: { transition_from: 'gameplay' }
+        });
+        sealResult = signalCollector.seal();
+      }
+
+      showResults(metrics, stars);
+
+      window.parent.postMessage({
+        type: 'game_complete',
+        data: {
+          metrics: metrics,
+          attempts: gameState.attempts,
+          completedAt: Date.now(),
+          signal_event_count: (sealResult && sealResult.event_count) ? sealResult.event_count : 0,
+          signal_metadata: (sealResult && sealResult.metadata) ? sealResult.metadata : {}
+        }
+      }, '*');
+
+      if (stars === 3) {
+        try { await FeedbackManager.sound.play('victory_sound_effect', { sticker: { image: VICTORY_STICKER_URL, duration: 3, type: 'IMAGE_GIF' } }); } catch(e) {}
+        try { await FeedbackManager.sound.play('victory'); } catch(e) {}
+      } else if (stars === 2) {
+        try { await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: GAME_COMPLETE_STICKER_URL, duration: 3, type: 'IMAGE_GIF' } }); } catch(e) {}
+        try { await FeedbackManager.sound.play('game_complete_2_star'); } catch(e) {}
+      } else {
+        try { await FeedbackManager.sound.play('game_complete_sound_effect', { sticker: { image: GAME_COMPLETE_STICKER_URL, duration: 3, type: 'IMAGE_GIF' } }); } catch(e) {}
+        try { await FeedbackManager.sound.play('game_complete_1_star'); } catch(e) {}
+      }
+
+      if (gameState.gameEnded) {
+        if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
+        try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+        if (progressBar) { progressBar.destroy(); progressBar = null; }
+        if (previewScreen) { previewScreen.destroy(); previewScreen = null; }
+      }
+    }
+
+    /* === restartGame === */
+    function restartGame() {
+      if (!gameState.sessionHistory) gameState.sessionHistory = [];
+      gameState.sessionHistory.push({
+        totalLives: 1,
+        totalPoints: gameState.totalPoints,
+        tries: computeTriesPerRound(gameState.attempts)
+      });
+
+      var preserved = {
+        content: gameState.content,
+        contentSetId: gameState.contentSetId,
+        signalConfig: gameState.signalConfig,
+        sessionHistory: gameState.sessionHistory,
+        voGameStartPlayed: gameState.voGameStartPlayed
+      };
+
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.currentStage = 1;
+      gameState.totalPoints = 0;
+      gameState.wordProblemText = '';
+      gameState.evaluationResult = null;
+      gameState.feedbackText = '';
+      gameState.roundData = null;
+      gameState.correctCount = 0;
+      gameState.partialCount = 0;
+      gameState.currentDynamicAudio = null;
+      gameState.startTime = null;
+      gameState.phase = 'start';
+      gameState.duration_data = {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0,
+        currentTime: null
+      };
+
+      gameState.content = preserved.content;
+      gameState.contentSetId = preserved.contentSetId;
+      gameState.signalConfig = preserved.signalConfig;
+      gameState.sessionHistory = preserved.sessionHistory;
+      gameState.voGameStartPlayed = preserved.voGameStartPlayed;
+
+      signalCollector = new SignalCollector({
+        sessionId: (window.gameVariableState && window.gameVariableState.sessionId) ? window.gameVariableState.sessionId : 'session_' + Date.now(),
+        studentId: (window.gameVariableState && window.gameVariableState.studentId) ? window.gameVariableState.studentId : null,
+        gameId: gameState.gameId,
+        contentSetId: gameState.contentSetId
+      });
+      window.signalCollector = signalCollector;
+      if (gameState.signalConfig && gameState.signalConfig.flushUrl) {
+        signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+        signalCollector.playId = gameState.signalConfig.playId || null;
+        signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+        signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+        signalCollector.startFlushing();
+      }
+
+      visibilityTracker = new VisibilityTracker(visibilityTrackerConfig);
+
+      createProgressBar();
+      if (progressBar) progressBar.update(0, 0);
+
+      var qt = document.getElementById('question-text');
+      var qst = document.getElementById('question-sub-text');
+      if (qt) qt.textContent = 'Word Problem Workshop';
+      if (qst) qst.textContent = 'Turn math expressions into real-world stories!';
+
+      var input = document.getElementById('word-problem-input');
+      if (input) { input.disabled = false; input.value = ''; }
+
+      var btnSubmit = document.getElementById('btn-submit-problem');
+      if (btnSubmit) { btnSubmit.onclick = handleProblemSubmit; btnSubmit.disabled = false; }
+
+      if (!previewScreen) {
+        previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+      }
+
+      setupGame();
+    }
+
+    /* === showPreviewScreen (PART-039 v2) === */
+    function showPreviewScreen() {
+      var content = gameState.content || fallbackContent;
+      previewScreen.show({
+        instruction: content.previewInstruction || fallbackContent.previewInstruction,
+        audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+        showGameOnPreview: false,
+        onComplete: function(previewData) {
+          startGameAfterPreview(previewData);
+        }
+      });
+    }
+
+    /* === startGameAfterPreview (PART-039 v2) === */
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData;
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: (previewData && previewData.duration) || 0 });
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.gameEnded = false;
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.phase = 'writing';
+
+      trackEvent('game_start', 'game');
+
+      if (signalCollector) {
+        signalCollector.recordViewEvent('screen_transition', {
+          screen: 'gameplay',
+          metadata: { transition_from: 'preview' }
+        });
+      }
+
+      if (!gameState.voGameStartPlayed) {
+        gameState.voGameStartPlayed = true;
+        try {
+          FeedbackManager.playDynamicFeedback({
+            audio_content: 'Welcome to the Word Problem Workshop! Write creative stories that match math expressions. Let\'s get started!',
+            subtitle: 'Welcome to the Word Problem Workshop!',
+            sticker: ROUND_STICKERS[0]
+          });
+        } catch(e) { console.error('Welcome VO error:', JSON.stringify({ error: e.message }, null, 2)); }
+      }
+
+      showRoundTransition();
+    }
+
+    /* === setupGame === */
+    function setupGame() {
+      gameState.content = gameState.content || fallbackContent;
+      gameState.currentRound = 0;
+      gameState.totalPoints = 0;
+      gameState.correctCount = 0;
+      gameState.partialCount = 0;
+      gameState.attempts = [];
+      gameState.gameEnded = false;
+      gameState.currentStage = 1;
+      gameState.isProcessing = false;
+      gameState.wordProblemText = '';
+      gameState.evaluationResult = null;
+      gameState.feedbackText = '';
+
+      var input = document.getElementById('word-problem-input');
+      if (input) { input.value = ''; input.disabled = false; }
+      var charCount = document.getElementById('char-count');
+      if (charCount) charCount.textContent = '0';
+
+      var feedbackArea = document.getElementById('feedback-area');
+      if (feedbackArea) feedbackArea.style.display = 'none';
+
+      var btnSubmit = document.getElementById('btn-submit-problem');
+      var btnText = document.getElementById('btn-submit-text');
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.onclick = handleProblemSubmit; }
+      if (btnText) btnText.textContent = 'Submit Word Problem';
+
+      if (progressBar) progressBar.update(0, 0);
+
+      showPreviewScreen();
+    }
+
+    /* === handlePostMessage === */
+    function handlePostMessage(event) {
+      if (!event || !event.data) return;
+
+      if (event.data.type === 'game_init') {
+        gameState.content = (event.data.data && event.data.data.content) ? event.data.data.content : fallbackContent;
+        gameState.contentSetId = (event.data.data && event.data.data.contentSetId) ? event.data.data.contentSetId : null;
+        gameState.signalConfig = (event.data.data && event.data.data.signalConfig) ? event.data.data.signalConfig : null;
+
+        if (signalCollector && gameState.signalConfig) {
+          if (gameState.signalConfig.flushUrl) signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+          if (gameState.signalConfig.playId) signalCollector.playId = gameState.signalConfig.playId;
+          if (gameState.signalConfig.gameId) signalCollector.gameId = gameState.signalConfig.gameId;
+          if (gameState.signalConfig.sessionId) signalCollector.sessionId = gameState.signalConfig.sessionId;
+          if (gameState.signalConfig.contentSetId) signalCollector.contentSetId = gameState.signalConfig.contentSetId;
+          if (gameState.signalConfig.studentId) signalCollector.studentId = gameState.signalConfig.studentId;
+          signalCollector.startFlushing();
+        }
+
+        if (signalCollector) {
+          signalCollector.recordViewEvent('screen_transition', {
+            screen: 'preview',
+            metadata: { transition_from: 'loading', content_loaded: true }
+          });
+        }
+      }
+    }
+
+    /* === Debug Functions (PART-012) === */
+    window.debugGame = function() {
+      return {
+        gameState: gameState,
+        progressBar: progressBar,
+        transitionScreen: transitionScreen,
+        previewScreen: previewScreen,
+        signalCollector: signalCollector,
+        visibilityTracker: visibilityTracker
+      };
+    };
+
+    window.debugSkipToRound = function(roundNum) {
+      if (roundNum < 1 || roundNum > gameState.totalRounds) return 'Invalid round number';
+      gameState.currentRound = roundNum - 1;
+      if (progressBar) progressBar.update(gameState.currentRound, 0);
+      setupRound();
+      return 'Skipped to round ' + roundNum;
+    };
+
+    window.debugEndGame = function() {
+      gameState.currentRound = gameState.totalRounds;
+      endGame();
+      return 'Ending game...';
+    };
+
+    /* === DOMContentLoaded === */
+    document.addEventListener('DOMContentLoaded', async function() {
+      try {
+        await waitForPackages(10000);
+
+        FeedbackManager.init();
+
+        FeedbackManager.sound.preload([
+          { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+          { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+          { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+          { id: 'victory', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/e252bcc4-bd5f-4195-ad04-a02582095b6d.mp3' },
+          { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+          { id: 'game_complete_1_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/2ee85ea3-919b-4010-95a2-40bcd7d90d22.mp3' },
+          { id: 'game_complete_2_star', url: 'https://cdn.mathai.ai/mathai-assets/dev/worksheet/audio/84f4ff34-6e59-43d6-9663-4d9936cad002.mp3' }
+        ]);
+
+        signalCollector = new SignalCollector({
+          sessionId: (window.gameVariableState && window.gameVariableState.sessionId) ? window.gameVariableState.sessionId : 'session_' + Date.now(),
+          studentId: (window.gameVariableState && window.gameVariableState.studentId) ? window.gameVariableState.studentId : null,
+          gameId: gameState.gameId,
+          contentSetId: gameState.contentSetId
+        });
+        window.signalCollector = signalCollector;
+
+        try { if (typeof EventCapture !== 'undefined') EventCapture.init(); } catch (e) {}
+
+        ScreenLayout.inject('app', {
+          slots: { previewScreen: true, transitionScreen: true }
+        });
+
+        var gameContentEl = document.getElementById('gameContent');
+        if (gameContentEl) {
+          gameContentEl.innerHTML = gameContentHTML;
+        }
+
+        // Attach input listener for char count
+        var wordInput = document.getElementById('word-problem-input');
+        if (wordInput) {
+          wordInput.addEventListener('input', function() {
+            var charCountEl = document.getElementById('char-count');
+            if (charCountEl) charCountEl.textContent = wordInput.value.length;
+          });
+        }
+
+        // Attach button click handlers
+        var btnReset = document.getElementById('btn-reset');
+        if (btnReset) btnReset.onclick = handleReset;
+        var btnSubmit = document.getElementById('btn-submit-problem');
+        if (btnSubmit) btnSubmit.onclick = handleProblemSubmit;
+
+        // InteractionManager
+        try {
+          if (typeof InteractionManager !== 'undefined') {
+            new InteractionManager({ selector: '.writing-area', disableOnAudioFeedback: false, disableOnEvaluation: true });
+          }
+        } catch(e) {}
+
+        // ProgressBar
+        createProgressBar();
+
+        // TransitionScreen
+        transitionScreen = new TransitionScreenComponent({ autoInject: true });
+
+        // PreviewScreen (PART-039 v2)
+        previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+
+        // VisibilityTracker
+        visibilityTrackerConfig = {
+          onInactive: function(data) {
+            gameState.duration_data.inActiveTime.push({ start: new Date().toISOString() });
+            if (previewScreen && typeof previewScreen.pause === 'function') {
+              try { previewScreen.pause(); } catch(e) {}
+            }
+          },
+          onResume: function(data) {
+            var inactiveEntries = gameState.duration_data.inActiveTime;
+            if (inactiveEntries.length > 0) {
+              var lastEntry = inactiveEntries[inactiveEntries.length - 1];
+              lastEntry.end = new Date().toISOString();
+              if (lastEntry.start) {
+                var inactiveDuration = new Date(lastEntry.end).getTime() - new Date(lastEntry.start).getTime();
+                gameState.duration_data.totalInactiveTime += inactiveDuration;
+              }
+            }
+            if (previewScreen && typeof previewScreen.resume === 'function') {
+              try { previewScreen.resume(); } catch(e) {}
+            }
+          },
+          popupProps: {}
+        };
+        visibilityTracker = new VisibilityTracker(visibilityTrackerConfig);
+
+        // Register postMessage listener BEFORE game_ready
+        window.addEventListener('message', handlePostMessage);
+
+        // Fire game_ready
+        trackEvent('game_ready', 'game');
+        window.parent.postMessage({ type: 'game_ready', data: { gameId: gameState.gameId } }, '*');
+
+        // Poll canPlayAudio
+        var audioPollInterval = setInterval(function() {
+          if (canPlayAudio()) {
+            clearInterval(audioPollInterval);
+          }
+        }, 200);
+        setTimeout(function() {
+          clearInterval(audioPollInterval);
+        }, 15000);
+
+        // setupGame as last step
+        setupGame();
+
+      } catch (error) {
+        console.error('Game initialization error:', JSON.stringify({ error: error.message }, null, 2));
+        if (typeof Sentry !== 'undefined') {
+          Sentry.captureException(error, { tags: { phase: 'initialization', severity: 'critical' } });
+        }
+      }
+    });
+  </script>
+</body>
+</html>

@@ -113,6 +113,17 @@
       this.isTracking = true;
 
       console.log("VisibilityTracker: Started tracking");
+
+      // Self-bootstrap: if the tab is ALREADY hidden when start() is called
+      // (e.g. user switched tabs during page load before this listener was
+      // registered), synthesize the inactive transition so a subsequent
+      // visibilitychange → visible event will correctly trigger the resume
+      // popup. Without this, the very first hide-while-loading is missed
+      // and the user has to switch tabs a second time to get the popup.
+      if (document.hidden) {
+        console.log("VisibilityTracker: tab already hidden at start() — bootstrapping inactive state");
+        this._handleInactive();
+      }
     }
 
     /**

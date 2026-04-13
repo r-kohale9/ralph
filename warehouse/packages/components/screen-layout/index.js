@@ -3,8 +3,15 @@
  * Injects MathAI game wrapper structure with named slots
  *
  * v2: 4-section layout (header, questionText, progressBar, playArea)
- *     + optional previewScreen slot (sibling of game layout, mutually exclusive)
- * Backwards compatible with v1 slot config (progressBar, previewScreen, transitionScreen)
+ *     + optional previewScreen slot
+ *
+ * When config.slots is used with previewScreen: true, the preview screen
+ * becomes the persistent wrapper for the entire game session. The game-stack
+ * is rendered INSIDE the preview slot. PreviewScreenComponent then manages
+ * state transitions (preview → game) without any DOM reparenting.
+ *
+ * When config.sections is used, the 4-section layout is created with
+ * the preview slot as a sibling (mutually exclusive with game, old model).
  *
  * @version 2.1.0
  * @license MIT
@@ -126,7 +133,7 @@
     /**
      * Inject game layout into container.
      *
-     * --- v2 config (preferred) ---
+     * --- config.sections (v2 4-section layout) ---
      * @param {string} containerId - DOM element ID to inject into
      * @param {object} config
      * @param {object} config.sections - Which sections to create
@@ -135,19 +142,17 @@
      * @param {boolean|string} config.sections.progressBar    - Progress bar slot
      * @param {boolean|string} config.sections.playArea       - Play area / game content (always created)
      * @param {boolean|string} config.sections.transitionScreen - Transition screen slot (inside play area)
-     * @param {boolean|string} config.sections.previewScreen  - Preview screen slot (sibling outside game layout, mutually exclusive with game)
+     * @param {boolean|string} config.sections.previewScreen  - Preview screen slot (sibling outside game layout)
      * @param {object} config.styles - Custom CSS per section (merged onto the element)
-     * @param {object} config.styles.header
-     * @param {object} config.styles.questionText
-     * @param {object} config.styles.progressBar
-     * @param {object} config.styles.playArea
-     * @param {object} config.styles.body - the scrollable wrapper
      *
-     * --- v1 config (backwards compat, deprecated) ---
+     * --- config.slots (preview-wrapper mode) ---
+     * When config.slots.previewScreen is true, creates the persistent preview
+     * wrapper with game-stack INSIDE it. No .game-wrapper, no separate
+     * progress/header/question slots.
      * @param {object} config.slots
-     * @param {boolean|string} config.slots.progressBar
-     * @param {boolean|string} config.slots.previewScreen  - Preview screen slot
-     * @param {boolean|string} config.slots.transitionScreen
+     * @param {boolean|string} config.slots.previewScreen  - Create preview screen wrapper
+     * @param {boolean|string} config.slots.transitionScreen - Create transition screen slot
+     * @param {boolean|string} config.slots.progressBar - (ignored when previewScreen:true)
      *
      * @returns {object} Created slot IDs
      */
@@ -162,22 +167,23 @@
       // Inject layout CSS
       injectLayoutStyles();
 
-      // ----- Detect v1 vs v2 mode -----
-      var isV1 = !config.sections && !!config.slots;
-
-      if (isV1) {
-        return ScreenLayoutComponent._injectV1(container, config);
+      // ----- Detect mode: slots (preview-wrapper) vs sections (4-section layout) -----
+      if (config.slots) {
+        return ScreenLayoutComponent._injectSlots(container, config);
       }
 
       return ScreenLayoutComponent._injectV2(container, config);
     }
 
     /**
-     * v1 backwards-compatible inject (deprecated, old slot model).
-     * Produces the SAME DOM structure as v1 so existing games keep working.
-     * Supports: progressBar, previewScreen, transitionScreen slots.
+     * Slots-mode inject: persistent preview wrapper.
+     *
+     * When previewScreen: true, the preview slot IS the wrapper. game-stack
+     * lives INSIDE it. No .game-wrapper, no separate progress/header slots.
+     *
+     * When previewScreen: false, creates the legacy .game-wrapper structure.
      */
-    static _injectV1(container, config) {
+    static _injectSlots(container, config) {
       var slots = config.slots || {};
 
       var slotIds = {
@@ -189,29 +195,79 @@
 
       var html = '<div class="page-center">';
 
-      // Preview screen slot OUTSIDE game-wrapper (sibling) — mutually exclusive with game
       if (slotIds.previewSlot) {
-        html += '<div id="' + slotIds.previewSlot + '" style="display:none;"></div>';
+        // ── Preview wrapper mode ──────────────────────────────────────────
+        // Preview slot is the persistent wrapper. game-stack lives INSIDE it.
+        // No .game-wrapper, no separate progress slot.
+        //
+        // Inline critical CSS — applied from first paint, BEFORE
+        // PreviewScreenComponent's injectStyles() runs. Prevents a flash of
+        // game UI between DOM creation and component initialization.
+        html += '<style id="mathai-preview-critical-css">'
+          +     '#' + slotIds.previewSlot + ' .mathai-preview-game-container.game-hidden{visibility:hidden!important;}'
+          +     '#' + slotIds.previewSlot + ' .mathai-preview-header{position:fixed;top:0;left:0;right:0;height:56px;background:#fff;z-index:20;}'
+          +     '#' + slotIds.previewSlot + '{min-height:100dvh;background:#fff;}'
+          +     '#' + slotIds.previewSlot + ' .game-stack{overflow:visible!important;height:auto!important;}'
+          // Kill all scroll-blocking ancestors so the page scrolls as one unit
+          +     '.page-center{height:auto!important;min-height:100dvh!important;overflow:visible!important;display:block!important;}'
+          +     'html,body{overflow-x:hidden!important;overflow-y:auto!important;height:auto!important;min-height:100dvh!important;}'
+          +   '</style>';
+        html += '<div id="' + slotIds.previewSlot + '" class="mathai-preview-slot">';
+
+        // Header skeleton — PreviewScreenComponent populates content/avatar/etc.
+        html += '<div class="mathai-preview-header">'
+          +     '<div class="mathai-preview-header-progress" id="previewProgressBar"></div>'
+          +     '<div class="mathai-preview-header-content">'
+          +       '<div class="mathai-preview-header-left"></div>'
+          +       '<div class="mathai-preview-header-center">'
+          +         '<span class="mathai-preview-timer-text" id="previewTimerText"></span>'
+          +       '</div>'
+          +       '<div class="mathai-preview-header-right"></div>'
+          +     '</div>'
+          +   '</div>';
+
+        // Body — single scroll area: instruction + game-container
+        html += '<div class="mathai-preview-body">';
+        html +=   '<div class="mathai-preview-instruction" id="previewInstruction"></div>';
+        // Start with game-hidden so game DOM is invisible from first paint —
+        // PreviewScreenComponent.show() removes this class only when
+        // showGameOnPreview:true. Prevents a flash of game UI before show().
+        html +=   '<div class="mathai-preview-game-container game-hidden" id="previewGameContainer">';
+
+        // game-stack lives inside the preview wrapper
+        html +=     '<div class="game-stack">';
+        html +=       '<div id="gameContent" class="game-block"></div>';
+        if (slotIds.transitionSlot) {
+          html +=     '<div id="' + slotIds.transitionSlot + '" class="game-block" style="display:none;"></div>';
+        }
+        html +=     '</div>';
+
+        html +=   '</div>'; // game-container
+        html += '</div>'; // body
+
+        html += '</div>'; // preview-slot
+      } else {
+        // ── Legacy mode (no preview screen) ──────────────────────────────
+        html += '<section class="game-wrapper">';
+
+        if (slotIds.progressSlot) {
+          html += '<div id="' + slotIds.progressSlot + '"></div>';
+        }
+
+        html += '<div class="game-stack">';
+        html += '<div id="gameContent" class="game-block"></div>';
+        if (slotIds.transitionSlot) {
+          html += '<div id="' + slotIds.transitionSlot + '" class="game-block" style="display:none;"></div>';
+        }
+        html += '</div></section>';
       }
 
-      html += '<section class="game-wrapper">';
-
-      if (slotIds.progressSlot) {
-        html += '<div id="' + slotIds.progressSlot + '"></div>';
-      }
-
-      html += '<div class="game-stack">';
-      html += '<div id="gameContent" class="game-block"></div>';
-
-      if (slotIds.transitionSlot) {
-        html += '<div id="' + slotIds.transitionSlot + '" class="game-block" style="display:none;"></div>';
-      }
-
-      html += '</div></section></div>';
+      html += '</div>'; // page-center
 
       container.innerHTML = html;
 
-      console.log('[ScreenLayout] v1 layout injected with slots:', slotIds);
+      console.log('[ScreenLayout] Injected layout with slots:', slotIds);
+
       return slotIds;
     }
 
@@ -227,11 +283,6 @@
      *       .mathai-layout-progress (#mathai-progress-slot)
      *       .mathai-layout-playarea (#gameContent)
      *       [#mathai-transition-slot]                          ← sibling of playArea
-     *
-     * TransitionScreen compatibility: The transition slot is a sibling of
-     * #gameContent inside .mathai-layout-body. TransitionScreen toggles
-     * gameContent.style.display to swap between game content and transition
-     * cards. Question text + progress bar stay visible above both.
      */
     static _injectV2(container, config) {
       var sec = config.sections || {};
@@ -250,7 +301,7 @@
       // Clear container
       container.innerHTML = '';
 
-      // --- Preview screen slot (outside layout root, sibling — mutually exclusive with game) ---
+      // --- Preview screen slot (outside layout root, sibling) ---
       if (ids.previewSlot) {
         var previewEl = document.createElement('div');
         previewEl.id = ids.previewSlot;
@@ -258,14 +309,13 @@
         container.appendChild(previewEl);
       }
 
-      // Build DOM (using createElement for clean structure)
+      // Build DOM
       var root = document.createElement('div');
       root.className = 'mathai-layout-root';
 
       // --- Header ---
-      var headerEl = null;
       if (ids.header) {
-        headerEl = document.createElement('div');
+        var headerEl = document.createElement('div');
         headerEl.id = ids.header;
         headerEl.className = 'mathai-layout-header';
         if (styles.header) applyStyles(headerEl, styles.header);
@@ -278,9 +328,8 @@
       if (styles.body) applyStyles(bodyEl, styles.body);
 
       // --- Question text ---
-      var questionEl = null;
       if (ids.questionText) {
-        questionEl = document.createElement('div');
+        var questionEl = document.createElement('div');
         questionEl.id = ids.questionText;
         questionEl.className = 'mathai-layout-question';
         if (styles.questionText) applyStyles(questionEl, styles.questionText);
@@ -288,9 +337,8 @@
       }
 
       // --- Progress bar ---
-      var progressEl = null;
       if (ids.progressBar) {
-        progressEl = document.createElement('div');
+        var progressEl = document.createElement('div');
         progressEl.id = ids.progressBar;
         progressEl.className = 'mathai-layout-progress';
         if (styles.progressBar) applyStyles(progressEl, styles.progressBar);
@@ -304,9 +352,7 @@
       if (styles.playArea) applyStyles(playAreaEl, styles.playArea);
       bodyEl.appendChild(playAreaEl);
 
-      // --- Transition slot (sibling of play area, NOT nested inside it) ---
-      // TransitionScreen toggles gameContent.display to swap between them.
-      // Question text and progress bar stay visible above both.
+      // --- Transition slot (sibling of play area) ---
       if (ids.transitionSlot) {
         var transEl = document.createElement('div');
         transEl.id = ids.transitionSlot;
@@ -318,7 +364,7 @@
       root.appendChild(bodyEl);
       container.appendChild(root);
 
-      // Build return object (backwards-compat shape + new keys)
+      // Build return object
       var result = {
         // v2 keys
         header: ids.header,
@@ -327,7 +373,7 @@
         playArea: ids.playArea || DEFAULT_IDS.playArea,
         transitionSlot: ids.transitionSlot,
         previewSlot: ids.previewSlot,
-        // v1 compat aliases
+        // compat aliases
         progressSlot: ids.progressBar,
         gameContent: ids.playArea || DEFAULT_IDS.playArea
       };
@@ -337,13 +383,13 @@
     }
 
     /**
-     * Check if layout exists (works for both v1 and v2)
+     * Check if layout exists (works for both modes)
      * @returns {boolean}
      */
     static exists() {
       return !!(
         document.querySelector('.mathai-layout-root') ||
-        document.querySelector('.page-center .game-wrapper .game-stack')
+        document.querySelector('.page-center .game-stack')
       );
     }
 
@@ -356,7 +402,7 @@
     }
 
     /**
-     * Get a section element by name (v2 only)
+     * Get a section element by name (v2 sections mode only)
      * @param {string} section - 'header' | 'questionText' | 'progressBar' | 'playArea' | 'previewSlot'
      * @returns {HTMLElement|null}
      */
@@ -379,7 +425,7 @@
 
   // Export globally
   window.ScreenLayoutComponent = ScreenLayoutComponent;
-  window.ScreenLayout = ScreenLayoutComponent; // Alias for convenience
+  window.ScreenLayout = ScreenLayoutComponent;
 
   console.log('[MathAI] ScreenLayoutComponent v2 loaded');
 

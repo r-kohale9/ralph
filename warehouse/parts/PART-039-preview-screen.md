@@ -1,74 +1,118 @@
-# PART-039: Preview Screen
+# PART-039: Preview Screen (Persistent Wrapper)
 
-**Category:** MANDATORY | **Condition:** Every game (preview/instruction screen before interaction starts) | **Dependencies:** PART-002, PART-017, PART-025
+**Category:** MANDATORY | **Condition:** Every game | **Dependencies:** PART-002, PART-017, PART-025
 
 ---
 
 ## Overview
 
-The PreviewScreenComponent shows a preview/instruction screen before the game starts. It is loaded as a CDN package (not inline code) and injected into a ScreenLayout slot. Every game MUST include a preview screen.
+The PreviewScreenComponent is a **persistent wrapper** for the entire game session. It is NOT a transient screen that hides when the game starts — it stays visible from page load until `endGame()`.
 
-The component handles:
-- Header bar with back button, avatar video, question label, score, star
-- Timer progress bar (synced to audio duration, or 5s default)
-- Instruction text (HTML, left-aligned)
-- Optional preview content area (game-specific)
-- "Skip & show options" button
+It has two states:
+
+| State | Description |
+|-------|-------------|
+| **`preview`** | Initial state. Blue progress bar (audio/5s timer), instruction text, non-interactable game underneath, "Skip & show options" button. |
+| **`game`** | After skip or timer-complete. Game becomes interactable, skip button hidden, progress bar mirrors the game's TimerComponent (orange for decreasing timers) or hides. |
+
+The header bar (back button, avatar, question label, score, star) is **fixed at top** and visible in BOTH states.
+
+The instruction area and the game content share a **single scroll area** below the fixed header — there is NO nested scrolling.
+
+---
 
 ## ScreenLayout Configuration
 
 ```javascript
 ScreenLayout.inject('app', {
-  slots: { progressBar: true, previewScreen: true, transitionScreen: true }
+  slots: {
+    previewScreen: true,                  // MANDATORY
+    transitionScreen: true                // For multi-round games
+  }
 });
 ```
+
+When `previewScreen: true`, ScreenLayout creates the preview wrapper structure with `.game-stack` (containing `#gameContent` and `#mathai-transition-slot`) **inside** the wrapper. No DOM moves at runtime.
 
 ## Instantiation (in DOMContentLoaded)
 
 ```javascript
 const previewScreen = new PreviewScreenComponent({
-  autoInject: true,
-  slotId: 'mathai-preview-slot',
-  gameContentId: 'gameContent'
+  slotId: 'mathai-preview-slot'
 });
 ```
 
 ## show() Options
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `instruction` | string | HTML string with rich content (bold, images, video) |
-| `audioUrl` | string | URL of preview audio (optional — defaults to 5s timer) |
-| `previewContent` | string | Pre-rendered HTML for preview area (optional) |
-| `onComplete` | function | Callback(previewData) when preview ends |
-| `onPreviewInteraction` | function | Callback(interactionData) on user interaction |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `instruction` | string | `''` | HTML string with rich content (bold, images, video) |
+| `audioUrl` | string\|null | `null` | URL of preview audio. If null, runtime TTS fallback is used |
+| `showGameOnPreview` | boolean | `false` | If true, the game is rendered in its initial state (non-interactable) underneath the preview overlay. If false, the area below the instruction is blank white space |
+| `timerConfig` | object\|null | `null` | `{ type: 'decrease' \| 'increase', startTime, endTime }` — describes the game's TimerComponent |
+| `timerInstance` | TimerComponent\|null | `null` | Reference to the game's TimerComponent for header sync in game state |
+| `onComplete` | function | — | Called with `previewData` when preview transitions to game state |
+| `onPreviewInteraction` | function | — | Called when `setPreviewData()` is invoked |
 
 **Note:** `questionLabel`, `score`, and `showStar` are read automatically from the `game_init` postMessage payload — do NOT pass them in `show()` config.
 
+---
+
+## Two-State Behavior
+
+### Preview State
+
+- Header progress bar: blue `#D7FFFF`, animates from full to empty over the audio duration (or 5 seconds if no audio)
+- Instruction HTML rendered in scrollable body
+- Game stack is hidden by default; if `showGameOnPreview: true`, game stack is visible but covered by a transparent `pointer-events: auto` overlay (blocks all interaction)
+- Skip button is fixed at the bottom
+
+### Game State
+
+Triggered by:
+- Skip button click
+- Audio finishes / 5s timer elapses
+
+Effects:
+- Overlay removed (game becomes interactable)
+- Skip button removed
+- Game stack revealed (if it was hidden)
+- Header bar persists with new progress/timer behavior:
+
+| Game Timer Type | Header Display |
+|-----------------|----------------|
+| `'decrease'` | Cadmium yellow `rgba(255,246,0,0.2)` progress bar synced with TimerComponent + timer text centered on bar |
+| `'increase'` | No progress bar fill (hidden); timer text centered in header |
+| none (`timerConfig: null`) | No progress bar, no timer text |
+
+The PreviewScreen does NOT own the timer — it READS from the game's TimerComponent each frame via `requestAnimationFrame` and mirrors the value visually. The game still calls `timer.start()`, `timer.pause()`, etc.
+
+---
+
 ## Game Flow Integration
 
-In the `game_init` postMessage handler, show the preview screen instead of starting the game directly:
+**CRITICAL ordering rule:** The game DOM (everything inside `#gameContent`) MUST be rendered BEFORE `previewScreen.show()` is called. The preview overlay sits on top of `.game-stack`, so an empty `#gameContent` produces an empty preview area. Initialize round data, render the grid/cards/UI, and clear inputs FIRST, then call `previewScreen.show()` as the last step of `setupGame()`.
 
 ```javascript
 // In game_init handler:
 const content = gameState.content;
 
-// NEVER hardcode instruction — always read from content with fallback
+// 1. Render game UI into #gameContent FIRST (so preview overlay covers real content)
+injectGameHTML();
+renderInitialState(); // populate cells, clear inputs, reset state
+
+// 2. THEN show preview — overlay covers the rendered game
 previewScreen.show({
   instruction: content.previewInstruction || fallbackContent.previewInstruction,
   audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
-  previewContent: content.previewContent || null,
+  showGameOnPreview: content.showGameOnPreview === true,   // default false
+  timerConfig: timer ? { type: 'decrease', startTime: 60, endTime: 0 } : null,
+  timerInstance: timer || null,
   onComplete: function(previewData) {
     startGameAfterPreview(previewData);
   }
 });
 ```
-
-## Audio URL Sources (3 layers)
-
-1. **Build time (pipeline):** After HTML is approved, the pipeline calls the TTS API and patches `fallbackContent.previewAudio` with a CDN URL. Standalone mode uses this.
-2. **Content set (runtime):** `game_init` payload provides `content.previewAudio` from the content set, which overrides fallbackContent.
-3. **Runtime fallback (component):** If no audio URL is provided at all, the component auto-generates audio from the instruction text by calling the TTS API directly from the browser. If TTS fails, falls back to a 5s silent timer.
 
 ## startGameAfterPreview()
 
@@ -76,14 +120,11 @@ previewScreen.show({
 
 ```javascript
 function startGameAfterPreview(previewData) {
-  // Store preview result for game_complete payload
   gameState.previewResult = previewData;
 
-  // Track preview duration
   gameState.duration_data.preview = gameState.duration_data.preview || [];
   gameState.duration_data.preview.push({ duration: previewData.duration });
 
-  // NOW start the actual game
   gameState.startTime = Date.now();
   gameState.isActive = true;
   gameState.duration_data.startTime = new Date().toISOString();
@@ -95,103 +136,128 @@ function startGameAfterPreview(previewData) {
     signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
   }
 
-  renderRound(); // or setupRound() — start first question
+  renderRound(); // start first question
 }
 ```
+
+**Important:** Game code MUST NOT manage its own header bar. The preview header (with avatar, label, score, star, and timer text) is the ONLY header. Do not create a duplicate header inside `#gameContent`.
+
+---
+
+## Audio URL Sources (3 layers)
+
+1. **Build time (pipeline):** After HTML is approved, the pipeline calls the TTS API and patches `fallbackContent.previewAudio` with a CDN URL.
+2. **Content set (runtime):** `game_init` payload provides `content.previewAudio` from the content set, which overrides fallbackContent.
+3. **Runtime fallback (component):** If no audio URL is provided, the component auto-generates audio from the instruction text. If TTS fails, falls back to a 5s silent timer.
 
 ## Content Fields in fallbackContent
 
 ```javascript
 const fallbackContent = {
-  // Preview screen defaults (from spec)
   previewInstruction: '<p>Instruction text here...</p>',
   previewAudioText: 'Narration text for TTS generation',
   previewAudio: 'https://cdn.mathai.ai/.../<generated-audio-hash>.mp3',
-  previewContent: null, // Optional data for preview area
-
-  // Game rounds
+  showGameOnPreview: false,   // optional, default false
   rounds: [...]
 };
 ```
 
-- `previewAudioText` is read by the pipeline at build time and converted to audio via TTS API
-- The resulting CDN URL is baked into `previewAudio` in the generated HTML
-- At runtime, `game_init` payload can override these with content-set-specific values
-
-## Preview Content Data Flow
-
-The component receives a **pre-rendered HTML string** for the preview content area. The game code is responsible for merging content data with its HTML template:
-
-1. Content set stores preview content **data** (e.g. `{ question: "...", options: ["Yes", "No"] }`)
-2. Game HTML has the preview **template** (UI structure)
-3. Game code merges data + template into HTML string
-4. Passes merged HTML as `config.previewContent` to the component
-5. `fallbackContent` provides default preview content data for standalone mode
-
-### Capturing User Interaction
-
-For interactive previews (e.g. yes/no buttons), use `setPreviewData()`:
-
-```javascript
-// In preview content HTML:
-onclick="previewScreen.setPreviewData('userChoice', 'yes')"
-
-// Data flows: setPreviewData → onComplete(previewData) → gameState.previewResult → game_complete
-```
+---
 
 ## VisibilityTracker Integration
 
-Wire VisibilityTracker callbacks to pause/resume the preview when user leaves/returns:
-
 ```javascript
 const visibilityTracker = new VisibilityTracker({
-  onInactive: function() {
-    previewScreen.pause(); // Pauses audio + progress bar
-  },
-  onResume: function() {
-    previewScreen.resume(); // Resumes audio + progress bar
-  }
+  onInactive: function() { previewScreen.pause(); },
+  onResume:  function() { previewScreen.resume(); }
 });
 ```
 
-## DOMContentLoaded — No TransitionScreen Before Preview
+In **preview state**, pause/resume controls audio + the preview progress bar.
+In **game state**, pause/resume controls the header timer sync rAF (the game's TimerComponent is paused/resumed by the game code itself).
 
-**CRITICAL:** When PART-039 is used (mandatory for all games), DOMContentLoaded must call `setupGame()` directly at the end of initialization — do NOT show a start TransitionScreen ("I'm ready!", "Let's go!", etc.) before the preview. The preview screen IS the first screen the user sees.
+---
+
+## DOMContentLoaded — Direct call to setupGame()
+
+**CRITICAL:** DOMContentLoaded must call `setupGame()` directly. Do NOT show a TransitionScreen ("Let's go!", "I'm ready!") before the preview — the preview screen IS the first screen the user sees.
 
 ```javascript
-// WRONG — TransitionScreen flashes before preview
+// WRONG
 transitionScreen.show({ title: "Let's go!", buttons: [{ text: "Start", action: setupGame }] });
 
-// RIGHT — go directly to setupGame which shows the preview
+// RIGHT
 setupGame();
 ```
 
-The TransitionScreen component is still used for between-round transitions, victory, and game-over screens — just not as the initial start screen.
+The TransitionScreen component is still used for between-round transitions, victory, and game-over screens — these now appear inside the preview wrapper (the header remains visible during them).
+
+---
 
 ## Audio Permission
 
-The preview screen always waits for audio permission before starting the timer/audio, even when no audio is configured. This ensures the FeedbackManager permission popup is not covering the preview when the timer starts.
+The preview screen always waits for audio permission before starting the timer/audio, even when no audio is configured. This prevents the FeedbackManager permission popup from covering the preview when the timer starts.
+
+---
+
+## Restart Behavior
+
+The preview screen is shown **once per session**. When the player clicks "Play Again":
+
+- The game's `restartGame()` function resets game state and starts a new round
+- It MUST NOT call `previewScreen.show()` or `showPreviewScreen()` again
+- The PreviewScreenComponent stays in `'game'` state throughout
+- The component enforces this internally: if `show()` is called a second time, it auto-skips to game state and fires `onComplete` synchronously with `{ duration: 0, skippedRepeat: true }`
+
+Typical restart flow:
+```javascript
+function restartGame() {
+  // ... preserve session history, reset state, recreate components ...
+
+  // Start gameplay directly — no preview
+  gameState.startTime = Date.now();
+  gameState.isActive = true;
+  gameState.duration_data.startTime = new Date().toISOString();
+  trackEvent('game_start', 'game');
+  showLevelTransition(); // or renderRound() — the first gameplay entry point
+}
+```
+
+Do NOT call `setupGame()` from `restartGame()` if `setupGame()` ends with `showPreviewScreen()`. Either split `setupGame` into reset + preview, or call the reset portion only on restart.
+
+---
 
 ## Methods
 
 | Method | Description |
 |--------|-------------|
-| `show(config)` | Show preview screen with config |
-| `hide()` | Hide preview, show game content |
-| `pause()` | Pause audio + progress bar (for VisibilityTracker) |
-| `resume()` | Resume audio + progress bar |
-| `skip()` | Skip preview, call onComplete, hide |
-| `setPreviewData(key, value)` | Store user interaction data |
-| `destroy()` | Hide + clear DOM |
+| `show(config)` | Enter preview state with config |
+| `switchToGame()` | (Internal) Transition to game state. Called by `skip()` or timer-complete. Game code reacts via `onComplete` callback. |
+| `pause()` | Pause audio + progress bar (preview state) or timer sync (game state) |
+| `resume()` | Resume |
+| `skip()` | Skip preview, transition to game state |
+| `setPreviewData(key, value)` | Store user interaction data from preview content |
+| `getState()` | Returns current state: `'idle'`, `'preview'`, or `'game'` |
+| `destroy()` | Full cleanup. Call in `endGame()`. |
+
+`hide()` does NOT exist — the preview wrapper is persistent. Use `destroy()` only in `endGame()` cleanup.
+
+---
 
 ## Verification Checklist
 
-- [ ] PreviewScreenComponent instantiated in DOMContentLoaded
-- [ ] ScreenLayout.inject() includes `previewScreen: true`
-- [ ] previewScreen.show() called in game_init handler
-- [ ] startGameAfterPreview() sets gameState.startTime AFTER preview ends
-- [ ] gameState.duration_data.preview[] populated with { duration }
-- [ ] VisibilityTracker wired to pause/resume
+- [ ] `ScreenLayout.inject()` includes `previewScreen: true`
+- [ ] `PreviewScreenComponent` instantiated in DOMContentLoaded
+- [ ] `previewScreen.show()` called in `game_init` handler
+- [ ] `previewScreen.show()` does NOT pass `questionLabel`, `score`, or `showStar` (read from game_init payload)
+- [ ] `previewScreen.show()` passes `timerConfig` and `timerInstance` if game has a TimerComponent
+- [ ] Game code does NOT call `previewScreen.hide()` — method removed
+- [ ] `startGameAfterPreview()` sets `gameState.startTime` AFTER preview ends
+- [ ] `gameState.duration_data.preview[]` populated with `{ duration }`
+- [ ] VisibilityTracker wired to `pause()`/`resume()`
+- [ ] `endGame()` calls `previewScreen.destroy()`
 - [ ] No `new Audio()` for preview audio (must use FeedbackManager)
-- [ ] Preview audio preloaded via FeedbackManager.sound.preload()
-- [ ] gameState.previewResult included in game_complete payload if interactive
+- [ ] Preview audio preloaded via `FeedbackManager.sound.preload()`
+- [ ] Game does NOT render its own header bar inside `#gameContent` (preview header is the only header)
+- [ ] Game DOM is rendered into `#gameContent` BEFORE `previewScreen.show()` is called (otherwise preview overlay covers empty space when `showGameOnPreview: true`)
+- [ ] `gameState.previewResult` included in `game_complete` payload if interactive

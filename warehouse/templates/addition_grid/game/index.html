@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Addition Grid</title>
+<style>
+:root {
+  --mathai-game-max-width: 480px;
+  --mathai-stack-gap: 10px;
+  --mathai-font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mathai-font-size-xl: 1.25rem;
+  --mathai-font-size-lg: 1.1rem;
+  --mathai-font-size-title: 1.5rem;
+  --mathai-font-size-body: 16px;
+  --mathai-font-size-button: 16px;
+  --mathai-font-size-sm: 0.85rem;
+  --mathai-primary: #4a90d9;
+  --mathai-primary-dark: #357abd;
+  --mathai-green: #4caf50;
+  --mathai-green-light: #e8f5e9;
+  --mathai-red: #f44336;
+  --mathai-red-light: #ffebee;
+  --mathai-blue: #667eea;
+  --mathai-purple: #270f36;
+  --mathai-gray: #666666;
+  --mathai-white: #ffffff;
+  --mathai-surface: #f0f4ff;
+  --mathai-text: #1a1a2e;
+  --mathai-text-secondary: #666;
+  --mathai-border: #d0d8e8;
+  --mathai-border-gray: #e0e0e0;
+  --mathai-border-radius-card: 12px;
+  --mathai-border-radius-button: 10px;
+  --mathai-padding-small: 10px;
+  --mathai-text-primary: #4a4a4a;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #f6f6f6;
+  font-family: var(--mathai-font-family);
+}
+
+.page-center {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 100dvh;
+  box-sizing: border-box;
+}
+
+.game-wrapper {
+  width: 100vw;
+  max-width: var(--mathai-game-max-width);
+  box-sizing: border-box;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 100dvh;
+  padding-top: 54px;
+  position: relative;
+}
+
+.game-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mathai-stack-gap);
+  padding: 0 10px 20px 10px;
+  box-sizing: border-box;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.game-block {
+  padding: var(--mathai-stack-gap);
+  margin-bottom: var(--mathai-stack-gap);
+  background: transparent;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.content-fill {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100dvh - 54px);
+  box-sizing: border-box;
+}
+
+#mathai-progress-slot,
+.mathai-progress-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
+
+@media (min-width: 520px) {
+  .game-wrapper { width: 100%; }
+}
+
+/* Grid layout */
+.grid-container {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  gap: 8px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.grid-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  border-radius: 8px;
+  font-size: var(--mathai-font-size-xl);
+  font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.grid-cell.static {
+  background: var(--mathai-surface);
+  color: var(--mathai-text);
+  border: 2px solid var(--mathai-border);
+  padding: 8px 4px;
+}
+
+.grid-cell.operator {
+  background: transparent;
+  color: var(--mathai-text-secondary);
+  font-size: var(--mathai-font-size-lg);
+  min-height: auto;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.grid-cell.answer {
+  background: var(--mathai-white);
+  border: 2px solid var(--mathai-primary);
+  flex-direction: column;
+  padding: 2px;
+}
+
+.grid-cell.answer.correct {
+  border-color: var(--mathai-green);
+  background: var(--mathai-green-light);
+}
+
+.grid-cell.answer.incorrect {
+  border-color: var(--mathai-red);
+  background: var(--mathai-red-light);
+}
+
+.grid-cell.totals {
+  border-style: dashed;
+}
+
+.grid-cell[data-row="3"] {
+  margin-top: 8px;
+}
+
+.cell-input {
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-size: var(--mathai-font-size-xl);
+  font-weight: 600;
+  color: var(--mathai-text);
+  outline: none;
+  -moz-appearance: textfield;
+  box-sizing: border-box;
+  padding: 4px;
+}
+
+.cell-input::-webkit-outer-spin-button,
+.cell-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.cell-input:focus {
+  outline: none;
+}
+
+.cell-input:disabled {
+  opacity: 0.8;
+  color: var(--mathai-text);
+}
+
+.grid-cell.answer:hover {
+  border-color: var(--mathai-primary-dark);
+}
+
+.grid-cell.answer:focus-within {
+  border-color: var(--mathai-primary-dark);
+  box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.2);
+}
+
+.grid-cell.answer.empty {
+  border-color: var(--mathai-red);
+  animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* Correct answer reveal */
+.correct-value {
+  font-size: max(0.75rem, 12px);
+  color: var(--mathai-green);
+  line-height: 1;
+  padding: 0 2px 2px;
+  font-weight: 600;
+}
+
+/* Totals label */
+.totals-label {
+  text-align: center;
+  font-size: var(--mathai-font-size-sm);
+  color: var(--mathai-text-secondary);
+  margin-top: -4px;
+  margin-bottom: 16px;
+}
+
+/* Separator line above totals row */
+.totals-separator {
+  grid-column: 1 / -1;
+  height: 2px;
+  background: var(--mathai-border);
+  margin: 4px 0;
+  border-radius: 1px;
+}
+
+/* Game header */
+.game-header {
+  text-align: center;
+  padding: 16px 16px 8px;
+}
+
+.game-title {
+  font-size: var(--mathai-font-size-title);
+  color: var(--mathai-text);
+  margin: 0 0 4px;
+}
+
+.game-instruction {
+  font-size: max(var(--mathai-font-size-sm), 14px);
+  color: var(--mathai-text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Button row */
+.button-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 16px;
+}
+
+/* Buttons */
+.game-btn {
+  padding: 14px 32px;
+  font-size: var(--mathai-font-size-button);
+  font-weight: 600;
+  font-family: var(--mathai-font-family);
+  border: none;
+  border-radius: var(--mathai-border-radius-button);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--mathai-white);
+  min-height: 44px;
+}
+
+.game-btn:active {
+  transform: translateY(0);
+}
+
+.game-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--mathai-green);
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+}
+
+.btn-secondary {
+  background: var(--mathai-blue);
+}
+.btn-secondary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.hidden { display: none !important; }
+
+/* Results Screen */
+.results-container {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.results-container h2 {
+  font-size: 1.75rem;
+  color: var(--mathai-text);
+  margin-bottom: 16px;
+}
+
+.stars-display {
+  font-size: 48px;
+  margin: 16px 0;
+}
+
+.results-metrics {
+  margin: 24px 0;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--mathai-border-gray);
+}
+
+.metric-label {
+  color: var(--mathai-gray);
+  font-size: var(--mathai-font-size-body);
+}
+
+.metric-value {
+  font-weight: 700;
+  color: var(--mathai-text);
+  font-size: var(--mathai-font-size-body);
+}
+
+.results-container button {
+  margin-top: 20px;
+  padding: 14px 40px;
+  font-size: var(--mathai-font-size-button);
+  font-weight: 600;
+  font-family: var(--mathai-font-family);
+  border: none;
+  border-radius: var(--mathai-border-radius-button);
+  cursor: pointer;
+  background: var(--mathai-blue);
+  color: var(--mathai-white);
+  min-height: 44px;
+  transition: all 0.2s ease;
+}
+
+.results-container button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+/* Preview grid */
+.preview-grid {
+  border-collapse: collapse;
+  margin: 12px auto;
+  width: 100%;
+  max-width: 320px;
+}
+
+.preview-cell {
+  text-align: center;
+  padding: 10px 8px;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.preview-static {
+  color: var(--mathai-text);
+  background: var(--mathai-surface);
+  border-radius: 6px;
+}
+
+.preview-op {
+  color: var(--mathai-text-secondary);
+  font-weight: 400;
+}
+
+.preview-answer {
+  color: var(--mathai-primary);
+  background: var(--mathai-white);
+  border: 2px dashed var(--mathai-primary);
+  border-radius: 6px;
+}
+
+.preview-totals-row .preview-cell {
+  border-top: 2px solid var(--mathai-border);
+  padding-top: 14px;
+}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<template id="game-template">
+  <div id="game-screen" class="game-block" style="display: none;">
+    <div class="game-header">
+      <h2 class="game-title">Addition Grid</h2>
+      <p class="game-instruction">Fill in the missing values. Each row is an equation: a + b = c. The last row shows column totals.</p>
+    </div>
+
+    <div class="grid-container" id="grid-container">
+      <!-- Row 0: equation row -->
+      <div class="grid-cell static" data-row="0" data-col="0" id="cell-0-0"></div>
+      <div class="grid-cell operator" data-row="0" data-col="1">+</div>
+      <div class="grid-cell static" data-row="0" data-col="2" id="cell-0-2"></div>
+      <div class="grid-cell operator" data-row="0" data-col="3">=</div>
+      <div class="grid-cell answer" data-row="0" data-col="4" id="cell-0-4">
+        <input type="number" class="cell-input" data-row="0" data-col="4" id="input-0-4" inputmode="numeric" />
+      </div>
+
+      <!-- Row 1: equation row -->
+      <div class="grid-cell static" data-row="1" data-col="0" id="cell-1-0"></div>
+      <div class="grid-cell operator" data-row="1" data-col="1">+</div>
+      <div class="grid-cell static" data-row="1" data-col="2" id="cell-1-2"></div>
+      <div class="grid-cell operator" data-row="1" data-col="3">=</div>
+      <div class="grid-cell answer" data-row="1" data-col="4" id="cell-1-4">
+        <input type="number" class="cell-input" data-row="1" data-col="4" id="input-1-4" inputmode="numeric" />
+      </div>
+
+      <!-- Row 2: equation row -->
+      <div class="grid-cell static" data-row="2" data-col="0" id="cell-2-0"></div>
+      <div class="grid-cell operator" data-row="2" data-col="1">+</div>
+      <div class="grid-cell static" data-row="2" data-col="2" id="cell-2-2"></div>
+      <div class="grid-cell operator" data-row="2" data-col="3">=</div>
+      <div class="grid-cell answer" data-row="2" data-col="4" id="cell-2-4">
+        <input type="number" class="cell-input" data-row="2" data-col="4" id="input-2-4" inputmode="numeric" />
+      </div>
+
+      <!-- Separator -->
+      <div class="totals-separator"></div>
+
+      <!-- Row 3: totals row -->
+      <div class="grid-cell answer totals" data-row="3" data-col="0" id="cell-3-0">
+        <input type="number" class="cell-input" data-row="3" data-col="0" id="input-3-0" inputmode="numeric" />
+      </div>
+      <div class="grid-cell operator totals" data-row="3" data-col="1">+</div>
+      <div class="grid-cell answer totals" data-row="3" data-col="2" id="cell-3-2">
+        <input type="number" class="cell-input" data-row="3" data-col="2" id="input-3-2" inputmode="numeric" />
+      </div>
+      <div class="grid-cell operator totals" data-row="3" data-col="3">=</div>
+      <div class="grid-cell answer totals" data-row="3" data-col="4" id="cell-3-4">
+        <input type="number" class="cell-input" data-row="3" data-col="4" id="input-3-4" inputmode="numeric" />
+      </div>
+    </div>
+
+    <div class="totals-label">Totals Row: Add each column</div>
+
+    <div class="button-row">
+      <button class="game-btn btn-secondary" id="btn-reset" onclick="handleReset()">Reset</button>
+      <button class="game-btn btn-primary" id="btn-submit" onclick="handleSubmit()">Submit</button>
+    </div>
+  </div>
+
+  <!-- Results Screen -->
+  <div id="results-screen" style="display: none;">
+    <div class="results-container">
+      <h2 id="results-title">Game Complete!</h2>
+      <div id="results-stars" class="stars-display"></div>
+      <div id="results-score"></div>
+      <div class="results-metrics">
+        <div class="metric-row">
+          <span class="metric-label">Correct Cells</span>
+          <span class="metric-value" id="metric-correct-cells"></span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Total Cells</span>
+          <span class="metric-value" id="metric-total-cells"></span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Accuracy</span>
+          <span class="metric-value" id="metric-accuracy"></span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Time</span>
+          <span class="metric-value" id="metric-time"></span>
+        </div>
+      </div>
+      <button onclick="location.reload()">Play Again</button>
+    </div>
+  </div>
+</template>
+
+<!-- STEP 1: SentryConfig package -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+
+<!-- STEP 2: initSentry() function definition -->
+<script>
+function initSentry() {
+  try {
+    if (typeof SentryConfig !== 'undefined' && SentryConfig.enabled && typeof Sentry !== 'undefined') {
+      Sentry.init({
+        dsn: SentryConfig.dsn,
+        environment: SentryConfig.environment,
+        release: 'addition-grid@1.0.0',
+        tracesSampleRate: SentryConfig.tracesSampleRate,
+        sampleRate: SentryConfig.sampleRate,
+        maxBreadcrumbs: 50,
+        ignoreErrors: [
+          'ResizeObserver loop limit exceeded',
+          'ResizeObserver loop completed with undelivered notifications',
+          'Non-Error promise rejection captured',
+          'Script error.',
+          'Load failed',
+          'Failed to fetch'
+        ]
+      });
+    }
+  } catch (e) {
+    console.error('Sentry init error:', JSON.stringify({ error: e.message }, null, 2));
+  }
+}
+</script>
+
+<!-- STEP 3: Sentry SDK v10.23.0 -->
+<script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+<script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+
+<!-- STEP 4: Initialize on load -->
+<script>window.addEventListener('load', initSentry);</script>
+
+<!-- STEP 5-7: Game packages -->
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+<script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+<script>
+/* ===== GAME STATE (PART-007) ===== */
+window.gameState = {
+  currentRound: 0,
+  totalRounds: 1,
+  score: 0,
+  attempts: [],
+  events: [],
+  startTime: null,
+  isActive: false,
+  content: null,
+  duration_data: {
+    startTime: null,
+    preview: [],
+    attempts: [],
+    evaluations: [],
+    inActiveTime: [],
+    totalInactiveTime: 0,
+    currentTime: null
+  },
+  grid: [],
+  totals: {},
+  userAnswers: {},
+  cellStatus: {},
+  totalAnswerCells: 6,
+  correctCells: 0,
+  allSubmitted: false,
+  previewResult: null,
+  gameId: 'addition_grid',
+  contentSetId: null
+};
+
+var visibilityTracker = null;
+var signalCollector = null;
+var previewScreen = null;
+
+/* ===== FEEDBACK IDS ===== */
+var FEEDBACK_IDS = {
+  correct: 'correct_answer',
+  incorrect: 'incorrect_answer',
+  celebration: 'celebration',
+  encouragement: 'encouragement'
+};
+
+/* ===== ANSWER CELL KEYS (order for tab navigation) ===== */
+var ANSWER_CELL_KEYS = ['0-4', '1-4', '2-4', '3-0', '3-2', '3-4'];
+
+/* ===== FALLBACK CONTENT (PART-028) ===== */
+var fallbackContent = {
+  previewInstruction: '<p>Fill in the missing values. Each row: <b>a + b = c</b>. The last row shows <b>column totals</b>.</p>',
+  equations: [
+    { a: 12, b: 15 },
+    { a: 23, b: 14 },
+    { a: 31, b: 22 }
+  ]
+};
+
+/* ===== CONTENT SETS (3 difficulty levels) ===== */
+var contentSets = [
+  {
+    previewInstruction: '<p>Fill in the missing values. Each row: <b>a + b = c</b>. The last row shows <b>column totals</b>.</p>',
+    equations: [
+      { a: 3, b: 5 },
+      { a: 7, b: 2 },
+      { a: 4, b: 6 }
+    ]
+  },
+  {
+    previewInstruction: '<p>Fill in the missing values. Each row: <b>a + b = c</b>. The last row shows <b>column totals</b>.</p>',
+    equations: [
+      { a: 24, b: 33 },
+      { a: 18, b: 47 },
+      { a: 36, b: 19 }
+    ]
+  },
+  {
+    previewInstruction: '<p>Fill in the missing values. Each row: <b>a + b = c</b>. The last row shows <b>column totals</b>.</p>',
+    equations: [
+      { a: 187, b: 465 },
+      { a: 349, b: 276 },
+      { a: 518, b: 394 }
+    ]
+  }
+];
+
+/* ===== waitForPackages (PART-003) ===== */
+async function waitForPackages() {
+  var timeout = 10000;
+  var start = Date.now();
+  var packages = [
+    'FeedbackManager', 'VisibilityTracker',
+    'ScreenLayout', 'PreviewScreenComponent'
+  ];
+  try {
+    for (var i = 0; i < packages.length; i++) {
+      while (typeof window[packages[i]] === 'undefined') {
+        if (Date.now() - start > timeout) throw new Error('Package timeout: ' + packages[i]);
+        await new Promise(function(r) { setTimeout(r, 50); });
+      }
+    }
+    console.log('All packages loaded');
+  } catch (error) {
+    console.error('Package loading failed:', JSON.stringify({ error: error.message }, null, 2));
+    document.body.innerHTML = '<div style="padding:20px;text-align:center;">Failed to load. Please refresh.</div>';
+    throw error;
+  }
+}
+
+/* ===== recordAttempt (PART-009) ===== */
+function recordAttempt(data) {
+  var attempt = {
+    attempt_timestamp: new Date().toISOString(),
+    time_since_start_of_game: (Date.now() - gameState.startTime) / 1000,
+    input_of_user: data.userAnswer,
+    attempt_number: gameState.attempts.length + 1,
+    correct: data.correct,
+    metadata: {
+      round: gameState.currentRound,
+      question: data.question,
+      correctAnswer: data.correctAnswer,
+      validationType: 'fixed'
+    }
+  };
+  gameState.attempts.push(attempt);
+  gameState.duration_data.attempts.push({
+    startTime: new Date().toISOString(),
+    time_to_first_attempt: (Date.now() - gameState.startTime) / 1000,
+    duration: 0
+  });
+  console.log('Attempt:', JSON.stringify(attempt, null, 2));
+}
+
+/* ===== trackEvent (PART-010) ===== */
+function trackEvent(type, target, data) {
+  var evt = {
+    type: type,
+    target: target,
+    timestamp: Date.now()
+  };
+  if (data) {
+    var keys = Object.keys(data);
+    for (var i = 0; i < keys.length; i++) {
+      evt[keys[i]] = data[keys[i]];
+    }
+  }
+  gameState.events.push(evt);
+}
+
+/* ===== buildCorrectAnswers ===== */
+function buildCorrectAnswers() {
+  var answers = {};
+  for (var r = 0; r < 3; r++) {
+    answers[r + '-4'] = gameState.grid[r].c;
+  }
+  answers['3-0'] = gameState.totals.sumA;
+  answers['3-2'] = gameState.totals.sumB;
+  answers['3-4'] = gameState.totals.sumC;
+  return answers;
+}
+
+/* ===== buildPreviewGridHtml ===== */
+function buildPreviewGridHtml() {
+  var eqs = gameState.content.equations;
+  var rows = eqs.map(function(eq) {
+    return '<tr>' +
+      '<td class="preview-cell preview-static">' + eq.a + '</td>' +
+      '<td class="preview-cell preview-op">+</td>' +
+      '<td class="preview-cell preview-static">' + eq.b + '</td>' +
+      '<td class="preview-cell preview-op">=</td>' +
+      '<td class="preview-cell preview-answer">?</td>' +
+    '</tr>';
+  });
+  rows.push(
+    '<tr class="preview-totals-row">' +
+      '<td class="preview-cell preview-answer">?</td>' +
+      '<td class="preview-cell preview-op">+</td>' +
+      '<td class="preview-cell preview-answer">?</td>' +
+      '<td class="preview-cell preview-op">=</td>' +
+      '<td class="preview-cell preview-answer">?</td>' +
+    '</tr>'
+  );
+  return '<table class="preview-grid">' + rows.join('') + '</table>';
+}
+
+/* ===== showPreviewScreen (PART-039) ===== */
+function showPreviewScreen() {
+  var content = gameState.content || fallbackContent;
+  previewScreen.show({
+    questionLabel: 'Addition Grid',
+    score: '0',
+    showStar: false,
+    instruction: content.previewInstruction || fallbackContent.previewInstruction,
+    previewContent: buildPreviewGridHtml(),
+    onComplete: function(previewData) {
+      startGameAfterPreview(previewData);
+    }
+  });
+}
+
+/* ===== startGameAfterPreview (PART-039) ===== */
+function startGameAfterPreview(previewData) {
+  gameState.previewResult = previewData;
+  gameState.duration_data.preview = gameState.duration_data.preview || [];
+  gameState.duration_data.preview.push({ duration: previewData.duration });
+
+  gameState.startTime = Date.now();
+  gameState.isActive = true;
+  gameState.duration_data.startTime = new Date().toISOString();
+
+  trackEvent('game_start', 'game');
+
+  if (signalCollector) {
+    try {
+      signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+    } catch (e) {
+      console.error('Signal error:', JSON.stringify({ error: e.message }, null, 2));
+    }
+  }
+
+  document.getElementById('game-screen').style.display = 'block';
+
+  var firstInput = document.getElementById('input-0-4');
+  if (firstInput) firstInput.focus();
+}
+
+/* ===== setupGame ===== */
+function setupGame() {
+  if (!gameState.content) {
+    gameState.content = fallbackContent;
+  }
+
+  gameState.startTime = null;
+  gameState.isActive = false;
+  gameState.currentRound = 0;
+  gameState.score = 0;
+  gameState.correctCells = 0;
+  gameState.allSubmitted = false;
+  gameState.userAnswers = {};
+  gameState.cellStatus = {};
+  gameState.previewResult = null;
+  gameState.attempts = [];
+  gameState.events = [];
+  gameState.duration_data.startTime = null;
+  gameState.duration_data.preview = [];
+  gameState.duration_data.attempts = [];
+  gameState.duration_data.evaluations = [];
+  gameState.duration_data.inActiveTime = [];
+  gameState.duration_data.totalInactiveTime = 0;
+  gameState.duration_data.currentTime = null;
+
+  // Build grid data from equations
+  var eqs = gameState.content.equations;
+  gameState.grid = eqs.map(function(eq) {
+    return { a: eq.a, b: eq.b, c: eq.a + eq.b };
+  });
+  gameState.totals = {
+    sumA: eqs.reduce(function(s, eq) { return s + eq.a; }, 0),
+    sumB: eqs.reduce(function(s, eq) { return s + eq.b; }, 0),
+    sumC: eqs.reduce(function(s, eq) { return s + eq.a + eq.b; }, 0)
+  };
+
+  // Render static cells
+  document.getElementById('cell-0-0').textContent = eqs[0].a;
+  document.getElementById('cell-0-2').textContent = eqs[0].b;
+  document.getElementById('cell-1-0').textContent = eqs[1].a;
+  document.getElementById('cell-1-2').textContent = eqs[1].b;
+  document.getElementById('cell-2-0').textContent = eqs[2].a;
+  document.getElementById('cell-2-2').textContent = eqs[2].b;
+
+  // Clear all inputs and reset styling
+  ANSWER_CELL_KEYS.forEach(function(key) {
+    var parts = key.split('-');
+    var input = document.getElementById('input-' + parts[0] + '-' + parts[1]);
+    if (input) {
+      input.value = '';
+      input.disabled = false;
+    }
+    var cell = document.getElementById('cell-' + parts[0] + '-' + parts[1]);
+    if (cell) {
+      cell.classList.remove('correct', 'incorrect', 'empty');
+      // Remove any correct-value labels
+      var label = cell.querySelector('.correct-value');
+      if (label) label.remove();
+    }
+  });
+
+  // Enable buttons
+  var btnSubmit = document.getElementById('btn-submit');
+  var btnReset = document.getElementById('btn-reset');
+  if (btnSubmit) btnSubmit.disabled = false;
+  if (btnReset) btnReset.classList.remove('hidden');
+
+  showPreviewScreen();
+}
+
+/* ===== handleSubmit ===== */
+async function handleSubmit() {
+  if (!gameState.isActive) return;
+
+  // Check for empty inputs
+  var hasEmpty = false;
+  ANSWER_CELL_KEYS.forEach(function(key) {
+    var parts = key.split('-');
+    var input = document.getElementById('input-' + parts[0] + '-' + parts[1]);
+    var cell = document.getElementById('cell-' + parts[0] + '-' + parts[1]);
+    if (!input || input.value.trim() === '') {
+      hasEmpty = true;
+      if (cell) {
+        cell.classList.add('empty');
+        setTimeout(function() { cell.classList.remove('empty'); }, 600);
+      }
+    }
+  });
+
+  if (hasEmpty) return;
+
+  // Build correct answers
+  var correctAnswers = buildCorrectAnswers();
+  var correctCount = 0;
+
+  // Validate each cell
+  ANSWER_CELL_KEYS.forEach(function(key) {
+    var parts = key.split('-');
+    var row = parseInt(parts[0], 10);
+    var col = parseInt(parts[1], 10);
+    var input = document.getElementById('input-' + row + '-' + col);
+    var cell = document.getElementById('cell-' + row + '-' + col);
+    var userValue = input.value.trim() !== '' ? parseInt(input.value, 10) : null;
+    var correctValue = correctAnswers[key];
+    var isCorrect = (userValue === correctValue);
+
+    gameState.userAnswers[key] = userValue;
+
+    if (isCorrect) {
+      correctCount++;
+      cell.classList.add('correct');
+      gameState.cellStatus[key] = 'correct';
+    } else {
+      cell.classList.add('incorrect');
+      gameState.cellStatus[key] = 'incorrect';
+      // Show correct answer below input
+      var label = document.createElement('div');
+      label.className = 'correct-value';
+      label.textContent = '= ' + correctValue;
+      cell.appendChild(label);
+    }
+
+    // Record attempt for this cell
+    var questionStr = '';
+    if (row < 3) {
+      questionStr = gameState.grid[row].a + ' + ' + gameState.grid[row].b + ' = ?';
+    } else if (col === 0) {
+      questionStr = 'Sum of column A = ?';
+    } else if (col === 2) {
+      questionStr = 'Sum of column B = ?';
+    } else {
+      questionStr = 'Sum of column C = ?';
+    }
+
+    recordAttempt({
+      userAnswer: userValue,
+      correct: isCorrect,
+      question: questionStr,
+      correctAnswer: correctValue
+    });
+  });
+
+  gameState.correctCells = correctCount;
+  gameState.score = correctCount;
+  gameState.allSubmitted = true;
+
+  trackEvent('grid_complete', 'game', {
+    correctCells: correctCount,
+    totalCells: 6,
+    accuracy: Math.round((correctCount / 6) * 100)
+  });
+
+  // Disable all inputs
+  ANSWER_CELL_KEYS.forEach(function(key) {
+    var parts = key.split('-');
+    var input = document.getElementById('input-' + parts[0] + '-' + parts[1]);
+    if (input) input.disabled = true;
+  });
+
+  // Disable submit, hide reset
+  document.getElementById('btn-submit').disabled = true;
+  document.getElementById('btn-reset').classList.add('hidden');
+
+  // Play feedback audio
+  try {
+    if (correctCount === 6) {
+      await FeedbackManager.sound.play(FEEDBACK_IDS.celebration);
+    } else {
+      await FeedbackManager.sound.play(FEEDBACK_IDS.encouragement);
+    }
+  } catch (e) {
+    console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2));
+  }
+
+  // End game after short delay for visual feedback
+  setTimeout(function() {
+    endGame();
+  }, 500);
+}
+
+/* ===== handleReset ===== */
+function handleReset() {
+  if (gameState.allSubmitted) return;
+
+  // Clear all inputs
+  ANSWER_CELL_KEYS.forEach(function(key) {
+    var parts = key.split('-');
+    var input = document.getElementById('input-' + parts[0] + '-' + parts[1]);
+    var cell = document.getElementById('cell-' + parts[0] + '-' + parts[1]);
+    if (input) input.value = '';
+    if (cell) {
+      cell.classList.remove('correct', 'incorrect', 'empty');
+      var label = cell.querySelector('.correct-value');
+      if (label) label.remove();
+    }
+  });
+
+  gameState.userAnswers = {};
+  gameState.cellStatus = {};
+
+  trackEvent('grid_reset', 'game');
+
+  // Focus first input
+  var firstInput = document.getElementById('input-0-4');
+  if (firstInput) firstInput.focus();
+}
+
+/* ===== endGame (PART-011) ===== */
+function endGame() {
+  if (!gameState.isActive) return;
+  gameState.isActive = false;
+  gameState.duration_data.currentTime = new Date().toISOString();
+
+  var timeTaken = Math.round((Date.now() - gameState.startTime) / 1000);
+  var accuracy = Math.round((gameState.correctCells / 6) * 100);
+
+  // Star calculation
+  var stars;
+  if (gameState.correctCells === 6) {
+    stars = 3;
+  } else if (gameState.correctCells >= 4) {
+    stars = 2;
+  } else if (gameState.correctCells >= 1) {
+    stars = 1;
+  } else {
+    stars = 0;
+  }
+
+  var metrics = {
+    accuracy: accuracy,
+    time: timeTaken,
+    stars: stars,
+    score: gameState.correctCells,
+    attempts: gameState.attempts,
+    duration_data: gameState.duration_data,
+    correctCells: gameState.correctCells,
+    totalCells: 6,
+    gridEquations: 3,
+    tries: [{ round: 0, triesCount: gameState.attempts.length }],
+    totalLives: 1
+  };
+
+  console.log('Final Metrics:', JSON.stringify(metrics, null, 2));
+  console.log('Attempt History:', JSON.stringify(gameState.attempts, null, 2));
+
+  trackEvent('game_end', 'game', { metrics: metrics });
+
+  var sealResult = null;
+  if (signalCollector) {
+    try {
+      sealResult = signalCollector.seal();
+    } catch (e) {
+      console.error('Signal seal error:', JSON.stringify({ error: e.message }, null, 2));
+    }
+  }
+
+  // Send postMessage to parent
+  window.parent.postMessage({
+    type: 'game_complete',
+    data: {
+      metrics: metrics,
+      attempts: gameState.attempts,
+      completedAt: Date.now(),
+      previewResult: gameState.previewResult || null,
+      signal_event_count: sealResult ? sealResult.event_count : 0,
+      signal_metadata: sealResult ? sealResult.metadata : null
+    }
+  }, '*');
+
+  showResults(metrics);
+
+  // Cleanup
+  if (visibilityTracker) { visibilityTracker.destroy(); visibilityTracker = null; }
+  if (previewScreen) { previewScreen.destroy(); previewScreen = null; }
+  try {
+    FeedbackManager.sound.pause();
+    FeedbackManager.stream.pauseAll();
+  } catch (e) {
+    console.error('Cleanup error:', JSON.stringify({ error: e.message }, null, 2));
+  }
+}
+
+/* ===== showResults (PART-019) ===== */
+function showResults(metrics) {
+  document.getElementById('metric-correct-cells').textContent = metrics.correctCells + ' / ' + metrics.totalCells;
+  document.getElementById('metric-total-cells').textContent = String(metrics.totalCells);
+  document.getElementById('metric-accuracy').textContent = metrics.accuracy + '%';
+  document.getElementById('metric-time').textContent = metrics.time + 's';
+  document.getElementById('results-stars').textContent =
+    '\u2B50'.repeat(metrics.stars) + '\u2606'.repeat(3 - metrics.stars);
+  document.getElementById('results-score').textContent = metrics.correctCells + ' out of ' + metrics.totalCells + ' correct';
+
+  document.getElementById('game-screen').style.display = 'none';
+  document.getElementById('results-screen').style.display = 'block';
+
+  if (signalCollector) {
+    try {
+      signalCollector.recordViewEvent('screen_transition', {
+        screen: 'results',
+        metadata: { transition_from: 'gameplay' }
+      });
+    } catch (e) {
+      console.error('Signal error:', JSON.stringify({ error: e.message }, null, 2));
+    }
+  }
+}
+
+/* ===== handlePostMessage (PART-008) ===== */
+function handlePostMessage(event) {
+  if (!event.data || event.data.type !== 'game_init') return;
+  var d = event.data.data;
+  gameState.content = d.content;
+  gameState.signalConfig = d.signalConfig || {};
+
+  if (d.gameId) gameState.gameId = d.gameId;
+
+  if (signalCollector && gameState.signalConfig.flushUrl) {
+    try {
+      signalCollector.flushUrl = gameState.signalConfig.flushUrl;
+      signalCollector.playId = gameState.signalConfig.playId || null;
+      signalCollector.gameId = gameState.signalConfig.gameId || signalCollector.gameId;
+      signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
+      signalCollector.contentSetId = gameState.signalConfig.contentSetId || signalCollector.contentSetId;
+      signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
+      signalCollector.startFlushing();
+    } catch (e) {
+      console.error('SignalCollector config error:', JSON.stringify({ error: e.message }, null, 2));
+    }
+  }
+
+  setupGame();
+}
+
+/* ===== setupInputNavigation ===== */
+function setupInputNavigation() {
+  var inputOrder = ['input-0-4', 'input-1-4', 'input-2-4', 'input-3-0', 'input-3-2', 'input-3-4'];
+
+  inputOrder.forEach(function(id, index) {
+    var input = document.getElementById(id);
+    if (!input) return;
+
+    // Track focus events
+    input.addEventListener('focus', function() {
+      var parts = id.replace('input-', '').split('-');
+      trackEvent('cell_focus', 'grid', { row: parseInt(parts[0], 10), col: parseInt(parts[1], 10) });
+    });
+
+    // Handle Enter/Tab key to move to next input
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var nextIndex = index + 1;
+        if (nextIndex < inputOrder.length) {
+          document.getElementById(inputOrder[nextIndex]).focus();
+        } else {
+          // Last input - blur
+          input.blur();
+        }
+      }
+    });
+  });
+}
+
+/* ===== Debug Functions (PART-012) ===== */
+window.debugGame = function() {
+  console.log('Game State:', JSON.stringify(gameState, null, 2));
+};
+
+window.debugAudio = function() {
+  try {
+    console.log('Audio State:', JSON.stringify({
+      sound: FeedbackManager.sound.getState(),
+      stream: FeedbackManager.stream.getState()
+    }, null, 2));
+  } catch (e) {
+    console.error('Debug audio error:', JSON.stringify({ error: e.message }, null, 2));
+  }
+};
+
+window.testAudio = async function(id) {
+  console.log('Testing audio:', id);
+  try {
+    await FeedbackManager.sound.play(id);
+  } catch (e) {
+    console.error('Audio test failed:', JSON.stringify({ error: e.message }, null, 2));
+  }
+};
+
+window.testPause = function() {
+  if (visibilityTracker) {
+    visibilityTracker.triggerInactive();
+  } else {
+    if (previewScreen) previewScreen.pause();
+    FeedbackManager.sound.pause();
+    FeedbackManager.stream.pauseAll();
+  }
+  console.log(JSON.stringify({ event: 'testPause' }));
+};
+
+window.testResume = function() {
+  if (visibilityTracker) {
+    visibilityTracker.triggerResume();
+  } else {
+    if (previewScreen) previewScreen.resume();
+    FeedbackManager.sound.resume();
+    FeedbackManager.stream.resumeAll();
+  }
+  console.log(JSON.stringify({ event: 'testResume' }));
+};
+
+/* ===== DOMContentLoaded (PART-004) ===== */
+window.addEventListener("DOMContentLoaded", async function() {
+  try {
+    await waitForPackages();
+    await FeedbackManager.init();
+
+    // Audio preload (PART-017)
+    try {
+      await FeedbackManager.sound.preload([
+        { id: 'celebration', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501597903.mp3' },
+        { id: 'encouragement', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501956470.mp3' }
+      ]);
+    } catch (e) {
+      console.error('Sound preload error:', JSON.stringify({ error: e.message }, null, 2));
+    }
+
+    // SignalCollector
+    if (typeof SignalCollector !== 'undefined') {
+      signalCollector = new SignalCollector({
+        sessionId: window.gameVariableState?.sessionId || "session_" + Date.now(),
+        studentId: window.gameVariableState?.studentId || null,
+        gameId: gameState.gameId,
+        contentSetId: gameState.contentSetId
+      });
+      window.signalCollector = signalCollector;
+    }
+
+    // ScreenLayout (PART-025)
+    ScreenLayout.inject('app', {
+      slots: { progressBar: false, previewScreen: true, transitionScreen: false }
+    });
+
+    // Clone game template into gameContent
+    var gameContent = document.getElementById('gameContent');
+    var template = document.getElementById('game-template');
+    gameContent.appendChild(template.content.cloneNode(true));
+
+    // PreviewScreen (PART-039)
+    previewScreen = new PreviewScreenComponent({
+      autoInject: true,
+      slotId: 'mathai-preview-slot',
+      gameContentId: 'gameContent'
+    });
+
+    // Setup input navigation (Tab/Enter between cells)
+    setupInputNavigation();
+
+    // VisibilityTracker (PART-005)
+    visibilityTracker = new VisibilityTracker({
+      onInactive: function() {
+        var inactiveStart = Date.now();
+        gameState.duration_data.inActiveTime.push({ start: inactiveStart });
+        if (signalCollector) {
+          try {
+            signalCollector.pause();
+            signalCollector.recordCustomEvent('visibility_hidden', {});
+          } catch (e) {
+            console.error('Signal error:', JSON.stringify({ error: e.message }, null, 2));
+          }
+        }
+        if (previewScreen) previewScreen.pause();
+        FeedbackManager.sound.pause();
+        FeedbackManager.stream.pauseAll();
+        trackEvent('game_paused', 'system');
+      },
+      onResume: function() {
+        var lastInactive = gameState.duration_data.inActiveTime[gameState.duration_data.inActiveTime.length - 1];
+        if (lastInactive && !lastInactive.end) {
+          lastInactive.end = Date.now();
+          gameState.duration_data.totalInactiveTime += (lastInactive.end - lastInactive.start);
+        }
+        if (signalCollector) {
+          try {
+            signalCollector.resume();
+            signalCollector.recordCustomEvent('visibility_visible', {});
+          } catch (e) {
+            console.error('Signal error:', JSON.stringify({ error: e.message }, null, 2));
+          }
+        }
+        if (previewScreen) previewScreen.resume();
+        FeedbackManager.sound.resume();
+        FeedbackManager.stream.resumeAll();
+        trackEvent('game_resumed', 'system');
+      },
+      popupProps: {
+        title: 'Game Paused',
+        description: 'Click Resume to continue.',
+        primaryText: 'Resume'
+      }
+    });
+
+    // PostMessage listener (PART-008)
+    window.addEventListener("message", handlePostMessage);
+
+    // Signal ready to parent
+    window.parent.postMessage({ type: 'game_ready' }, '*');
+
+    // Start with fallback (standalone testing)
+    setupGame();
+
+  } catch (error) {
+    console.error("Initialization failed:", JSON.stringify({ error: error.message }, null, 2));
+  }
+});
+</script>
+
+</body>
+</html>
