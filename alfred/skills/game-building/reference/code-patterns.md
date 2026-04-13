@@ -121,7 +121,7 @@ Per PART-012. See `parts/PART-012.md`.
 
 ### SignalCollector
 Per PART-042. Game-building rules:
-- `restartGame` must re-instantiate SignalCollector after `seal()` (GEN-SIGNAL-RESET).
+- `restartGame` must call `signalCollector.reset()` — do NOT seal + re-instantiate (GEN-SIGNAL-RESET).
 - See `parts/PART-042.md` for full API.
 
 ---

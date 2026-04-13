@@ -26,7 +26,8 @@ window.signalCollector = signalCollector;
 |--------|---------|
 | `recordViewEvent(viewType, viewData)` | Record any visible DOM change (screen swap, content render, feedback, visual update) |
 | `recordCustomEvent(type, data)` | Record game-specific events not captured by automatic listeners |
-| `seal()` | Finalize at game end — fires sendBeacon, stops flush timer, detaches listeners |
+| `reset()` | Reset for new play ("Try Again") — flushes previous events, clears buffer, keeps listeners |
+| `seal()` | Finalize at true game end (iframe destruction) — fires sendBeacon, detaches listeners |
 | `pause()` | Pause signal collection (use with VisibilityTracker) |
 | `resume()` | Resume signal collection |
 | `startFlushing()` | Start periodic batch-streaming to `flushUrl` |
@@ -40,7 +41,7 @@ Inside `DOMContentLoaded`, after `FeedbackManager.init()`, before Timer creation
 
 1. **NEVER define an inline stub/polyfill** — shadows the CDN class. `waitForPackages()` (PART-003) handles the loading wait.
 2. **`seal()` before `game_complete` postMessage** — fires sendBeacon to flush remaining events to GCS.
-3. **Re-instantiate in `restartGame()`** — `.reset()` does not exist. Create a new `SignalCollector({...})`.
+3. **Call `reset()` in `restartGame()`** — flushes previous events, continues with same listeners and batch numbering. Do NOT seal + re-instantiate.
 4. **All 6 `signalConfig` properties assigned from `game_init` before `startFlushing()`** — flushUrl, playId, gameId, sessionId, contentSetId, studentId.
 5. **`recordViewEvent()` on every visible DOM change** — every function that modifies what is on screen must call it.
 6. **`data-signal-id` on all interactive elements** — buttons, inputs, draggables, tap targets.

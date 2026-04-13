@@ -132,24 +132,18 @@ window.parent.postMessage({
 
 **Signal data streams to GCS via batch flushing — never included in postMessage payload.**
 
-### POINT 7: Re-instantiate in restartGame
+### POINT 7: Reset in restartGame
 
-`seal()` marks the collector as closed — all subsequent recording is silently ignored. `restartGame()` **must** create a new `SignalCollector` instance before showing the start screen.
+Call `signalCollector.reset()` in `restartGame()`. This flushes buffered events from the previous play (via sendBeacon), clears the buffer, and continues with the same listeners and batch numbering. No re-instantiation needed.
 
 ```javascript
 function restartGame() {
-  signalCollector = new SignalCollector({
-    sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
-    studentId: window.gameVariableState?.studentId || null,
-    gameId: gameState.gameId || null,
-    contentSetId: gameState.contentSetId || null
-  });
-  window.signalCollector = signalCollector;
+  signalCollector.reset();
   // ... reset gameState, syncDOM, showStartScreen
 }
 ```
 
-**Never call `signalCollector.reset()` — the method does not exist and throws TypeError.**
+**Do NOT call `seal()` before `reset()`.** `seal()` is only for true game-end when the iframe will be destroyed. `reset()` is for in-page restart ("Try Again").
 
 ### POINT 8: data-signal-id Markup
 
@@ -172,7 +166,7 @@ Target identification priority: `data-signal-id` > `id` > `tag.className` > tag 
 2. **CRITICAL** — Never define inline SignalCollector stub/class. Shadows the real CDN package. (Forbidden pattern)
 3. **CRITICAL** — All 6 signalConfig properties must be assigned in game_init handler. (GEN-PM-SIGNALCONFIG)
 4. **CRITICAL** — `seal()` before `game_complete` postMessage. Signal events may be lost if order is reversed.
-5. **CRITICAL** — Re-instantiate on restart, never call `.reset()`. (GEN-SIGNAL-RESET)
+5. **CRITICAL** — Call `.reset()` in restartGame, never `seal()` + re-instantiate. (GEN-SIGNAL-RESET)
 6. **CRITICAL** — `typeof SignalCollector` guard in `waitForPackages()`. CDN may load after DOMContentLoaded.
 7. **STANDARD** — `recordViewEvent()` on every visible DOM change. Replay narration and view_context depend on it.
 8. **STANDARD** — `data-signal-id` on all interactive elements. Enables clear target identification in replay analysis.
@@ -190,7 +184,7 @@ Target identification priority: `data-signal-id` > `id` > `tag.className` > tag 
 1. `new SignalCollector()` with no args — produces invalid analytics payloads, fails GEN-UX-005.
 2. `window.SignalCollector = class {...}` — inline polyfill shadows CDN package; real class never loads.
 3. `signalCollector.trackEvent()` — method does NOT exist in v3 API, crashes at runtime with ReferenceError.
-4. `signalCollector.reset()` — method does NOT exist, throws TypeError. Use re-instantiation in restartGame.
+4. `seal()` + `new SignalCollector()` in restartGame — causes batch number collision in GCS. Use `reset()` instead.
 5. Omitting `seal()` in endGame — events lost when parent destroys iframe.
 6. Calling `game_complete` before `seal()` — parent may destroy iframe before sendBeacon fires.
 7. Missing signalConfig property assignments — partial analytics, broken GCS paths.

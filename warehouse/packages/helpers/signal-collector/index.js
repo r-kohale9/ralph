@@ -149,6 +149,7 @@
     this._lastTouchMoveMs = 0;
     this._paused = false;
     this._sealed = false;
+    this._generation = 0;         // incremented by reset() to invalidate in-flight flushes
     this._currentView = null;
     this._deviceContext = getDeviceContext();
     this._boundHandlers = {};
@@ -720,6 +721,7 @@
 
     this._flushInProgress = true;
     var self = this;
+    var gen = this._generation; // capture generation to detect reset() during async gap
     var chunkSize = chunk.length;
     var payload = this._buildPayload(chunk);
 
@@ -735,6 +737,9 @@
       }).then(function (response) {
         clearTimeout(timeoutId);
         if (response.ok) {
+          // If reset() was called during this async flush, skip the splice —
+          // the events buffer now belongs to the new play session
+          if (self._generation !== gen) { self._flushInProgress = false; return; }
           // Success — remove uploaded events from memory
           self._events.splice(0, chunkSize);
           self._flushInProgress = false;
@@ -811,6 +816,42 @@
 
     console.log("[SignalCollector] Sealed — " + eventCount + " events");
     return { event_count: eventCount, metadata: this.getMetadata() };
+  };
+
+  /**
+   * Reset the collector for a new play session (e.g. "Try Again").
+   * Flushes buffered events from the previous play via sendBeacon,
+   * clears the buffer, and continues with the same listeners, identity,
+   * and batch numbering. Does NOT touch listeners or flush timer.
+   *
+   * Use reset() instead of seal() + new SignalCollector() when the
+   * iframe stays alive (restart). Use seal() only when the iframe
+   * is about to be destroyed.
+   */
+  SignalCollector.prototype.reset = function () {
+    if (this._sealed) {
+      console.warn("[SignalCollector] Cannot reset — already sealed");
+      return;
+    }
+
+    // Invalidate any in-flight flush callbacks (prevents stale splice)
+    this._generation++;
+
+    // Flush buffered events from previous play
+    this._sendBeaconAll();
+
+    // Clear state for new play — preserve identity, listeners, batchNumber
+    this._events = [];
+    this._sessionStartMs = Date.now();
+    this._currentView = null;
+    this._paused = false;
+    this._flushInProgress = false;
+    this._emergencyCapReported = false;
+
+    // Record restart marker as first event of new play
+    this.recordCustomEvent('game_restart', { previous_batch_count: this._batchNumber });
+
+    console.log("[SignalCollector] Reset — continuing from batch #" + this._batchNumber);
   };
 
   /** Pause signal collection */

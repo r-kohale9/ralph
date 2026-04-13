@@ -8,5 +8,5 @@
 **Key rules:**
 - NEVER define inline stub/polyfill — shadows real CDN class
 - `seal()` before `game_complete` postMessage
-- Re-instantiate in `restartGame()` — `.reset()` does not exist
+- Call `.reset()` in `restartGame()` — flushes previous events, continues with same listeners
 - All 6 signalConfig properties assigned from `game_init` before `startFlushing()`

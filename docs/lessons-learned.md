@@ -2511,24 +2511,18 @@ This is the first complete Bloom L2→L4 learning session produced by the Ralph 
 
 **Process implication:** Every approved game needs a browser playthrough. "Static analysis only" audits miss the class of bugs that require a live DOM/CSS interaction. Prioritize browser audits over static-only audits when choosing audit targets.
 
-## Lesson 192 — signalCollector.reset() does not exist in CDN SignalCollector API (2026-03-23)
+## Lesson 192 — signalCollector.reset() now exists in CDN SignalCollector API (2026-04-11, updated)
 
-**Source:** CR-030 code review, CDN source verification | **Build:** multiple
+**Source:** CR-030 code review, CDN source update | **Build:** multiple
 
-**Problem:** Gen code calls `signalCollector.reset()` inside `restartGame()`. The CDN SignalCollector prototype does NOT expose a `reset()` method. Calling it throws `TypeError: signalCollector.reset is not a function` — same failure class as `signalCollector.trackEvent()` which causes a blank page.
-
-**CDN SignalCollector public API (confirmed):** `recordViewEvent`, `recordCustomEvent`, `startProblem`, `endProblem`, `seal()`, `pause()`, `resume()` — no `reset()`.
+**Update (2026-04-11):** `reset()` has been added to the CDN SignalCollector API. It flushes buffered events via sendBeacon, clears the buffer, and continues with the same listeners and batch numbering. The old pattern of `seal()` + `new SignalCollector()` in restartGame caused GCS batch-number collision (new instance resets `_batchNumber` to 0, overwriting previous play's batches at the same path).
 
 **Correct pattern for restartGame():**
 ```js
-signalCollector = new SignalCollector({
-  sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
-  studentId: window.gameVariableState?.studentId || null,
-  templateId: gameState.gameId || null
-});
+signalCollector.reset();
 ```
 
-**Rule:** GEN-SIGNAL-RESET (rule 50) updated to use re-instantiation instead of reset().
+**Rule:** GEN-SIGNAL-RESET (rule 50) updated to use `reset()` instead of seal + re-instantiation.
 
 ## Lesson 193 — syncDOMState sets data attributes on #app, not body — confirmed in 2+ games (2026-03-23)
 

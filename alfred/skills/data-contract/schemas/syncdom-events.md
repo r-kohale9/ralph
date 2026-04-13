@@ -38,7 +38,7 @@ Alfred-specific rules:
 - `signalConfig` extracted from `event.data.config.signalConfig` in game_init handler
 - `seal()` called in endGame BEFORE game_complete postMessage
 - game_complete data must include `signal_event_count` and `signal_metadata` from seal() result
-- `restartGame` must re-instantiate SignalCollector (seal prevents reuse) — per GEN-SIGNAL-RESET
+- `restartGame` must call `signalCollector.reset()` — do NOT seal + re-instantiate — per GEN-SIGNAL-RESET
 
 ## FeedbackManager Contract Rules
 

@@ -64,9 +64,13 @@ signalCollector.recordCustomEvent('round_solved', { round: 3, correct: true, tim
 signalCollector.recordCustomEvent('hint_requested', { round: 3, hint_type: 'visual' });
 ```
 
+### `reset()`
+
+Reset the collector for a new play session (e.g. "Try Again"). Flushes buffered events via sendBeacon, clears the buffer, and continues with the same listeners, identity, and batch numbering. Use instead of `seal()` + `new SignalCollector()` when the iframe stays alive.
+
 ### `seal()` -> `{ event_count, metadata }`
 
-Finalize the collector at game end. Fires `sendBeacon` immediately (survives iframe destruction), then attempts `fetch` with retry as bonus path. Detaches all DOM listeners. Returns synchronously. Idempotent — second call is a no-op.
+Finalize the collector at game end. Fires `sendBeacon` immediately (survives iframe destruction), then attempts `fetch` with retry as bonus path. Detaches all DOM listeners. Returns synchronously. Idempotent — second call is a no-op. **Only use when the iframe is about to be destroyed — not for restart.**
 
 ### `startFlushing()` / `stopFlushing()`
 

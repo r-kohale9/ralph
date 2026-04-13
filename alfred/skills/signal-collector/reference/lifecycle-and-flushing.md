@@ -163,9 +163,9 @@ Never guard `game_complete` behind an if-victory condition.
 
 ---
 
-## Restart: Re-instantiation Pattern
+## Restart: reset() Pattern
 
-`seal()` marks the collector as permanently closed. All subsequent calls to `recordViewEvent`, `recordCustomEvent`, `pause`, `resume` are silently ignored. `restartGame()` must create a fresh instance:
+When the student taps "Try Again", call `signalCollector.reset()`. This flushes buffered events from the previous play (via sendBeacon), clears the buffer, and continues with the same listeners, identity, and batch numbering. No re-instantiation needed.
 
 ```javascript
 function restartGame() {
@@ -173,25 +173,8 @@ function restartGame() {
   FeedbackManager.sound.stopAll();
   FeedbackManager._stopCurrentDynamic();
 
-  // Re-instantiate SignalCollector (sealed collector is dead)
-  signalCollector = new SignalCollector({
-    sessionId: window.gameVariableState?.sessionId || 'session_' + Date.now(),
-    studentId: window.gameVariableState?.studentId || null,
-    gameId: gameState.gameId || null,
-    contentSetId: gameState.contentSetId || null
-  });
-  window.signalCollector = signalCollector;
-
-  // Re-apply signalConfig if available
-  if (gameState.signalConfig && gameState.signalConfig.flushUrl) {
-    signalCollector.flushUrl = gameState.signalConfig.flushUrl;
-    signalCollector.playId = gameState.signalConfig.playId || null;
-    signalCollector.gameId = gameState.signalConfig.gameId || signalCollector.gameId;
-    signalCollector.sessionId = gameState.signalConfig.sessionId || signalCollector.sessionId;
-    signalCollector.contentSetId = gameState.signalConfig.contentSetId || signalCollector.contentSetId;
-    signalCollector.studentId = gameState.signalConfig.studentId || signalCollector.studentId;
-    signalCollector.startFlushing();
-  }
+  // Reset SignalCollector for new play (flushes previous events, keeps listeners)
+  signalCollector.reset();
 
   // Reset all gameState fields
   gameState.currentRound = 0;
@@ -209,7 +192,17 @@ function restartGame() {
 }
 ```
 
-**Key:** Re-instantiation must happen BEFORE `showStartScreen()` so the new collector captures the start screen transition.
+**Key:** `reset()` must happen BEFORE `showStartScreen()` so the collector captures the start screen transition with a clean buffer.
+
+**Do NOT call `seal()` before `reset()`.** `seal()` removes all DOM listeners and is irreversible. Use `seal()` only in `endGame()` when the iframe is about to be destroyed by the parent.
+
+### reset() vs seal() — when to use which
+
+| Scenario | Method | Why |
+|----------|--------|-----|
+| Student taps "Try Again" | `reset()` | iframe stays alive, same play session continues |
+| All rounds complete / game over (final) | `seal()` | iframe will be destroyed, need sendBeacon safety |
+| Tab close / navigate away | (automatic) | unload handlers fire sendBeacon automatically |
 
 ---
 
@@ -245,4 +238,4 @@ const visibilityTracker = new VisibilityTracker({
 | signalConfig 6-property assign | complete | `startFlushing()` |
 | message listener registered | registered | `game_ready` postMessage |
 | `seal()` | complete | `game_complete` postMessage |
-| `new SignalCollector()` (restart) | construct | `showStartScreen()` |
+| `signalCollector.reset()` (restart) | complete | `showStartScreen()` |
