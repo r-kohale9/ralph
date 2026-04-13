@@ -7,6 +7,6 @@
 **API (lifecycle):** `.seal()` (in endGame), `.pause()` / `.resume()` (VisibilityTracker), `.startFlushing()` (after signalConfig)
 **Key rules:**
 - NEVER define inline stub/polyfill — shadows real CDN class
-- `seal()` before `game_complete` postMessage
+- Do NOT call `seal()` in restartable games — it irreversibly removes DOM listeners. `seal()` is only for terminal single-play games.
 - Call `.reset()` in `restartGame()` — flushes previous events, continues with same listeners
 - All 6 signalConfig properties assigned from `game_init` before `startFlushing()`

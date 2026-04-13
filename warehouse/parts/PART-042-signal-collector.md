@@ -40,7 +40,7 @@ Inside `DOMContentLoaded`, after `FeedbackManager.init()`, before Timer creation
 ## Key Rules
 
 1. **NEVER define an inline stub/polyfill** — shadows the CDN class. `waitForPackages()` (PART-003) handles the loading wait.
-2. **`seal()` before `game_complete` postMessage** — fires sendBeacon to flush remaining events to GCS.
+2. **Do NOT call `seal()` in restartable games** — `seal()` irreversibly removes all DOM listeners. Use `getMetadata()` + `getInputEvents().length` for `signal_event_count` / `signal_metadata` in `game_complete`. Unload handlers auto-flush on true iframe destruction. `seal()` is only for terminal single-play games (no Try Again).
 3. **Call `reset()` in `restartGame()`** — flushes previous events, continues with same listeners and batch numbering. Do NOT seal + re-instantiate.
 4. **All 6 `signalConfig` properties assigned from `game_init` before `startFlushing()`** — flushUrl, playId, gameId, sessionId, contentSetId, studentId.
 5. **`recordViewEvent()` on every visible DOM change** — every function that modifies what is on screen must call it.
@@ -54,7 +54,7 @@ Inside `DOMContentLoaded`, after `FeedbackManager.init()`, before Timer creation
 - [ ] All 6 signalConfig properties set in `handlePostMessage` before `startFlushing()`
 - [ ] `recordViewEvent()` called in every DOM-modifying function
 - [ ] `data-signal-id` attributes on interactive elements
-- [ ] `seal()` called in `endGame()` before `game_complete` postMessage
+- [ ] `seal()` is NOT called in `endGame()` for restartable games (only in terminal single-play games)
 - [ ] Integrated with VisibilityTracker for pause/resume (PART-005)
 
 ## Cross-Reference

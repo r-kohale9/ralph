@@ -111,24 +111,31 @@ const visibilityTracker = new VisibilityTracker({
 });
 ```
 
-### POINT 6: seal() in endGame
+### POINT 6: endGame — DO NOT call seal() if game has a Try Again button
 
-Call `seal()` **before** `game_complete` postMessage. `seal()` fires sendBeacon (survives iframe destruction), detaches listeners, returns `{ event_count, metadata }` synchronously. Include the result in game_complete data.
+**Default pattern (games with restart):** Do NOT call `seal()` in `endGame()`. The game's results/game-over screen has a "Try Again" / "Play Again" button — the iframe stays alive. Calling `seal()` removes all DOM listeners and cannot be undone, breaking the restart path. Let the unload handlers (pagehide/beforeunload) handle the final flush automatically when the iframe is actually destroyed (tab close, navigation, parent destroys frame).
 
 ```javascript
-const result = signalCollector.seal();
+function endGame(outcome) {
+  // ... set gameState.isActive = false, syncDOM, compute metrics ...
 
-window.parent.postMessage({
-  type: 'game_complete',
-  data: {
-    metrics: gameMetrics,
-    attempts: gameState.attempts,
-    completedAt: Date.now(),
-    signal_event_count: result.event_count,
-    signal_metadata: result.metadata
-  }
-}, '*');
+  // Get event count + metadata WITHOUT sealing
+  var metadata = signalCollector.getMetadata();
+
+  window.parent.postMessage({
+    type: 'game_complete',
+    data: {
+      metrics: gameMetrics,
+      attempts: gameState.attempts,
+      completedAt: Date.now(),
+      signal_event_count: signalCollector.getInputEvents().length,
+      signal_metadata: metadata
+    }
+  }, '*');
+}
 ```
+
+**Only call `seal()` in the rare case of a terminal game with NO restart path** — e.g. a single-play assessment that never shows a replay button. In that case, call `seal()` before `game_complete` and use the returned `{ event_count, metadata }`.
 
 **Signal data streams to GCS via batch flushing — never included in postMessage payload.**
 
@@ -143,7 +150,7 @@ function restartGame() {
 }
 ```
 
-**Do NOT call `seal()` before `reset()`.** `seal()` is only for true game-end when the iframe will be destroyed. `reset()` is for in-page restart ("Try Again").
+**Do NOT call `seal()` anywhere in a restartable game.** `seal()` is irreversible — it removes all DOM listeners. Use `reset()` on restart, and let unload handlers handle true iframe destruction.
 
 ### POINT 8: data-signal-id Markup
 
@@ -165,7 +172,7 @@ Target identification priority: `data-signal-id` > `id` > `tag.className` > tag 
 1. **CRITICAL** — Never instantiate with empty constructor. Must pass `{ sessionId, studentId, gameId, contentSetId }`. (GEN-UX-005)
 2. **CRITICAL** — Never define inline SignalCollector stub/class. Shadows the real CDN package. (Forbidden pattern)
 3. **CRITICAL** — All 6 signalConfig properties must be assigned in game_init handler. (GEN-PM-SIGNALCONFIG)
-4. **CRITICAL** — `seal()` before `game_complete` postMessage. Signal events may be lost if order is reversed.
+4. **CRITICAL** — Do NOT call `seal()` in restartable games. `seal()` removes all DOM listeners irreversibly. Use `reset()` on restart; unload handlers auto-flush on true iframe destruction.
 5. **CRITICAL** — Call `.reset()` in restartGame, never `seal()` + re-instantiate. (GEN-SIGNAL-RESET)
 6. **CRITICAL** — `typeof SignalCollector` guard in `waitForPackages()`. CDN may load after DOMContentLoaded.
 7. **STANDARD** — `recordViewEvent()` on every visible DOM change. Replay narration and view_context depend on it.
@@ -185,8 +192,8 @@ Target identification priority: `data-signal-id` > `id` > `tag.className` > tag 
 2. `window.SignalCollector = class {...}` — inline polyfill shadows CDN package; real class never loads.
 3. `signalCollector.trackEvent()` — method does NOT exist in v3 API, crashes at runtime with ReferenceError.
 4. `seal()` + `new SignalCollector()` in restartGame — causes batch number collision in GCS. Use `reset()` instead.
-5. Omitting `seal()` in endGame — events lost when parent destroys iframe.
-6. Calling `game_complete` before `seal()` — parent may destroy iframe before sendBeacon fires.
+5. Calling `seal()` in `endGame()` of a restartable game — permanently removes DOM listeners, breaks the Try Again flow. Unload handlers already cover iframe destruction.
+6. Calling `seal()` then `reset()` — seal's listener removal cannot be undone; reset() on a sealed collector is a no-op.
 7. Missing signalConfig property assignments — partial analytics, broken GCS paths.
 8. Skipping `recordViewEvent` on DOM changes — replay narration has gaps, input events lack view_context.
 9. Starting `signalCollector.startFlushing()` before `flushUrl` is set — silently does nothing.

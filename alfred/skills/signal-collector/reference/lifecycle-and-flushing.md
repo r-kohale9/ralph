@@ -101,18 +101,9 @@ signal-events/{studentId}/{sessionId}/{gameId}/{contentSetId}/{playId}/batch-{N}
 
 ---
 
-## seal() at Game End
+## endGame — no seal() for restartable games
 
-`seal()` implements a dual-track final flush designed for iframe deployment where the parent may destroy the frame immediately:
-
-1. Stops the flush interval
-2. **Synchronous:** fires `sendBeacon()` in 50-event chunks — survives iframe destruction
-3. If sendBeacon rejected (browser quota): falls back to `postMessage` to parent
-4. **Async bonus:** attempts `fetch` with 3 retries (confirmed delivery if iframe survives)
-5. Detaches all DOM event listeners
-6. Returns synchronously: `{ event_count, metadata }`
-
-**Idempotent** — second call is a no-op, returns immediately.
+**Default pattern:** games have a "Try Again" button on the results/game-over screen. The iframe stays alive. Do NOT call `seal()` in `endGame()` — it removes all DOM listeners irreversibly and breaks the restart flow. Use `getMetadata()` + `getInputEvents().length` for the game_complete summary fields instead. Unload handlers (pagehide/beforeunload) automatically fire sendBeacon when the iframe is actually destroyed (tab close, parent removes frame).
 
 ```javascript
 function endGame(outcome) {
@@ -123,8 +114,9 @@ function endGame(outcome) {
 
   // ... calculate metrics, show results screen ...
 
-  // seal() BEFORE game_complete
-  const result = signalCollector.seal();
+  // Get summary WITHOUT sealing (listeners stay attached for restart)
+  var metadata = signalCollector.getMetadata();
+  var eventCount = signalCollector.getInputEvents().length;
 
   window.parent.postMessage({
     type: 'game_complete',
@@ -132,20 +124,30 @@ function endGame(outcome) {
       metrics: { accuracy, time, stars, attempts: gameState.attempts, duration_data },
       attempts: gameState.attempts,
       completedAt: Date.now(),
-      signal_event_count: result.event_count,
-      signal_metadata: result.metadata
+      signal_event_count: eventCount,
+      signal_metadata: metadata
     }
   }, '*');
 }
 ```
 
+**When to use `seal()` instead:** only for terminal-play games with no restart path (e.g. single-shot assessments that never show a replay button). In that case, `seal()` returns `{ event_count, metadata }` for the postMessage payload and removes listeners since the iframe won't be reused.
+
 **Signal data streams to GCS separately — NEVER included in postMessage payload.** Only `signal_event_count` and `signal_metadata` are included as summary fields.
+
+### seal() mechanics (for reference)
+
+1. Stops the flush interval
+2. **Synchronous:** fires `sendBeacon()` in 50-event chunks — survives iframe destruction
+3. **Async bonus:** attempts `fetch` with 3 retries (confirmed delivery if iframe survives)
+4. Detaches all DOM event listeners (**irreversible**)
+5. Returns synchronously: `{ event_count, metadata }`. Idempotent.
 
 ---
 
 ## game_complete Must Fire on BOTH Paths
 
-`seal()` + `game_complete` must fire on **both** victory and game-over:
+`game_complete` postMessage must fire on **both** victory and game-over:
 
 ```javascript
 // Victory path
@@ -194,14 +196,15 @@ function restartGame() {
 
 **Key:** `reset()` must happen BEFORE `showStartScreen()` so the collector captures the start screen transition with a clean buffer.
 
-**Do NOT call `seal()` before `reset()`.** `seal()` removes all DOM listeners and is irreversible. Use `seal()` only in `endGame()` when the iframe is about to be destroyed by the parent.
+**Do NOT call `seal()` anywhere in a restartable game.** `seal()` removes all DOM listeners irreversibly. Use `reset()` on restart. Unload handlers handle true iframe destruction.
 
 ### reset() vs seal() — when to use which
 
 | Scenario | Method | Why |
 |----------|--------|-----|
 | Student taps "Try Again" | `reset()` | iframe stays alive, same play session continues |
-| All rounds complete / game over (final) | `seal()` | iframe will be destroyed, need sendBeacon safety |
+| Game end with Try Again button (default) | neither | unload handlers auto-flush on true destruction; listeners stay ready for restart |
+| Terminal single-play game (no restart) | `seal()` | iframe won't be reused, need sendBeacon safety |
 | Tab close / navigate away | (automatic) | unload handlers fire sendBeacon automatically |
 
 ---
@@ -237,5 +240,5 @@ const visibilityTracker = new VisibilityTracker({
 | `new SignalCollector()` | construct | any `recordViewEvent` / `recordCustomEvent` call |
 | signalConfig 6-property assign | complete | `startFlushing()` |
 | message listener registered | registered | `game_ready` postMessage |
-| `seal()` | complete | `game_complete` postMessage |
 | `signalCollector.reset()` (restart) | complete | `showStartScreen()` |
+| `seal()` (terminal games only) | complete | `game_complete` postMessage |
