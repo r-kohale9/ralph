@@ -23,6 +23,7 @@ After spec is approved, before game-building. Produces the 5 plan docs the build
 - `reference/default-flow.md` -- canonical multi-round flow diagram (Shape 2) -- **ALWAYS**
 - `reference/shapes.md` -- Shape 1 Standalone, Shape 2 Multi-round, Shape 3 Sectioned -- **ALWAYS**
 - `reference/flow-gallery.md` -- 16 customization patterns to apply as ADDITIVE deltas on top of the canonical diagram -- **ON-DEMAND** (only when the spec's `## Flow` lists a customization trigger)
+- `reference/default-transition-screens.md` -- canonical Elements tables for the 4 standard transition screens (game_over, motivation, victory, stars_collected); copy verbatim into screens.md unless the spec explicitly overrides a field -- **ALWAYS**
 
 ## Input
 
@@ -77,6 +78,7 @@ For EVERY screen in the flow diagram:
 4. List every element with position, content, and interactivity. For buttons, record the exact visible label — this string is what game-building must emit.
 5. Define entry and exit conditions.
 6. For gameplay screen: define the round presentation sequence (preview, instructions, media, gameplay reveal).
+7. **For the 4 standard transition screens (`game_over`, `motivation`, `victory`, `stars_collected`):** copy the canonical Elements table from `reference/default-transition-screens.md` verbatim. Override a row ONLY when the spec's `## Flow` or content section explicitly specifies different copy (e.g. Victory's subtitle is always game-specific). Do NOT invent alternative titles/buttons/stickers.
 
 ### Step 4: Derive round-flow.md
 

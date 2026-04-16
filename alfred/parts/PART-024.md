@@ -10,6 +10,7 @@ Injects into `#mathai-transition-slot` (sibling of `#gameContent` inside `.game-
 
 **Invariants:**
 - **Every transition MUST play audio** — no silent transitions. Silent = not mathai-equivalent. Fire audio via the `onMounted` callback: `onMounted: () => FeedbackManager.sound.play('<id>', { sticker })`. Approved IDs: `vo_game_start`, `sound_game_complete`, `sound_game_over`, `vo_level_start_N`, `vo_motivation`, `sound_correct`, etc.
+- **`stars` and `icons` share one DOM slot — pass only ONE.** Internally the component writes `stars`'s star markup into `.mathai-ts-icons`; when `stars` is present, any `icons: [...]` emoji never renders. Victory uses `stars: N`; all other transitions (Welcome, Round Intro, Section Intro, Motivation, Game Over, Stars Collected) use `icons: ['<emoji>']`.
 - **Audio awaited before dependent state change.** For Victory / Game Over: `await` the `transitionScreen.show(...)` Promise (resolves when buttons tap or `duration` elapses). The audio started by `onMounted` plays in parallel; if a button click should stop it, call `FeedbackManager.sound.stopAll()` in the click handler.
 - **`show()` takes ONE options-object argument.** Never a string title as the first arg (GEN-TRANSITION-API).
 - **`icons[]` accepts emoji strings only** — never SVG / HTML / path markup (GEN-TRANSITION-ICONS).
@@ -21,5 +22,7 @@ Injects into `#mathai-transition-slot` (sibling of `#gameContent` inside `.game-
 **ScreenLayout requirement:** `ScreenLayout.inject({ slots: { ..., transitionScreen: true } })` or `sections.transitionScreen: true` — slot must exist.
 
 **Typical patterns:** `auto-dismiss` (round intro, stars collected) → `await FeedbackManager.sound.play(...); ts.hide();`. `tap-dismiss` (welcome, motivation, victory, game over) → button click handler calls `ts.hide()`.
+
+**Default transition screens.** The 4 standard end-of-flow transitions (`game_over`, `motivation`, `victory`, `stars_collected`) have canonical templates in `alfred/skills/game-planning/reference/default-transition-screens.md`. Structure is fixed; strings come from `screens.md` (copied from the defaults unless the spec overrides).
 
 See `warehouse/parts/PART-024-transition-screen.md` for full detail.

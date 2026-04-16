@@ -39,7 +39,7 @@ Key points:
 - The header bar is `position: fixed` and visible in BOTH preview and game states.
 - Instruction + game content share a single scroll area below the fixed header (no nested scrolling).
 - `#gameContent` and `#mathai-transition-slot` are siblings inside `.game-stack` — no DOM moves at runtime.
-- The progress bar slot (`#mathai-progress-slot`) is NOT created — the preview header has the progress bar.
+- The round progress-bar slot (`#mathai-progress-slot`) is created at the top of `.game-stack` when `slots.progressBar: true` is passed; omitted otherwise (Shape 1 Standalone). The preview header carries its own audio-countdown strip (`#previewProgressBar`) — a different element.
 - PreviewScreenComponent populates header content and manages state transitions.
 
 When `previewScreen: false`, the legacy `.game-wrapper > .game-stack > #gameContent` structure is created instead.

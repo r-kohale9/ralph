@@ -9,7 +9,7 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 `pre-generation/screens.md` is the enumeration + content contract. Before writing any flow code:
 
 1. **Screen completeness.** For every screen enumerated in `screens.md`, produce a function that mounts it. Do NOT skip short-lived motivation / celebration transitions (e.g. `game_over_motivation`, `victory_motivation`, `stars_collected`) — they are required render targets, not optional.
-2. **Buttons come from `screens.md`, not from this file.** The code snippets below show **structure**; the button set (labels, count, order) for each transition comes from the corresponding "Elements" table in `screens.md`. Do NOT invent additional buttons (e.g. an `Exit` button if screens.md lists only `Try Again`). Do NOT rename listed buttons.
+2. **Content comes from `screens.md`, not from this file.** The code snippets below show **structure**; every user-visible string in a `transitionScreen.show({...})` call (title, subtitle, button labels, sticker/icon emoji, audio id) comes from the corresponding "Elements" table in `screens.md`. Do NOT invent additional buttons (e.g. an `Exit` button if screens.md lists only `Try Again`). Do NOT rename listed buttons. Do NOT alter titles or subtitles. `test/content-match.test.js` enforces this — any drift fails the build.
 3. **Persistent fixtures.** Preview wrapper stays mounted through every phase (see PART-039 Wrapper persistence). Progress bar is visible on every screen except Preview; position is top of game body — never at the bottom.
 
 ## Screen → component mapping

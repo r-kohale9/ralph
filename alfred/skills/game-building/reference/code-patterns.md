@@ -120,6 +120,7 @@ Per PART-024. Game-building rules:
 - `icons` array must contain emoji strings only, never SVG/HTML/paths (GEN-TRANSITION-ICONS).
 - ALL `transitionScreen.show()` calls MUST be awaited (returns a Promise).
 - **Every transition screen MUST play audio** (SFX ± dynamic VO). No silent transitions. Fire via the `onMounted` callback: `onMounted: () => FeedbackManager.sound.play('<id>', { sticker })`. Approved IDs per PART-024: `vo_game_start`, `sound_game_complete`, `sound_game_over`, `vo_level_start_N`, `vo_motivation`.
+- **`stars:` and `icons:` are mutually exclusive.** TransitionScreenComponent renders them into the same `.mathai-ts-icons` DOM element — `stars:` always wins, so any `icons: [...]` emoji silently disappears. Pick one per screen: Victory passes `stars: N`; Game Over / Round Intro / Motivation / Stars Collected pass `icons: ['<emoji>']`. Do NOT pass both. `test/content-match.test.js` fails the build if you do.
 - **Audio + render sequence for Victory / Game Over:** `await transitionScreen.show({ content, persist: true, buttons, onMounted: () => FeedbackManager.sound.play(...) })`. The `onMounted` fires the audio after DOM mounts; the `show` Promise resolves when a button is tapped. If a button click should interrupt audio, call `FeedbackManager.sound.stopAll()` in the click handler.
 - Button labels come from `pre-generation/screens.md` verbatim. See "Plan → build contract" in `flow-implementation.md`.
 - See `parts/PART-024.md` for full API.
@@ -148,7 +149,12 @@ Per PART-042. Game-building rules:
 ### PreviewScreen
 Per PART-039. Game-building rules:
 - MANDATORY for every game. `ScreenLayout.inject` must include `slots: { previewScreen: true, ... }`.
-- **Single source of instructions.** The how-to-play copy is delivered ONCE via `content.previewInstruction` + `content.previewAudioText`. Gameplay screens (the DOM inside `#gameContent`) MUST NOT render a static instruction panel repeating the same message. Do NOT author `<p class="instruction">Find the two tiles...</p>` or similar inside `#gameContent`. Only render a per-round *prompt* if it is semantically distinct from the preview instruction (and ideally drive that from `screens.md` as a round-specific prompt, not as a generic how-to-play banner).
+- **Single source of instructions — STRICT.** The how-to-play copy is delivered ONCE via `content.previewInstruction` + `content.previewAudioText`. Gameplay screens (the DOM inside `#gameContent`) MUST NOT render ANY of the following:
+  - A static instruction / prompt banner repeating or paraphrasing the preview instruction (e.g. "Find the two tiles...", "Tap two tiles...", "Select the correct answer").
+  - Any element with a class/id containing `instruction`, `help-text`, `prompt-text`, `task-text`, `directions`, `how-to-play`.
+  - Verbs like "Find", "Tap", "Select", "Choose", "Click", "Drag" as a heading/banner inside `#gameContent`. The preview already said it.
+  A per-round *prompt* is allowed ONLY when it carries round-specific information that is NOT in the preview (e.g. "What is 3 × 4?" — the question itself; "Match the shapes below" after a round-type change screen). Generic how-to-play restated in different words is NOT distinct — it duplicates.
+  When in doubt: omit the gameplay banner. Players already heard/read the preview. If the round-type change is material, convey it via a Round-N-intro TransitionScreen, not a banner.
 - Instantiated in DOMContentLoaded with `{ slotId: 'mathai-preview-slot' }` only. Do NOT pass `autoInject`, `gameContentId`, `previewContent`, `questionLabel`, `score`, or `showStar`.
 - `previewScreen.show({ instruction, audioUrl, showGameOnPreview, timerConfig, timerInstance, onComplete })` is called as the LAST step of `setupGame()` — after `#gameContent` has been rendered.
 - Preview audio URL sourced from `content.previewAudio || fallbackContent.previewAudio || null`. Never hardcode.
@@ -316,7 +322,13 @@ Victory, Game Over, Play Again, and Try Again render **inside** the preview wrap
 
 **Results mounting rule (PART-024):** pass the results metrics HTML via `transitionScreen.show({ content: metricsHTML, persist: true, buttons: [...] })`. `content` is rendered inside the transition card; `persist: true` keeps it visible until a button is tapped. Never create a sibling `<div id="results-screen">` overlay and never hide the preview wrapper to make room for it.
 
-**Button labels come from `pre-generation/screens.md`, not from this file.** The snippets below show *structure*; button set (count, labels, order) for each transition is copied verbatim from the corresponding Elements table in `screens.md`. Do NOT invent extra buttons (e.g. an `Exit` button if screens.md lists only `Try Again`), and do NOT rename the listed buttons.
+**All user-visible strings come from `pre-generation/screens.md`, not from this file.** The snippets below show *structure*; **title, subtitle, button labels (count + order), sticker/icon emoji, and audio id** for each transition are copied verbatim from the corresponding Elements table in `screens.md`. Do NOT invent extra buttons, do NOT rename buttons, do NOT alter titles/subtitles. Template variables in screens.md (`N`, `M`, `[Title]`, numeric examples like `"Round 1"`) are matched via placeholder — your HTML can concatenate `'Round ' + roundNum` and still match. `test/content-match.test.js` enforces this and fails the build on drift.
+
+**Default transition screens** — `game_over`, `motivation`, `victory`, `stars_collected` have canonical templates in `alfred/skills/game-planning/reference/default-transition-screens.md`. The planner copies those verbatim into `screens.md`; game-building reads screens.md and emits the matching `transitionScreen.show(...)`. Short summary of the structural defaults (strings live in the planning doc):
+- **Game Over** → `icons: ['😔']`, title "Game Over", subtitle "You ran out of lives!", single `Try Again` button.
+- **Motivation** → no icons, title "Ready to improve your score? ⚡", single `I'm ready! 🙌` button.
+- **Victory** → `stars: gameState.stars`, title "Victory 🎉", per-game subtitle, buttons depend on stars: `Claim Stars` alone for 3★, `Play Again` + `Claim Stars` (horizontal) otherwise.
+- **Stars Collected** → no icons/stars/subtitle/buttons, two-line title via `styles: { title: { whiteSpace: 'pre-line' } }`, auto-dismiss via `duration: 2500`.
 
 ```javascript
 async function showVictory() {
