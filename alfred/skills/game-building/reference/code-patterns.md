@@ -106,6 +106,7 @@ Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
 - **Stop:** `FeedbackManager.sound.stopAll()` + `FeedbackManager._stopCurrentDynamic()` on CTA taps
 - **Pause/Resume:** `FeedbackManager.sound.pause()/resume()` + `FeedbackManager.stream.pauseAll()/resumeAll()` on visibility change
 - Subtitle under 60 chars. Never use "wrong" -- use "Not quite," "Close," "Almost."
+- **No `Promise.race` on FeedbackManager calls (CRITICAL).** Package already bounds resolution (`sound.play` → audio-duration + 1.5s guard; `playDynamicFeedback` → 60s streaming / 3s TTS API). Plain `await FeedbackManager.sound.play(...)` / `await FeedbackManager.playDynamicFeedback(...)` inside `try/catch` is the only correct pattern — "non-blocking" means `try/catch`, NOT `Promise.race`. A helper like `audioRace(p) => Promise.race([p, setTimeout(r, 800)])` truncates normal TTS (1–3s) and causes phase/round transitions to fire before audio ends. Validator rule `5e0-FEEDBACK-RACE-FORBIDDEN` blocks any such race. See PART-017 + PART-026 Anti-Pattern 32.
 - See `skills/feedback/SKILL.md` for all 17 behavioral cases and `feedback/reference/feedbackmanager-api.md` for CDN URLs.
 
 ### ScreenLayout.inject
@@ -159,6 +160,7 @@ Per PART-039. Game-building rules:
 - `previewScreen.show({ instruction, audioUrl, showGameOnPreview, timerConfig, timerInstance, onComplete })` is called as the LAST step of `setupGame()` — after `#gameContent` has been rendered.
 - Preview audio URL sourced from `content.previewAudio || fallbackContent.previewAudio || null`. Never hardcode.
 - **Audio URL source hierarchy** (PART-039 layer order): `content.previewAudio` → `fallbackContent.previewAudio` → runtime TTS fallback using `previewAudioText` → 5s silent timer. The component handles the TTS fallback internally when `audioUrl` is null; you do NOT need to generate TTS yourself at runtime. Deploy step patches `fallbackContent.previewAudio` with a CDN URL from `previewAudioText` TTS.
+- **`previewScreen.isActive()`** returns `true` while the preview overlay is mounted (between `show()` and `switchToGame()`). Use this in any timed fallback (setTimeout, requestIdleCallback, race-guards) that might otherwise fire during a live preview. Preview does NOT mutate `gameState.phase`, so `phase === 'start_screen'` stays true for the entire preview — `isActive()` is the authoritative signal. See `html-template.md` rule 11 (standalone-fallback gate).
 - `onComplete` callback receives `previewData` and must call `startGameAfterPreview(previewData)` — see pattern below.
 - `endGame()` calls `previewScreen.destroy()`.
 - `restartGame()` must NOT call `previewScreen.show()` or `setupGame()` — preview is once per session.

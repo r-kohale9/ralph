@@ -165,6 +165,13 @@ The `DOMContentLoaded` handler runs 16 steps in order (see template above). Crit
 8. `setupGame()` must (a) render the full round DOM into `#gameContent` then (b) call `previewScreen.show(...)` as its last step. Reversing this order produces an empty preview area when `showGameOnPreview: true`
 9. `endGame()` must call `previewScreen.destroy()`; `restartGame()` must NOT call `previewScreen.show()` or `setupGame()` -- the preview shows once per session
 10. Window exposures (`window.gameState`, `window.endGame`, `window.restartGame`, `window.nextRound`, `window.startGame`) at bottom of DOMContentLoaded
+11. **Standalone-fallback gate (5e0-FALLBACK-GATE-WEAK).** Any `setTimeout` standalone fallback (inside OR after `DOMContentLoaded`) that calls `startGame()`, `showRoundIntro()`, or `injectGameHTML()` MUST, as its first statement, check:
+
+    ```javascript
+    if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+    ```
+
+    The fallback exists *only* to recover from `waitForPackages()` timeout / CDN failure. If `previewScreen` is instantiated and active, the preview path is live and the fallback must abort. Do NOT rely on `gameState.phase === 'start_screen'` alone — preview does not mutate game state, so phase stays `'start_screen'` for the entire preview duration. Symptom if omitted: preview audio and Round 1 intro audio overlap; the welcome transition is silently skipped because `startGameAfterPreview` early-returns on `gameState.isActive === true`.
 
 ## Preview Header / Wrapper Invariants
 

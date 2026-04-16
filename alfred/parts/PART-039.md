@@ -37,6 +37,7 @@ const previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot'
 - `duration_data.preview[]` is populated with `{ duration }` in `startGameAfterPreview()`.
 - `game_complete` payload includes `previewResult: gameState.previewResult || null`.
 - Preview audio flows through `FeedbackManager.sound.preload`/`.play` — no `new Audio()`.
+- **Standalone-fallback gate (CRITICAL).** Any `setTimeout` standalone fallback inside `DOMContentLoaded` that calls `startGame()`, `showRoundIntro()`, or `injectGameHTML()` MUST, as its first statement, check `if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;`. The fallback exists only to recover from `waitForPackages()` timeout / CDN failure. Preview does NOT mutate `gameState.phase`, so the phase === 'start_screen' gate alone is insufficient — it stays true for the entire preview duration and lets the fallback fire Round 1 audio on top of preview audio, causing the welcome transition to be silently skipped.
 
 **State enum:** `getState()` returns `'idle'` (pre-`show`), `'preview'` (overlay visible), or `'game'` (overlay dismissed, wrapper still mounted).
 

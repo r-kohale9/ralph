@@ -204,7 +204,7 @@ When new round loads (new grid, tiles, cards), a soft "new cards" SFX plays — 
 5. **CRITICAL — recordAttempt before audio.** Attempt data is captured before FeedbackManager plays.
 6. **STANDARD — Subtitle under 60 characters.** FeedbackManager renders in a small area.
 7. **STANDARD — Never use "wrong" in student-facing text.** Use "Not quite," "Close," "Almost."
-8. **STANDARD — Audio failure is non-blocking.** Game continues if audio fails.
+8. **STANDARD — Audio failure is non-blocking.** Game continues if audio fails. *"Non-blocking" means `try { await FeedbackManager.sound.play(...) } catch (e) {}`* — NOT `Promise.race`. FeedbackManager already bounds every call internally (`sound.play` → audio-duration + 1.5s guard; `playDynamicFeedback` → 60s streaming / 3s TTS API timeout), so a plain `await` is guaranteed to resolve. Wrapping calls in `Promise.race([...setTimeout...])` or defining an `audioRace` helper truncates normal TTS (1–3s) and advances phase/round transitions before audio ends — validator rule `5e0-FEEDBACK-RACE-FORBIDDEN` blocks this at build time. See PART-026 Anti-Pattern 32.
 9. **CRITICAL — Sequential audio must await in order.** When two audios play back-to-back (SFX → VO, SFX → TTS), `await` the first call fully before starting the second. Never fire both simultaneously. Use `audioStopped` flag to prevent second audio from starting if CTA was tapped during first.
 
 ## Anti-patterns

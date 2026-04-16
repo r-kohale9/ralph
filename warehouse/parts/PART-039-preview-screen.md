@@ -261,3 +261,4 @@ Do NOT call `setupGame()` from `restartGame()` if `setupGame()` ends with `showP
 - [ ] Game does NOT render its own header bar inside `#gameContent` (preview header is the only header)
 - [ ] Game DOM is rendered into `#gameContent` BEFORE `previewScreen.show()` is called (otherwise preview overlay covers empty space when `showGameOnPreview: true`)
 - [ ] `gameState.previewResult` included in `game_complete` payload if interactive
+- [ ] Standalone `setTimeout` fallback inside DOMContentLoaded gates on `previewScreen && previewScreen.isActive()` before running any `startGame()` / `showRoundIntro()` / `injectGameHTML()`. The fallback exists only to recover from `waitForPackages()` timeout; it MUST abort when a live preview is mounted. `gameState.phase === 'start_screen'` alone is NOT a sufficient gate because preview does not mutate `gameState.phase`.

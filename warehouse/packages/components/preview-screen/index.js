@@ -1048,6 +1048,15 @@
   // skip / switchToGame / destroy
   // ============================================================
 
+  /**
+   * Returns true while the preview overlay is mounted (state === 'preview').
+   * Use in setTimeout / requestIdleCallback fallbacks to avoid racing a live
+   * preview. Public contract — refactors must preserve this method.
+   */
+  PreviewScreenComponent.prototype.isActive = function () {
+    return this._state === "preview";
+  };
+
   PreviewScreenComponent.prototype.skip = function () {
     if (this._state !== "preview") return;
     console.log("[PreviewScreen] Skipped");

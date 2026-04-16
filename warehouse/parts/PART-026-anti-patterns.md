@@ -472,6 +472,28 @@ document.getElementById('gameAudio').play();
 </div>
 ```
 
+## Anti-Pattern 32: Promise.race Around FeedbackManager Calls
+
+```javascript
+// WRONG — 800ms ceiling wins over normal 1–3s TTS; round advances while audio still plays
+function audioRace(p) {
+  return Promise.race([ p, new Promise(r => setTimeout(r, 800)) ]);
+}
+await audioRace(FeedbackManager.sound.play('correct_sound_effect', { sticker }));
+```
+
+Symptom: rounds advance before feedback / VO finishes. Validator rule: `5e0-FEEDBACK-RACE-FORBIDDEN`.
+
+**Correct:** Plain `await` inside `try/catch`. FeedbackManager already bounds resolution internally (see PART-017) — `sound.play` resolves within audio-duration + 1.5s, `playDynamicFeedback` within 60s. Any template-level race is either redundant or bug-inducing.
+
+```javascript
+// RIGHT
+try {
+  await FeedbackManager.sound.play('correct_sound_effect', { sticker });
+  await FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker });
+} catch (e) { /* non-blocking per feedback SKILL Rule 8 */ }
+```
+
 ## Verification
 
 - [ ] All 4 script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` — no relative paths, no `cdn.homeworkapp.ai`, no invented domains
@@ -515,3 +537,4 @@ document.getElementById('gameAudio').play();
 - [ ] If `<audio>` present: custom play/pause icon + progress bar with CDN SVGs
 - [ ] If `<audio>` present: audio player in instruction/question area, NOT inside interactive play area
 - [ ] No `new Audio()` anywhere (RULE-006)
+- [ ] No `Promise.race` wrapping `FeedbackManager.sound.play` / `playDynamicFeedback` / `audioRace` helper (PART-017 Anti-Pattern 32, validator rule `5e0-FEEDBACK-RACE-FORBIDDEN`)

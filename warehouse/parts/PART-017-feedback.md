@@ -182,6 +182,39 @@ onInactive: () => { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseA
 onResume: () => { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); }
 ```
 
+## CRITICAL: No `Promise.race` on FeedbackManager Calls
+
+FeedbackManager already bounds resolution internally:
+
+| Method | Worst-case resolution time | Mechanism |
+|---|---|---|
+| `sound.play(id, opts)` | audio duration + 1.5s | Guard timeout → `finalizeVoice("timeout")` |
+| `playDynamicFeedback({...})` | 60s streaming / 3s TTS API dead | Stream safety timeout + fetch timeout |
+
+**Templates MUST NOT wrap these calls in `Promise.race`.** Phase/round transitions await audio completion directly.
+
+**Anti-pattern** (truncates normal TTS, causes round to advance while audio still plays):
+
+```javascript
+// WRONG — 800ms ceiling wins over normal 1–3s TTS; round advances before audio ends
+function audioRace(p) {
+  return Promise.race([ p, new Promise(r => setTimeout(r, 800)) ]);
+}
+await audioRace(FeedbackManager.sound.play('correct_sound_effect', { sticker }));
+```
+
+**Correct:**
+
+```javascript
+// RIGHT — full audio plays before transition
+try {
+  await FeedbackManager.sound.play('correct_sound_effect', { sticker });
+  await FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker });
+} catch (e) { /* non-blocking — see feedback SKILL Rule 8 */ }
+```
+
+"Non-blocking" means `try/catch`, not `Promise.race`. Validator rule: `5e0-FEEDBACK-RACE-FORBIDDEN`.
+
 ## Verification
 
 - [ ] `preload()` called with array of `{id, url}` objects — NOT `register()`
@@ -190,6 +223,7 @@ onResume: () => { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeA
 - [ ] Subtitles passed as props (not SubtitleComponent.show())
 - [ ] No `new Audio()` anywhere
 - [ ] VisibilityTracker uses `sound.pause()`/`sound.resume()` — NOT `sound.stopAll()`
+- [ ] No `Promise.race(...)` wrapping `FeedbackManager.sound.play` / `playDynamicFeedback` / `audioRace` helper; templates await FeedbackManager calls directly inside `try/catch`
 
 ## Source Code
 
