@@ -104,6 +104,18 @@ Extract `publishedGameId` and `artifactUrl` from the response.
 
 **On failure:** If registration returns non-2xx, stop deployment. Log the full error response. Do not proceed to content set creation -- without a registered game, content sets have nowhere to attach. Report the failure to the creator with the exact API error.
 
+### Step 2.5: Patch preview audio (TTS)
+
+Per PART-039 § Audio URL Sources layer 1, the deployment pipeline is the owner of the build-time preview audio patch. Before creating content sets:
+
+1. Read `previewAudioText` from the HTML's `fallbackContent`.
+2. Call the TTS API to generate an mp3; upload to CDN; record the resulting URL.
+3. Patch `fallbackContent.previewAudio` in the HTML with that CDN URL (overwrite `null` or prior value).
+4. Re-upload the patched HTML to GCP Storage (same deploy path).
+5. Also patch the `previewAudio` field in any content set payload created in Steps 3–4 so runtime `game_init` sends the same URL.
+
+If `previewAudioText` is missing, log a WARN and leave `previewAudio: null` — the PreviewScreen component falls back to runtime TTS, and failing that, a 5s silent timer. Do not block deployment on missing audio text, but flag it back to spec-review.
+
 ### Step 3: Create default content set from fallbackContent
 
 The default content set is MANDATORY. It uses the exact `fallbackContent` from the HTML, which is guaranteed to work because the game already runs with it.

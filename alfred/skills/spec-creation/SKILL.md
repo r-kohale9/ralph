@@ -18,6 +18,8 @@ When a creator provides a game description (1-10 sentences) and a new spec.md ne
 - `game-archetypes.md` — ALWAYS — 10 archetype profiles (structure + interaction + scoring + feedback combinations)
 - `pedagogy.md` — ON-DEMAND — Bloom level mapping, misconception design principles (load when assigning Bloom level or generating misconception tags)
 - `data-contract.md` — ON-DEMAND — recordAttempt schema, game_complete schema, required fields (load when building fallbackContent structure)
+- alfred/skills/game-planning/reference/default-flow.md -- canonical multi-round default; copy verbatim into spec's ## Flow when any rounds-based game is described -- ALWAYS
+- alfred/skills/game-planning/reference/flow-gallery.md -- 16 customization patterns to apply on top of the default; consulted when the user description triggers a deviation -- WHEN CUSTOMIZATION TRIGGERED
 
 ## Input
 
@@ -80,6 +82,14 @@ A structured `spec.md` file with ALL of the following sections. Every section is
 - Lives: [how lives are lost, what happens at 0]
 - Partial credit: [if applicable, or "None"]
 
+## Flow
+
+[Final ASCII flow diagram. Start from default-flow.md (or Shape 1 Standalone from shapes.md for single-question games), then apply customizations from user description.]
+
+**Shape:** [Multi-round (default) | Standalone | Multi-round + customizations]
+**Changes from default:**
+- [each customization, one line; "None" if no changes]
+
 ## Feedback
 | Event | Behavior |
 |-------|----------|
@@ -91,23 +101,34 @@ A structured `spec.md` file with ALL of the following sections. Every section is
 
 ## Content Structure (fallbackContent)
 [The exact shape of the fallbackContent object, with one fully worked example round
-and the misconception tags for every distractor/wrong-answer path.]
+and the misconception tags for every distractor/wrong-answer path.
+
+**Required preview fields** (per PART-039 — every game has a preview screen):
+- `previewInstruction` — HTML string with the full instruction text shown on the preview overlay (bold, images allowed).
+- `previewAudioText` — plain-text narration used to generate preview TTS at deploy time (patched into `previewAudio` post-build).
+- `showGameOnPreview` — optional boolean, default `false`. Set `true` if the student should see the game state (covered by a blocking overlay) while the preview audio plays.]
 
 Example:
 ```js
-const fallbackContent = [
-  {
-    round: 1,
-    stage: 1,
-    type: "A",
-    // ... all fields for this round type
-    misconception_tags: {
-      "[wrong_answer_1]": "misconception-name",
-      "[wrong_answer_2]": "misconception-name"
+const fallbackContent = {
+  previewInstruction: '<p>Tap two tiles that double each other!</p>',
+  previewAudioText: 'Find two numbers where one is double the other. Tap both to match them.',
+  previewAudio: null,           // filled at deploy time by TTS pipeline
+  showGameOnPreview: false,
+  rounds: [
+    {
+      round: 1,
+      stage: 1,
+      type: "A",
+      // ... all fields for this round type
+      misconception_tags: {
+        "[wrong_answer_1]": "misconception-name",
+        "[wrong_answer_2]": "misconception-name"
+      }
     }
-  },
-  // ... all N rounds
-];
+    // ... all N rounds
+  ]
+};
 ```
 
 ## Defaults Applied
@@ -157,6 +178,28 @@ If the input does not clearly match any archetype:
 - If it describes a genuinely novel interaction (e.g., "estimation on a number line"), flag it as non-standard: "Interaction type '[type]' is not one of the 10 standard types. Spec will define custom mechanics." Do NOT force it into MCQ or reject it.
 
 If the input matches multiple archetypes, choose the one that best fits the primary interaction described and note the ambiguity.
+
+### Step 2.5: Pick the flow shape
+
+- Scan the description for rounds / questions / lives / stages / sections.
+- **No rounds, single question, one-shot:** use Shape 1 Standalone from `alfred/skills/game-planning/reference/shapes.md`. Copy that mini-diagram verbatim into `## Flow`. Skip Step 2.6.
+- **Anything rounds-based (default case):** copy the full ASCII diagram from `alfred/skills/game-planning/reference/default-flow.md` verbatim into the spec's `## Flow` section. This is the base.
+- **Sectioned (`sections` or explicit groupings):** use default-flow.md as base, then Step 2.6 will layer the section-intro delta.
+- Never hand-roll a flow diagram. Always start from one of these canonical bases.
+- Record the pick on the `**Shape:**` line of the `## Flow` section.
+
+### Step 2.6: Apply customizations on top of the default
+
+- After pasting the default, scan the user description for customization triggers and match each against `alfred/skills/game-planning/reference/flow-gallery.md` rows 4–16.
+- Apply each matched row as an **additive delta**: insert a step, add a conditional branch, rewrite a single label. Never rewrite the whole diagram.
+- Example trigger → delta mappings:
+  - "show a custom intro / story screen before the first round" → insert intro transition between Preview and Welcome.
+  - "pep-talk every 3 rounds" / "mid-game encouragement" → insert conditional pep-talk transition between Feedback and the next Round-N intro.
+  - "early exit if they get 3 in a row" / "bail-out at streak N" → add a conditional branch from Feedback to Victory.
+  - "has sections / levels / chapters" → insert section-intro transition at each section boundary.
+  - "custom play-again text" / "custom try-again copy" → rewrite the label inside the "Ready to improve your score?" box only.
+  - "skip stars screen" / "no claim-stars" → delete the "Yay, stars collected!" branch and route Victory directly to exit.
+- Record every applied delta as one bullet under `**Changes from default:**`. If no triggers fire, the default diagram stays unchanged and the bullet list reads "None".
 
 ### Step 3: Apply defaults for every unspecified decision
 

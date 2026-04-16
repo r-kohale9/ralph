@@ -91,7 +91,22 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | 5e0-SHOW | PreviewScreenComponent instantiated but `previewScreen.show()` not called | warning | game-building (code-patterns) | Covered |
 | 5e0-AUDIOURL | `previewScreen.show()` missing `audioUrl` parameter | warning | game-building (code-patterns) | Covered |
 | 5e0-HARDCODED | `previewScreen.show()` has hardcoded instruction string | warning | game-building (code-patterns) | Covered |
+| 5e0-DUP-INSTRUCTION | `#gameContent` includes a how-to-play / prompt banner: any element with class/id containing `instruction`, `help-text`, `prompt-text`, `task-text`, `directions`, `how-to-play`; OR a banner sentence starting with an imperative verb already said by the preview (`Find`, `Tap`, `Select`, `Choose`, `Click`, `Drag`, `Match`). Per-round *question* text (e.g. "What is 3 × 4?") is allowed — only restated how-to-play is forbidden | error | game-building (code-patterns) | Implemented in lib/validate-static.js |
 | 5e0-STARTAFTER | `startGameAfterPreview()` function not found | warning | game-building (code-patterns) | Covered |
+| 5e0-DESTROY | `endGame()` does not call `previewScreen.destroy()` | warning | game-building (code-patterns) | Advisory (not yet in validate-static.js) |
+| 5e0-HIDE | `previewScreen.hide()` present (method removed in current API) | error | game-building (code-patterns) | Advisory |
+| 5e0-ORDER | `previewScreen.show()` called before `#gameContent` populated in `setupGame()` (heuristic: `.show(` precedes `injectGameHTML`/`renderInitialState`) | warning | game-building (code-patterns) | Advisory |
+| 5e0-RESTART | `restartGame()` calls `setupGame()` or `previewScreen.show()` (preview is once per session) | warning | game-building (code-patterns) | Advisory |
+| 5e0-DOMCL-TRANSITION | `transitionScreen.show()` invoked inside DOMContentLoaded before `setupGame()` (preview IS the first screen) | warning | game-building (html-template) | Advisory |
+| 5e0-DURATION | `duration_data.preview` array never populated in `startGameAfterPreview()` | warning | game-building (code-patterns) | Advisory |
+| 5e0-CTOR | `PreviewScreenComponent` constructed with `autoInject`, `gameContentId`, `questionLabel`, `score`, or `showStar` (drifted API) | error | game-building (code-patterns) | Advisory |
+| 5e0-SLOT-HIDE | `mathai-preview-slot` styled with `display:none`, `visibility:hidden`, `.hidden` class, `hidden` attribute, or `style.display = 'none'` mutation (wrapper must stay visible) | error | game-building (code-patterns) | Advisory |
+| 5e0-REPARENT | `appendChild`, `insertBefore`, `replaceWith`, or `remove` targeting `#gameContent` outside `injectGameHTML` / `buildFallbackLayout` init (wrapper DOM must not move at runtime). Heuristic allowlist: these two function bodies | error | game-building (code-patterns) | Advisory |
+| 5e0-DESTROY-MISPLACED | `previewScreen.destroy()` appears anywhere other than `endGame()` — e.g. inside `showVictory`, `showGameOver`, `restartGame`, `resetGame`, or answer handler. `destroy()` token count > 1 anywhere in file | error | game-building (code-patterns) | Advisory |
+| 5e0-DESTROY-MISSING | `endGame()` function has no `previewScreen.destroy()` call | error | game-building (code-patterns) | Advisory |
+| 5e0-DUP-HEADER | `#gameContent` markup contains an element with class containing `header`, `score-display`, or `avatar` (duplicates preview header) | warning | game-building (html-template) | Advisory |
+| 5e0-NEW-AUDIO | `new Audio(` appears anywhere in generated game code — preview/game audio must route through `FeedbackManager.sound` | error | game-building (code-patterns) | Advisory |
+| 5e0-PREVIEWRESULT | `game_complete` postMessage payload does not reference `previewResult` field | warning | game-building (code-patterns) | Advisory |
 
 ## ScreenLayout
 
@@ -233,6 +248,23 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | GEN-BTN-START | No `data-testid="btn-start"` on start button | warning | game-building (code-patterns) | Covered |
 | 11-STAR-DISPLAY | game_over phase set but no star/rating display element found | warning | game-building (code-patterns) | Covered |
 | GEN-DOM-CACHE | `getElementById`/`querySelector` inside per-round functions (should cache at init) | warning | game-building (code-patterns) | Added |
+
+## ProgressBar slot
+
+| Rule ID | Check | Severity | Alfred Skill | Status |
+|---------|-------|----------|--------------|--------|
+| 5g-PROGRESS-SLOT-WRONG | `ProgressBarComponent` constructed with `slotId: 'previewProgressBar'` (internal audio countdown, not the ProgressBar slot) or any value other than `'mathai-progress-slot'` | error | game-building (code-patterns) | Advisory |
+
+## Plan ↔ Build Contract
+
+Rules enforcing that generated HTML matches `pre-generation/screens.md` from the game-planning skill.
+
+| Rule ID | Check | Severity | Alfred Skill | Status |
+|---------|-------|----------|--------------|--------|
+| 5f-SCREENS-COMPLETE | Every screen enumerated in `pre-generation/screens.md` must have at least one corresponding render call in generated HTML. For transition screens (welcome / round_intro / motivation / stars_collected / victory / game_over), match by `transitionScreen.show({ title: '<screen title>' })` — title string matches the wireframe title verbatim | warning | game-building (flow-implementation) | Advisory |
+| 5f-BUTTONS-MATCH | For each transition screen in `screens.md`, the set of button `text:` values in the generated HTML must equal the set of CTA labels in the screen's Elements table. Count + case-sensitive match. Extra buttons (e.g. an invented Exit) and missing buttons both fail | warning | game-building (flow-implementation) | Advisory |
+| 5f-PROGRESS-TOP | Game CSS or HTML places the progress bar (ProgressBarComponent / `#mathai-progress-slot`) at the bottom of the game body. ProgressBar lives at the top of `.game-stack`, under the preview header — owned by ScreenLayout | warning | game-building (code-patterns) | Advisory |
+| 5f-CONTENT-MATCH | For every TransitionScreen-backed screen enumerated in `pre-generation/screens.md` (welcome, round_intro, section_intro, motivation, victory, game_over, stars_collected, etc.), the `transitionScreen.show({...})` call in the generated HTML MUST match the Elements table verbatim: `title` string, `subtitle` string (if declared), and button labels. Template variables (`'Round ' + n`, `'Section ' + n + ': ' + name`, `'you cleared ' + lives + ' lives remaining'`) are matched against placeholders in the plan (`N`, `M`, `[Title]`, numeric examples) via a concat-aware comparator | error | game-planning + game-building | Enforced by `test/content-match.test.js` |
 
 ## JS Syntax
 

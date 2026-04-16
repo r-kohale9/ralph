@@ -149,9 +149,12 @@ Read alfred/skills/game-building.md
 Read alfred/skills/data-contract.md
 Read alfred/skills/mobile/SKILL.md
 Read alfred/skills/feedback/SKILL.md
+Read warehouse/parts/PART-039-preview-screen.md  (authoritative PreviewScreen spec — MANDATORY in every game)
 
 Using the approved spec and plan, generate the complete game as a single index.html file.
 All CSS and JS must be inline. Follow the archetype skeleton from game-archetypes.md.
+Implement the flow inline per pre-generation/game-flow.md using the three CDN components (PreviewScreen, TransitionScreen, ProgressBar) — see game-building's reference/flow-implementation.md for the screen→component mapping, progress bar lifecycle, and round loop pattern.
+PreviewScreen is MANDATORY: `ScreenLayout.inject({ slots: { previewScreen: true, ... } })`, instantiate with `{ slotId: 'mathai-preview-slot' }` only, render `#gameContent` before `previewScreen.show()`, call `destroy()` in `endGame()`, and do NOT re-show on restart. See PART-039 + code-patterns.md § Preview screen integration.
 Wire all required platform integrations (recordAttempt, game_complete, FeedbackManager).
 
 Save the file and tell me the path.

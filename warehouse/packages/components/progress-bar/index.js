@@ -12,11 +12,7 @@
 (function(window) {
   'use strict';
 
-  // Skip if already loaded
-  if (typeof window.ProgressBarComponent !== "undefined") {
-    console.log("[ProgressBarComponent] Already loaded, skipping duplicate execution");
-    return;
-  }
+  if (typeof window.ProgressBarComponent !== 'undefined') return;
 
   var STYLE_ID = 'mathai-progress-bar-styles';
 
@@ -125,7 +121,8 @@
         slotId: 'mathai-progress-slot',
         totalRounds: 5,
         totalLives: 3,
-        labelFormat: 'Round {current}/{total}',
+        labelFormat: null, // resolved below once sections known
+        sections: null,    // optional [{label, rounds}]
         filledHeart: '\u2764\uFE0F',   // ❤️
         emptyHeart: '\uD83E\uDD0D',     // 🤍
         showLives: true,
@@ -144,8 +141,25 @@
         }
       }
 
+      // Derive totalRounds from sections if not explicitly set
+      if (this.config.sections && Array.isArray(this.config.sections) && config.totalRounds == null) {
+        var sum = 0;
+        for (var si = 0; si < this.config.sections.length; si++) {
+          sum += (this.config.sections[si].rounds || 0);
+        }
+        this.config.totalRounds = sum;
+      }
+
+      // Resolve default label format based on sections presence
+      if (!this.config.labelFormat) {
+        this.config.labelFormat = this.config.sections
+          ? '{sectionLabel} \u00B7 {inSection}/{sectionTotal}'
+          : 'Round {current}/{total}';
+      }
+
       this.currentRound = 0;
       this.currentLives = this.config.totalLives;
+      this._currentSectionIndex = undefined;
       this.container = null;
       this.uniqueId = 'pb-' + Date.now();
 
@@ -180,7 +194,6 @@
           this.container = document.createElement('div');
           this.container.id = this.config.slotId;
           parent.insertBefore(this.container, parent.firstChild);
-          console.log('[ProgressBar] Created fallback slot in', parent.className);
         } else {
           throw new Error('ProgressBar: No layout container found. Call ScreenLayout.inject() first.');
         }
@@ -188,12 +201,53 @@
     }
 
     /**
-     * Format the label string
+     * Resolve current section from currentRound (or explicit index).
+     * Returns null when no sections are configured.
      */
-    _formatLabel(current, total) {
+    _resolveSection(currentRound, explicitIndex) {
+      var secs = this.config.sections;
+      if (!secs || !secs.length) return null;
+      if (explicitIndex != null) {
+        var before = 0;
+        for (var i = 0; i < explicitIndex && i < secs.length; i++) before += (secs[i].rounds || 0);
+        var s = secs[explicitIndex] || secs[secs.length - 1];
+        var rTotal = s.rounds || 0;
+        return {
+          index: explicitIndex,
+          label: s.label,
+          total: rTotal,
+          inSection: Math.max(0, Math.min(rTotal, currentRound - before))
+        };
+      }
+      var acc = 0;
+      for (var j = 0; j < secs.length; j++) {
+        var r = secs[j].rounds || 0;
+        if (currentRound <= acc + r || j === secs.length - 1) {
+          return {
+            index: j,
+            label: secs[j].label,
+            total: r,
+            inSection: Math.max(0, Math.min(r, currentRound - acc))
+          };
+        }
+        acc += r;
+      }
+      return null;
+    }
+
+    /**
+     * Format the label. Tokens: {current} {total} {sectionLabel} {sectionIndex} {inSection} {sectionTotal}
+     */
+    _formatLabel(current, sectionIndex) {
+      var total = this.config.totalRounds;
+      var sec = this._resolveSection(current, sectionIndex);
       return this.config.labelFormat
-        .replace('{current}', current)
-        .replace('{total}', total);
+        .replace(/\{current\}/g, current)
+        .replace(/\{total\}/g, total)
+        .replace(/\{sectionLabel\}/g, sec ? sec.label : '')
+        .replace(/\{sectionIndex\}/g, sec ? (sec.index + 1) : '')
+        .replace(/\{inSection\}/g, sec ? sec.inSection : current)
+        .replace(/\{sectionTotal\}/g, sec ? sec.total : total);
     }
 
     /**
@@ -239,7 +293,7 @@
           var label = document.createElement('span');
           label.className = 'mathai-pb-label';
           label.id = uid + '-label';
-          label.textContent = this._formatLabel(0, cfg.totalRounds);
+          label.textContent = this._formatLabel(0);
           if (customStyles.label) applyStyles(label, customStyles.label);
           header.appendChild(label);
           this._labelEl = label;
@@ -279,36 +333,74 @@
         this._fillEl = fill;
       }
 
-      // Inject
       this.container.innerHTML = '';
       this.container.appendChild(root);
-
-      console.log('[ProgressBar] Rendered');
     }
 
     /**
      * Update progress display
      * @param {number} currentRound - Current round number (rounds COMPLETED)
      * @param {number} currentLives - Remaining lives
+     * @param {object} [opts]
+     * @param {number} [opts.sectionIndex] - Override computed section index
      */
-    update(currentRound, currentLives) {
+    update(currentRound, currentLives, opts) {
+      opts = opts || {};
       this.currentRound = currentRound;
       this.currentLives = currentLives;
+      this._currentSectionIndex = opts.sectionIndex;
 
       if (this._labelEl) {
-        this._labelEl.textContent = this._formatLabel(currentRound, this.config.totalRounds);
+        this._labelEl.textContent = this._formatLabel(currentRound, opts.sectionIndex);
       }
 
       if (this._fillEl) {
-        var pct = this.config.totalRounds > 0
-          ? (currentRound / this.config.totalRounds * 100)
-          : 0;
+        var pct = 0;
+        var sec = this._resolveSection(currentRound, opts.sectionIndex);
+        if (sec && sec.total > 0) {
+          pct = sec.inSection / sec.total * 100;
+        } else if (this.config.totalRounds > 0) {
+          pct = currentRound / this.config.totalRounds * 100;
+        }
         this._fillEl.style.width = pct + '%';
       }
 
       if (this._livesEl) {
         this._livesEl.textContent = this._buildHearts(currentLives);
       }
+    }
+
+    /**
+     * Replace the label template at runtime and re-render label with current state.
+     */
+    setLabel(template) {
+      this.config.labelFormat = template;
+      if (this._labelEl) {
+        this._labelEl.textContent = this._formatLabel(this.currentRound, this._currentSectionIndex);
+      }
+    }
+
+    /**
+     * Toggle lives display visibility without destroying the element.
+     */
+    setLivesVisible(visible) {
+      if (this._livesEl) {
+        this._livesEl.style.display = visible ? '' : 'none';
+      }
+    }
+
+    /**
+     * Show the progress bar (restores display). No layout space when hidden.
+     */
+    show() {
+      if (this.container) this.container.style.display = '';
+    }
+
+    /**
+     * Hide the progress bar (display:none — takes no layout space).
+     */
+    hide() {
+      if (this.container) this.container.style.display = 'none';
     }
 
     /**
@@ -322,24 +414,8 @@
       this._livesEl = null;
       this._trackEl = null;
       this._fillEl = null;
-      console.log('[ProgressBar] Destroyed');
     }
   }
 
-  // ---- Backwards compat: expose old element name aliases ----
-  Object.defineProperty(ProgressBarComponent.prototype, 'textEl', {
-    get: function() { return this._labelEl; }
-  });
-  Object.defineProperty(ProgressBarComponent.prototype, 'livesEl', {
-    get: function() { return this._livesEl; }
-  });
-  Object.defineProperty(ProgressBarComponent.prototype, 'barEl', {
-    get: function() { return this._fillEl; }
-  });
-
-  // Export globally
   window.ProgressBarComponent = ProgressBarComponent;
-
-  console.log('[MathAI] ProgressBarComponent v2 loaded');
-
 })(window);

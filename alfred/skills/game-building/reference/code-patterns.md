@@ -119,13 +119,20 @@ Per PART-024. Game-building rules:
 - `transitionScreen.show()` takes ONE argument -- an options object (GEN-TRANSITION-API).
 - `icons` array must contain emoji strings only, never SVG/HTML/paths (GEN-TRANSITION-ICONS).
 - ALL `transitionScreen.show()` calls MUST be awaited (returns a Promise).
+- **Every transition screen MUST play audio** (SFX ± dynamic VO). No silent transitions. Fire via the `onMounted` callback: `onMounted: () => FeedbackManager.sound.play('<id>', { sticker })`. Approved IDs per PART-024: `vo_game_start`, `sound_game_complete`, `sound_game_over`, `vo_level_start_N`, `vo_motivation`.
+- **`stars:` and `icons:` are mutually exclusive.** TransitionScreenComponent renders them into the same `.mathai-ts-icons` DOM element — `stars:` always wins, so any `icons: [...]` emoji silently disappears. Pick one per screen: Victory passes `stars: N`; Game Over / Round Intro / Motivation / Stars Collected pass `icons: ['<emoji>']`. Do NOT pass both. `test/content-match.test.js` fails the build if you do.
+- **Audio + render sequence for Victory / Game Over:** `await transitionScreen.show({ content, persist: true, buttons, onMounted: () => FeedbackManager.sound.play(...) })`. The `onMounted` fires the audio after DOM mounts; the `show` Promise resolves when a button is tapped. If a button click should interrupt audio, call `FeedbackManager.sound.stopAll()` in the click handler.
+- Button labels come from `pre-generation/screens.md` verbatim. See "Plan → build contract" in `flow-implementation.md`.
 - See `parts/PART-024.md` for full API.
 
 ### ProgressBarComponent
 Per PART-023. Game-building rules:
 - CDN ProgressBarComponent renders round counter + lives. Do NOT render these yourself.
 - `totalLives` must be >= 1 (GEN-PROGRESSBAR-LIVES). Passing 0 causes division-by-zero.
-- `slotId` must be exactly `'mathai-progress-slot'` (GEN-UX-003).
+- `slotId` must be exactly `'mathai-progress-slot'` (GEN-UX-003). **Do NOT use `'previewProgressBar'`** or `'progress-bar-container'` — those are different things (see ID disambiguation below).
+- **ID disambiguation.** `#previewProgressBar` is the audio countdown strip **inside the preview header** (~4px tall, populated by PreviewScreenComponent during preview state — it animates full → empty as preview audio plays). `#mathai-progress-slot` is a **separate** element ScreenLayout creates at the top of `.game-stack` for the round counter + lives bar. Two different elements, two different purposes. If you instantiate ProgressBarComponent with `slotId: 'previewProgressBar'`, the round bar mounts into the countdown strip and crushes the whole header row.
+- `ScreenLayout.inject` slots MUST include `progressBar: true` for the slot to be created in preview-wrapper mode (`slots: { previewScreen: true, progressBar: true, transitionScreen: true }`).
+- **`update(roundsCompleted, livesRemaining)`** — first arg is rounds **completed**, not the current round number. On start: `update(0, totalLives)`. Entering round N: `update(N-1, livesLeft)`. After correct feedback on round N: `update(N, livesLeft)`. After wrong feedback: `update(roundsCompleted, livesLeft-1)` (hearts decrement only). On restart: `update(0, totalLives)`.
 - Call `progressBar.update(currentRound, Math.max(0, lives))` after each answer (LP-PROGRESSBAR-CLAMP).
 - First arg to `update()` is rounds COMPLETED, not totalRounds (GEN-112).
 - Never wrap `destroy()` in `setTimeout` -- synchronous only (GEN-PROGRESSBAR-DESTROY).
@@ -138,6 +145,38 @@ Per PART-012. See `parts/PART-012.md`.
 Per PART-042. Game-building rules:
 - `restartGame` must call `signalCollector.reset()` — do NOT seal + re-instantiate (GEN-SIGNAL-RESET).
 - See `parts/PART-042.md` for full API.
+
+### PreviewScreen
+Per PART-039. Game-building rules:
+- MANDATORY for every game. `ScreenLayout.inject` must include `slots: { previewScreen: true, ... }`.
+- **Single source of instructions — STRICT.** The how-to-play copy is delivered ONCE via `content.previewInstruction` + `content.previewAudioText`. Gameplay screens (the DOM inside `#gameContent`) MUST NOT render ANY of the following:
+  - A static instruction / prompt banner repeating or paraphrasing the preview instruction (e.g. "Find the two tiles...", "Tap two tiles...", "Select the correct answer").
+  - Any element with a class/id containing `instruction`, `help-text`, `prompt-text`, `task-text`, `directions`, `how-to-play`.
+  - Verbs like "Find", "Tap", "Select", "Choose", "Click", "Drag" as a heading/banner inside `#gameContent`. The preview already said it.
+  A per-round *prompt* is allowed ONLY when it carries round-specific information that is NOT in the preview (e.g. "What is 3 × 4?" — the question itself; "Match the shapes below" after a round-type change screen). Generic how-to-play restated in different words is NOT distinct — it duplicates.
+  When in doubt: omit the gameplay banner. Players already heard/read the preview. If the round-type change is material, convey it via a Round-N-intro TransitionScreen, not a banner.
+- Instantiated in DOMContentLoaded with `{ slotId: 'mathai-preview-slot' }` only. Do NOT pass `autoInject`, `gameContentId`, `previewContent`, `questionLabel`, `score`, or `showStar`.
+- `previewScreen.show({ instruction, audioUrl, showGameOnPreview, timerConfig, timerInstance, onComplete })` is called as the LAST step of `setupGame()` — after `#gameContent` has been rendered.
+- Preview audio URL sourced from `content.previewAudio || fallbackContent.previewAudio || null`. Never hardcode.
+- **Audio URL source hierarchy** (PART-039 layer order): `content.previewAudio` → `fallbackContent.previewAudio` → runtime TTS fallback using `previewAudioText` → 5s silent timer. The component handles the TTS fallback internally when `audioUrl` is null; you do NOT need to generate TTS yourself at runtime. Deploy step patches `fallbackContent.previewAudio` with a CDN URL from `previewAudioText` TTS.
+- `onComplete` callback receives `previewData` and must call `startGameAfterPreview(previewData)` — see pattern below.
+- `endGame()` calls `previewScreen.destroy()`.
+- `restartGame()` must NOT call `previewScreen.show()` or `setupGame()` — preview is once per session.
+- `hide()` does NOT exist. Do not call it.
+- VisibilityTracker's `onInactive`/`onResume` must also invoke `previewScreen.pause()`/`previewScreen.resume()`. Canonical wiring:
+  ```javascript
+  visibilityTracker = new VisibilityTracker({
+    onInactive: function() {
+      try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch(e) {}
+      try { if (previewScreen) previewScreen.pause(); } catch(e) {}
+    },
+    onResume: function() {
+      try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch(e) {}
+      try { if (previewScreen) previewScreen.resume(); } catch(e) {}
+    }
+  });
+  ```
+- See `parts/PART-039.md` for full API and `warehouse/parts/PART-039-preview-screen.md` for authoritative spec.
 
 ---
 
@@ -220,6 +259,138 @@ Must reset ALL mutable state: `phase`, `currentRound`, `score`, `attempts`, `eve
 ```javascript
 window.restartGame = resetGame;  // REQUIRED -- replay tests call this
 ```
+
+**Do NOT call `previewScreen.show()` or `setupGame()` from `restartGame()`.** Preview is shown once per session. Split the reset portion from the preview portion of `setupGame()` — `restartGame` reruns only the reset + first-round entry.
+
+### Preview screen integration (setupGame + startGameAfterPreview)
+
+Canonical trio per PART-039. Game DOM MUST be rendered into `#gameContent` BEFORE `previewScreen.show()` is called; `gameState.startTime` is set in `startGameAfterPreview`, NOT in `setupGame`.
+
+```javascript
+function setupGame() {
+  var content = gameState.content || fallbackContent;
+  // 1. Render initial round UI into #gameContent FIRST
+  injectGameHTML();
+  renderInitialState();
+
+  // 2. Show preview LAST
+  previewScreen.show({
+    instruction: content.previewInstruction || fallbackContent.previewInstruction,
+    audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+    showGameOnPreview: content.showGameOnPreview === true,
+    timerConfig: timer ? { type: 'decrease', startTime: 60, endTime: 0 } : null,
+    timerInstance: timer || null,
+    onComplete: function(previewData) { startGameAfterPreview(previewData); }
+  });
+}
+
+function startGameAfterPreview(previewData) {
+  gameState.previewResult = previewData;
+  gameState.duration_data.preview = gameState.duration_data.preview || [];
+  gameState.duration_data.preview.push({ duration: previewData.duration });
+
+  gameState.startTime = Date.now();
+  gameState.isActive = true;
+  gameState.duration_data.startTime = new Date().toISOString();
+
+  if (timer && timer.start) timer.start();
+  trackEvent('game_start', { totalRounds: gameState.totalRounds });
+  if (signalCollector) signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' });
+
+  renderRound(); // first gameplay entry
+}
+```
+
+**Restart path** (no preview):
+```javascript
+function restartGame() {
+  resetGameState();               // reset all fields per GEN-RESTART-RESET
+  if (signalCollector) signalCollector.reset();
+  gameState.startTime = Date.now();
+  gameState.isActive = true;
+  gameState.duration_data.startTime = new Date().toISOString();
+  trackEvent('game_start', { totalRounds: gameState.totalRounds });
+  renderRound();  // or showLevelTransition() for sectioned games
+}
+```
+
+`endGame()` must call `previewScreen.destroy()` as part of cleanup.
+
+### Wrapper persistence — showVictory / showGameOver pattern (CRITICAL)
+
+Victory, Game Over, Play Again, and Try Again render **inside** the preview wrapper. The header (avatar, score, star) stays visible; the preview slot is never hidden or detached. Mount results via `TransitionScreenComponent.show(...)` into `mathai-transition-slot` (a sibling of `#gameContent` inside `.game-stack`). Do NOT create a top-level `#results-screen` overlay, do NOT call `previewScreen.destroy()` at this point, do NOT set `style.display='none'` on `mathai-preview-slot`, and do NOT re-parent `#gameContent`.
+
+**Results mounting rule (PART-024):** pass the results metrics HTML via `transitionScreen.show({ content: metricsHTML, persist: true, buttons: [...] })`. `content` is rendered inside the transition card; `persist: true` keeps it visible until a button is tapped. Never create a sibling `<div id="results-screen">` overlay and never hide the preview wrapper to make room for it.
+
+**All user-visible strings come from `pre-generation/screens.md`, not from this file.** The snippets below show *structure*; **title, subtitle, button labels (count + order), sticker/icon emoji, and audio id** for each transition are copied verbatim from the corresponding Elements table in `screens.md`. Do NOT invent extra buttons, do NOT rename buttons, do NOT alter titles/subtitles. Template variables in screens.md (`N`, `M`, `[Title]`, numeric examples like `"Round 1"`) are matched via placeholder — your HTML can concatenate `'Round ' + roundNum` and still match. `test/content-match.test.js` enforces this and fails the build on drift.
+
+**Default transition screens** — `game_over`, `motivation`, `victory`, `stars_collected` have canonical templates in `alfred/skills/game-planning/reference/default-transition-screens.md`. The planner copies those verbatim into `screens.md`; game-building reads screens.md and emits the matching `transitionScreen.show(...)`. Short summary of the structural defaults (strings live in the planning doc):
+- **Game Over** → `icons: ['😔']`, title "Game Over", subtitle "You ran out of lives!", single `Try Again` button.
+- **Motivation** → no icons, title "Ready to improve your score? ⚡", single `I'm ready! 🙌` button.
+- **Victory** → `stars: gameState.stars`, title "Victory 🎉", per-game subtitle, buttons depend on stars: `Claim Stars` alone for 3★, `Play Again` + `Claim Stars` (horizontal) otherwise.
+- **Stars Collected** → no icons/stars/subtitle/buttons, two-line title via `styles: { title: { whiteSpace: 'pre-line' } }`, auto-dismiss via `duration: 2500`.
+
+```javascript
+async function showVictory() {
+  gameState.phase = 'results';
+  gameState.isActive = false;
+  syncDOM();
+  progressBar.update(totalRounds, gameState.livesLeft);
+  await transitionScreen.show({
+    title: /* from screens.md */ 'Victory!',
+    stars: getStars(),
+    // Buttons: copy verbatim from screens.md Elements table for the victory screen.
+    // Include conditional rules (e.g. "Play Again only if stars < 3") if screens.md states them.
+    buttons: [
+      // { text: '<exact label from screens.md>', onClick: () => { transitionScreen.hide(); /* route per screens.md exit condition */ } }
+    ],
+    onMounted: () => FeedbackManager.sound.play('sound_game_victory', { sticker: STICKER_CELEBRATE })
+  });
+}
+
+async function showGameOver() {
+  gameState.phase = 'game_over';
+  gameState.isActive = false;
+  syncDOM();
+  await transitionScreen.show({
+    title: /* from screens.md */ 'Game Over',
+    // Buttons: copy verbatim from screens.md. Do NOT add an Exit/Cancel/Skip unless screens.md lists one.
+    buttons: [
+      // { text: '<exact label from screens.md>', onClick: () => { transitionScreen.hide(); /* route per screens.md exit condition */ } }
+    ],
+    onMounted: () => FeedbackManager.sound.play('sound_game_over', { sticker: STICKER_SAD })
+  });
+}
+
+// ONE endGame — the only place destroy() fires.
+function endGame(won) {
+  if (gameState.gameEnded) return;
+  gameState.gameEnded = true;
+  trackEvent('game_end', { won: won, score: gameState.score, stars: getStars() });
+  postGameComplete(won);          // includes previewResult: gameState.previewResult || null
+  previewScreen.destroy();        // EXACTLY ONCE, HERE
+}
+```
+
+### Preview timer sync
+
+When the game has a `TimerComponent`, pass `timerConfig` + `timerInstance` into `previewScreen.show()`. The PreviewScreen reads the game's TimerComponent each frame via `requestAnimationFrame` and mirrors it in the header — the game still owns `timer.start()` / `timer.pause()`. Game CSS MUST NOT override `.mathai-preview-header .mathai-timer-*` classes.
+
+### Audio permission gate
+
+The preview's internal timer does not start until `FeedbackManager.init()` resolves and audio permission is granted. `gameState.startTime` MUST remain `null` while `previewScreen.getState() === 'preview'`; it is set only in `startGameAfterPreview()` after `onComplete` fires.
+
+### Preview audio — no `new Audio()`
+
+All preview audio flows through `FeedbackManager.sound.preload([{id, url}])` at init and `FeedbackManager.sound.play(id)` at runtime. `new Audio(` anywhere in game code is a fail — preview audio specifically, and game audio generally, must route through FeedbackManager.
+
+### onPreviewInteraction
+
+Only needed for interactive preview content (e.g. video, tap-to-reveal). Default omit. If used, callback receives `(key, value)` from `setPreviewData()` and the resulting data is available on `previewData` in `onComplete`.
+
+### game_complete payload — previewResult
+
+When building the `game_complete` postMessage payload, include `previewResult: gameState.previewResult || null`. Required when preview was interactive. See `data-contract.md` for full schema.
 
 ### Window Exposures
 

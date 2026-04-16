@@ -152,7 +152,7 @@
      * @param {object} config.slots
      * @param {boolean|string} config.slots.previewScreen  - Create preview screen wrapper
      * @param {boolean|string} config.slots.transitionScreen - Create transition screen slot
-     * @param {boolean|string} config.slots.progressBar - (ignored when previewScreen:true)
+     * @param {boolean|string} config.slots.progressBar - Create progress bar slot at top of .game-stack (inside preview wrapper when previewScreen:true, inside .game-wrapper otherwise)
      *
      * @returns {object} Created slot IDs
      */
@@ -236,6 +236,9 @@
 
         // game-stack lives inside the preview wrapper
         html +=     '<div class="game-stack">';
+        if (slotIds.progressSlot) {
+          html +=     '<div id="' + slotIds.progressSlot + '" class="game-block"></div>';
+        }
         html +=       '<div id="gameContent" class="game-block"></div>';
         if (slotIds.transitionSlot) {
           html +=     '<div id="' + slotIds.transitionSlot + '" class="game-block" style="display:none;"></div>';

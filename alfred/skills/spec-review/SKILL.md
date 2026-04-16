@@ -124,6 +124,7 @@ The spec must define enough content for the pipeline to build fallbackContent.
 | G1 | **fallbackContent structure is defined or inferrable** — the spec shows the shape of a round object (fields, types) | Round schema explicit (e.g., `{ question, options, answer, misconceptions }`) | Round schema inferrable from samples but not stated | No round structure and no samples to infer from |
 | G2 | **Round count matches content count** — if spec says 9 rounds, there should be at least 9 rounds of content (or a content generation rule) | Content count >= round count, OR spec says "generate content following this pattern" with enough samples | Content count < round count but close (e.g., 6 samples for 9 rounds) | Content count is drastically short (e.g., 2 samples for 9 rounds) with no generation rule |
 | G3 | **Content covers all difficulty stages** — samples include easy, medium, and hard | Samples span all defined stages | Samples only cover 1-2 stages | All samples are same difficulty |
+| G4 | **Preview fields present in fallbackContent** — `previewInstruction` (HTML) and `previewAudioText` (plain text for TTS) are both specified per PART-039 | Both fields present with real content | Only one present, or both present but empty placeholders | Both fields missing from fallbackContent — WARN on pre-existing specs, FAIL on newly-generated specs |
 
 ### H. Ambiguity Check
 

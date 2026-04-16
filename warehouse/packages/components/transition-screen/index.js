@@ -14,11 +14,7 @@
 (function(window) {
   'use strict';
 
-  // Skip if already loaded
-  if (typeof window.TransitionScreenComponent !== "undefined") {
-    console.log("[TransitionScreenComponent] Already loaded, skipping duplicate execution");
-    return;
-  }
+  if (typeof window.TransitionScreenComponent !== 'undefined') return;
 
   var STYLE_ID = 'mathai-transition-screen-styles';
 
@@ -63,7 +59,7 @@
       '  border-radius: 12px;',
       '  padding: 64px 32px;',
       '  max-width: 480px;',
-      '  min-height: 50dvh;',
+      '  min-height: fit-content;',
       '  width: 100%;',
       '  margin: 0 auto;',
       '  text-align: center;',
@@ -210,6 +206,8 @@
       this.currentPersist = false;
       this.currentConfig = null;
 
+      this._onMountedQueue = [];
+
       // Element references
       this._cardEl = null;
       this._iconsEl = null;
@@ -242,7 +240,6 @@
           this.container.className = 'game-block';
           this.container.style.display = 'none';
           parent.appendChild(this.container);
-          console.log('[TransitionScreen] Created fallback slot in', parent.className);
         } else {
           throw new Error('TransitionScreen: No layout container found. Call ScreenLayout.inject() first.');
         }
@@ -316,37 +313,17 @@
     }
 
     /**
-     * Show transition screen.
-     *
-     * --- Primitive mode (title/subtitle/buttons) ---
-     * @param {object}         config
-     * @param {Array|string}   config.icons          - Emoji icons
-     * @param {string}         config.iconSize        - 'small' | 'normal' | 'large'
-     * @param {number}         config.stars            - Number of active stars (0-3)
-     * @param {string}         config.title            - Title text
-     * @param {string}         config.subtitle         - Subtitle text
-     * @param {Array}          config.buttons          - [{text, type, action, styles}]
-     * @param {number}         config.duration         - Auto-hide ms (if no buttons & not persist)
-     * @param {boolean}        config.persist          - Never auto-hide
-     *
-     * --- Custom content mode ---
-     * @param {string|HTMLElement} config.content      - Custom HTML string or DOM element
-     *                                                    injected into the card's custom slot.
-     *                                                    Can be used alongside or instead of
-     *                                                    title/subtitle/buttons.
-     *
-     * --- Style overrides ---
-     * @param {object}  config.styles                  - Per-element style overrides
-     * @param {object}  config.styles.screen           - Outer screen wrapper
-     * @param {object}  config.styles.card             - Card container
-     * @param {object}  config.styles.icons            - Icons container
-     * @param {object}  config.styles.title            - Title element
-     * @param {object}  config.styles.subtitle         - Subtitle element
-     * @param {object}  config.styles.buttons          - Buttons container
-     * @param {object}  config.styles.custom           - Custom content slot
-     *
-     * @param {object}  config.titleStyles             - (v1 compat) alias for styles.title
-     * @param {object}  config.subtitleStyles          - (v1 compat) alias for styles.subtitle
+     * Show the transition card.
+     * @param {object} config
+     * @param {Array|string}   [config.icons]       - Emoji icons
+     * @param {string}         [config.iconSize]    - 'small' | 'normal' | 'large'
+     * @param {number}         [config.stars]       - 0-3 stars
+     * @param {string}         [config.title]
+     * @param {string}         [config.subtitle]
+     * @param {Array}          [config.buttons]     - [{text, type, action, styles}]
+     * @param {string|HTMLElement} [config.content] - Custom HTML / element in card slot
+     * @param {object}         [config.styles]      - Per-element style overrides
+     * @param {Function}       [config.onMounted]   - Fired once after mount
      */
     show(config) {
       if (!config) config = {};
@@ -358,15 +335,14 @@
       var title = config.title;
       var subtitle = config.subtitle;
       var buttons = config.buttons;
-      var duration = config.duration;
-      var persist = config.persist;
       var content = config.content;
       var customStyles = config.styles || {};
+      if (typeof config.onMounted === 'function') this._onMountedQueue.push(config.onMounted);
 
-      // v1 compat aliases
-      var titleStyles = customStyles.title || config.titleStyles;
-      var subtitleStyles = customStyles.subtitle || config.subtitleStyles;
+      var titleStyles = customStyles.title;
+      var subtitleStyles = customStyles.subtitle;
 
+      return new Promise(function(resolve) {
       requestAnimationFrame(function() {
         // Hide game content
         if (self.gameContent) {
@@ -434,7 +410,7 @@
 
         // --- Buttons ---
         self.currentButtons = [];
-        self.currentPersist = persist || false;
+        self.currentPersist = false;
         if (buttons && buttons.length > 0) {
           self.currentButtons = buttons.slice();
           for (var b = 0; b < buttons.length; b++) {
@@ -452,36 +428,38 @@
         self.container.classList.add('active');
         self.container.style.display = '';
 
-        self.currentConfig = { persist: persist || false };
+        self.currentConfig = {};
 
-        // Auto-hide
-        if (duration && !persist && (!buttons || buttons.length === 0)) {
-          setTimeout(function() { self.hide(); }, duration);
-        }
-
-        console.log('[TransitionScreen] Showing:', { title: title, stars: stars, buttons: buttons ? buttons.length : 0, persist: persist, hasCustomContent: !!content });
+        // Signal mounted after styles flush
+        requestAnimationFrame(function() {
+          var q = self._onMountedQueue;
+          self._onMountedQueue = [];
+          for (var i = 0; i < q.length; i++) {
+            try { q[i](); } catch (e) { console.error('[TransitionScreen] onMounted cb error', e); }
+          }
+          resolve();
+        });
+      });
       });
     }
 
     /**
-     * Get the custom content container (for programmatic DOM injection)
-     * @returns {HTMLElement|null}
+     * Register a one-shot callback fired when the next show() has fully mounted.
+     * @param {Function} cb
      */
+    onMounted(cb) {
+      if (typeof cb === 'function') this._onMountedQueue.push(cb);
+    }
+
     getCustomSlot() {
       return this._customEl || null;
     }
 
-    /**
-     * Get the card element (for advanced styling)
-     * @returns {HTMLElement|null}
-     */
     getCard() {
       return this._cardEl || null;
     }
 
-    /**
-     * Create stars HTML
-     */
+
     _createStarsHTML(activeStars, totalStars) {
       if (totalStars === undefined) totalStars = 3;
       var html = '<div class="mathai-ts-stars">';
@@ -521,7 +499,6 @@
       }
       this.currentConfig = null;
       this.currentPersist = false;
-      console.log('[TransitionScreen] Hidden');
     }
 
     /**
@@ -538,13 +515,8 @@
       this._subtitleEl = null;
       this._customEl = null;
       this._buttonsEl = null;
-      console.log('[TransitionScreen] Destroyed');
     }
   }
 
-  // Export globally
   window.TransitionScreenComponent = TransitionScreenComponent;
-
-  console.log('[MathAI] TransitionScreenComponent v2 loaded');
-
 })(window);

@@ -61,7 +61,7 @@ The exact document structure every game must follow. Do not deviate from the ele
     /* 1. gameState initialization (gameId MUST be first field) */
     /* 2. window.gameState = gameState */
     /* 3. fallbackContent (complete rounds matching spec schema) */
-    /* 4. Module-scope vars: timer, visibilityTracker, signalCollector, progressBar, transitionScreen */
+    /* 4. Module-scope vars: timer, visibilityTracker, signalCollector, progressBar, transitionScreen, previewScreen */
     /* 5. syncDOM */
     /* 6. trackEvent */
     /* 7. recordAttempt */
@@ -85,18 +85,19 @@ The exact document structure every game must follow. Do not deviate from the ele
         /* 1.  await waitForPackages() */
         /* 2.  await FeedbackManager.init() -- do NOT call unlock() after */
         /* 3.  SignalCollector creation */
-        /* 4.  ScreenLayout.inject('app', { sections: {...}, styles: {...} }) */
+        /* 4.  ScreenLayout.inject('app', { slots: { previewScreen: true, transitionScreen: true }, sections: {...}, styles: {...} }) -- previewScreen slot is MANDATORY */
         /* 5.  Inject timer container into header slot */
         /* 6.  Build play area HTML into #gameContent */
         /* 7.  TimerComponent creation (autoStart: false) */
         /* 8.  InteractionManager creation */
-        /* 9.  VisibilityTracker creation (onInactive/onResume handlers) */
+        /* 9.  VisibilityTracker creation (onInactive/onResume handlers -- also wire previewScreen.pause/resume) */
         /* 10. createProgressBar() */
         /* 11. TransitionScreenComponent creation */
-        /* 12. Audio preloading: FeedbackManager.sound.preload([{id, url}]) */
-        /* 13. Register handlePostMessage listener -- BEFORE game_ready */
-        /* 14. Send game_ready postMessage */
-        /* 15. setupGame() */
+        /* 12. PreviewScreenComponent creation: new PreviewScreenComponent({ slotId: 'mathai-preview-slot' }) */
+        /* 13. Audio preloading: FeedbackManager.sound.preload([{id, url}]) -- include previewAudio */
+        /* 14. Register handlePostMessage listener -- BEFORE game_ready */
+        /* 15. Send game_ready postMessage */
+        /* 16. setupGame() -- NOT a pre-preview TransitionScreen. setupGame() renders #gameContent first, then calls previewScreen.show() last */
       } catch (e) {
         console.error('[init] ' + e.message);
       }
@@ -152,12 +153,24 @@ Scripts load in two groups, in this exact order:
 
 ## Init Sequence Rules
 
-The `DOMContentLoaded` handler runs 15 steps in order (see template above). Critical constraints:
+The `DOMContentLoaded` handler runs 16 steps in order (see template above). Critical constraints:
 
 1. `waitForPackages()` uses `typeof` checks for FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector with 180s timeout
 2. `FeedbackManager.init()` must be awaited -- but do NOT call `unlock()` after it
-3. `ScreenLayout.inject()` must run before any DOM insertion into `#gameContent`
-4. PostMessage listener registered BEFORE `game_ready` sent -- prevents race condition
-5. Entire init block wrapped in try/catch
-6. `setupGame()` is the last call
-7. Window exposures (`window.gameState`, `window.endGame`, `window.restartGame`, `window.nextRound`, `window.startGame`) at bottom of DOMContentLoaded
+3. `ScreenLayout.inject()` must run before any DOM insertion into `#gameContent`. `slots.previewScreen: true` is MANDATORY -- every game has a preview screen
+4. `PreviewScreenComponent` is instantiated AFTER `ScreenLayout.inject()` with only `{ slotId: 'mathai-preview-slot' }` -- do NOT pass `autoInject`, `gameContentId`, `questionLabel`, `score`, or `showStar`
+5. PostMessage listener registered BEFORE `game_ready` sent -- prevents race condition
+6. Entire init block wrapped in try/catch
+7. `setupGame()` is the last call. **DOMContentLoaded MUST NOT show a TransitionScreen before `setupGame()`** — no `Let's go!`, no `Start`, no `Welcome` screen before preview. The PreviewScreen **is** the first user-facing content. Any `transitionScreen.show(...)` invocation inside DOMContentLoaded, ahead of `setupGame()`, is a bug (5e0-DOMCL-TRANSITION).
+8. `setupGame()` must (a) render the full round DOM into `#gameContent` then (b) call `previewScreen.show(...)` as its last step. Reversing this order produces an empty preview area when `showGameOnPreview: true`
+9. `endGame()` must call `previewScreen.destroy()`; `restartGame()` must NOT call `previewScreen.show()` or `setupGame()` -- the preview shows once per session
+10. Window exposures (`window.gameState`, `window.endGame`, `window.restartGame`, `window.nextRound`, `window.startGame`) at bottom of DOMContentLoaded
+
+## Preview Header / Wrapper Invariants
+
+The PreviewScreen wrapper is **persistent** for the entire session (see PART-039 Wrapper persistence invariant). Every game's structure must respect:
+
+- **Header is fixed at top**, above content, visible in both `preview` and `game` states. The header renders avatar, back button, question label, score, and star — all fed from `game_init` payload and mutated through `syncDOM`.
+- **Single scroll area** below the header: instruction body + `.game-stack` share one scroll container. Games MUST NOT add `overflow: auto` / `overflow: scroll` to children of `.game-stack` (nested scrolling breaks iOS momentum + causes layout jumps).
+- **No duplicate header inside `#gameContent`.** Do not render a separate score / lives / avatar / back-button element inside the play area — it will duplicate the preview header.
+- **No hiding, re-parenting, or destroying the wrapper mid-session.** `mathai-preview-slot` stays in the DOM with its original parent for the entire session. `#gameContent` stays inside `.game-stack`. Victory / Game Over / Play Again / Try Again render INSIDE the wrapper via `transitionScreen.show()` into `mathai-transition-slot`. `previewScreen.destroy()` fires exactly once, in the session-final `endGame()`. See `code-patterns.md` § Wrapper persistence for the canonical pattern.
