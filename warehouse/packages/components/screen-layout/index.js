@@ -206,11 +206,15 @@
         html += '<style id="mathai-preview-critical-css">'
           +     '#' + slotIds.previewSlot + ' .mathai-preview-game-container.game-hidden{visibility:hidden!important;}'
           +     '#' + slotIds.previewSlot + ' .mathai-preview-header{position:fixed;top:0;left:0;right:0;height:56px;background:#fff;z-index:20;}'
-          +     '#' + slotIds.previewSlot + '{min-height:100dvh;background:#fff;}'
+          +     '#' + slotIds.previewSlot + '{min-height:100dvh;height:100dvh;background:#fff;overflow:hidden;}'
+          +     '#' + slotIds.previewSlot + ' .mathai-preview-body{height:100dvh;box-sizing:border-box;overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch;}'
           +     '#' + slotIds.previewSlot + ' .game-stack{overflow:visible!important;height:auto!important;}'
-          // Kill all scroll-blocking ancestors so the page scrolls as one unit
-          +     '.page-center{height:auto!important;min-height:100dvh!important;overflow:visible!important;display:block!important;}'
-          +     'html,body{overflow-x:hidden!important;overflow-y:auto!important;height:auto!important;min-height:100dvh!important;}'
+          // Keep a single explicit scroll owner in preview-wrapper mode:
+          // the preview body. Allowing root-page scrolling here sounds simpler,
+          // but in practice touch gestures that start on gameplay surfaces
+          // (grids, banks, drag targets) can fail to pan the page at all.
+          +     '.page-center{height:100dvh!important;min-height:100dvh!important;overflow:hidden!important;display:block!important;}'
+          +     'html,body{overflow-x:hidden!important;overflow-y:hidden!important;height:100dvh!important;min-height:100dvh!important;}'
           +   '</style>';
         html += '<div id="' + slotIds.previewSlot + '" class="mathai-preview-slot">';
 

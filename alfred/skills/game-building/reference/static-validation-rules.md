@@ -88,6 +88,7 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | Rule ID | Check | Severity | Alfred Skill | Status |
 |---------|-------|----------|--------------|--------|
 | 5e0-SLOT | PreviewScreenComponent used but `previewScreen: true` not in ScreenLayout slots | error | game-building (html-template) | Covered |
+| 5e0-SCROLL-OWNER | Preview-wrapper game lacks the compatibility CSS that makes `.mathai-preview-body` the vertical scroll owner | error | game-building (html-template), PART-039, mobile | Implemented in lib/validate-static.js |
 | 5e0-SHOW | PreviewScreenComponent instantiated but `previewScreen.show()` not called | warning | game-building (code-patterns) | Covered |
 | 5e0-AUDIOURL | `previewScreen.show()` missing `audioUrl` parameter | warning | game-building (code-patterns) | Covered |
 | 5e0-HARDCODED | `previewScreen.show()` has hardcoded instruction string | warning | game-building (code-patterns) | Covered |

@@ -90,7 +90,8 @@ Use `parts/manifest.json` → `capability_matrix` to determine which parts this 
    - `is_story_only` → adds PART-029
    - `has_api_submission` → adds PART-031
    - `has_analytics` → adds PART-032
-   - `has_drag_drop` / `has_grid_interaction` / `has_tag_input` → adds PART-033
+   - `has_drag_drop` → adds PART-033 + PART-043 (PART-043 is AUTHORITATIVE — @dnd-kit/dom only; native HTML5 drag is banned)
+   - `has_grid_interaction` / `has_tag_input` → adds PART-033
    - `has_interaction_manager` → adds PART-038
    - `has_video` → adds PART-040
    - `has_audio_player` → adds PART-041

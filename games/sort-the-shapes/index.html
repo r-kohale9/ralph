@@ -1,0 +1,2190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sort the Shapes</title>
+
+  <!-- Sentry helpers (pipeline-standard) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'sort-the-shapes@1.0.0' }));
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- CDN components (only approved set) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-surface: #FAFAFB;
+      --mathai-accent-1: #FFD36B;
+      --mathai-accent-1-dark: #C98A12;
+      --mathai-success: #27AE60;
+      --mathai-success-bg: #D9F8D9;
+      --mathai-danger: #E35757;
+      --mathai-danger-bg: #FFD9D9;
+      --mathai-warning: #F2994A;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-radius-md: 14px;
+      --mathai-card-size: 78px;
+      --mathai-bucket-min-h: 120px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.4;
+    }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility: the preview body must own
+       vertical scrolling so gameplay surfaces still pan correctly. */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .hidden { display: none !important; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+      white-space: nowrap; border: 0;
+    }
+
+    /* ====== Gameplay area ====== */
+    .sts-play {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 10px 12px 16px;
+      padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      width: 100%;
+      animation: fadeIn 0.3s ease;
+    }
+
+    /* Lives are owned by ProgressBarComponent (no custom hearts row). */
+
+    .sts-subtitle {
+      min-height: 26px;
+      text-align: center;
+      margin-top: 2px;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: var(--mathai-primary);
+      opacity: 0;
+      transition: opacity 180ms ease;
+      padding: 0 10px;
+    }
+    .sts-subtitle.visible { opacity: 1; }
+
+    .sts-bank-label, .sts-bucket-row-label {
+      font-size: 13px;
+      color: var(--mathai-gray);
+      margin-top: 6px;
+      margin-bottom: 6px;
+      text-align: center;
+      font-weight: 500;
+    }
+
+    .sts-bank {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100px;
+      padding: 6px;
+      width: 100%;
+    }
+
+    .sts-card {
+      position: relative;
+      width: var(--mathai-card-size);
+      height: calc(var(--mathai-card-size) + 22px);
+      margin: 6px;
+      background: var(--mathai-white);
+      border: 2px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-radius-md);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 4px;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      cursor: grab;
+      z-index: 1;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .sts-card svg {
+      width: 48px;
+      height: 48px;
+      display: block;
+      pointer-events: none;
+    }
+    .sts-card .sts-card-label {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--mathai-text-primary);
+      font-weight: 600;
+      text-align: center;
+      line-height: 1.1;
+      pointer-events: none;
+    }
+    .sts-card.dragging {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1000;
+      cursor: grabbing;
+      pointer-events: none;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.22);
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.12));
+      margin: 0;
+    }
+    .sts-card.dimmed {
+      opacity: 0.55;
+      transition: opacity 150ms ease;
+    }
+    .sts-card.shake-wrong {
+      animation: shakeWrong 450ms ease;
+    }
+    .sts-card.placed {
+      pointer-events: none;
+      cursor: default;
+      background: var(--mathai-success-bg);
+      border-color: var(--mathai-success);
+    }
+    .sts-card.bouncing {
+      transition: top 250ms cubic-bezier(0.4, 1.4, 0.5, 1),
+                  left 250ms cubic-bezier(0.4, 1.4, 0.5, 1),
+                  transform 250ms cubic-bezier(0.4, 1.4, 0.5, 1);
+      pointer-events: none;
+    }
+    .sts-badge {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--mathai-white);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+      pointer-events: none;
+    }
+    .sts-badge.badge-correct { background: var(--mathai-success); }
+    .sts-badge.badge-wrong { background: var(--mathai-danger); }
+
+    /* ====== Bucket row ====== */
+    .sts-buckets {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      width: 100%;
+      margin-top: 4px;
+    }
+    .sts-buckets.three-col {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .sts-bucket {
+      position: relative;
+      min-height: var(--mathai-bucket-min-h);
+      background: var(--mathai-surface);
+      border: 2px dashed var(--mathai-border-gray);
+      border-radius: var(--mathai-radius-md);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 8px 6px 10px;
+      /* Buckets cover most of the viewport on mobile. If touch-action is
+         disabled here, any swipe that starts on a bucket stops scrolling the
+         page. Keep touch-action scoped to the draggable cards only. */
+      -webkit-user-select: none;
+      user-select: none;
+      transition: background 160ms ease, border-color 160ms ease;
+    }
+    .sts-bucket-label {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      margin-bottom: 6px;
+      text-align: center;
+      line-height: 1.15;
+      padding: 0 2px;
+      pointer-events: none;
+    }
+    .sts-bucket-drop {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      min-height: 60px;
+    }
+    .sts-bucket.has-placed {
+      border-style: solid;
+      border-color: var(--mathai-border-gray);
+    }
+    .sts-bucket.hover-valid {
+      border-style: solid;
+      border-color: var(--mathai-primary);
+      background: #F3EEFA;
+    }
+    .sts-bucket.flash-correct {
+      border-style: solid;
+      border-color: var(--mathai-success);
+      background: var(--mathai-success-bg);
+      animation: flashCorrect 200ms ease;
+    }
+    .sts-bucket.flash-danger {
+      border-style: solid;
+      border-color: var(--mathai-danger);
+      background: var(--mathai-danger-bg);
+      animation: flashDanger 300ms ease;
+    }
+    .sts-bucket.bucket-review {
+      border-style: solid;
+      border-color: var(--mathai-success);
+      animation: reviewPulse 2000ms ease;
+    }
+
+    .sts-bucket .sts-card {
+      width: 52px;
+      height: 68px;
+      margin: 3px;
+      transform: scale(0.88);
+    }
+    .sts-bucket .sts-card svg {
+      width: 32px;
+      height: 32px;
+    }
+    .sts-bucket .sts-card .sts-card-label {
+      font-size: 10px;
+    }
+
+    /* ====== Paused overlay ====== */
+    #pause-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(20, 10, 40, 0.68);
+      z-index: 900;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      color: var(--mathai-white);
+      text-align: center;
+      padding: 24px;
+    }
+    #pause-overlay.visible { display: flex; }
+    .pause-card {
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      padding: 22px 24px;
+      border-radius: var(--mathai-border-radius);
+      min-width: 220px;
+    }
+    .pause-card h2 {
+      font-size: 20px;
+      margin-bottom: 14px;
+    }
+    .pause-resume {
+      padding: 10px 18px;
+      font-size: 16px;
+      font-weight: 600;
+      background: var(--mathai-primary);
+      color: var(--mathai-white);
+      border: none;
+      border-radius: var(--mathai-border-radius-button);
+      cursor: pointer;
+      min-height: 44px;
+      touch-action: manipulation;
+    }
+
+    /* ====== Animations ====== */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shakeWrong {
+      0% { transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(7px); }
+      60% { transform: translateX(-5px); }
+      80% { transform: translateX(4px); }
+      100% { transform: translateX(0); }
+    }
+    @keyframes flashCorrect {
+      0% { background: var(--mathai-success-bg); }
+      50% { background: #B8F0B8; }
+      100% { background: var(--mathai-success-bg); }
+    }
+    @keyframes flashDanger {
+      0% { background: var(--mathai-danger-bg); }
+      50% { background: #FFC1C1; }
+      100% { background: var(--mathai-danger-bg); }
+    }
+    @keyframes reviewPulse {
+      0% { box-shadow: 0 0 0 0 rgba(39,174,96,0.5); }
+      50% { box-shadow: 0 0 0 10px rgba(39,174,96,0); }
+      100% { box-shadow: 0 0 0 0 rgba(39,174,96,0); }
+    }
+
+    /* ====== Reduced motion ====== */
+    .reduced-motion .sts-card,
+    .reduced-motion .sts-bucket {
+      animation-duration: 0ms !important;
+      transition-duration: 0ms !important;
+    }
+    .reduced-motion .sts-card.bouncing {
+      transition: none !important;
+    }
+
+    /* ====== Landscape lock ====== */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white, #ffffff);
+        color: var(--mathai-primary, #270f36);
+        font-family: var(--mathai-font-family, system-ui, -apple-system, sans-serif);
+        font-size: var(--mathai-font-size-subtitle, 18px);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    button, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    #results-screen {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 100;
+      display: none;
+    }
+
+    /* smaller viewport handling */
+    @media screen and (max-width: 360px) {
+      :root { --mathai-card-size: 68px; --mathai-bucket-min-h: 110px; }
+      .sts-card svg { width: 42px; height: 42px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="preview" data-score="0" data-lives="3" data-round="0">
+    <button type="button" id="btn-start" data-testid="btn-start" class="hidden" aria-hidden="true" tabindex="-1">Start</button>
+  </div>
+  <div id="pause-overlay" role="dialog" aria-modal="true" aria-label="Game paused">
+    <div class="pause-card">
+      <h2>Paused</h2>
+      <button type="button" class="pause-resume" id="pause-resume-btn">Resume</button>
+    </div>
+  </div>
+  <div id="results-screen" class="hidden"></div>
+  <div id="sts-live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    /* ============================================================
+       1. gameState (gameId FIRST per GEN-GAMEID)
+       ============================================================ */
+    var gameState = {
+      gameId: 'sort-the-shapes',
+      phase: 'preview',
+      currentRound: 0,
+      totalRounds: 8,
+      score: 0,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      content: null,
+      duration_data: { startTime: null, pausedTime: 0, lastPauseStart: null, attempts: [], preview: [] },
+      isProcessing: false,
+      gameEnded: false,
+      /* conditional */
+      lives: 3,
+      totalLives: 3,
+      correctAnswer: null,
+      /* alfred */
+      streak: 0,
+      consecutiveWrongs: 0,
+      /* game-specific */
+      roundsCompleted: 0,
+      stars: 0,
+      roundStartTime: null,
+      cardsPlaced: [],
+      cardsRemaining: [],
+      misconceptionEvents: [],
+      activeDrag: null,
+      showBucketReview: false,
+      previewResult: null,
+      visibilityPaused: false,
+      reducedMotion: false,
+      signalConfig: null,
+      contentSetId: null
+    };
+
+    /* ============================================================
+       2. expose to window
+       ============================================================ */
+    window.gameState = gameState;
+
+    /* ============================================================
+       3. fallbackContent  (verbatim from spec)
+       ============================================================ */
+    var fallbackContent = {
+      previewInstruction: '<p><b>Sort the Shapes!</b><br>Drag each shape into the correct bucket. Watch out — some shapes look alike!</p>',
+      previewAudioText: 'Drag each shape into the correct bucket. Some shapes look alike, so look carefully at their sides and corners!',
+      previewAudio: null,
+      showGameOnPreview: false,
+      rounds: [
+        {
+          round: 1, stage: 1, type: 'A',
+          buckets: [
+            { id: 'circles', label: 'Circles' },
+            { id: 'squares', label: 'Squares' }
+          ],
+          cards: [
+            { id: 'c1', name: 'Circle',  svg: 'circle',  category: 'circles' },
+            { id: 'c2', name: 'Square',  svg: 'square',  category: 'squares' },
+            { id: 'c3', name: 'Circle',  svg: 'circle',  category: 'circles' }
+          ],
+          misconception_tags: {
+            'c1': { 'squares': 'curve-straight-confusion' },
+            'c2': { 'circles': 'curve-straight-confusion' },
+            'c3': { 'squares': 'curve-straight-confusion' }
+          }
+        },
+        {
+          round: 2, stage: 1, type: 'A',
+          buckets: [
+            { id: 'triangles',  label: 'Triangles' },
+            { id: 'rectangles', label: 'Rectangles' }
+          ],
+          cards: [
+            { id: 'c1', name: 'Triangle',  svg: 'triangle_equilateral', category: 'triangles'  },
+            { id: 'c2', name: 'Rectangle', svg: 'rectangle_wide',       category: 'rectangles' },
+            { id: 'c3', name: 'Triangle',  svg: 'triangle_right',       category: 'triangles'  },
+            { id: 'c4', name: 'Rectangle', svg: 'rectangle_tall',       category: 'rectangles' }
+          ],
+          misconception_tags: {
+            'c1': { 'rectangles': 'side-count-confusion' },
+            'c2': { 'triangles':  'side-count-confusion' },
+            'c3': { 'rectangles': 'side-count-confusion' },
+            'c4': { 'triangles':  'side-count-confusion' }
+          }
+        },
+        {
+          round: 3, stage: 1, type: 'A',
+          buckets: [
+            { id: 'curved',   label: 'Curved edges' },
+            { id: 'straight', label: 'Straight edges only' }
+          ],
+          cards: [
+            { id: 'c1', name: 'Oval',     svg: 'oval',     category: 'curved'   },
+            { id: 'c2', name: 'Pentagon', svg: 'pentagon', category: 'straight' },
+            { id: 'c3', name: 'Circle',   svg: 'circle',   category: 'curved'   },
+            { id: 'c4', name: 'Hexagon',  svg: 'hexagon',  category: 'straight' }
+          ],
+          misconception_tags: {
+            'c1': { 'straight': 'curve-straight-confusion' },
+            'c2': { 'curved':   'polygon-as-curved' },
+            'c3': { 'straight': 'curve-straight-confusion' },
+            'c4': { 'curved':   'polygon-as-curved' }
+          }
+        },
+        {
+          round: 4, stage: 2, type: 'B',
+          buckets: [
+            { id: 'squares',    label: 'Squares' },
+            { id: 'rectangles', label: 'Rectangles' },
+            { id: 'rhombuses',  label: 'Rhombuses' }
+          ],
+          cards: [
+            { id: 'c1', name: 'Square',    svg: 'square',           category: 'squares'    },
+            { id: 'c2', name: 'Rectangle', svg: 'rectangle_wide',   category: 'rectangles' },
+            { id: 'c3', name: 'Rhombus',   svg: 'rhombus_tilted',   category: 'rhombuses'  },
+            { id: 'c4', name: 'Rectangle', svg: 'rectangle_tall',   category: 'rectangles' },
+            { id: 'c5', name: 'Square',    svg: 'square_tilted_45', category: 'squares'    }
+          ],
+          misconception_tags: {
+            'c1': { 'rectangles': 'square-as-rectangle-overgen', 'rhombuses': 'tilt-as-rhombus' },
+            'c2': { 'squares':    'rectangle-as-square',         'rhombuses': 'quadrilateral-blur' },
+            'c3': { 'squares':    'rhombus-as-square',           'rectangles': 'rhombus-as-rectangle' },
+            'c4': { 'squares':    'rectangle-as-square',         'rhombuses': 'quadrilateral-blur' },
+            'c5': { 'rectangles': 'square-as-rectangle-overgen', 'rhombuses': 'tilt-as-rhombus' }
+          }
+        },
+        {
+          round: 5, stage: 2, type: 'B',
+          buckets: [
+            { id: 'triangles',      label: 'Triangles' },
+            { id: 'quadrilaterals', label: '4 sides' },
+            { id: 'other_polygons', label: '5+ sides' }
+          ],
+          cards: [
+            { id: 'c1', name: 'Triangle',  svg: 'triangle_scalene', category: 'triangles'      },
+            { id: 'c2', name: 'Square',    svg: 'square',           category: 'quadrilaterals' },
+            { id: 'c3', name: 'Pentagon',  svg: 'pentagon',         category: 'other_polygons' },
+            { id: 'c4', name: 'Trapezoid', svg: 'trapezoid',        category: 'quadrilaterals' },
+            { id: 'c5', name: 'Hexagon',   svg: 'hexagon',          category: 'other_polygons' }
+          ],
+          misconception_tags: {
+            'c1': { 'quadrilaterals': 'triangle-as-quad-miscount',     'other_polygons': 'triangle-as-polygon-overcount' },
+            'c2': { 'triangles':      'quadrilateral-as-triangle',     'other_polygons': 'square-as-polygon-overcount' },
+            'c3': { 'triangles':      'pentagon-as-triangle-undercount','quadrilaterals': 'pentagon-as-quad-undercount' },
+            'c4': { 'triangles':      'trapezoid-as-triangle-miscount','other_polygons': 'trapezoid-side-count' },
+            'c5': { 'triangles':      'hexagon-as-triangle-undercount','quadrilaterals': 'hexagon-as-quad' }
+          }
+        },
+        {
+          round: 6, stage: 2, type: 'B',
+          buckets: [
+            { id: 'regular',    label: 'Regular' },
+            { id: 'irregular',  label: 'Irregular' },
+            { id: 'not_closed', label: 'Not a closed shape' }
+          ],
+          cards: [
+            { id: 'c1', name: 'Regular Pentagon', svg: 'pentagon',             category: 'regular'    },
+            { id: 'c2', name: 'Irregular Quad',   svg: 'quad_irregular',       category: 'irregular'  },
+            { id: 'c3', name: 'Open L-shape',     svg: 'open_l',               category: 'not_closed' },
+            { id: 'c4', name: 'Equilateral Tri',  svg: 'triangle_equilateral', category: 'regular'    },
+            { id: 'c5', name: 'Scalene Tri',      svg: 'triangle_scalene',     category: 'irregular'  }
+          ],
+          misconception_tags: {
+            'c1': { 'irregular':  'regular-irregular-confusion', 'not_closed': 'closed-open-confusion' },
+            'c2': { 'regular':    'irregular-as-regular',        'not_closed': 'closed-open-confusion' },
+            'c3': { 'regular':    'open-as-regular',             'irregular':  'open-as-irregular' },
+            'c4': { 'irregular':  'regular-irregular-confusion', 'not_closed': 'closed-open-confusion' },
+            'c5': { 'regular':    'irregular-as-regular',        'not_closed': 'closed-open-confusion' }
+          }
+        },
+        {
+          round: 7, stage: 3, type: 'C',
+          buckets: [
+            { id: 'all_equal',     label: 'All sides equal' },
+            { id: 'not_all_equal', label: 'Not all sides equal' }
+          ],
+          cards: [
+            { id: 'c1', name: 'Square',           svg: 'square',               category: 'all_equal'     },
+            { id: 'c2', name: 'Rectangle',        svg: 'rectangle_wide',       category: 'not_all_equal' },
+            { id: 'c3', name: 'Rhombus',          svg: 'rhombus_tilted',       category: 'all_equal'     },
+            { id: 'c4', name: 'Equilateral Tri',  svg: 'triangle_equilateral', category: 'all_equal'     },
+            { id: 'c5', name: 'Scalene Triangle', svg: 'triangle_scalene',     category: 'not_all_equal' }
+          ],
+          misconception_tags: {
+            'c1': { 'not_all_equal': 'right-angle-confusion-for-sides' },
+            'c2': { 'all_equal':     'all-quads-equal-sides' },
+            'c3': { 'not_all_equal': 'rhombus-sides-not-equal' },
+            'c4': { 'not_all_equal': 'triangle-sides-assumption' },
+            'c5': { 'all_equal':     'all-triangles-equal-sides' }
+          }
+        },
+        {
+          round: 8, stage: 3, type: 'C',
+          buckets: [
+            { id: 'has_right_angle', label: 'Has a right angle' },
+            { id: 'no_right_angle',  label: 'No right angle' }
+          ],
+          cards: [
+            { id: 'c1', name: 'Square',          svg: 'square',               category: 'has_right_angle' },
+            { id: 'c2', name: 'Rhombus',         svg: 'rhombus_tilted',       category: 'no_right_angle'  },
+            { id: 'c3', name: 'Right Triangle',  svg: 'triangle_right',       category: 'has_right_angle' },
+            { id: 'c4', name: 'Equilateral Tri', svg: 'triangle_equilateral', category: 'no_right_angle'  },
+            { id: 'c5', name: 'Rectangle',       svg: 'rectangle_wide',       category: 'has_right_angle' }
+          ],
+          misconception_tags: {
+            'c1': { 'no_right_angle':  'square-no-right-angle-denial' },
+            'c2': { 'has_right_angle': 'rhombus-as-right-angled' },
+            'c3': { 'no_right_angle':  'right-triangle-denial' },
+            'c4': { 'has_right_angle': 'all-triangles-right-angled' },
+            'c5': { 'no_right_angle':  'rectangle-no-right-angle-denial' }
+          }
+        }
+      ]
+    };
+
+    /* ============================================================
+       4. Kid-friendly misconception text
+       ============================================================ */
+    var MISCONCEPTION_TEXT = {
+      'curve-straight-confusion': 'Look at the edges — curved or straight?',
+      'side-count-confusion': 'Count the sides carefully!',
+      'polygon-as-curved': 'Straight edges only, no curves here.',
+      'square-as-rectangle-overgen': 'All sides equal — that belongs in Squares.',
+      'rectangle-as-square': 'Rectangles have 4 sides too, but not all equal!',
+      'rhombus-as-square': 'Equal sides, but tilted — it is a rhombus.',
+      'rhombus-as-rectangle': 'Rhombus sides are equal. Rectangles are not.',
+      'tilt-as-rhombus': 'Just tilting does not make it a rhombus.',
+      'quadrilateral-blur': 'Not all 4-sided shapes are the same.',
+      'triangle-as-quad-miscount': 'A triangle has 3 sides, not 4.',
+      'triangle-as-polygon-overcount': 'A triangle has only 3 sides.',
+      'quadrilateral-as-triangle': 'Count the sides — this has 4.',
+      'square-as-polygon-overcount': 'A square has 4 sides, not 5+.',
+      'pentagon-as-triangle-undercount': 'Count again — this has 5 sides.',
+      'pentagon-as-quad-undercount': 'A pentagon has 5 sides, not 4.',
+      'trapezoid-as-triangle-miscount': 'A trapezoid has 4 sides.',
+      'trapezoid-side-count': 'Count sides — a trapezoid has 4.',
+      'hexagon-as-triangle-undercount': 'A hexagon has 6 sides.',
+      'hexagon-as-quad': 'A hexagon has 6 sides, not 4.',
+      'regular-irregular-confusion': 'Are all sides and angles equal?',
+      'irregular-as-regular': 'Equal sides make it regular.',
+      'open-as-regular': 'Look — the outline has a gap.',
+      'open-as-irregular': 'The shape is not closed yet.',
+      'closed-open-confusion': 'This shape is closed all around.',
+      'all-quads-equal-sides': 'Not every 4-sided shape has equal sides.',
+      'all-triangles-equal-sides': 'Not every triangle has equal sides.',
+      'right-angle-confusion-for-sides': 'We are sorting by side length here.',
+      'rhombus-sides-not-equal': 'Rhombus sides ARE equal — all four.',
+      'triangle-sides-assumption': 'Look — this triangle has equal sides.',
+      'square-no-right-angle-denial': 'A square has 4 right angles.',
+      'rectangle-no-right-angle-denial': 'Rectangles have right angles!',
+      'rhombus-as-right-angled': 'A tilted rhombus has no right angle.',
+      'right-triangle-denial': 'Look for the square corner!',
+      'all-triangles-right-angled': 'Not every triangle has a right angle.'
+    };
+
+    /* ============================================================
+       5. Module-scope vars + sticker URLs
+       ============================================================ */
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_COMPLETE_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_COMPLETE_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_GAME_OVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_MOTIVATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    var subtitleTimer = null;
+
+    /* ============================================================
+       6. syncDOM
+       ============================================================ */
+    function syncDOM() { syncDOMState(); }
+    function syncDOMState() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound + 1);
+    }
+
+    /* ============================================================
+       7. trackEvent
+       ============================================================ */
+    function trackEvent(eventName, data) {
+      gameState.events.push({ event: eventName, timestamp: Date.now(), data: data || {} });
+    }
+
+    /* ============================================================
+       8. recordAttempt
+       ============================================================ */
+    function recordAttempt(roundIndex, userInput, correct, metadata) {
+      var rounds = getRounds();
+      var round = rounds[roundIndex] || {};
+      var md = metadata || {};
+      var correctCategory = null;
+      if (userInput && userInput.card_id && round.cards) {
+        for (var i = 0; i < round.cards.length; i++) {
+          if (round.cards[i].id === userInput.card_id) {
+            correctCategory = round.cards[i].category;
+            break;
+          }
+        }
+      }
+      /* Defensive: never emit 'other', 'wrong', or null as misconception_tag when correct===false */
+      var mcTag = null;
+      if (!correct) {
+        mcTag = md.misconception_tag;
+        if (mcTag === 'other' || mcTag === 'wrong' || mcTag === null || mcTag === undefined || mcTag === '') {
+          mcTag = 'spatial-placement-error';
+        }
+      }
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? Date.now() - gameState.startTime : 0,
+        input_of_user: userInput || {},
+        correct: !!correct,
+        round_number: roundIndex + 1,
+        question_id: 'r' + (roundIndex + 1) + '_' + ((userInput && userInput.card_id) ? userInput.card_id : 'x'),
+        correct_answer: correctCategory,
+        response_time_ms: gameState.roundStartTime ? Date.now() - gameState.roundStartTime : 0,
+        misconception_tag: mcTag,
+        difficulty_level: round.stage || 1,
+        is_retry: md.is_retry ? true : false,
+        metadata: md
+      };
+      gameState.attempts.push(attempt);
+      gameState.duration_data.attempts.push({ round: roundIndex + 1, timestamp: Date.now() });
+
+      if (!correct && md.misconception_tag) {
+        gameState.misconceptionEvents.push({
+          round: roundIndex + 1,
+          card_id: (userInput && userInput.card_id) || null,
+          bucket_id: (userInput && userInput.bucket_id) || null,
+          tag: md.misconception_tag,
+          ts: Date.now()
+        });
+      }
+
+      if (signalCollector) {
+        try {
+          signalCollector.recordInputEvent('answer_attempt', {
+            input: userInput || {},
+            correct: !!correct,
+            round: roundIndex + 1,
+            misconception_tag: md.misconception_tag || null
+          });
+        } catch(e) {}
+      }
+      trackEvent('attempt', { round: roundIndex + 1, correct: !!correct, input: userInput || {}, misconception_tag: md.misconception_tag || null });
+    }
+
+    /* ============================================================
+       9. getStars (from roundsCompleted per spec)
+       ============================================================ */
+    function getStars() {
+      var rc = gameState.roundsCompleted;
+      if (rc >= 7) return 3;
+      if (rc >= 5) return 2;
+      if (rc >= 1) return 1;
+      return 0;
+    }
+
+    /* ============================================================
+       10. getRounds
+       ============================================================ */
+    function getRounds() {
+      if (gameState.content && gameState.content.rounds && gameState.content.rounds.length >= gameState.totalRounds) {
+        return gameState.content.rounds;
+      }
+      return fallbackContent.rounds;
+    }
+
+    /* ============================================================
+       11. waitForPackages
+       ============================================================ */
+    function waitForPackages() {
+      var timeout = 120000;
+      return new Promise(function(resolve, reject) {
+        var start = Date.now();
+        function check() {
+          if (typeof FeedbackManager !== 'undefined' &&
+              typeof VisibilityTracker !== 'undefined' &&
+              typeof SignalCollector !== 'undefined' &&
+              typeof ScreenLayout !== 'undefined' &&
+              typeof ProgressBarComponent !== 'undefined' &&
+              typeof TransitionScreenComponent !== 'undefined' &&
+              typeof PreviewScreenComponent !== 'undefined') {
+            resolve(true);
+          } else if (Date.now() - start > timeout) {
+            try { throw new Error('Packages failed to load within 120s'); }
+            catch (err) { reject(err); }
+          } else {
+            setTimeout(check, 50);
+          }
+        }
+        check();
+      });
+    }
+
+    /* ============================================================
+       12. handlePostMessage (phase = 'preview' FIRST for preview-first flow)
+       ============================================================ */
+    function handlePostMessage(event) {
+      if (!event || !event.data) return;
+      var msg = event.data;
+      if (msg.type === 'game_init') {
+        /* CRITICAL: first line per GEN-PHASE-INIT (preview-first flow) */
+        gameState.phase = 'preview';
+        syncDOMState();
+        var d = msg.data || {};
+        if (d.content) {
+          gameState.content = d.content;
+          if (d.content.rounds) {
+            gameState.totalRounds = d.content.rounds.length;
+          }
+        }
+        var sc = gameState.signalConfig = d.signalConfig || {};
+        if (signalCollector && sc.flushUrl) {
+          signalCollector.flushUrl = sc.flushUrl;
+          signalCollector.playId = sc.playId || null;
+          signalCollector.gameId = sc.gameId || signalCollector.gameId;
+          signalCollector.sessionId = sc.sessionId || signalCollector.sessionId;
+          signalCollector.contentSetId = sc.contentSetId || signalCollector.contentSetId;
+          signalCollector.studentId = sc.studentId || signalCollector.studentId;
+          try { signalCollector.startFlushing(); } catch(e) {}
+        }
+      }
+    }
+
+    /* ============================================================
+       13. render  (stub — actual DOM in renderRound)
+       ============================================================ */
+    function render() { syncDOMState(); }
+
+    /* ============================================================
+       14. SVG library for shapes
+       ============================================================ */
+    function makeSVG(kind) {
+      /* Returns an SVG string with viewBox 0 0 60 60, solid fill accent-1, dark stroke */
+      var fill = 'var(--mathai-accent-1)';
+      var stroke = 'var(--mathai-text-primary)';
+      var sw = 3;
+      function p(d) {
+        return '<polygon points="' + d + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '" stroke-linejoin="round" />';
+      }
+      function path(d, fillMe) {
+        var f = (fillMe === false) ? 'none' : fill;
+        return '<path d="' + d + '" fill="' + f + '" stroke="' + stroke + '" stroke-width="' + sw + '" stroke-linejoin="round" stroke-linecap="round" />';
+      }
+      var head = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" aria-hidden="true" focusable="false">';
+      var body = '';
+      if (kind === 'circle') {
+        body = '<circle cx="30" cy="30" r="22" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '" />';
+      } else if (kind === 'square') {
+        body = '<rect x="9" y="9" width="42" height="42" rx="2" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '" />';
+      } else if (kind === 'rectangle_wide') {
+        body = '<rect x="5" y="18" width="50" height="24" rx="2" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '" />';
+      } else if (kind === 'rectangle_tall') {
+        body = '<rect x="18" y="5" width="24" height="50" rx="2" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '" />';
+      } else if (kind === 'triangle_equilateral') {
+        body = p('30,8 54,50 6,50');
+      } else if (kind === 'triangle_right') {
+        body = p('10,10 10,50 50,50');
+      } else if (kind === 'triangle_scalene') {
+        body = p('14,12 52,32 22,52');
+      } else if (kind === 'rhombus_tilted') {
+        body = p('30,6 54,30 30,54 6,30');
+      } else if (kind === 'square_tilted_45') {
+        body = p('30,8 52,30 30,52 8,30');
+      } else if (kind === 'oval') {
+        body = '<ellipse cx="30" cy="30" rx="24" ry="16" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '" />';
+      } else if (kind === 'pentagon') {
+        body = p('30,7 54,25 45,52 15,52 6,25');
+      } else if (kind === 'hexagon') {
+        body = p('18,8 42,8 54,30 42,52 18,52 6,30');
+      } else if (kind === 'trapezoid') {
+        body = p('16,14 44,14 54,46 6,46');
+      } else if (kind === 'quad_irregular') {
+        body = p('10,12 48,8 52,44 14,52');
+      } else if (kind === 'open_l') {
+        /* Two open strokes meeting at a corner, no closing side */
+        body = path('M 12 12 L 12 48 L 48 48', false);
+      } else {
+        /* fallback: circle */
+        body = '<circle cx="30" cy="30" r="20" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '" />';
+      }
+      return head + body + '</svg>';
+    }
+
+    /* ============================================================
+       15. Lookup helpers
+       ============================================================ */
+    function getCardById(round, cardId) {
+      if (!round || !round.cards) return null;
+      for (var i = 0; i < round.cards.length; i++) {
+        if (round.cards[i].id === cardId) return round.cards[i];
+      }
+      return null;
+    }
+    function getBucketById(round, bucketId) {
+      if (!round || !round.buckets) return null;
+      for (var i = 0; i < round.buckets.length; i++) {
+        if (round.buckets[i].id === bucketId) return round.buckets[i];
+      }
+      return null;
+    }
+    function lookupMisconceptionTag(round, cardId, bucketId) {
+      if (!round || !round.misconception_tags) return null;
+      var m = round.misconception_tags[cardId];
+      if (!m) return null;
+      return m[bucketId] || null;
+    }
+    function wasPreviouslyAttempted(cardId) {
+      for (var i = gameState.attempts.length - 1; i >= 0; i--) {
+        var a = gameState.attempts[i];
+        if (a.round_number !== gameState.currentRound + 1) break;
+        if (a.input_of_user && a.input_of_user.card_id === cardId) return true;
+      }
+      return false;
+    }
+
+    /* ============================================================
+       16. Begin game (after preview / after restart)
+       ============================================================ */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.streak = 0;
+      gameState.consecutiveWrongs = 0;
+      gameState.phase = 'gameplay';
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOMState();
+      if (progressBar) progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
+    }
+
+    /* ============================================================
+       17. setupGame (preview-first)
+       ============================================================ */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      /* Render game DOM FIRST so preview overlay covers real content */
+      ensureGameContent();
+      renderRound(0);
+      if (previewScreen) {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          timerConfig: null,
+          timerInstance: null,
+          onComplete: function(previewData) { startGameAfterPreview(previewData); }
+        });
+      } else {
+        gameState.phase = 'gameplay';
+        syncDOMState();
+        showWelcome();
+      }
+    }
+
+    function ensureGameContent() {
+      var gc = document.getElementById('gameContent');
+      if (gc) return gc;
+      var appEl = document.getElementById('app');
+      if (!appEl) return null;
+      var wrap = document.createElement('div');
+      wrap.id = 'gameContent';
+      appEl.appendChild(wrap);
+      return wrap;
+    }
+
+    /* ============================================================
+       18. After preview ends
+       ============================================================ */
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData;
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      if (previewData) gameState.duration_data.preview.push({ duration: previewData.duration });
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.phase = 'welcome';
+      syncDOMState();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      if (signalCollector) {
+        try { signalCollector.recordViewEvent('screen_transition', { screen: 'welcome', metadata: { transition_from: 'preview' } }); } catch(e) {}
+      }
+      if (progressBar) progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
+      showWelcome();
+    }
+
+    /* ============================================================
+       19. Welcome screen
+       ============================================================ */
+    async function showWelcome() {
+      if (!transitionScreen) { showRoundIntro(); return; }
+      /* Audio readiness gate on the first transition screen */
+      await new Promise(function(resolve) {
+        if (typeof FeedbackManager === 'undefined' || !FeedbackManager.canPlayAudio) return resolve();
+        if (FeedbackManager.canPlayAudio()) return resolve();
+        var tries = 0;
+        var interval = setInterval(function() {
+          tries++;
+          if (FeedbackManager.canPlayAudio()) { clearInterval(interval); resolve(); }
+          else if (tries * 200 >= 15000) { clearInterval(interval); resolve(); }
+        }, 200);
+      });
+
+      gameState.phase = 'welcome';
+      syncDOMState();
+
+      await transitionScreen.show({
+        title: 'Sort the Shapes',
+        subtitle: 'Drag each shape into the right bucket!',
+        buttons: [{
+          text: 'Start',
+          action: function() {
+            try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+            transitionScreen.hide();
+            showRoundIntro();
+          }
+        }],
+        onMounted: function() {
+          try {
+            FeedbackManager.sound.play('sound_level_transition', { sticker: STICKER_LEVEL }).catch(function(){});
+          } catch(e) {}
+        }
+      });
+    }
+
+    /* ============================================================
+       20. Round intro (auto-advance variant A)
+       ============================================================ */
+    async function showRoundIntro() {
+      gameState.phase = 'round_intro';
+      syncDOMState();
+      if (!transitionScreen) { beginRound(); return; }
+
+      var roundNum = gameState.currentRound + 1;
+      if (progressBar) progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
+
+      if (signalCollector) {
+        try {
+          signalCollector.recordViewEvent('screen_transition', {
+            screen: 'transition',
+            content_snapshot: { round: roundNum },
+            metadata: { trigger: 'round_start' }
+          });
+        } catch(e) {}
+      }
+
+      announce('Round ' + roundNum);
+
+      await transitionScreen.show({
+        title: 'Round ' + roundNum,
+        onMounted: async function() {
+          try {
+            await FeedbackManager.sound.play('rounds_sound_effect', { sticker: STICKER_ROUND });
+          } catch(e) {}
+          try {
+            await FeedbackManager.playDynamicFeedback({
+              audio_content: 'Round ' + roundNum,
+              subtitle: 'Round ' + roundNum,
+              sticker: STICKER_ROUND
+            });
+          } catch(e) {}
+          try { transitionScreen.hide(); } catch(e) {}
+          beginRound();
+        }
+      });
+    }
+
+    function beginRound() {
+      gameState.phase = 'gameplay';
+      syncDOMState();
+      renderRound(gameState.currentRound);
+      trackEvent('round_start', { round: gameState.currentRound + 1 });
+      if (progressBar) progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
+    }
+
+    /* ============================================================
+       21. renderRound — per-round reset + DOM rebuild
+       ============================================================ */
+    function renderRound(i) {
+      var rounds = getRounds();
+      var round = rounds[i];
+      if (!round) return;
+
+      /* Per-round reset (NEVER touch lives/score/attempts/roundsCompleted) */
+      gameState.cardsPlaced = [];
+      gameState.cardsRemaining = [];
+      for (var ci = 0; ci < round.cards.length; ci++) {
+        gameState.cardsRemaining.push(round.cards[ci].id);
+      }
+      gameState.roundStartTime = Date.now();
+      gameState.activeDrag = null;
+      gameState.showBucketReview = (round.type === 'C');
+      gameState.isProcessing = false;
+      var caMap = {};
+      for (var k = 0; k < round.cards.length; k++) {
+        caMap[round.cards[k].id] = round.cards[k].category;
+      }
+      gameState.correctAnswer = caMap;
+
+      var gameContent = ensureGameContent();
+      if (!gameContent) return;
+
+      var bucketCols = round.buckets.length === 3 ? ' three-col' : '';
+
+      var html = '<div class="sts-play" id="sts-play">';
+      /* Lives are rendered by ProgressBarComponent; no custom lives row here. */
+
+      html += '<div class="sts-subtitle" id="sts-subtitle" aria-live="polite"></div>';
+
+      html += '<div class="sts-bank-label">Shapes</div>';
+      html += '<div class="sts-bank" id="sts-bank">';
+      for (var c = 0; c < round.cards.length; c++) {
+        var card = round.cards[c];
+        html += '<div class="sts-card" id="card-' + card.id + '" data-card-id="' + card.id + '" role="button" tabindex="0" aria-label="' + escapeAttr(card.name) + '">';
+        html += makeSVG(card.svg);
+        html += '<div class="sts-card-label">' + escapeAttr(card.name) + '</div>';
+        html += '</div>';
+      }
+      html += '</div>';
+
+      html += '<div class="sts-bucket-row-label">Buckets</div>';
+      html += '<div class="sts-buckets' + bucketCols + '" id="sts-buckets">';
+      for (var b = 0; b < round.buckets.length; b++) {
+        var bucket = round.buckets[b];
+        html += '<div class="sts-bucket" id="bucket-' + bucket.id + '" data-bucket-id="' + bucket.id + '" aria-label="' + escapeAttr(bucket.label) + ' bucket">';
+        html += '<div class="sts-bucket-label">' + escapeAttr(bucket.label) + '</div>';
+        html += '<div class="sts-bucket-drop" id="bucket-drop-' + bucket.id + '"></div>';
+        html += '</div>';
+      }
+      html += '</div>';
+
+      html += '</div>'; /* .sts-play */
+
+      gameContent.innerHTML = html;
+
+      syncDOMState();
+      attachCardHandlers(round);
+
+      if (signalCollector) {
+        try {
+          signalCollector.recordViewEvent('content_render', {
+            screen: 'gameplay',
+            content_snapshot: {
+              round: i + 1,
+              stage: round.stage,
+              type: round.type,
+              buckets: round.buckets.length,
+              cards: round.cards.length
+            },
+            metadata: { trigger: 'round_start' }
+          });
+        } catch(e) {}
+      }
+    }
+
+    function escapeAttr(s) {
+      if (s === null || s === undefined) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    /* ============================================================
+       22. Attach pointer handlers for cards
+       ============================================================ */
+    function attachCardHandlers(round) {
+      for (var i = 0; i < round.cards.length; i++) {
+        var card = round.cards[i];
+        var el = document.getElementById('card-' + card.id);
+        if (!el) continue;
+        (function(cardRef, elRef) {
+          elRef.addEventListener('pointerdown', function(ev) { handleCardPointerDown(ev, cardRef, elRef); });
+        })(card, el);
+      }
+    }
+
+    function handleCardPointerDown(ev, card, cardEl) {
+      if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+      if (gameState.visibilityPaused) return;
+      if (gameState.activeDrag) return;
+      if (ev.button !== undefined && ev.button !== 0) return;
+      if (cardEl.classList.contains('placed')) return;
+      /* only draggable if still in bank */
+      var inBank = false;
+      for (var i = 0; i < gameState.cardsRemaining.length; i++) {
+        if (gameState.cardsRemaining[i] === card.id) { inBank = true; break; }
+      }
+      if (!inBank) return;
+
+      ev.preventDefault();
+
+      var rect = cardEl.getBoundingClientRect();
+      var originParent = cardEl.parentElement;
+      var grabOffsetX = ev.clientX - rect.left - rect.width / 2;
+      var grabOffsetY = ev.clientY - rect.top - rect.height / 2;
+
+      /* Dim other cards in the bank */
+      var bankEl = document.getElementById('sts-bank');
+      if (bankEl) {
+        var siblings = bankEl.querySelectorAll('.sts-card');
+        for (var s = 0; s < siblings.length; s++) {
+          if (siblings[s] !== cardEl) siblings[s].classList.add('dimmed');
+        }
+      }
+
+      /* Promote card to fixed-position overlay */
+      document.body.appendChild(cardEl);
+      cardEl.classList.add('dragging');
+      cardEl.style.position = 'fixed';
+      cardEl.style.width = rect.width + 'px';
+      cardEl.style.height = rect.height + 'px';
+      cardEl.style.left = (ev.clientX - rect.width / 2 - grabOffsetX) + 'px';
+      cardEl.style.top = (ev.clientY - rect.height / 2 - grabOffsetY) + 'px';
+
+      gameState.activeDrag = {
+        cardId: card.id,
+        card: card,
+        cardEl: cardEl,
+        pointerId: ev.pointerId,
+        grabOffsetX: grabOffsetX,
+        grabOffsetY: grabOffsetY,
+        cardWidth: rect.width,
+        cardHeight: rect.height,
+        originParent: originParent,
+        originRect: rect,
+        startTime: Date.now()
+      };
+
+      try { cardEl.setPointerCapture && cardEl.setPointerCapture(ev.pointerId); } catch(e) {}
+
+      document.addEventListener('pointermove', handleCardPointerMove, { passive: false });
+      document.addEventListener('pointerup', handleCardPointerUp, { passive: false });
+      document.addEventListener('pointercancel', handleCardPointerCancel, { passive: false });
+
+      trackEvent('drag_start', { round: gameState.currentRound + 1, cardId: card.id });
+    }
+
+    function positionCardAt(cardEl, clientX, clientY, grabOffsetX, grabOffsetY, w, h) {
+      cardEl.style.left = (clientX - w / 2 - grabOffsetX) + 'px';
+      cardEl.style.top = (clientY - h / 2 - grabOffsetY) + 'px';
+    }
+
+    function clearBucketHoverStates() {
+      var buckets = document.querySelectorAll('.sts-bucket');
+      for (var i = 0; i < buckets.length; i++) {
+        buckets[i].classList.remove('hover-valid');
+      }
+    }
+
+    function handleCardPointerMove(ev) {
+      var ad = gameState.activeDrag;
+      if (!ad) return;
+      if (ev.pointerId !== undefined && ad.pointerId !== undefined && ev.pointerId !== ad.pointerId) return;
+      ev.preventDefault();
+      positionCardAt(ad.cardEl, ev.clientX, ev.clientY, ad.grabOffsetX, ad.grabOffsetY, ad.cardWidth, ad.cardHeight);
+
+      var bucket = hitTestBucket(ev.clientX, ev.clientY);
+      clearBucketHoverStates();
+      if (bucket) {
+        var bEl = document.getElementById('bucket-' + bucket);
+        if (bEl) bEl.classList.add('hover-valid');
+      }
+    }
+
+    function hitTestBucket(clientX, clientY) {
+      var el = document.elementFromPoint(clientX, clientY);
+      while (el && el !== document.body) {
+        if (el.classList && el.classList.contains('sts-bucket')) {
+          return el.getAttribute('data-bucket-id');
+        }
+        el = el.parentElement;
+      }
+      /* AABB fallback */
+      var buckets = document.querySelectorAll('.sts-bucket');
+      for (var i = 0; i < buckets.length; i++) {
+        var rect = buckets[i].getBoundingClientRect();
+        if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+          return buckets[i].getAttribute('data-bucket-id');
+        }
+      }
+      return null;
+    }
+
+    function handleCardPointerUp(ev) {
+      var ad = gameState.activeDrag;
+      if (!ad) return;
+      if (ev.pointerId !== undefined && ad.pointerId !== undefined && ev.pointerId !== ad.pointerId) return;
+      ev.preventDefault();
+      finalizeDrop(ev.clientX, ev.clientY, false);
+    }
+
+    function handleCardPointerCancel(ev) {
+      var ad = gameState.activeDrag;
+      if (!ad) return;
+      /* Snap back silently */
+      finalizeDrop(ev.clientX || 0, ev.clientY || 0, true);
+    }
+
+    function finalizeDrop(clientX, clientY, canceled) {
+      var ad = gameState.activeDrag;
+      if (!ad) return;
+      gameState.activeDrag = null;
+      clearBucketHoverStates();
+      document.removeEventListener('pointermove', handleCardPointerMove);
+      document.removeEventListener('pointerup', handleCardPointerUp);
+      document.removeEventListener('pointercancel', handleCardPointerCancel);
+
+      var cardEl = ad.cardEl;
+      try { cardEl.releasePointerCapture && cardEl.releasePointerCapture(ad.pointerId); } catch(e) {}
+
+      /* Un-dim sibling cards */
+      var bankEl = document.getElementById('sts-bank');
+      if (bankEl) {
+        var siblings = bankEl.querySelectorAll('.sts-card');
+        for (var s = 0; s < siblings.length; s++) siblings[s].classList.remove('dimmed');
+      }
+
+      if (canceled) {
+        resolveMissedDrop(ad);
+        return;
+      }
+
+      var bucketId = hitTestBucket(clientX, clientY);
+      if (!bucketId) {
+        resolveMissedDrop(ad);
+        return;
+      }
+
+      var rounds = getRounds();
+      var round = rounds[gameState.currentRound];
+      var card = ad.card;
+      var bucket = getBucketById(round, bucketId);
+      if (!bucket) {
+        resolveMissedDrop(ad);
+        return;
+      }
+
+      if (card.category === bucket.id) {
+        resolveCorrectDrop(ad, round, card, bucket);
+      } else {
+        resolveWrongDrop(ad, round, card, bucket);
+      }
+    }
+
+    /* ============================================================
+       23. Drop resolvers
+       ============================================================ */
+    function resolveMissedDrop(ad) {
+      /* snap card back to bank silently */
+      var cardEl = ad.cardEl;
+      var originParent = ad.originParent;
+      cardEl.classList.remove('dragging');
+      cardEl.style.position = '';
+      cardEl.style.left = '';
+      cardEl.style.top = '';
+      cardEl.style.width = '';
+      cardEl.style.height = '';
+      if (originParent && cardEl.parentElement !== originParent) {
+        originParent.appendChild(cardEl);
+      }
+    }
+
+    function resolveCorrectDrop(ad, round, card, bucket) {
+      /* 1. Record attempt BEFORE feedback */
+      recordAttempt(gameState.currentRound, { card_id: card.id, bucket_id: bucket.id }, true, {
+        is_retry: false,
+        round: gameState.currentRound + 1,
+        stage: round.stage,
+        type: round.type,
+        card: { id: card.id, name: card.name, svg: card.svg, category: card.category },
+        bucket: { id: bucket.id, label: bucket.label },
+        misconception_tag: null
+      });
+
+      /* 2. State update */
+      gameState.score++;
+      gameState.streak++;
+      gameState.consecutiveWrongs = 0;
+      /* move from remaining -> placed */
+      var idx = -1;
+      for (var i = 0; i < gameState.cardsRemaining.length; i++) {
+        if (gameState.cardsRemaining[i] === card.id) { idx = i; break; }
+      }
+      if (idx >= 0) gameState.cardsRemaining.splice(idx, 1);
+      gameState.cardsPlaced.push(card.id);
+      syncDOMState();
+      if (progressBar) progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
+
+      /* 3. Fire-and-forget SFX (multi-step rule) */
+      try {
+        FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_CELEBRATE }).catch(function(){});
+      } catch(e) {}
+
+      /* 4. Animate into bucket: flash + snap */
+      var bucketEl = document.getElementById('bucket-' + bucket.id);
+      var dropEl = document.getElementById('bucket-drop-' + bucket.id);
+      if (bucketEl) {
+        bucketEl.classList.add('flash-correct');
+        bucketEl.classList.add('has-placed');
+        setTimeout((function(el){ return function(){ el.classList.remove('flash-correct'); }; })(bucketEl), 220);
+      }
+
+      /* move the card into the bucket drop zone */
+      var cardEl = ad.cardEl;
+      cardEl.classList.remove('dragging');
+      cardEl.classList.add('placed');
+      cardEl.style.position = '';
+      cardEl.style.left = '';
+      cardEl.style.top = '';
+      cardEl.style.width = '';
+      cardEl.style.height = '';
+
+      /* add a checkmark badge */
+      if (!cardEl.querySelector('.sts-badge')) {
+        var badge = document.createElement('span');
+        badge.className = 'sts-badge badge-correct';
+        badge.setAttribute('aria-hidden', 'true');
+        badge.innerHTML = '&#10003;';
+        cardEl.appendChild(badge);
+      }
+
+      if (dropEl) {
+        dropEl.appendChild(cardEl);
+      } else if (bucketEl) {
+        bucketEl.appendChild(cardEl);
+      }
+
+      announce(card.name + ' placed in ' + bucket.label);
+
+      trackEvent('card_placed_correct', { round: gameState.currentRound + 1, cardId: card.id, bucketId: bucket.id });
+
+      /* 5. Round-complete check */
+      if (gameState.cardsRemaining.length === 0) {
+        onRoundComplete();
+      }
+    }
+
+    function resolveWrongDrop(ad, round, card, bucket) {
+      var tag = lookupMisconceptionTag(round, card.id, bucket.id);
+      /* Defensive: never emit "other" / "wrong" */
+      if (!tag) tag = 'spatial-placement-error';
+
+      recordAttempt(gameState.currentRound, { card_id: card.id, bucket_id: bucket.id }, false, {
+        is_retry: wasPreviouslyAttempted(card.id),
+        round: gameState.currentRound + 1,
+        stage: round.stage,
+        type: round.type,
+        card: { id: card.id, name: card.name, svg: card.svg, category: card.category },
+        bucket: { id: bucket.id, label: bucket.label },
+        misconception_tag: tag
+      });
+
+      gameState.lives--;
+      gameState.streak = 0;
+      gameState.consecutiveWrongs++;
+      if (gameState.lives < 0) gameState.lives = 0;
+      syncDOMState();
+      if (progressBar) progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
+
+      /* ProgressBar owns the lives display; it updates atomically via progressBar.update() above. */
+
+      /* Bucket red flash */
+      var bucketEl = document.getElementById('bucket-' + bucket.id);
+      if (bucketEl) {
+        bucketEl.classList.add('flash-danger');
+        setTimeout((function(el){ return function(){ el.classList.remove('flash-danger'); }; })(bucketEl), 320);
+      }
+
+      var cardEl = ad.cardEl;
+      cardEl.classList.add('shake-wrong');
+      setTimeout((function(el){ return function(){ el.classList.remove('shake-wrong'); }; })(cardEl), 480);
+
+      /* Add a temporary ✕ badge */
+      var tempBadge = document.createElement('span');
+      tempBadge.className = 'sts-badge badge-wrong';
+      tempBadge.setAttribute('aria-hidden', 'true');
+      tempBadge.innerHTML = '&#10007;';
+      cardEl.appendChild(tempBadge);
+      setTimeout((function(el){ return function(){ if (el && el.parentNode) el.parentNode.removeChild(el); }; })(tempBadge), 700);
+
+      announce('Not quite. Try again.');
+      trackEvent('card_placed_wrong', { round: gameState.currentRound + 1, cardId: card.id, bucketId: bucket.id, misconception_tag: tag });
+
+      if (gameState.lives === 0) {
+        /* CASE 8: SKIP wrong SFX — go straight to game-over after brief visual */
+        bounceCardToBank(ad);
+        setTimeout(function() {
+          endGame(true);
+        }, 600);
+        return;
+      }
+
+      /* fire-and-forget wrong SFX */
+      try {
+        FeedbackManager.sound.play('incorrect_sound_effect', { sticker: STICKER_SAD }).catch(function(){});
+      } catch(e) {}
+
+      /* Show misconception subtitle banner 1.8s */
+      showMisconceptionSubtitle(tag);
+
+      /* Animate card back to bank */
+      bounceCardToBank(ad);
+    }
+
+    function bounceCardToBank(ad) {
+      var cardEl = ad.cardEl;
+      var originParent = ad.originParent;
+      var originRect = ad.originRect;
+      if (!originParent || !originRect) {
+        cardEl.classList.remove('dragging');
+        cardEl.style.position = '';
+        cardEl.style.left = '';
+        cardEl.style.top = '';
+        cardEl.style.width = '';
+        cardEl.style.height = '';
+        if (originParent) originParent.appendChild(cardEl);
+        return;
+      }
+      var currentRect = cardEl.getBoundingClientRect();
+      var targetX = originRect.left;
+      var targetY = originRect.top;
+
+      cardEl.classList.remove('dragging');
+      cardEl.classList.add('bouncing');
+      cardEl.style.position = 'fixed';
+      cardEl.style.left = targetX + 'px';
+      cardEl.style.top = targetY + 'px';
+
+      setTimeout(function() {
+        cardEl.classList.remove('bouncing');
+        cardEl.style.position = '';
+        cardEl.style.left = '';
+        cardEl.style.top = '';
+        cardEl.style.width = '';
+        cardEl.style.height = '';
+        if (originParent && cardEl.parentElement !== originParent) {
+          originParent.appendChild(cardEl);
+        }
+      }, gameState.reducedMotion ? 0 : 260);
+    }
+
+    function showMisconceptionSubtitle(tag) {
+      var el = document.getElementById('sts-subtitle');
+      if (!el) return;
+      var text = MISCONCEPTION_TEXT[tag] || 'Look at the shape carefully.';
+      el.textContent = text;
+      el.classList.add('visible');
+      if (subtitleTimer) { clearTimeout(subtitleTimer); subtitleTimer = null; }
+      subtitleTimer = setTimeout(function() {
+        if (el) {
+          el.classList.remove('visible');
+          el.textContent = '';
+        }
+        subtitleTimer = null;
+      }, 1800);
+    }
+
+    function announce(text) {
+      var lr = document.getElementById('sts-live-region');
+      if (lr) { lr.textContent = ''; setTimeout(function(){ lr.textContent = text; }, 20); }
+    }
+
+    /* ============================================================
+       24. Round complete handler
+       ============================================================ */
+    async function onRoundComplete() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      gameState.isProcessing = true;
+
+      var rounds = getRounds();
+      var round = rounds[gameState.currentRound];
+
+      trackEvent('round_complete', { round: gameState.currentRound + 1, score: gameState.score, lives: gameState.lives });
+
+      /* Type C: highlight each card's correct bucket for 2000ms BEFORE awaited SFX */
+      if (gameState.showBucketReview && round && round.type === 'C') {
+        var bucketIds = [];
+        for (var i = 0; i < round.buckets.length; i++) bucketIds.push(round.buckets[i].id);
+        for (var bb = 0; bb < bucketIds.length; bb++) {
+          var bEl = document.getElementById('bucket-' + bucketIds[bb]);
+          if (bEl) bEl.classList.add('bucket-review');
+        }
+        await new Promise(function(r){ setTimeout(r, 2000); });
+        for (var bb2 = 0; bb2 < bucketIds.length; bb2++) {
+          var bEl2 = document.getElementById('bucket-' + bucketIds[bb2]);
+          if (bEl2) bEl2.classList.remove('bucket-review');
+        }
+      }
+
+      gameState.roundsCompleted++;
+      syncDOMState();
+
+      /* Subtitle 'Round N complete!' */
+      var subEl = document.getElementById('sts-subtitle');
+      if (subEl) {
+        subEl.textContent = 'Round ' + (gameState.currentRound + 1) + ' complete!';
+        subEl.classList.add('visible');
+      }
+      announce('Round ' + (gameState.currentRound + 1) + ' complete');
+
+      try {
+        await Promise.all([
+          FeedbackManager.sound.play('all_correct', { sticker: STICKER_CELEBRATE }),
+          new Promise(function(r) { setTimeout(r, 1500); })
+        ]);
+      } catch(e) {}
+
+      await new Promise(function(r){ setTimeout(r, 1200); });
+      if (subEl) { subEl.classList.remove('visible'); subEl.textContent = ''; }
+
+      gameState.isProcessing = false;
+
+      if (gameState.currentRound + 1 >= gameState.totalRounds) {
+        endGame(false); /* victory path */
+      } else {
+        gameState.currentRound++;
+        showRoundIntro();
+      }
+    }
+
+    /* ============================================================
+       25. endGame — single function for BOTH paths.
+       Renders screen FIRST, posts game_complete BEFORE audio.
+       ============================================================ */
+    function endGame(isGameOver) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = isGameOver ? 'game_over' : 'victory';
+      syncDOMState();
+
+      var stars = getStars();
+      gameState.stars = stars;
+      trackEvent(isGameOver ? 'game_over' : 'game_complete', { score: gameState.score, stars: stars, roundsCompleted: gameState.roundsCompleted });
+
+      var totalDropAttempts = gameState.attempts.length;
+      var correctDropCount = 0;
+      for (var i = 0; i < gameState.attempts.length; i++) if (gameState.attempts[i].correct) correctDropCount++;
+      var accuracy = totalDropAttempts > 0 ? Math.round((correctDropCount / totalDropAttempts) * 100) : 0;
+      var totalTime = gameState.startTime ? Math.round((Date.now() - gameState.startTime) / 1000) : 0;
+
+      /* tries grouped by round */
+      var triesMap = {};
+      for (var j = 0; j < gameState.attempts.length; j++) {
+        var rn = gameState.attempts[j].round_number;
+        triesMap[rn] = (triesMap[rn] || 0) + 1;
+      }
+      var triesByRound = [];
+      var keys = Object.keys(triesMap);
+      for (var kk = 0; kk < keys.length; kk++) {
+        triesByRound.push({ round: parseInt(keys[kk], 10), tries: triesMap[keys[kk]] });
+      }
+
+      var signalEventCount = 0;
+      var signalMetadata = {};
+      if (signalCollector) {
+        try {
+          signalEventCount = signalCollector.getInputEvents().length;
+          signalMetadata = signalCollector.getMetadata();
+        } catch(e) {}
+      }
+
+      /* Render the end screen FIRST — showVictory / showGameOver start audio in onMounted AFTER postMessage */
+      if (isGameOver) {
+        showGameOver_stage1();
+      } else {
+        showVictory_stage1();
+      }
+
+      /* postMessage BEFORE end-game audio (GEN-PM-DUAL-PATH) */
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: {
+              accuracy: accuracy,
+              time: totalTime,
+              stars: stars,
+              attempts: gameState.attempts,
+              duration_data: gameState.duration_data,
+              totalLives: gameState.lives,
+              tries: triesByRound
+            },
+            previewResult: gameState.previewResult || null,
+            completedAt: Date.now(),
+            gameId: gameState.gameId,
+            score: gameState.score,
+            roundsCompleted: gameState.roundsCompleted,
+            totalRounds: gameState.totalRounds,
+            signal_event_count: signalEventCount,
+            signal_metadata: signalMetadata
+          }
+        }, '*');
+      } catch(e) {}
+
+      /* Destroy preview wrapper */
+      if (previewScreen) {
+        try { previewScreen.destroy(); } catch(e) {}
+        previewScreen = null;
+      }
+
+      /* Now start end-game audio */
+      if (isGameOver) {
+        playGameOverAudio();
+      } else {
+        playVictoryAudio();
+      }
+    }
+
+    async function showVictory_stage1() {
+      if (!transitionScreen) return;
+      var stars = gameState.stars;
+      var buttons = [];
+      if (stars < 3) {
+        buttons.push({
+          text: 'Play Again',
+          action: function() {
+            try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+            transitionScreen.hide();
+            showMotivation();
+          }
+        });
+      }
+      buttons.push({
+        text: 'Claim Stars',
+        action: function() {
+          try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+          transitionScreen.hide();
+          showStarsCollected();
+        }
+      });
+
+      var subtitle = stars === 3 ? 'Perfect sort! \uD83C\uDF89' : (stars === 2 ? 'Great sorting!' : 'Nice effort — keep sorting!');
+
+      try {
+        await transitionScreen.show({
+          stars: stars,
+          title: 'Victory \uD83C\uDF89',
+          subtitle: subtitle,
+          buttons: buttons,
+          persist: true
+        });
+      } catch(e) {}
+    }
+
+    async function playVictoryAudio() {
+      var stars = gameState.stars;
+      var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+      var sticker = stars === 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_COMPLETE_2 : STICKER_COMPLETE_1);
+      var voText = stars === 3 ? 'Perfect sort!' : (stars === 2 ? 'Great sorting!' : 'Nice effort — keep sorting!');
+      try { await FeedbackManager.sound.play(sfxId, { sticker: sticker }); } catch(e) {}
+      try { await FeedbackManager.playDynamicFeedback({ audio_content: voText, subtitle: voText, sticker: sticker }); } catch(e) {}
+    }
+
+    async function showGameOver_stage1() {
+      if (!transitionScreen) return;
+      try {
+        await transitionScreen.show({
+          icons: ['\uD83D\uDE14'],
+          title: 'Game Over',
+          subtitle: 'You ran out of lives!',
+          buttons: [{
+            text: 'Try Again',
+            action: function() {
+              try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+              transitionScreen.hide();
+              showMotivation();
+            }
+          }],
+          persist: true
+        });
+      } catch(e) {}
+    }
+
+    async function playGameOverAudio() {
+      try {
+        await FeedbackManager.sound.play('game_over_sound_effect', { sticker: STICKER_GAME_OVER });
+      } catch(e) {}
+      try {
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: "Good effort! Let's try again.",
+          subtitle: "Good effort! Let's try again.",
+          sticker: STICKER_GAME_OVER
+        });
+      } catch(e) {}
+    }
+
+    /* ============================================================
+       26. Motivation + restart (SKIP preview + welcome)
+       ============================================================ */
+    async function showMotivation() {
+      gameState.phase = 'motivation';
+      syncDOMState();
+      if (!transitionScreen) { restartToRound1(); return; }
+      await transitionScreen.show({
+        title: 'Ready to improve your score? \u26A1',
+        buttons: [{
+          text: "I'm ready! \uD83D\uDE4C",
+          action: function() {
+            try { FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+            transitionScreen.hide();
+            restartToRound1();
+          }
+        }],
+        persist: true,
+        onMounted: async function() {
+          try { await FeedbackManager.sound.play('rounds_sound_effect', { sticker: STICKER_MOTIVATE }); } catch(e) {}
+        }
+      });
+    }
+
+    /* Stars Collected — auto-dismiss 2500ms -> game_exit */
+    async function showStarsCollected() {
+      gameState.phase = 'stars_collected';
+      syncDOMState();
+      if (!transitionScreen) {
+        try { window.parent.postMessage({ type: 'game_exit' }, '*'); } catch(e) {}
+        return;
+      }
+      try {
+        await transitionScreen.show({
+          title: 'Yay! \uD83C\uDF89\nStars collected!',
+          styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+          duration: 2500,
+          onMounted: async function() {
+            try { await FeedbackManager.sound.play('victory_sound_effect', { sticker: STICKER_VICTORY }); } catch(e) {}
+          }
+        });
+      } catch(e) {}
+      setTimeout(function() {
+        try { transitionScreen.hide(); } catch(e) {}
+        try { window.parent.postMessage({ type: 'game_exit' }, '*'); } catch(e) {}
+      }, 2500);
+    }
+
+    function restartToRound1() {
+      /* Per-game reset (NEVER re-show PreviewScreen) */
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.roundsCompleted = 0;
+      gameState.currentRound = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.misconceptionEvents = [];
+      gameState.stars = 0;
+      gameState.startTime = Date.now();
+      gameState.gameEnded = false;
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      gameState.streak = 0;
+      gameState.consecutiveWrongs = 0;
+      gameState.cardsPlaced = [];
+      gameState.cardsRemaining = [];
+      gameState.activeDrag = null;
+      gameState.showBucketReview = false;
+      gameState.duration_data = {
+        startTime: new Date().toISOString(),
+        pausedTime: 0,
+        lastPauseStart: null,
+        attempts: [],
+        preview: gameState.duration_data.preview || []
+      };
+      if (signalCollector) { try { signalCollector.reset(); } catch(e) {} }
+      syncDOMState();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true });
+      if (progressBar) progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
+      /* Route DIRECTLY to Round 1 intro — skipping Preview + Welcome */
+      showRoundIntro();
+    }
+
+    /* alias for test harness symmetry */
+    function restartGame() { restartToRound1(); }
+
+    /* ============================================================
+       27. Results / Debug helpers
+       ============================================================ */
+    function showResults() {
+      syncDOMState();
+      var resultsScreen = document.getElementById('results-screen');
+      if (resultsScreen) {
+        resultsScreen.innerHTML = '<div style="padding:24px;text-align:center;"><p id="rounds-completed">Rounds completed: ' + gameState.roundsCompleted + '/' + gameState.totalRounds + '</p></div>';
+      }
+    }
+
+    function debugGame() {
+      return {
+        gameState: gameState,
+        currentRound: gameState.currentRound,
+        score: gameState.score,
+        lives: gameState.lives,
+        phase: gameState.phase,
+        attempts: gameState.attempts.length,
+        events: gameState.events.length,
+        roundsCompleted: gameState.roundsCompleted,
+        cardsPlaced: gameState.cardsPlaced.slice(),
+        cardsRemaining: gameState.cardsRemaining.slice()
+      };
+    }
+    function debugAudio() {
+      return {
+        feedbackManagerAvailable: typeof FeedbackManager !== 'undefined',
+        canPlay: typeof FeedbackManager !== 'undefined' ? FeedbackManager.canPlayAudio() : false
+      };
+    }
+    function testAudio() {
+      try { FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_CELEBRATE }).catch(function(){}); } catch(e) {}
+    }
+    function testPause() {
+      try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch(e) {}
+    }
+    function testResume() {
+      try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch(e) {}
+    }
+
+    /* ============================================================
+       28. Visibility / Paused overlay
+       ============================================================ */
+    function onVisibilityHidden() {
+      gameState.visibilityPaused = true;
+      /* Treat any in-flight drag as pointercancel — snap back silently */
+      if (gameState.activeDrag) {
+        try {
+          var ev = { clientX: 0, clientY: 0, pointerId: gameState.activeDrag.pointerId };
+          finalizeDrop(0, 0, true);
+        } catch(e) {}
+      }
+      try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch(e) {}
+      try { if (previewScreen) previewScreen.pause(); } catch(e) {}
+      if (signalCollector) {
+        try { signalCollector.pause(); signalCollector.recordCustomEvent('visibility_hidden', {}); } catch(e) {}
+      }
+      var po = document.getElementById('pause-overlay');
+      if (po) po.classList.add('visible');
+    }
+    function onVisibilityRestored() {
+      gameState.visibilityPaused = false;
+      try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch(e) {}
+      try { if (previewScreen) previewScreen.resume(); } catch(e) {}
+      if (signalCollector) {
+        try { signalCollector.resume(); signalCollector.recordCustomEvent('visibility_visible', {}); } catch(e) {}
+      }
+      var po = document.getElementById('pause-overlay');
+      if (po) po.classList.remove('visible');
+    }
+
+    /* Suppress touchmove while dragging */
+    document.addEventListener('touchmove', function(e) {
+      if (gameState.activeDrag) e.preventDefault();
+    }, { passive: false });
+
+    /* ============================================================
+       29. DOMContentLoaded init
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', async function() {
+      /* Detect reduced motion */
+      try {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          gameState.reducedMotion = true;
+          var appEl = document.getElementById('app');
+          if (appEl) appEl.classList.add('reduced-motion');
+        }
+      } catch(e) {}
+
+      try {
+        await waitForPackages();
+        try { await FeedbackManager.init(); } catch(e) {}
+
+        try {
+          signalCollector = new SignalCollector({
+            sessionId: (window.gameVariableState && window.gameVariableState.sessionId) ? window.gameVariableState.sessionId : 'session_' + Date.now(),
+            studentId: (window.gameVariableState && window.gameVariableState.studentId) ? window.gameVariableState.studentId : null,
+            gameId: gameState.gameId || null,
+            contentSetId: gameState.contentSetId || null
+          });
+          window.signalCollector = signalCollector;
+        } catch(e) {}
+
+        try {
+          ScreenLayout.inject('app', {
+            slots: { previewScreen: true, progressBar: true, transitionScreen: true }
+          });
+        } catch(e) {}
+
+        visibilityTracker = new VisibilityTracker({
+          onInactive: onVisibilityHidden,
+          onResume: onVisibilityRestored
+        });
+
+        progressBar = new ProgressBarComponent({
+          slotId: 'mathai-progress-slot',
+          totalRounds: gameState.totalRounds,
+          totalLives: gameState.totalLives
+        });
+
+        transitionScreen = new TransitionScreenComponent({
+          slotId: 'mathai-transition-slot'
+        });
+
+        previewScreen = new PreviewScreenComponent({
+          slotId: 'mathai-preview-slot'
+        });
+
+        try {
+          await FeedbackManager.sound.preload([
+            { id: 'correct_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+            { id: 'incorrect_sound_effect',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+            { id: 'sound_life_lost',           url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+            { id: 'rounds_sound_effect',       url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+            { id: 'sound_level_transition',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3' },
+            { id: 'victory_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+            { id: 'game_complete_sound_effect',url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+            { id: 'game_over_sound_effect',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+            { id: 'all_correct',               url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' },
+            { id: 'new_cards',                 url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' },
+            { id: 'tap_sound',                 url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+            { id: 'sound_bubble_select',       url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+            { id: 'sound_bubble_deselect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' }
+          ]);
+        } catch(e) {}
+
+        /* Register listener BEFORE game_ready */
+        window.addEventListener('message', handlePostMessage);
+        try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch(e) {}
+
+        setupGame();
+      } catch (e) {
+        /* Fallthrough to standalone fallback below */
+      }
+
+      /* Expose window.* contract functions */
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.restartToRound1 = restartToRound1;
+      window.startGame = startGame;
+      window.debugGame = debugGame;
+      window.debugAudio = debugAudio;
+      window.testAudio = testAudio;
+      window.testPause = testPause;
+      window.testResume = testResume;
+      window.loadRound = function(idx) {
+        var i = (typeof idx === 'number') ? idx : gameState.currentRound;
+        renderRound(i);
+      };
+      window.signalCollector = signalCollector;
+
+      var btnStartEl = document.getElementById('btn-start');
+      if (btnStartEl) {
+        btnStartEl.addEventListener('click', function() {
+          try { startGame(); } catch (e) {}
+        });
+      }
+
+      /* Paused overlay resume button */
+      var resumeBtn = document.getElementById('pause-resume-btn');
+      if (resumeBtn) {
+        resumeBtn.addEventListener('click', function() {
+          onVisibilityRestored();
+        });
+      }
+    });
+
+    /* ============================================================
+       30. Standalone fallback — only if preview never mounted
+       ============================================================ */
+    setTimeout(function() {
+      if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      if (gameState.isActive || gameState.gameEnded) return;
+
+      ensureGameContent();
+      gameState.content = fallbackContent;
+      gameState.totalRounds = fallbackContent.rounds.length;
+      gameState.phase = 'gameplay';
+      syncDOMState();
+      startGame();
+      renderRound(0);
+    }, 2000);
+  </script>
+</body>
+</html>

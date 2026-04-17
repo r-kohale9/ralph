@@ -62,7 +62,7 @@ Interaction code baked into the generated game. The builder reads this skill and
 | 3 | Tap-Select (Two-Phase Match) | `click` | Multi | 3 |
 | 4 | ~~Tap + Swipe~~ **DEPRECATED** — use P1 tap-only | — | — | 0 |
 | 5 | Continuous Drag (Path) | `pointerdown`+`pointermove`+`pointerup` | Multi | 3 |
-| 6 | Drag-and-Drop (Pick & Place) | `pointerdown`+`pointermove`+`pointerup` | Multi | 4 |
+| 6 | Drag-and-Drop (Pick & Place) | `@dnd-kit/dom` (ESM) — DragDropManager/Draggable/Droppable | Multi | 4 |
 | 7 | Text/Number Input | `keydown`+`click` | Single | 8 |
 | 8 | Click-to-Toggle | `click` | Multi | 3 |
 | 9 | Stepper (Increment/Decrement) | `click` | Multi | 1 |
@@ -126,7 +126,7 @@ Interaction code baked into the generated game. The builder reads this skill and
 | P3 Two-Phase Match | **Multi-step** | Multiple pairs to match per round |
 | P4 ~~Tap + Swipe~~ | **DEPRECATED** | Use P1 tap-only with directional buttons instead |
 | P5 Continuous Drag (Path) | **Multi-step** | Full path needed |
-| P6 Drag-and-Drop | **Multi-step** | Multiple items to place |
+| P6 Drag-and-Drop (`@dnd-kit/dom`) | **Multi-step** | Multiple items to place |
 | P7 Text/Number Input | **Single-step** | 1 input + submit = 1 evaluation |
 | P8 Click-to-Toggle | **Multi-step** | Multiple toggles to solve |
 | P9 Stepper | **Multi-step** | Adjust values + then submit/check |
@@ -278,9 +278,12 @@ Some games use Tap-Select (Single) — P1 — multiple times within a single rou
 ### Pattern 6: Drag-and-Drop (Pick & Place)
 
 **What:** Student picks up an item and drops it into a target zone or grid cell.
-**Events:** `pointerdown` on item, `pointermove`+`pointerup` on document.
+**Library:** **`@dnd-kit/dom`** loaded via ESM CDN (`https://esm.sh/@dnd-kit/dom@beta`). Use `DragDropManager`, `Draggable`, `Droppable` — never native HTML5 drag (`draggable="true"` / `dataTransfer`) and never hand-rolled pointer events. See `reference/patterns/p06-drag-and-drop.md` for the full 8 required behaviours and V1–V20 verification matrix, which is MANDATORY for every P6 game.
+**Events:** handled by the library's pointer sensor — cross-device (mouse + touch) out of the box. Listen to `manager.monitor` (`dragstart`, `dragend`).
 **Game type:** Multi-step.
-**CSS:** `touch-action: none` on draggables.
+**CSS:** `touch-action: none` ONLY on the draggable items themselves — never on `body`, `html`, containers, or drop zones (that blocks page scroll). Add a `touchmove` preventDefault gated on an `isDragging` flag (set on dragstart, cleared on dragend).
+**Tracking:** game-controlled `locations` map (tagId → 'bank' | 'zone-N'). Never infer origin from `parentElement` — the library reparents during drag. Required to distinguish evict (bank→zone) from swap (zone→zone).
+**Lifecycle:** destroy manager + draggables + droppables + clear tracking at the start of every round and in `endGame()`.
 **Feedback:** Fire-and-forget SFX + sticker per drop. Awaited SFX on round-complete.
 **Variant — Grid Cell Drop:** Drop targets are individual grid cells (not category zones). Used by Kakuro, Equation Grid, Math Crossword.
 **Used by:** Equation Grid, Math Crossword, Kakuro.

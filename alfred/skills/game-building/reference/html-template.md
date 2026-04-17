@@ -178,6 +178,23 @@ The `DOMContentLoaded` handler runs 16 steps in order (see template above). Crit
 The PreviewScreen wrapper is **persistent** for the entire session (see PART-039 Wrapper persistence invariant). Every game's structure must respect:
 
 - **Header is fixed at top**, above content, visible in both `preview` and `game` states. The header renders avatar, back button, question label, score, and star — all fed from `game_init` payload and mutated through `syncDOM`.
-- **Single scroll area** below the header: instruction body + `.game-stack` share one scroll container. Games MUST NOT add `overflow: auto` / `overflow: scroll` to children of `.game-stack` (nested scrolling breaks iOS momentum + causes layout jumps).
+- **Single scroll area** below the header: instruction body + `.game-stack` share one scroll container, `.mathai-preview-body`. Root/page scrolling is locked to the viewport in preview-wrapper mode, so generated games MUST include the compatibility CSS below until the components bundle rollout is universal:
+
+  ```css
+  #mathai-preview-slot {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  #mathai-preview-slot .mathai-preview-body {
+    height: 100dvh;
+    box-sizing: border-box;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  ```
+
+  Games MUST NOT add `overflow: auto` / `overflow: scroll` to children of `.game-stack` (nested scrolling breaks iOS momentum + causes layout jumps).
 - **No duplicate header inside `#gameContent`.** Do not render a separate score / lives / avatar / back-button element inside the play area — it will duplicate the preview header.
 - **No hiding, re-parenting, or destroying the wrapper mid-session.** `mathai-preview-slot` stays in the DOM with its original parent for the entire session. `#gameContent` stays inside `.game-stack`. Victory / Game Over / Play Again / Try Again render INSIDE the wrapper via `transitionScreen.show()` into `mathai-transition-slot`. `previewScreen.destroy()` fires exactly once, in the session-final `endGame()`. See `code-patterns.md` § Wrapper persistence for the canonical pattern.

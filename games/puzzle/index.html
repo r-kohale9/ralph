@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Jigsaw Puzzle</title>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      Sentry.init(SentryConfig.getConfig({ release: 'jigsaw-puzzle@1.0.0' }));
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+      --puzzle-cell-size: 64px;
+      --puzzle-cell-gap: 4px;
+      --puzzle-piece-cell-yellow: #FFDE49;
+      --puzzle-piece-cell-purple: #9B51E0;
+      --puzzle-piece-cell-orange: #F2994A;
+      --puzzle-piece-cell-green: #27AE60;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      /* NEVER overflow:hidden here — clips content that exceeds viewport
+         and kills both wheel and touch scroll. Use overflow-x: clip. */
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility: the preview body must own
+       vertical scrolling so gameplay surfaces still pan correctly. */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .hidden { display: none !important; }
+
+    .game-play-area {
+      animation: fadeIn 0.35s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 8px 8px;
+    }
+
+    .puzzle-prompt {
+      font-size: 16px;
+      color: var(--mathai-primary);
+      font-weight: 600;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    /* Grid */
+    .puzzle-grid-wrap {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .puzzle-grid {
+      display: grid;
+      gap: var(--puzzle-cell-gap);
+      background: var(--mathai-light-gray);
+      padding: 10px;
+      border-radius: var(--mathai-border-radius-small);
+      position: relative;
+    }
+
+    .grid-cell {
+      width: var(--puzzle-cell-size);
+      height: var(--puzzle-cell-size);
+      background: var(--mathai-white);
+      border: 2px dashed var(--mathai-border-gray);
+      border-radius: 6px;
+      position: relative;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .grid-cell.drop-zone-active {
+      border-color: var(--mathai-purple);
+      background: rgba(155, 81, 224, 0.1);
+    }
+
+    .grid-cell.cell-filled {
+      border-style: solid;
+      border-color: transparent;
+    }
+
+    /* Piece bank */
+    .piece-bank-label {
+      font-size: 13px;
+      color: var(--mathai-gray);
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .piece-bank {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      min-height: 90px;
+      padding: 12px 8px;
+      margin-top: 4px;
+      gap: 0;
+    }
+
+    .piece-slot {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 6px;
+    }
+
+    .piece-slot.slot-empty {
+      display: none;
+    }
+
+    /* Piece (polyomino) */
+    .puzzle-piece {
+      display: grid;
+      gap: var(--puzzle-cell-gap);
+      position: relative;
+      cursor: grab;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+      padding: 2px;
+      z-index: 1;
+      background: transparent;
+    }
+
+    .puzzle-piece.piece-on-grid {
+      position: absolute;
+      padding: 0;
+      gap: var(--puzzle-cell-gap);
+      pointer-events: auto;
+      z-index: 5;
+    }
+
+    .puzzle-piece.piece-dragging {
+      opacity: 0.9;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      z-index: 1000;
+      cursor: grabbing;
+    }
+
+    .piece-cell {
+      width: var(--puzzle-cell-size);
+      height: var(--puzzle-cell-size);
+      border-radius: 6px;
+      box-shadow: inset 0 -3px 0 rgba(0,0,0,0.18);
+    }
+
+    .piece-cell.empty {
+      visibility: hidden;
+      background: transparent !important;
+      box-shadow: none;
+    }
+
+    .piece-color-yellow .piece-cell:not(.empty) { background: var(--puzzle-piece-cell-yellow); border: 2px solid #D9B400; }
+    .piece-color-purple .piece-cell:not(.empty) { background: var(--puzzle-piece-cell-purple); border: 2px solid #6E2EA8; }
+    .piece-color-orange .piece-cell:not(.empty) { background: var(--puzzle-piece-cell-orange); border: 2px solid #B56A28; }
+    .piece-color-green  .piece-cell:not(.empty) { background: var(--puzzle-piece-cell-green);  border: 2px solid #176A33; }
+
+    /* Piece in bank scales down slightly so bank stays compact */
+    .piece-slot .puzzle-piece {
+      transform: scale(0.62);
+      transform-origin: center center;
+    }
+    .piece-slot {
+      width: calc(var(--puzzle-cell-size) * 2.1);
+      min-height: calc(var(--puzzle-cell-size) * 2.1);
+    }
+
+    .puzzle-piece.piece-on-grid {
+      transform: none !important;
+    }
+
+    /* Bounce-back animation */
+    @keyframes bounceBack {
+      0% { transform: scale(0.62); }
+      40% { transform: scale(0.72); }
+      100% { transform: scale(0.62); }
+    }
+
+    .puzzle-piece.bounce-back {
+      animation: bounceBack 0.35s ease;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: scale(0.62) translateX(0); }
+      25% { transform: scale(0.62) translateX(-8px); }
+      50% { transform: scale(0.62) translateX(8px); }
+      75% { transform: scale(0.62) translateX(-5px); }
+    }
+
+    .puzzle-piece.shake-wrong {
+      animation: shake 0.4s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes scorePop {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+
+    .piece-snap-in {
+      animation: scorePop 0.25s ease;
+    }
+
+    /* Landscape lock */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white, #ffffff);
+        color: var(--mathai-primary, #270f36);
+        font-family: var(--mathai-font-family, system-ui, -apple-system, sans-serif);
+        font-size: var(--mathai-font-size-subtitle, 18px);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+
+    button, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    #results-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 100;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-round="0"></div>
+  <div id="results-screen" class="hidden"></div>
+
+  <script>
+    /* ====== 1. gameState ====== */
+    var gameState = {
+      gameId: 'jigsaw-puzzle',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 5,
+      score: 0,
+      lives: 0,
+      totalLives: 0,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      content: null,
+      duration_data: { startTime: null, pausedTime: 0, lastPauseStart: null, attempts: [], preview: [] },
+      isProcessing: false,
+      gameEnded: false,
+      correctAnswer: null,
+      streak: 0,
+      consecutiveWrongs: 0,
+      roundStartTime: null,
+      previewResult: null,
+      signalConfig: null,
+      contentSetId: null,
+      /* P6 R2 tracking — per piece where it currently lives */
+      pieceLocations: {},       /* pieceId -> 'bank' | 'grid' */
+      piecePlacements: {},      /* pieceId -> { row: anchorR, col: anchorC } when on grid */
+      gridOccupancy: [],        /* 2D array of pieceId|null per cell */
+      pieceBadAttempts: {}      /* pieceId -> count of invalid drops in current round */
+    };
+
+    /* ====== 2. window.gameState ====== */
+    window.gameState = gameState;
+
+    /* ====== 3. fallbackContent ====== */
+    var fallbackContent = {
+      previewInstruction: '<p><b>Build the puzzle!</b> Drag each colored piece into the grid so every square is filled. Pieces bounce back if they do not fit.</p>',
+      previewAudioText: 'Build the puzzle! Drag each colored piece into the grid so every square is filled. Pieces bounce back if they do not fit.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      rounds: [
+        {
+          id: 'r1_3x3_simple', stage: 1, gridRows: 3, gridCols: 3,
+          pieces: [
+            { id: 'a', color: 'yellow', cells: [[0,0],[0,1],[0,2]], solution: { row: 0, col: 0 } },
+            { id: 'b', color: 'purple', cells: [[0,0],[0,1],[1,0]], solution: { row: 1, col: 0 } },
+            { id: 'c', color: 'orange', cells: [[0,1],[1,0],[1,1]], solution: { row: 1, col: 1 } }
+          ],
+          feedbackRoundComplete: 'Puzzle complete! Great job fitting every piece.',
+          misconception_tags: { 'wrong_position': 'spatial-placement-error' }
+        },
+        {
+          id: 'r2_3x3_simple_v2', stage: 1, gridRows: 3, gridCols: 3,
+          pieces: [
+            { id: 'a', color: 'yellow', cells: [[0,0],[1,0],[1,1]], solution: { row: 0, col: 0 } },
+            { id: 'b', color: 'purple', cells: [[0,0],[0,1],[1,1]], solution: { row: 0, col: 1 } },
+            { id: 'c', color: 'orange', cells: [[0,0],[0,1],[0,2]], solution: { row: 2, col: 0 } }
+          ],
+          feedbackRoundComplete: 'Puzzle complete! Nicely done!',
+          misconception_tags: { 'wrong_position': 'spatial-placement-error' }
+        },
+        {
+          id: 'r3_4x3_medium', stage: 2, gridRows: 3, gridCols: 4,
+          pieces: [
+            { id: 'a', color: 'yellow', cells: [[0,0],[1,0],[1,1],[2,0]], solution: { row: 0, col: 0 } },
+            { id: 'b', color: 'purple', cells: [[0,0],[0,1],[0,2],[1,2]], solution: { row: 0, col: 1 } },
+            { id: 'c', color: 'orange', cells: [[0,1],[1,0],[1,1],[1,2]], solution: { row: 1, col: 1 } }
+          ],
+          feedbackRoundComplete: 'Puzzle complete! Excellent spatial reasoning!',
+          misconception_tags: { 'wrong_position': 'spatial-placement-error' }
+        },
+        {
+          id: 'r4_4x3_medium_v2', stage: 2, gridRows: 3, gridCols: 4,
+          pieces: [
+            { id: 'a', color: 'yellow', cells: [[0,0],[0,1],[1,0],[2,0]], solution: { row: 0, col: 0 } },
+            { id: 'b', color: 'purple', cells: [[0,0],[0,1],[1,1],[2,1]], solution: { row: 0, col: 2 } },
+            { id: 'c', color: 'orange', cells: [[0,0],[0,1],[1,0],[1,1]], solution: { row: 1, col: 1 } }
+          ],
+          feedbackRoundComplete: 'Puzzle complete! Awesome fitting!',
+          misconception_tags: { 'wrong_position': 'spatial-placement-error' }
+        },
+        {
+          id: 'r5_4x4_complex', stage: 3, gridRows: 4, gridCols: 4,
+          pieces: [
+            { id: 'a', color: 'yellow', cells: [[0,0],[0,1],[1,0],[2,0]], solution: { row: 0, col: 0 } },
+            { id: 'b', color: 'purple', cells: [[0,1],[0,2],[1,0],[1,1]], solution: { row: 0, col: 1 } },
+            { id: 'c', color: 'orange', cells: [[0,1],[1,0],[1,1],[2,1]], solution: { row: 1, col: 2 } },
+            { id: 'd', color: 'green',  cells: [[0,1],[1,0],[1,1],[1,2]], solution: { row: 2, col: 0 } }
+          ],
+          feedbackRoundComplete: 'Puzzle complete! Brilliant work on the full grid!',
+          misconception_tags: { 'wrong_position': 'spatial-placement-error' }
+        }
+      ]
+    };
+
+    /* ====== 4. Module-scope vars ====== */
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var timer = null;
+
+    var STICKER_CORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_COMPLETE_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_COMPLETE_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+    var STICKER_LEVEL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+
+    /* ====== 5. syncDOM ====== */
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-round', gameState.currentRound);
+    }
+
+    /* ====== 6. trackEvent ====== */
+    function trackEvent(eventName, data) {
+      gameState.events.push({ event: eventName, timestamp: Date.now(), data: data || {} });
+    }
+
+    /* ====== 7. recordAttempt ====== */
+    function recordAttempt(roundIndex, userInput, correct, metadata) {
+      var rounds = getRounds();
+      var round = rounds[roundIndex];
+      var attempt = {
+        attempt_timestamp: Date.now(),
+        time_since_start_of_game: gameState.startTime ? Date.now() - gameState.startTime : 0,
+        input_of_user: userInput,
+        correct: correct,
+        round_number: roundIndex + 1,
+        question_id: round.id || ('r' + (roundIndex + 1)),
+        correct_answer: 'all_pieces_placed',
+        response_time_ms: gameState.roundStartTime ? Date.now() - gameState.roundStartTime : 0,
+        misconception_tag: correct ? null : (metadata && metadata.misconception_tag ? metadata.misconception_tag : null),
+        difficulty_level: round.stage || 1,
+        is_retry: metadata && metadata.is_retry ? true : false,
+        metadata: metadata || {}
+      };
+      gameState.attempts.push(attempt);
+      gameState.duration_data.attempts.push({ round: roundIndex + 1, timestamp: Date.now() });
+    }
+
+    /* ====== 8. getStars (per spec: 3 stars = 5 rounds, 2 = 3-4, 1 = 1-2) ====== */
+    function getStars() {
+      var s = gameState.score;
+      if (s >= 5) return 3;
+      if (s >= 3) return 2;
+      if (s >= 1) return 1;
+      return 0;
+    }
+
+    /* ====== 9. getRounds ====== */
+    function getRounds() {
+      if (gameState.content && gameState.content.rounds && gameState.content.rounds.length >= gameState.totalRounds) {
+        return gameState.content.rounds;
+      }
+      return fallbackContent.rounds;
+    }
+
+    /* ====== 10. waitForPackages ====== */
+    function waitForPackages() {
+      return new Promise(function(resolve, reject) {
+        var start = Date.now();
+        var maxWait = 180000;
+        function check() {
+          if (typeof FeedbackManager !== 'undefined' &&
+              typeof TimerComponent !== 'undefined' &&
+              typeof VisibilityTracker !== 'undefined' &&
+              typeof SignalCollector !== 'undefined' &&
+              typeof ScreenLayout !== 'undefined' &&
+              typeof ProgressBarComponent !== 'undefined' &&
+              typeof TransitionScreenComponent !== 'undefined' &&
+              typeof PreviewScreenComponent !== 'undefined') {
+            resolve(true);
+          } else if (Date.now() - start > maxWait) {
+            reject(new Error('Package load timeout'));
+          } else {
+            setTimeout(check, 50);
+          }
+        }
+        check();
+      });
+    }
+
+    /* ====== 11. handlePostMessage ====== */
+    function handlePostMessage(event) {
+      if (!event || !event.data) return;
+      var msg = event.data;
+      if (msg.type === 'game_init') {
+        gameState.phase = 'playing';
+        syncDOM();
+        var d = msg.data || {};
+        if (d.content) {
+          gameState.content = d.content;
+          if (d.content.rounds) {
+            gameState.totalRounds = d.content.rounds.length;
+          }
+        }
+        var sc = gameState.signalConfig = d.signalConfig || {};
+        if (signalCollector && sc.flushUrl) {
+          signalCollector.flushUrl = sc.flushUrl;
+          signalCollector.playId = sc.playId || null;
+          signalCollector.gameId = sc.gameId || signalCollector.gameId;
+          signalCollector.sessionId = sc.sessionId || signalCollector.sessionId;
+          signalCollector.contentSetId = sc.contentSetId || signalCollector.contentSetId;
+          signalCollector.studentId = sc.studentId || signalCollector.studentId;
+          signalCollector.startFlushing();
+        }
+      }
+    }
+
+    /* ====== 12. render ====== */
+    function render() { syncDOM(); }
+
+    /* ====== 13. startGame ====== */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.streak = 0;
+      gameState.consecutiveWrongs = 0;
+      gameState.phase = 'gameplay';
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      if (progressBar) progressBar.update(0, 0);
+    }
+
+    /* ====== 14. setupGame ====== */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      loadRound();
+      if (previewScreen) {
+        previewScreen.show({
+          instruction: content.previewInstruction || fallbackContent.previewInstruction,
+          audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+          showGameOnPreview: content.showGameOnPreview === true,
+          timerConfig: null,
+          timerInstance: null,
+          onComplete: function(previewData) { startGameAfterPreview(previewData); }
+        });
+      }
+    }
+
+    /* ====== 15. startGameAfterPreview ====== */
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData;
+      gameState.duration_data.preview = gameState.duration_data.preview || [];
+      gameState.duration_data.preview.push({ duration: previewData.duration });
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.phase = 'gameplay';
+      syncDOM();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      if (signalCollector) signalCollector.recordViewEvent('screen_transition', { screen: 'gameplay', metadata: { transition_from: 'preview' } });
+      if (progressBar) progressBar.update(0, 0);
+      showWelcome();
+    }
+
+    /* ====== 16. showWelcome ====== */
+    async function showWelcome() {
+      if (!transitionScreen) { showRoundIntro(); return; }
+      await transitionScreen.show({
+        icons: ['\uD83E\uDDE9'],
+        title: "Let's solve some puzzles!",
+        buttons: [{ text: "I'm ready!" }],
+        onMounted: function() {
+          try {
+            FeedbackManager.sound.play('rounds_sound_effect', { sticker: STICKER_LEVEL }).catch(function() {});
+          } catch(e) {}
+        }
+      });
+      try { FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+      transitionScreen.hide();
+      showRoundIntro();
+    }
+
+    /* ====== 17. showRoundIntro ====== */
+    async function showRoundIntro() {
+      if (!transitionScreen) { loadRound(); return; }
+      var roundNum = gameState.currentRound + 1;
+      if (progressBar) progressBar.update(gameState.score, 0);
+      if (signalCollector) {
+        signalCollector.recordViewEvent('screen_transition', { screen: 'transition', content_snapshot: { round: roundNum }, metadata: { trigger: 'round_start' } });
+      }
+      await transitionScreen.show({
+        title: 'Round ' + roundNum,
+        onMounted: async function() {
+          try {
+            await FeedbackManager.sound.play('rounds_sound_effect', { sticker: STICKER_ROUND });
+            await FeedbackManager.playDynamicFeedback({ audio_content: 'Round ' + roundNum, subtitle: 'Round ' + roundNum, sticker: STICKER_ROUND });
+          } catch(e) {}
+          transitionScreen.hide();
+          loadRound();
+        }
+      });
+    }
+
+    /* ====== 18. loadRound ====== */
+    function loadRound() {
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      gameState.roundStartTime = Date.now();
+
+      /* P6 R3: reset tracking data per round */
+      gameState.pieceLocations = {};
+      gameState.piecePlacements = {};
+      gameState.pieceBadAttempts = {};
+      syncDOM();
+
+      var rounds = getRounds();
+      var round = rounds[gameState.currentRound];
+      if (!round) return;
+
+      gameState.correctAnswer = 'all_pieces_placed';
+
+      /* Initialize grid occupancy (P6 R3) */
+      gameState.gridOccupancy = [];
+      for (var r = 0; r < round.gridRows; r++) {
+        var row = [];
+        for (var c = 0; c < round.gridCols; c++) { row.push(null); }
+        gameState.gridOccupancy.push(row);
+      }
+
+      /* Initialize piece locations */
+      for (var pi = 0; pi < round.pieces.length; pi++) {
+        gameState.pieceLocations[round.pieces[pi].id] = 'bank';
+        gameState.pieceBadAttempts[round.pieces[pi].id] = 0;
+      }
+
+      var gameContent = document.getElementById('gameContent');
+      if (!gameContent) return;
+
+      /* Build HTML */
+      var html = '<div class="game-play-area">';
+      html += '<div class="puzzle-prompt">Drag pieces to fill the grid</div>';
+
+      /* Grid */
+      html += '<div class="puzzle-grid-wrap" id="puzzle-grid-wrap">';
+      html += '<div class="puzzle-grid" id="puzzle-grid" style="grid-template-columns: repeat(' + round.gridCols + ', var(--puzzle-cell-size)); grid-template-rows: repeat(' + round.gridRows + ', var(--puzzle-cell-size));">';
+      for (var gr = 0; gr < round.gridRows; gr++) {
+        for (var gc = 0; gc < round.gridCols; gc++) {
+          html += '<div class="grid-cell" id="cell-' + gr + '-' + gc + '" data-row="' + gr + '" data-col="' + gc + '"></div>';
+        }
+      }
+      html += '</div>';
+      html += '</div>';
+
+      /* Bank label */
+      html += '<div class="piece-bank-label">Pieces</div>';
+
+      /* Piece bank */
+      html += '<div class="piece-bank" id="piece-bank">';
+      for (var i = 0; i < round.pieces.length; i++) {
+        var piece = round.pieces[i];
+        html += '<div class="piece-slot" id="slot-' + piece.id + '" data-piece-id="' + piece.id + '">';
+        html += renderPieceHTML(piece);
+        html += '</div>';
+      }
+      html += '</div>';
+
+      html += '</div>';
+      gameContent.innerHTML = html;
+
+      if (signalCollector) {
+        signalCollector.recordViewEvent('content_render', {
+          screen: 'gameplay',
+          content_snapshot: { round: gameState.currentRound + 1, gridRows: round.gridRows, gridCols: round.gridCols, piecesCount: round.pieces.length },
+          metadata: { trigger: 'round_start' }
+        });
+      }
+
+      /* P6 R1: defer DnD setup if library not loaded */
+      if (window.__dndKitLoaded) {
+        initDnDForRound(round);
+      } else {
+        window.__pendingDnDSetup = function() { initDnDForRound(round); };
+      }
+    }
+
+    /* ====== renderPieceHTML: piece DOM as a mini-grid of colored cells ====== */
+    function renderPieceHTML(piece) {
+      /* Compute bounding box */
+      var maxDr = 0, maxDc = 0;
+      for (var k = 0; k < piece.cells.length; k++) {
+        if (piece.cells[k][0] > maxDr) maxDr = piece.cells[k][0];
+        if (piece.cells[k][1] > maxDc) maxDc = piece.cells[k][1];
+      }
+      var rows = maxDr + 1;
+      var cols = maxDc + 1;
+
+      /* Build cell occupancy map within piece */
+      var occ = [];
+      for (var rr = 0; rr < rows; rr++) {
+        var rowArr = [];
+        for (var cc = 0; cc < cols; cc++) { rowArr.push(false); }
+        occ.push(rowArr);
+      }
+      for (var m = 0; m < piece.cells.length; m++) {
+        occ[piece.cells[m][0]][piece.cells[m][1]] = true;
+      }
+
+      var html = '<div class="puzzle-piece piece-color-' + piece.color + '" id="piece-' + piece.id + '" data-piece-id="' + piece.id + '" style="grid-template-columns: repeat(' + cols + ', var(--puzzle-cell-size)); grid-template-rows: repeat(' + rows + ', var(--puzzle-cell-size));">';
+      for (var rr2 = 0; rr2 < rows; rr2++) {
+        for (var cc2 = 0; cc2 < cols; cc2++) {
+          var cls = 'piece-cell' + (occ[rr2][cc2] ? '' : ' empty');
+          html += '<div class="' + cls + '" data-dr="' + rr2 + '" data-dc="' + cc2 + '"></div>';
+        }
+      }
+      html += '</div>';
+      return html;
+    }
+
+    /* ====== DnD Instance Management ====== */
+    var currentDnDManager = null;
+    var currentDraggables = [];
+    var currentDroppables = [];
+    var isDnDDragActive = false;
+    var currentGrabOffset = null;   /* { dr, dc } of piece cell user touched */
+    var currentDragPieceId = null;
+
+    function destroyDnD() {
+      if (currentDraggables) {
+        for (var i = 0; i < currentDraggables.length; i++) {
+          try { currentDraggables[i].destroy(); } catch(e) {}
+        }
+      }
+      currentDraggables = [];
+      if (currentDroppables) {
+        for (var j = 0; j < currentDroppables.length; j++) {
+          try { currentDroppables[j].destroy(); } catch(e) {}
+        }
+      }
+      currentDroppables = [];
+      if (currentDnDManager) {
+        try { currentDnDManager.destroy(); } catch(e) {}
+      }
+      currentDnDManager = null;
+      isDnDDragActive = false;
+      currentGrabOffset = null;
+      currentDragPieceId = null;
+    }
+
+    /* ====== Piece placement helpers ====== */
+
+    function getPieceById(pieceId) {
+      var rounds = getRounds();
+      var round = rounds[gameState.currentRound];
+      if (!round) return null;
+      for (var i = 0; i < round.pieces.length; i++) {
+        if (round.pieces[i].id === pieceId) return round.pieces[i];
+      }
+      return null;
+    }
+
+    /* Clear any cells occupied by this piece in gridOccupancy */
+    function clearPieceFromGrid(pieceId) {
+      for (var r = 0; r < gameState.gridOccupancy.length; r++) {
+        for (var c = 0; c < gameState.gridOccupancy[r].length; c++) {
+          if (gameState.gridOccupancy[r][c] === pieceId) {
+            gameState.gridOccupancy[r][c] = null;
+            var cellEl = document.getElementById('cell-' + r + '-' + c);
+            if (cellEl) cellEl.classList.remove('cell-filled');
+          }
+        }
+      }
+    }
+
+    /* Check if placing piece at (anchorR, anchorC) is valid */
+    function canPlacePieceAt(piece, anchorR, anchorC, ignorePieceId) {
+      var round = getRounds()[gameState.currentRound];
+      if (!round) return false;
+      for (var i = 0; i < piece.cells.length; i++) {
+        var r = anchorR + piece.cells[i][0];
+        var c = anchorC + piece.cells[i][1];
+        if (r < 0 || r >= round.gridRows || c < 0 || c >= round.gridCols) return false;
+        var occ = gameState.gridOccupancy[r][c];
+        if (occ !== null && occ !== ignorePieceId) return false;
+      }
+      return true;
+    }
+
+    /* Place piece at anchor (no validity check — caller verifies) */
+    function placePieceOnGrid(piece, anchorR, anchorC) {
+      var pieceEl = document.getElementById('piece-' + piece.id);
+      if (!pieceEl) return;
+
+      /* Update tracking (P6 R2) */
+      clearPieceFromGrid(piece.id);
+      for (var i = 0; i < piece.cells.length; i++) {
+        var r = anchorR + piece.cells[i][0];
+        var c = anchorC + piece.cells[i][1];
+        gameState.gridOccupancy[r][c] = piece.id;
+        var cellEl = document.getElementById('cell-' + r + '-' + c);
+        if (cellEl) cellEl.classList.add('cell-filled');
+      }
+      gameState.pieceLocations[piece.id] = 'grid';
+      gameState.piecePlacements[piece.id] = { row: anchorR, col: anchorC };
+
+      /* Move DOM: piece goes into the anchor cell with absolute positioning */
+      var anchorCell = document.getElementById('cell-' + anchorR + '-' + anchorC);
+      if (anchorCell) {
+        pieceEl.classList.add('piece-on-grid');
+        pieceEl.classList.add('piece-snap-in');
+        pieceEl.style.transform = '';
+        /* Position absolute within the anchor cell so piece cells align with grid cells */
+        pieceEl.style.position = 'absolute';
+        pieceEl.style.top = '0';
+        pieceEl.style.left = '0';
+        anchorCell.appendChild(pieceEl);
+        setTimeout(function() { pieceEl.classList.remove('piece-snap-in'); }, 260);
+      }
+
+      /* V8: collapse bank slot */
+      var bankSlot = document.getElementById('slot-' + piece.id);
+      if (bankSlot) bankSlot.classList.add('slot-empty');
+    }
+
+    /* Return piece to bank (P6 V5/V9) */
+    function returnPieceToBank(pieceId) {
+      var piece = getPieceById(pieceId);
+      var pieceEl = document.getElementById('piece-' + pieceId);
+      if (!piece || !pieceEl) return;
+
+      /* Clear grid (if piece was on grid) */
+      clearPieceFromGrid(pieceId);
+      delete gameState.piecePlacements[pieceId];
+      gameState.pieceLocations[pieceId] = 'bank';
+
+      /* Move DOM back to the piece's own bank slot */
+      var bankSlot = document.getElementById('slot-' + pieceId);
+      if (bankSlot) {
+        bankSlot.classList.remove('slot-empty');
+        pieceEl.classList.remove('piece-on-grid');
+        pieceEl.classList.remove('piece-snap-in');
+        pieceEl.style.position = '';
+        pieceEl.style.top = '';
+        pieceEl.style.left = '';
+        pieceEl.style.transform = '';
+        bankSlot.appendChild(pieceEl);
+      }
+    }
+
+    /* Bounce-back with visual shake */
+    function bounceBackToBank(pieceId) {
+      returnPieceToBank(pieceId);
+      var pieceEl = document.getElementById('piece-' + pieceId);
+      if (pieceEl) {
+        pieceEl.classList.add('shake-wrong');
+        setTimeout(function() { pieceEl.classList.remove('shake-wrong'); }, 420);
+      }
+    }
+
+    /* Check if all grid cells are filled => round complete */
+    function isRoundComplete() {
+      for (var r = 0; r < gameState.gridOccupancy.length; r++) {
+        for (var c = 0; c < gameState.gridOccupancy[r].length; c++) {
+          if (gameState.gridOccupancy[r][c] === null) return false;
+        }
+      }
+      return true;
+    }
+
+    /* ====== initDnDForRound ====== */
+    function initDnDForRound(round) {
+      /* P6 R3/V18: destroy previous instances */
+      destroyDnD();
+      if (!window.__dndKit) return;
+
+      var DragDropManager = window.__dndKit.DragDropManager;
+      var Draggable = window.__dndKit.Draggable;
+      var Droppable = window.__dndKit.Droppable;
+      var PointerSensor = window.__dndKit.PointerSensor;
+      var AutoScroller = window.__dndKit.AutoScroller;
+
+      var managerConfig = {};
+      if (PointerSensor) managerConfig.sensors = [PointerSensor];
+      if (AutoScroller) {
+        managerConfig.plugins = function(defaults) { return defaults.concat([AutoScroller]); };
+      }
+
+      currentDnDManager = new DragDropManager(managerConfig);
+
+      /* Draggables: one per piece */
+      for (var i = 0; i < round.pieces.length; i++) {
+        var piece = round.pieces[i];
+        var el = document.getElementById('piece-' + piece.id);
+        if (el) {
+          /* Capture pointer offset to know which piece cell user grabbed */
+          (function(pieceRef, elRef) {
+            elRef.addEventListener('pointerdown', function(e) {
+              var rect = elRef.getBoundingClientRect();
+              /* Compute grab offset in local (unscaled) piece coords.
+                 Piece is scaled in bank via CSS transform scale(0.62). */
+              var scale = elRef.getBoundingClientRect().width / elRef.offsetWidth;
+              if (!scale || isNaN(scale) || scale === 0) scale = 1;
+              var localX = (e.clientX - rect.left) / scale;
+              var localY = (e.clientY - rect.top) / scale;
+              var cellPx = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--puzzle-cell-size'), 10);
+              var gapPx = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--puzzle-cell-gap'), 10) || 4;
+              var step = cellPx + gapPx;
+              var dc = Math.max(0, Math.floor(localX / step));
+              var dr = Math.max(0, Math.floor(localY / step));
+              /* Find the piece cell at (dr, dc); if none there, pick the nearest cell */
+              var found = null;
+              for (var k = 0; k < pieceRef.cells.length; k++) {
+                if (pieceRef.cells[k][0] === dr && pieceRef.cells[k][1] === dc) {
+                  found = pieceRef.cells[k];
+                  break;
+                }
+              }
+              if (!found) {
+                /* Find closest piece cell to (dr, dc) */
+                var best = pieceRef.cells[0], bestDist = Infinity;
+                for (var m = 0; m < pieceRef.cells.length; m++) {
+                  var ddr = pieceRef.cells[m][0] - dr;
+                  var ddc = pieceRef.cells[m][1] - dc;
+                  var dist = ddr*ddr + ddc*ddc;
+                  if (dist < bestDist) { bestDist = dist; best = pieceRef.cells[m]; }
+                }
+                found = best;
+              }
+              currentGrabOffset = { dr: found[0], dc: found[1] };
+              currentDragPieceId = pieceRef.id;
+            }, true);
+          })(piece, el);
+
+          var draggable = new Draggable({
+            id: 'piece-' + piece.id,
+            element: el,
+            data: { pieceId: piece.id }
+          }, currentDnDManager);
+          currentDraggables.push(draggable);
+        }
+      }
+
+      /* Droppables: one per grid cell */
+      for (var gr = 0; gr < round.gridRows; gr++) {
+        for (var gc = 0; gc < round.gridCols; gc++) {
+          var cellEl = document.getElementById('cell-' + gr + '-' + gc);
+          if (!cellEl) continue;
+          (function(rowR, colC, cEl) {
+            var droppable = new Droppable({
+              id: 'cell-' + rowR + '-' + colC,
+              element: cEl,
+              data: { row: rowR, col: colC },
+              effects: function() {
+                var self = this;
+                return [
+                  function() {
+                    if (self.isDropTarget) cEl.classList.add('drop-zone-active');
+                    else cEl.classList.remove('drop-zone-active');
+                  }
+                ];
+              }
+            }, currentDnDManager);
+            currentDroppables.push(droppable);
+          })(gr, gc, cellEl);
+        }
+      }
+
+      /* Droppable: bank (V5 return-to-bank) */
+      var bankEl = document.getElementById('piece-bank');
+      if (bankEl) {
+        var bankDroppable = new Droppable({
+          id: 'piece-bank',
+          element: bankEl
+        }, currentDnDManager);
+        currentDroppables.push(bankDroppable);
+      }
+
+      /* Monitor events */
+      currentDnDManager.monitor.addEventListener('dragstart', function() {
+        isDnDDragActive = true;
+        var pieceEl = document.getElementById('piece-' + currentDragPieceId);
+        if (pieceEl) pieceEl.classList.add('piece-dragging');
+      });
+
+      currentDnDManager.monitor.addEventListener('dragend', function(event) {
+        isDnDDragActive = false;
+        var op = event.operation;
+        if (!op || !op.source) return;
+
+        var source = op.source;
+        var target = op.target;
+        var canceled = op.canceled;
+        var sData = source.data;
+        if (!sData || !sData.pieceId) return;
+
+        var pieceId = sData.pieceId;
+        var pieceEl = document.getElementById('piece-' + pieceId);
+        if (pieceEl) pieceEl.classList.remove('piece-dragging');
+
+        /* Guards */
+        if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+
+        /* P6 R2: source from tracking data */
+        var sourceLocation = gameState.pieceLocations[pieceId] || 'bank';
+        var sourcePlacement = gameState.piecePlacements[pieceId] || null;
+        var piece = getPieceById(pieceId);
+        if (!piece) return;
+
+        var grabOffset = currentGrabOffset || { dr: piece.cells[0][0], dc: piece.cells[0][1] };
+        currentGrabOffset = null;
+        currentDragPieceId = null;
+
+        /* V6: canceled / no target */
+        if (canceled || !target) {
+          /* Restore to source */
+          if (sourceLocation === 'grid' && sourcePlacement) {
+            placePieceOnGrid(piece, sourcePlacement.row, sourcePlacement.col);
+          } else {
+            returnPieceToBank(pieceId);
+          }
+          return;
+        }
+
+        var targetId = target.id;
+
+        /* V5: dropped on bank explicitly */
+        if (targetId === 'piece-bank') {
+          returnPieceToBank(pieceId);
+          fireTapSound();
+          return;
+        }
+
+        /* Dropped on a grid cell */
+        if (targetId && targetId.indexOf('cell-') === 0) {
+          var parts = targetId.split('-');
+          var targetRow = parseInt(parts[1], 10);
+          var targetCol = parseInt(parts[2], 10);
+          var anchorR = targetRow - grabOffset.dr;
+          var anchorC = targetCol - grabOffset.dc;
+
+          /* V7: same placement (zone-to-same-zone no-op) */
+          if (sourceLocation === 'grid' && sourcePlacement &&
+              sourcePlacement.row === anchorR && sourcePlacement.col === anchorC) {
+            placePieceOnGrid(piece, anchorR, anchorC);
+            return;
+          }
+
+          /* Check validity — ignore source piece's own cells if it was on grid */
+          if (canPlacePieceAt(piece, anchorR, anchorC, pieceId)) {
+            /* V1/V4: valid placement */
+            /* Evaluate correctness against solution for scoring */
+            var isCorrectSolution = (piece.solution.row === anchorR && piece.solution.col === anchorC);
+
+            placePieceOnGrid(piece, anchorR, anchorC);
+
+            trackEvent('piece_placed', {
+              round: gameState.currentRound + 1,
+              pieceId: pieceId,
+              anchor: { row: anchorR, col: anchorC },
+              correctSolution: isCorrectSolution
+            });
+
+            /* Fire-and-forget per-placement SFX (multi-step) */
+            fireTapSound();
+
+            /* If all grid cells now filled — round complete */
+            if (isRoundComplete()) {
+              handleRoundComplete();
+            }
+            return;
+          }
+
+          /* INVALID: bounce back to bank (spec behavior) */
+          gameState.pieceBadAttempts[pieceId] = (gameState.pieceBadAttempts[pieceId] || 0) + 1;
+          trackEvent('piece_invalid_drop', {
+            round: gameState.currentRound + 1,
+            pieceId: pieceId,
+            attempted_anchor: { row: anchorR, col: anchorC }
+          });
+
+          /* If piece came from grid, keep the attempt visual but return to bank (per spec: bounce back) */
+          bounceBackToBank(pieceId);
+
+          /* Fire-and-forget light wrong sound */
+          try {
+            FeedbackManager.sound.play('incorrect_sound_effect', { sticker: STICKER_SAD }).catch(function() {});
+          } catch(e) {}
+          return;
+        }
+
+        /* Fallback — restore to source */
+        if (sourceLocation === 'grid' && sourcePlacement) {
+          placePieceOnGrid(piece, sourcePlacement.row, sourcePlacement.col);
+        } else {
+          returnPieceToBank(pieceId);
+        }
+      });
+    }
+
+    function fireTapSound() {
+      try { FeedbackManager.sound.play('tap_sound').catch(function() {}); } catch(e) {}
+    }
+
+    /* ====== handleRoundComplete ====== */
+    async function handleRoundComplete() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      gameState.isProcessing = true;
+
+      var rounds = getRounds();
+      var round = rounds[gameState.currentRound];
+      var badAttempts = 0;
+      for (var k in gameState.pieceBadAttempts) {
+        if (Object.prototype.hasOwnProperty.call(gameState.pieceBadAttempts, k)) {
+          badAttempts += gameState.pieceBadAttempts[k];
+        }
+      }
+      var isRetry = badAttempts > 0;
+
+      var userInput = { placements: Object.assign({}, gameState.piecePlacements), badAttempts: badAttempts };
+      recordAttempt(gameState.currentRound, userInput, true, {
+        misconception_tag: null,
+        is_retry: isRetry,
+        invalid_drop_count: badAttempts
+      });
+
+      gameState.score++;
+      gameState.streak++;
+      gameState.consecutiveWrongs = 0;
+      syncDOM();
+
+      trackEvent('round_complete', { round: gameState.currentRound + 1, score: gameState.score, badAttempts: badAttempts });
+
+      if (progressBar) progressBar.update(gameState.score, 0);
+
+      /* Awaited feedback on round complete (single-step terminal moment for this round) */
+      var text = (round && round.feedbackRoundComplete) ? round.feedbackRoundComplete : 'Puzzle complete!';
+      try {
+        await FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_CORRECT });
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: text,
+          subtitle: text.length > 60 ? text.substring(0, 57) + '...' : text,
+          sticker: STICKER_CORRECT
+        });
+      } catch(e) {}
+
+      gameState.isProcessing = false;
+
+      if (gameState.currentRound + 1 >= gameState.totalRounds) {
+        endGame(true);
+      } else {
+        nextRound();
+      }
+    }
+
+    /* ====== nextRound ====== */
+    function nextRound() {
+      gameState.currentRound++;
+      destroyDnD();
+      showRoundIntro();
+    }
+
+    /* ====== endGame ====== */
+    function endGame(won) {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+      gameState.isActive = false;
+      gameState.phase = won ? 'results' : 'game_over';
+      syncDOM();
+
+      /* V19: destroy all DnD instances */
+      destroyDnD();
+
+      var stars = getStars();
+      gameState.stars = stars;
+      trackEvent('game_end', { won: won, score: gameState.score, stars: stars });
+
+      var signalEventCount = 0;
+      var signalMetadata = {};
+      if (signalCollector) {
+        try {
+          signalEventCount = signalCollector.getInputEvents().length;
+          signalMetadata = signalCollector.getMetadata();
+        } catch(e) {}
+      }
+
+      var totalTime = gameState.startTime ? Math.round((Date.now() - gameState.startTime) / 1000) : 0;
+      var accuracy = gameState.totalRounds > 0 ? Math.round((gameState.score / gameState.totalRounds) * 100) : 0;
+
+      window.parent.postMessage({
+        type: 'game_complete',
+        data: {
+          metrics: {
+            accuracy: accuracy,
+            time: totalTime,
+            stars: stars,
+            attempts: gameState.attempts,
+            duration_data: gameState.duration_data,
+            totalLives: 0,
+            tries: gameState.attempts
+          },
+          completedAt: Date.now(),
+          previewResult: gameState.previewResult || null,
+          signal_event_count: signalEventCount,
+          signal_metadata: signalMetadata
+        }
+      }, '*');
+
+      if (previewScreen) {
+        try { previewScreen.destroy(); } catch(e) {}
+      }
+
+      if (won) showVictory();
+      else showGameOver();
+    }
+
+    /* ====== showVictory ====== */
+    async function showVictory() {
+      if (!transitionScreen) return;
+      var stars = getStars();
+      var buttons = [];
+      if (stars < 3) buttons.push({ text: 'Play Again' });
+      buttons.push({ text: 'Claim Stars' });
+
+      if (progressBar) progressBar.update(gameState.totalRounds, 0);
+
+      var clicked = await transitionScreen.show({
+        stars: stars,
+        title: 'Victory \uD83C\uDF89',
+        subtitle: 'You solved all ' + gameState.totalRounds + ' puzzles!',
+        buttons: buttons,
+        onMounted: async function() {
+          var sfxId = stars === 3 ? 'victory_sound_effect' : 'game_complete_sound_effect';
+          var sticker = stars === 3 ? STICKER_CELEBRATE : (stars === 2 ? STICKER_COMPLETE_2 : STICKER_COMPLETE_1);
+          var voText = stars === 3 ? 'Amazing! You solved every puzzle perfectly!' : (stars === 2 ? 'Great job! Try again for 3 stars!' : 'Good effort! Keep practicing!');
+          try {
+            await FeedbackManager.sound.play(sfxId, { sticker: sticker });
+            await FeedbackManager.playDynamicFeedback({ audio_content: voText, subtitle: voText, sticker: sticker });
+          } catch(e) {}
+        }
+      });
+      try { FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+      transitionScreen.hide();
+
+      var clickedText = (clicked && clicked.text) ? clicked.text : (clicked || '');
+      if (clickedText === 'Play Again') showMotivation();
+      else showStarsCollected();
+    }
+
+    /* ====== showGameOver (no lives in this game — kept for contract symmetry) ====== */
+    async function showGameOver() {
+      if (!transitionScreen) return;
+      await transitionScreen.show({
+        icons: ['\uD83D\uDE14'],
+        title: 'Puzzle ended',
+        subtitle: 'You completed ' + gameState.score + ' of ' + gameState.totalRounds + '.',
+        buttons: [{ text: 'Try Again' }],
+        onMounted: async function() {
+          try {
+            await FeedbackManager.sound.play('game_over_sound_effect', { sticker: STICKER_SAD });
+          } catch(e) {}
+        }
+      });
+      try { FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+      transitionScreen.hide();
+      showMotivation();
+    }
+
+    /* ====== showMotivation ====== */
+    async function showMotivation() {
+      if (!transitionScreen) { restartGame(); return; }
+      await transitionScreen.show({
+        title: 'Ready to improve your score? \u26A1',
+        buttons: [{ text: "I'm ready! \uD83D\uDE4C" }],
+        onMounted: async function() {
+          try { await FeedbackManager.sound.play('rounds_sound_effect', { sticker: STICKER_RESTART }); } catch(e) {}
+        }
+      });
+      try { FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+      transitionScreen.hide();
+      restartGame();
+    }
+
+    /* ====== showStarsCollected ====== */
+    async function showStarsCollected() {
+      if (!transitionScreen) { window.parent.postMessage({ type: 'game_exit' }, '*'); return; }
+      await transitionScreen.show({
+        title: 'Yay! \uD83C\uDF89\nStars collected!',
+        styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+        buttons: [{ text: 'Done' }],
+        onMounted: async function() {
+          try { await FeedbackManager.sound.play('victory_sound_effect', { sticker: STICKER_CELEBRATE }); } catch(e) {}
+        }
+      });
+      try { FeedbackManager.sound.stopAll(); FeedbackManager._stopCurrentDynamic(); } catch(e) {}
+      transitionScreen.hide();
+      window.parent.postMessage({ type: 'game_exit' }, '*');
+    }
+
+    /* ====== showResults ====== */
+    function showResults() {
+      var resultsScreen = document.getElementById('results-screen');
+      if (resultsScreen) {
+        resultsScreen.innerHTML = '<div style="padding:24px;text-align:center;"><p id="rounds-completed">Rounds completed: ' + gameState.score + '/' + gameState.totalRounds + '</p></div>';
+      }
+    }
+
+    /* ====== restartGame ====== */
+    function restartGame() {
+      destroyDnD();
+      gameState.phase = 'start_screen';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.startTime = null;
+      gameState.roundStartTime = null;
+      gameState.streak = 0;
+      gameState.consecutiveWrongs = 0;
+      gameState.correctAnswer = null;
+      gameState.pieceLocations = {};
+      gameState.piecePlacements = {};
+      gameState.gridOccupancy = [];
+      gameState.pieceBadAttempts = {};
+      gameState.duration_data = { startTime: null, pausedTime: 0, lastPauseStart: null, attempts: [], preview: gameState.duration_data.preview || [] };
+
+      if (signalCollector) { try { signalCollector.reset(); } catch(e) {} }
+
+      syncDOM();
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.phase = 'gameplay';
+      gameState.duration_data.startTime = new Date().toISOString();
+      syncDOM();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+
+      if (progressBar) progressBar.update(0, 0);
+      showRoundIntro();
+    }
+
+    /* ====== Debug ====== */
+    function debugGame() {
+      return {
+        gameState: gameState,
+        currentRound: gameState.currentRound,
+        score: gameState.score,
+        phase: gameState.phase,
+        attempts: gameState.attempts.length,
+        events: gameState.events.length,
+        pieceLocations: gameState.pieceLocations,
+        piecePlacements: gameState.piecePlacements,
+        gridOccupancy: gameState.gridOccupancy
+      };
+    }
+    function debugAudio() {
+      return {
+        feedbackManagerAvailable: typeof FeedbackManager !== 'undefined',
+        canPlay: typeof FeedbackManager !== 'undefined' ? FeedbackManager.canPlayAudio() : false
+      };
+    }
+    function testAudio() {
+      try { FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_CORRECT }).catch(function() {}); } catch(e) {}
+    }
+    function testPause() {
+      try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch(e) {}
+    }
+    function testResume() {
+      try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch(e) {}
+    }
+
+    /* ====== Global touchmove while drag active (V15/V16) ====== */
+    document.addEventListener('touchmove', function(e) {
+      if (isDnDDragActive) e.preventDefault();
+    }, { passive: false });
+
+    /* ====== DOMContentLoaded ====== */
+    document.addEventListener('DOMContentLoaded', async function() {
+      try {
+        await waitForPackages();
+        try { await FeedbackManager.init(); } catch(e) {}
+
+        try {
+          signalCollector = new SignalCollector({
+            sessionId: (window.gameVariableState && window.gameVariableState.sessionId) ? window.gameVariableState.sessionId : 'session_' + Date.now(),
+            studentId: (window.gameVariableState && window.gameVariableState.studentId) ? window.gameVariableState.studentId : null,
+            gameId: gameState.gameId || null,
+            contentSetId: gameState.contentSetId || null
+          });
+          window.signalCollector = signalCollector;
+        } catch(e) {}
+
+        ScreenLayout.inject('app', {
+          slots: { previewScreen: true, progressBar: true, transitionScreen: true }
+        });
+
+        visibilityTracker = new VisibilityTracker({
+          onInactive: function() {
+            try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch(e) {}
+            try { if (previewScreen) previewScreen.pause(); } catch(e) {}
+            if (signalCollector) {
+              try {
+                signalCollector.pause();
+                signalCollector.recordCustomEvent('visibility_hidden', {});
+              } catch(e) {}
+            }
+          },
+          onResume: function() {
+            try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch(e) {}
+            try { if (previewScreen) previewScreen.resume(); } catch(e) {}
+            if (signalCollector) {
+              try {
+                signalCollector.resume();
+                signalCollector.recordCustomEvent('visibility_visible', {});
+              } catch(e) {}
+            }
+          }
+        });
+
+        progressBar = new ProgressBarComponent({
+          slotId: 'mathai-progress-slot',
+          totalRounds: gameState.totalRounds,
+          totalLives: 0
+        });
+
+        transitionScreen = new TransitionScreenComponent({
+          slotId: 'mathai-transition-slot'
+        });
+
+        previewScreen = new PreviewScreenComponent({
+          slotId: 'mathai-preview-slot'
+        });
+
+        try {
+          await FeedbackManager.sound.preload([
+            { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+            { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+            { id: 'sound_life_lost', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+            { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+            { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+            { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+            { id: 'game_over_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3' },
+            { id: 'all_correct', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3' },
+            { id: 'new_cards', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' },
+            { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+          ]);
+        } catch(e) {}
+
+        /* Register message listener BEFORE game_ready */
+        window.addEventListener('message', handlePostMessage);
+        window.parent.postMessage({ type: 'game_ready' }, '*');
+
+        setupGame();
+      } catch (e) { /* fallback handles it */ }
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.nextRound = nextRound;
+      window.startGame = startGame;
+      window.debugGame = debugGame;
+      window.debugAudio = debugAudio;
+      window.testAudio = testAudio;
+      window.testPause = testPause;
+      window.testResume = testResume;
+      window.loadRound = loadRound;
+      window.signalCollector = signalCollector;
+    });
+
+    /* ====== Standalone fallback (P6 R1: independent of waitForPackages) ====== */
+    setTimeout(function() {
+      if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      if (!gameState.isActive && !gameState.gameEnded) {
+        if (!document.getElementById('gameContent')) {
+          var appEl = document.getElementById('app');
+          if (appEl) { appEl.innerHTML = '<div id="gameContent"></div>'; }
+        }
+        gameState.content = fallbackContent;
+        gameState.totalRounds = fallbackContent.rounds.length;
+        startGame();
+        loadRound();
+      }
+    }, 2000);
+  </script>
+
+  <!-- ====== DnD module (loads async via ESM — P6 R1) ====== -->
+  <script type="module">
+    import { DragDropManager, Draggable, Droppable } from 'https://esm.sh/@dnd-kit/dom@beta';
+    import { PointerSensor } from 'https://esm.sh/@dnd-kit/dom@beta';
+
+    var AutoScroller = null;
+    try {
+      var mod = await import('https://esm.sh/@dnd-kit/dom@beta');
+      if (mod.AutoScroller) AutoScroller = mod.AutoScroller;
+    } catch(e) {}
+
+    window.__dndKit = {
+      DragDropManager: DragDropManager,
+      Draggable: Draggable,
+      Droppable: Droppable,
+      PointerSensor: PointerSensor,
+      AutoScroller: AutoScroller
+    };
+    window.__dndKitLoaded = true;
+
+    if (window.__pendingDnDSetup) {
+      window.__pendingDnDSetup();
+      window.__pendingDnDSetup = null;
+    }
+  </script>
+</body>
+</html>

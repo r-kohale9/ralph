@@ -52,7 +52,7 @@ When building or reviewing a game, verify every rule below. A violation of any C
 | 19 | `touch-action: manipulation` on all interactive elements | STANDARD | [touch-and-input.md](touch-and-input.md) |
 | 20 | `-webkit-touch-callout: none` and `user-select: none` on `.game-wrapper` | STANDARD | [touch-and-input.md](touch-and-input.md) |
 | 21 | `user-select: text` re-enabled on inputs | STANDARD | [touch-and-input.md](touch-and-input.md) |
-| 22 | `touch-action: none` + `user-select: none` on draggables/drop-zones | STANDARD | [touch-and-input.md](touch-and-input.md) |
+| 22 | `touch-action: none` + `user-select: none` on **draggable elements only** (never on drop-zones or their wrappers — that kills page scroll wherever the user's finger lands). Active-drag scroll suppression is handled by a document-level `touchmove` listener keyed on drag state, not by `touch-action` on the target. | STANDARD | [touch-and-input.md](touch-and-input.md) |
 | 23 | No flexbox `gap` (use margins); grid `gap` is acceptable | CRITICAL | [cross-browser.md](cross-browser.md) |
 | 24 | No `aspect-ratio`, `:has()`, `container queries`, `color-mix()` | CRITICAL | [cross-browser.md](cross-browser.md) |
 | 25 | No optional chaining (`?.`) or nullish coalescing (`??`) | CRITICAL | [cross-browser.md](cross-browser.md) |
@@ -69,6 +69,7 @@ When building or reviewing a game, verify every rule below. A violation of any C
 | 36 | Line height 1.4+ on text blocks | STANDARD | [css-variables.md](css-variables.md) |
 | 37 | All colors use `--mathai-*` variables, no hardcoded hex | STANDARD | [css-variables.md](css-variables.md) |
 | 38 | All spacing/radii use `--mathai-*` variables where one exists | STANDARD | [css-variables.md](css-variables.md) |
+| 39 | In preview-wrapper mode (`previewScreen: true`), `.mathai-preview-body` is the single vertical scroll owner. Lock root/page scrolling and do NOT add nested `overflow-y:auto` containers inside `.game-stack`. | CRITICAL | [layout-and-viewport.md](layout-and-viewport.md) |
 
 ---
 
@@ -99,6 +100,8 @@ When the spec does not mention mobile behavior:
 12. **Never omit `touch-action: manipulation` on buttons** — 300ms delay + double-tap zoom. STANDARD.
 13. **Never render all rounds at once** — budget phones choke above 500 DOM elements. ADVISORY.
 14. **Never use continuous animations during gameplay** — momentary feedback only. ADVISORY.
+15. **Never set `overflow: hidden` on `#app` (the full-page game container)** — on short viewports the preview screen + play area + piece bank + results can sum to more than 100dvh, and this clips the overflow so mouse-wheel scroll AND touch-swipe scroll both appear to do nothing. Use `overflow-x: clip` (or omit overflow entirely) — horizontal scroll is already prevented by `overflow-x: hidden` on html/body, and `position:fixed` overlays are unaffected by #app's box so there is nothing legitimate to clip. CRITICAL.
+16. **Never set `touch-action: none` on drop-zones, grids, or piece banks** — these typically cover most of the viewport, and `touch-action: none` disables the browser's pan gesture there, killing mobile scroll. Scope `touch-action: none` to the draggable elements only; use a document-level `touchmove` + `preventDefault` keyed on drag state for active-drag scroll suppression. CRITICAL.
 
 ## Verification Checklist
 
@@ -118,5 +121,6 @@ When the spec does not mention mobile behavior:
 - [ ] Landscape overlay present — STANDARD
 - [ ] `overscroll-behavior: none` present — CRITICAL
 - [ ] `touch-action: manipulation` on interactive elements — STANDARD
+- [ ] Preview-wrapper mode uses `.mathai-preview-body` as the only vertical scroll container — CRITICAL
 - [ ] No banned CSS/JS features — CRITICAL
 - [ ] File under 500KB, DOM under 500 elements — ADVISORY

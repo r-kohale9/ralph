@@ -77,6 +77,42 @@ Acceptable ONLY when:
 - The question and current interactive element are both visible without scrolling
 - Never during active gameplay interaction (the student should not scroll to find a button)
 
+### Preview-wrapper mode (CRITICAL)
+
+When the game uses PART-039 / `previewScreen: true`, the page must not rely on root-document scrolling. The single vertical scroll owner is `.mathai-preview-body`.
+
+```css
+#mathai-preview-slot {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+#mathai-preview-slot .mathai-preview-body {
+  height: 100dvh;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+html,
+body,
+.page-center {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow-y: hidden;
+}
+
+.game-stack {
+  overflow: visible;
+  height: auto;
+}
+```
+
+Why this matters: in preview-wrapper mode, touch gestures often begin on grids, banks, or drag/drop surfaces. If scrolling is delegated to the root page instead of `.mathai-preview-body`, those gestures can fail to pan the document at all, even though content is taller than the viewport.
+
+Do NOT introduce a second vertical scroll container inside `.game-stack`. Nested scroll areas break momentum scrolling and cause layout jumps during drag interactions.
+
 ---
 
 ## 6. Safe Areas (STANDARD)

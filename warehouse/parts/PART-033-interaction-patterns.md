@@ -1,6 +1,6 @@
 # PART-033: Interaction Patterns
 
-**Category:** CONDITIONAL | **Condition:** Game uses drag-and-drop, grids, or tag/chip inputs | **Dependencies:** PART-021, PART-027
+**Category:** CONDITIONAL | **Condition:** Game uses grids or tag/chip inputs. **For drag-and-drop, use PART-043 (authoritative) — Pattern 1 below is SUPERSEDED.** | **Dependencies:** PART-021, PART-027
 
 ---
 
@@ -8,130 +8,21 @@
 
 Reusable interaction patterns for common game mechanics beyond basic buttons and text inputs.
 
+> **Drag-and-drop has moved to PART-043** (using `@dnd-kit/dom`). Pattern 1 below is retained only as a removal notice. For any drag game, load PART-043 and follow its 8 behaviours + V1–V20 matrix. Native HTML5 drag (`draggable="true"`, `dataTransfer`) is banned — `validate-static.js` will fail builds containing those APIs.
+
 ---
 
-## Pattern 1: Drag and Drop
+## Pattern 1: Drag and Drop — SUPERSEDED BY PART-043
 
-### HTML
-
-```html
-<div class="drag-source" id="drag-source">
-  <!-- Draggable items -->
-  <div class="drag-item" draggable="true" data-value="5">5</div>
-  <div class="drag-item" draggable="true" data-value="+">+</div>
-  <div class="drag-item" draggable="true" data-value="3">3</div>
-</div>
-
-<div class="drop-zone" id="drop-zone">
-  <!-- Drop slots -->
-  <div class="drop-slot" data-slot="0"></div>
-  <div class="drop-slot" data-slot="1"></div>
-  <div class="drop-slot" data-slot="2"></div>
-</div>
-```
-
-### CSS
-
-```css
-.drag-source {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  padding: 16px;
-}
-
-.drag-item {
-  padding: 12px 20px;
-  background: var(--mathai-blue);
-  color: var(--mathai-white);
-  border-radius: 8px;
-  cursor: grab;
-  font-size: var(--mathai-font-size-body);
-  font-weight: 600;
-  user-select: none;
-  transition: opacity 0.2s, transform 0.2s;
-}
-
-.drag-item:active { cursor: grabbing; }
-.drag-item.dragging { opacity: 0.4; }
-.drag-item.used { opacity: 0.3; pointer-events: none; }
-
-.drop-zone {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  padding: 16px;
-}
-
-.drop-slot {
-  width: 60px;
-  height: 60px;
-  border: 2px dashed #ccc;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--mathai-font-size-body);
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.drop-slot.drag-over { border-color: var(--mathai-blue); background: #EBF0FF; }
-.drop-slot.filled { border-style: solid; border-color: var(--mathai-blue); background: #EBF0FF; }
-.drop-slot.correct { border-color: var(--mathai-green); background: var(--mathai-light-green); }
-.drop-slot.incorrect { border-color: var(--mathai-red); background: var(--mathai-light-red); }
-```
-
-### JavaScript
-
-```javascript
-function initDragDrop() {
-  document.querySelectorAll('.drag-item').forEach(item => {
-    item.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/plain', item.dataset.value);
-      item.classList.add('dragging');
-    });
-    item.addEventListener('dragend', () => {
-      item.classList.remove('dragging');
-    });
-  });
-
-  document.querySelectorAll('.drop-slot').forEach(slot => {
-    slot.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      slot.classList.add('drag-over');
-    });
-    slot.addEventListener('dragleave', () => {
-      slot.classList.remove('drag-over');
-    });
-    slot.addEventListener('drop', (e) => {
-      e.preventDefault();
-      slot.classList.remove('drag-over');
-      const value = e.dataTransfer.getData('text/plain');
-      slot.textContent = value;
-      slot.dataset.value = value;
-      slot.classList.add('filled');
-    });
-  });
-}
-
-function getDragDropAnswer() {
-  return Array.from(document.querySelectorAll('.drop-slot'))
-    .map(slot => slot.dataset.value || null);
-}
-
-function resetDragDrop() {
-  document.querySelectorAll('.drop-slot').forEach(slot => {
-    slot.textContent = '';
-    delete slot.dataset.value;
-    slot.classList.remove('filled', 'correct', 'incorrect');
-  });
-  document.querySelectorAll('.drag-item').forEach(item => {
-    item.classList.remove('used');
-  });
-}
-```
+> ⛔ **SUPERSEDED — DO NOT IMPLEMENT.** The native HTML5 drag pattern that previously lived here (`draggable="true"` + `dataTransfer` + `dragstart`/`dragover`/`drop` events) has been removed because it **does not fire on mobile touch devices** (Safari iOS, Chrome Android). Generated games using this pattern are unplayable on phones.
+>
+> **For every drag-and-drop game:**
+> - Use **PART-043: Drag-and-Drop with @dnd-kit/dom** (authoritative).
+> - Import `DragDropManager`, `Draggable`, `Droppable` from `https://esm.sh/@dnd-kit/dom@beta`.
+> - All 8 required behaviours, 3 architectural invariants (R1–R3), and 20 verification-matrix items (V1–V20) in PART-043 are mandatory.
+> - **Never** write `draggable="true"`, `addEventListener('dragstart'|'dragover'|'dragleave'|'drop', ...)`, or use `e.dataTransfer`. These are banned by `validate-static.js` and will fail the build.
+>
+> CSS styling patterns (`.drag-item`, `.drop-slot`, etc.) may still be used for visual design — but the event wiring MUST be the @dnd-kit/dom pattern from PART-043.
 
 ---
 

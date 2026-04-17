@@ -165,17 +165,20 @@
     var style = document.createElement("style");
     style.id = "mathai-preview-screen-styles";
     style.textContent =
-      /* Preview slot — the persistent wrapper. NO height cap, NO overflow hidden.
-         Content flows naturally and the page scrolls as one unit. */
+      /* Preview slot — persistent wrapper with an explicit scroll owner.
+         Do not rely on root-page scroll here: touch gestures that start on the
+         gameplay surface can fail to pan the document even when content is
+         taller than the viewport. The preview body must own scrolling. */
       ".mathai-preview-slot {" +
       "  position: relative;" +
       "  max-width: var(--mathai-game-max-width, 480px);" +
       "  margin: 0 auto;" +
       "  background: #fff;" +
       "  min-height: 100dvh;" +
+      "  height: 100dvh;" +
       "  width: 100%;" +
       "  box-sizing: border-box;" +
-      "  overflow: visible;" +
+      "  overflow: hidden;" +
       "}" +
 
       /* Header bar — fixed at top */
@@ -254,6 +257,10 @@
       "  text-align: left;" +
       "  box-sizing: border-box;" +
       "  min-height: 100dvh;" +
+      "  height: 100dvh;" +
+      "  overflow-y: auto;" +
+      "  overflow-x: hidden;" +
+      "  -webkit-overflow-scrolling: touch;" +
       "}" +
       ".mathai-preview-instruction {" +
       "  font-weight: 400; font-size: 16px; line-height: 21px;" +

@@ -91,6 +91,37 @@ const VALID_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
+function buildPreviewHtml(options = {}) {
+  const includeCompatCss = options.includeCompatCss !== false;
+  const includeRootHidden = options.includeRootHidden !== false;
+  const extraCss = [
+    includeRootHidden ? 'html, body { overflow-y: hidden; }' : '',
+    includeCompatCss
+      ? '#mathai-preview-slot { height: 100dvh; overflow: hidden; }\n#mathai-preview-slot .mathai-preview-body { height: 100dvh; box-sizing: border-box; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }'
+      : '',
+  ].filter(Boolean).join('\n');
+
+  return VALID_HTML
+    .replace(
+      '</style>',
+      `${extraCss ? `${extraCss}\n` : ''}</style>`,
+    )
+    .replace(
+      '<div id="gameContent">',
+      '<div id="app" data-phase="start_screen" data-score="0"></div>\n<div id="gameContent">',
+    )
+    .replace(
+      'initGame();',
+      `const content = { previewInstruction: 'Preview copy' };
+  const fallbackContent = { previewInstruction: 'Fallback preview copy' };
+  function startGameAfterPreview() {}
+  ScreenLayout.inject('app', { slots: { progressBar: true, previewScreen: true, transitionScreen: true } });
+  const previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+  previewScreen.show({ instruction: content.previewInstruction || fallbackContent.previewInstruction, audioUrl: null, onComplete: startGameAfterPreview });
+  initGame();`,
+    );
+}
+
 describe('validate-static.js', () => {
   it('passes valid HTML game', () => {
     const { exitCode, output } = runValidator(VALID_HTML);
@@ -1207,6 +1238,16 @@ describe('Mobile viewport scrollability checks (7b)', () => {
     assert.ok(output.includes('MOBILE-SCROLL'), `Expected MOBILE-SCROLL warning but got: ${output}`);
   });
 
+  it('warns when html/body uses overflow-y:hidden', () => {
+    const html = VALID_HTML.replace(
+      'body { font-family: Arial, sans-serif; background: #f0f0f0; }',
+      'html, body { margin: 0; padding: 0; overflow-y: hidden; }\n  body { font-family: Arial, sans-serif; background: #f0f0f0; }',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('MOBILE-SCROLL'), `Expected MOBILE-SCROLL warning but got: ${output}`);
+  });
+
   it('warns when viewport meta uses user-scalable=no', () => {
     const html = VALID_HTML.replace(
       'content="width=device-width, initial-scale=1.0, maximum-scale=1.0"',
@@ -1226,6 +1267,22 @@ describe('Mobile viewport scrollability checks (7b)', () => {
     const { exitCode, output } = runValidator(html);
     assert.equal(exitCode, 0, `Expected pass but got exit ${exitCode}: ${output}`);
     assert.ok(!output.includes('MOBILE-SCROLL'), `Unexpected MOBILE-SCROLL warning: ${output}`);
+  });
+
+  it('does not warn when preview-wrapper mode locks root scroll but preview body owns scrolling', () => {
+    const html = buildPreviewHtml();
+    const { output } = runValidator(html);
+    assert.ok(!output.includes('MOBILE-SCROLL'), `Unexpected MOBILE-SCROLL warning: ${output}`);
+    assert.ok(!output.includes('5e0-SCROLL-OWNER'), `Unexpected 5e0-SCROLL-OWNER error: ${output}`);
+  });
+});
+
+describe('Preview-wrapper scroll-owner checks (5e0-SCROLL-OWNER)', () => {
+  it('fails preview games that omit the preview-body scroll-owner compatibility CSS', () => {
+    const html = buildPreviewHtml({ includeCompatCss: false });
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected error (exit 1) but got exit ${exitCode}: ${output}`);
+    assert.ok(output.includes('5e0-SCROLL-OWNER'), `Expected 5e0-SCROLL-OWNER error but got: ${output}`);
   });
 });
 

@@ -371,6 +371,15 @@
       "condition": "Every game",
       "file": "PART-042-signal-collector.md",
       "dependencies": ["PART-003", "PART-004", "PART-007"]
+    },
+    {
+      "id": "PART-043",
+      "name": "Drag-and-Drop with @dnd-kit/dom",
+      "version": "1.0.0",
+      "category": "CONDITIONAL",
+      "condition": "Game uses drag-and-drop (Pattern 6 Pick & Place). AUTHORITATIVE for drag — SUPERSEDES PART-033 Pattern 1 (native HTML5 drag is banned).",
+      "file": "PART-043-drag-and-drop-dndkit.md",
+      "dependencies": ["PART-021", "PART-027", "PART-033"]
     }
   ],
 
@@ -396,7 +405,7 @@
     "is_story_only": ["PART-029"],
     "has_api_submission": ["PART-031"],
     "has_analytics": ["PART-032"],
-    "has_drag_drop": ["PART-033"],
+    "has_drag_drop": ["PART-033", "PART-043"],
     "has_grid_interaction": ["PART-033"],
     "has_tag_input": ["PART-033"],
     "has_interaction_manager": ["PART-038"],

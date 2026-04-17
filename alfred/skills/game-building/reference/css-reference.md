@@ -92,11 +92,37 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: hidden;
+  /* Do NOT use `overflow: hidden` on #app. This is the full-page game
+     container. On short viewports (e.g. 375x667 mobile) the sum of
+     preview screen + play area + piece bank + results easily exceeds
+     100dvh, and `overflow: hidden` here silently clips that overflow
+     so the user can neither swipe-scroll (mobile) nor wheel-scroll
+     (desktop) to reach it. Horizontal overflow is already handled by
+     `overflow-x: hidden` on html/body. Absolute- and fixed-position
+     overlays (dragging piece, popups) are not affected by #app's box,
+     so there is nothing to clip here. */
+  overflow-x: clip; /* belt-and-braces against accidental horizontal scroll */
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Preview-wrapper scroll compatibility.
+   Until every deployed components bundle includes the preview-body fix,
+   emit this block in every previewScreen:true game so gameplay can scroll
+   from grids, banks, and other large touch surfaces. */
+#mathai-preview-slot {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+#mathai-preview-slot .mathai-preview-body {
+  height: 100dvh;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* dvh fallback for older browsers */

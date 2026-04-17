@@ -101,7 +101,7 @@ Stage 3: Post-Generation                 →  inputSchema.json + tests.md
 | What | Part | Covers |
 |------|------|--------|
 | Play area framework | PART-027 | Design process (interpret → construct → simulate → verify), grid/options/input layouts, state management |
-| Drag and drop | PART-033 | Draggable items + drop slots, `dragstart/dragover/drop` events, visual states, reset |
+| Drag and drop | **PART-043** (authoritative) | `@dnd-kit/dom` ESM, pointer + touch sensors, bank/zone tracking maps, evict/swap/transfer logic, per-round lifecycle. ~~PART-033 Pattern 1 (native HTML5 drag)~~ SUPERSEDED — banned because it does not fire on mobile touch. |
 | Clickable grid | PART-033 | CSS Grid cells, single/multi select, row/col data attributes, selection extraction |
 | Tag/chip input | PART-033 | Type-and-enter chips, removable tags, correct/incorrect coloring |
 | Button state management | PART-022 | `showButton(id)` — mutual exclusivity of Submit/Retry/Next |
@@ -186,7 +186,7 @@ When the LLM builds a game, it loads `any_game` (18 code parts) + `verification`
 | Story-only game | + PART-029 |
 | API result submission | + PART-031 |
 | Multi-platform analytics | + PART-032 |
-| Drag-and-drop | + PART-033 |
+| Drag-and-drop | + PART-033, **+ PART-043** (AUTHORITATIVE — @dnd-kit/dom; native HTML5 drag banned) |
 | Grid interaction | + PART-033 |
 | Tag/chip input | + PART-033 |
 

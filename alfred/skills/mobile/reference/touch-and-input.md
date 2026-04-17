@@ -222,10 +222,30 @@ input, textarea {
 ## 13. Text Selection on Drag (STANDARD)
 
 ```css
-.draggable,
-.drop-zone {
-  touch-action: none; /* Why: gives full touch control to JS drag handlers, preventing browser scroll/zoom interference */
+/* Scope `touch-action: none` to the draggable elements ONLY.
+   Never apply it to drop-zones, grids, buckets, piece banks, or any large
+   wrapper — those cover most of the viewport on mobile, and disabling the
+   browser's pan gesture there makes the page un-scrollable whenever the
+   user's finger lands in the play area (even when no drag is in progress).
+   Active-drag scroll suppression is handled by the document-level
+   touchmove listener below, keyed on drag state — NOT by CSS on the drop
+   target. */
+.draggable {
+  touch-action: none; /* suppress browser scroll/zoom gesture so pointerdown/move/up fire reliably on this element */
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* Drop-zones keep the default `touch-action: auto`. Do not add
+   `touch-action: none` here — see the comment above. */
+```
+
+```js
+/* Suppress page scroll while a drag is in flight. The document-level
+   listener preventDefaults touchmove only when a drag is active — at
+   rest the page scrolls normally over every element, including
+   drop-zones. */
+document.addEventListener('touchmove', function (e) {
+  if (dragState) e.preventDefault();
+}, { passive: false });
 ```
