@@ -1,6 +1,20 @@
 # PART-039: Preview Screen (Persistent Wrapper)
 
-**Category:** MANDATORY | **Condition:** Every game | **Dependencies:** PART-002, PART-017, PART-025
+**Category:** CONDITIONAL | **Condition:** Every game UNLESS spec sets `previewScreen: false` | **Dependencies:** PART-002, PART-017, PART-025
+
+---
+
+## Opt-out (`previewScreen: false`)
+
+When the spec declares a top-level `previewScreen: false`, this part **does not apply**:
+
+- `PreviewScreenComponent` MUST NOT be instantiated, imported, or referenced.
+- `ScreenLayout.inject()` MUST NOT pass `previewScreen: true` in its `slots` — omit the key entirely.
+- `DOMContentLoaded` calls the first TransitionScreen (level/round intro) directly; it does NOT call `setupGame()` / `showPreviewScreen()`.
+- The `fallbackContent.previewInstruction` / `previewAudioText` / `showGameOnPreview` fields are NOT required and SHOULD be omitted.
+- All invariants below (wrapper persistence, no DOM re-parenting, `destroy()`-once, standalone-fallback gate) are irrelevant because the wrapper is never mounted.
+
+Existing pre-PART-039 templates (e.g. `make-x`, `estimate-it`, `keep-track`) demonstrate the no-preview initial-screen pattern.
 
 ---
 
@@ -26,7 +40,7 @@ The instruction area and the game content share a **single scroll area** below t
 ```javascript
 ScreenLayout.inject('app', {
   slots: {
-    previewScreen: true,                  // MANDATORY
+    previewScreen: true,                  // default when spec previewScreen !== false
     transitionScreen: true                // For multi-round games
   }
 });

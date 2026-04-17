@@ -85,19 +85,19 @@ The exact document structure every game must follow. Do not deviate from the ele
         /* 1.  await waitForPackages() */
         /* 2.  await FeedbackManager.init() -- do NOT call unlock() after */
         /* 3.  SignalCollector creation */
-        /* 4.  ScreenLayout.inject('app', { slots: { previewScreen: true, transitionScreen: true }, sections: {...}, styles: {...} }) -- previewScreen slot is MANDATORY */
+        /* 4.  ScreenLayout.inject('app', { slots: { previewScreen: true, transitionScreen: true }, sections: {...}, styles: {...} }) -- previewScreen slot is default; OMIT the previewScreen key when spec declares previewScreen: false */
         /* 5.  Inject timer container into header slot */
         /* 6.  Build play area HTML into #gameContent */
         /* 7.  TimerComponent creation (autoStart: false) */
         /* 8.  InteractionManager creation */
-        /* 9.  VisibilityTracker creation (onInactive/onResume handlers -- also wire previewScreen.pause/resume) */
+        /* 9.  VisibilityTracker creation (onInactive/onResume handlers -- also wire previewScreen.pause/resume when preview is enabled) */
         /* 10. createProgressBar() */
         /* 11. TransitionScreenComponent creation */
-        /* 12. PreviewScreenComponent creation: new PreviewScreenComponent({ slotId: 'mathai-preview-slot' }) */
-        /* 13. Audio preloading: FeedbackManager.sound.preload([{id, url}]) -- include previewAudio */
+        /* 12. PreviewScreenComponent creation: new PreviewScreenComponent({ slotId: 'mathai-preview-slot' }) -- SKIP entirely when spec previewScreen=false */
+        /* 13. Audio preloading: FeedbackManager.sound.preload([{id, url}]) -- include previewAudio when preview is enabled */
         /* 14. Register handlePostMessage listener -- BEFORE game_ready */
         /* 15. Send game_ready postMessage */
-        /* 16. setupGame() -- NOT a pre-preview TransitionScreen. setupGame() renders #gameContent first, then calls previewScreen.show() last */
+        /* 16. setupGame() -- when preview enabled, setupGame() renders #gameContent first then calls previewScreen.show() last. When spec previewScreen=false, DOMContentLoaded calls the first TransitionScreen (level/round intro) directly instead of setupGame()/showPreviewScreen() */
       } catch (e) {
         console.error('[init] ' + e.message);
       }

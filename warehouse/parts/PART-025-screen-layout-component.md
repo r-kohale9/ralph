@@ -4,14 +4,14 @@
 
 ---
 
-ScreenLayout supports **two modes**. The `slots` API with `previewScreen: true` is the **primary mode** — all new games MUST use it (PART-039 is mandatory). The `sections` API exists only for backward compatibility with games built before the preview wrapper was introduced; it will be phased out as those games are regenerated.
+ScreenLayout supports **two modes**. The `slots` API is the **primary mode** — all new games MUST use it. `previewScreen: true` is the default slot configuration (required by PART-039); opt out with spec-level `previewScreen: false`, in which case `slots.previewScreen` MUST be omitted. The `sections` API exists only for backward compatibility with games built before the preview wrapper was introduced; it will be phased out as those games are regenerated.
 
-## Mode 1: Slots API — Preview Wrapper (PART-039 games)
+## Mode 1: Slots API — Preview Wrapper (PART-039 games, default)
 
 ```javascript
 ScreenLayout.inject('app', {
   slots: {
-    previewScreen: true,                    // MANDATORY (PART-039)
+    previewScreen: true,                    // default; OMIT this key when spec previewScreen=false
     transitionScreen: true                  // For multi-round games
   }
 });

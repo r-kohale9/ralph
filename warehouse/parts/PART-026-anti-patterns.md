@@ -494,6 +494,40 @@ try {
 } catch (e) { /* non-blocking per feedback SKILL Rule 8 */ }
 ```
 
+## Anti-Pattern 33: Custom Lives / Hearts Display Duplicating ProgressBar
+
+```javascript
+// WRONG — custom hearts strip inside #gameContent renders a second row of hearts
+// on top of the ProgressBarComponent's built-in lives strip
+injectGameHTML('<div class="lives-row" id="lives-row" data-testid="lives-row"></div>' + ...);
+function renderLivesRow() {
+  var row = document.getElementById('lives-row');
+  var html = '';
+  for (var i = 0; i < gameState.totalLives; i++) {
+    var lost = i >= gameState.lives;
+    html += '<span class="heart' + (lost ? ' lost' : '') + '">\u2764\uFE0F</span>';
+  }
+  row.innerHTML = html;
+}
+renderLivesRow();                                        // paints custom hearts
+progressBar.update(gameState.roundsCompleted, gameState.lives);  // paints CDN hearts
+```
+
+Symptom: two rows of hearts visible on-screen (one in the ProgressBar header, one inside `#gameContent`). Validator rule: `5e0-LIVES-DUP-FORBIDDEN`.
+
+**Root cause:** `ProgressBarComponent` constructor with `totalLives >= 1` already renders a hearts strip in `#mathai-progress-slot` and updates it on every `progressBar.update(round, lives)` call. Any additional game-owned element with a class/id matching `lives-*` / `hearts-*` / `heart` or any custom `renderLives*` / `updateLives*` / `renderHearts*` function paints a second, redundant hearts row.
+
+**Correct:** Do NOT inject a custom lives container, do NOT define a custom hearts renderer, do NOT emit `<span class="heart">` glyph elements in game HTML. The authoritative path is `progressBar.update(roundsCompleted, Math.max(0, gameState.lives))` — it owns the entire lives strip.
+
+```javascript
+// RIGHT — no custom hearts DOM; ProgressBar owns the lives strip
+progressBar.update(gameState.roundsCompleted, Math.max(0, gameState.lives));
+```
+
+If your spec needs a dramatic heart-break animation on wrong answer, target the CDN ProgressBar's rendered hearts (`.mathai-progress-heart` or similar — consult `warehouse/packages/components/progress-bar/index.js`) with a one-shot CSS class; do NOT replicate the hearts in your own DOM.
+
+**Source incident:** `scale-it-up-ratios` (2026-04-17) — injected `#lives-row` with a per-heart `<span class="heart">` loop and a `renderLivesRow()` function, producing a duplicate hearts row above the question alongside the ProgressBar's header strip.
+
 ## Verification
 
 - [ ] All 4 script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` — no relative paths, no `cdn.homeworkapp.ai`, no invented domains
@@ -532,6 +566,7 @@ try {
 - [ ] `window.parent.postMessage({ type: 'game_ready' }, '*')` sent AFTER `window.addEventListener('message', handlePostMessage)` — parent harness waits for this before sending content
 - [ ] If `<video>` present: has `controls`, `playsinline`, `controlsList="nofullscreen"` — no `autoplay`
 - [ ] If `<video>` present: wrapper has `background: white` (not black), no forced `aspect-ratio`
+- [ ] No custom lives / hearts DOM or custom heart renderer when `ProgressBarComponent` has `totalLives >= 1` — ProgressBar owns the lives strip (validator rule `5e0-LIVES-DUP-FORBIDDEN`; PART-023; PART-026 Anti-Pattern 33)
 - [ ] If `<video>` present: video is in instruction/question area, NOT inside interactive play area
 - [ ] If `<audio>` present: NO `autoplay`, NO native `controls` (use custom UI per PART-041)
 - [ ] If `<audio>` present: custom play/pause icon + progress bar with CDN SVGs

@@ -90,6 +90,19 @@ function createProgressBar() {
 - **Progress bar:** Blue (#2563eb) fill, smooth 0.5s transition
 - **Bar height:** 12px, border-radius 1rem
 
+## CRITICAL: ProgressBar Owns the Lives Display — No Custom Hearts DOM
+
+When `totalLives >= 1`, `ProgressBarComponent` already renders a hearts strip inside `#mathai-progress-slot` and updates it on every `progressBar.update(round, lives)` call. The game code MUST NOT render its own hearts anywhere.
+
+**Forbidden in game HTML / JS:**
+- `<div class="lives-row">` / `<div id="lives-row">` / `<span class="heart">` — any element with `class` or `id` matching `lives-*`, `hearts-*`, `lives-strip`, `hearts-strip`, `lives-container`, `hearts-container`, `lives-display`, `livesRow`, `heartsRow`, `heart` as a single-class element.
+- Functions named `renderLivesRow`, `renderLives`, `renderHearts`, `updateLivesDisplay`, `updateLivesRow`, `updateHearts`, `buildLives`, `injectLives`, etc.
+- Heart glyph characters (❤️ `\u2764\uFE0F`, 🤍 `\u{1F90D}`, 🩷 `\u{1FA77}`, ♡ `\u2661`, ♥ `\u2665`) emitted inside an innerHTML assignment or DOM-build string targeting any element other than the CDN ProgressBar's own markup.
+
+**Why:** two hearts rows visible on-screen is the bug. Validator rule `5e0-LIVES-DUP-FORBIDDEN` blocks this at build time. See PART-026 Anti-Pattern 33 for the full WRONG/RIGHT example.
+
+**If your spec needs a heart-break animation:** target the CDN-rendered heart element (inspect `warehouse/packages/components/progress-bar/index.js` for the exact class) with a one-shot CSS class — do NOT build a parallel hearts DOM.
+
 ## Requires ScreenLayout v2
 
 ProgressBar requires ScreenLayout v2 with `progressBar: true`:
@@ -118,6 +131,7 @@ ScreenLayout.inject('app', {
 - [ ] `destroy()` called before recreation in `createProgressBar()`
 - [ ] ScreenLayout v2 has `sections.progressBar: true`
 - [ ] ProgressBar recreated on `handlePostMessage` and `restartGame()`
+- [ ] No custom lives / hearts DOM or custom heart renderer in game HTML — `ProgressBarComponent` owns the lives strip (validator rule `5e0-LIVES-DUP-FORBIDDEN`; PART-026 Anti-Pattern 33)
 
 ## Source Code
 

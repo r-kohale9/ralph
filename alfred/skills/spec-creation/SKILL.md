@@ -103,10 +103,15 @@ A structured `spec.md` file with ALL of the following sections. Every section is
 [The exact shape of the fallbackContent object, with one fully worked example round
 and the misconception tags for every distractor/wrong-answer path.
 
-**Required preview fields** (per PART-039 — every game has a preview screen):
+**Top-level spec field — `previewScreen` (optional, default `true`):**
+When absent or `true`, the generated game includes the PART-039 preview screen (this is the default). When explicitly set to `false`, the pipeline generates a game with NO preview screen: no `PreviewScreenComponent`, no `#mathai-preview-slot`, and `DOMContentLoaded` proceeds directly into the first level/round transition. Only set `false` when the author explicitly asks for no preview.
+
+**Required preview fields** (per PART-039, required ONLY when `previewScreen !== false`):
 - `previewInstruction` — HTML string with the full instruction text shown on the preview overlay (bold, images allowed).
 - `previewAudioText` — plain-text narration used to generate preview TTS at deploy time (patched into `previewAudio` post-build).
-- `showGameOnPreview` — optional boolean, default `false`. Set `true` if the student should see the game state (covered by a blocking overlay) while the preview audio plays.]
+- `showGameOnPreview` — optional boolean, default `false`. Set `true` if the student should see the game state (covered by a blocking overlay) while the preview audio plays.
+
+When `previewScreen: false`, the three fields above are NOT required and SHOULD be omitted from `fallbackContent`.]
 
 Example:
 ```js

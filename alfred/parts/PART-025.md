@@ -4,12 +4,12 @@
 
 **Purpose:** Auto-generates the game page structure (preview wrapper, game stack, transition slot, progress slot) given a `slots` config.
 
-**Primary API — slots mode (MANDATORY for new games, required by PART-039):**
+**Primary API — slots mode (MANDATORY for new games):**
 
 ```javascript
 ScreenLayout.inject('app', {
   slots: {
-    previewScreen: true,     // MANDATORY — PART-039
+    previewScreen: true,     // default when spec previewScreen !== false (PART-039); OMIT this key entirely when spec previewScreen=false
     progressBar: true,       // for Shape 2 Multi-round / Shape 3 Sectioned; omit for Shape 1 Standalone
     transitionScreen: true   // for any multi-screen flow
   }
@@ -35,7 +35,7 @@ ScreenLayout.inject('app', {
 
 **Key rules:**
 - HTML requires only `<div id="app"></div>` — ScreenLayout builds everything inside.
-- `slots.previewScreen: true` is MANDATORY — PART-039 wrapper persistence applies.
+- `slots.previewScreen: true` is the default (PART-039 wrapper persistence applies) — omit the key when spec declares `previewScreen: false`.
 - `slots.progressBar: true` is required for the round-progress bar slot to be created inside `.game-stack`. Without it, `#mathai-progress-slot` will NOT exist (ProgressBar cannot mount).
 - Game content goes ONLY inside `#gameContent`. Do NOT re-parent `#gameContent` or any ScreenLayout-created element at runtime.
 - Do NOT author CSS that repositions `#mathai-progress-slot`, `#mathai-preview-slot`, or `#mathai-transition-slot` — layout is component-owned.

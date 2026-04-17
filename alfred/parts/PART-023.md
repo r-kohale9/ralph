@@ -58,3 +58,14 @@ function createProgressBar() {
 - Multi-round (`N ≥ 2`) / Sectioned: `show()` + visible on every screen except Preview.
 
 See `warehouse/parts/PART-023-progress-bar.md` for full detail.
+
+## Verification Checklist
+
+- [ ] `createProgressBar()` helper exists (called at init and restart)
+- [ ] `ProgressBarComponent` instantiated with `totalRounds` and `totalLives`
+- [ ] `progressBar.update(0, lives)` called at init (NOT 1)
+- [ ] `update()` called after each round with correct completed count
+- [ ] `destroy()` called before recreation in `createProgressBar()`
+- [ ] ScreenLayout has `progressBar: true` in slots (preview-wrapper) or sections (legacy)
+- [ ] ProgressBar recreated on `handlePostMessage` and `restartGame()`
+- [ ] No custom lives / hearts DOM or custom heart renderer in game HTML — `ProgressBarComponent` owns the lives strip (validator rule `5e0-LIVES-DUP-FORBIDDEN`; PART-026 Anti-Pattern 33)

@@ -28,10 +28,11 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 
 - **No nested scrolling inside the preview wrapper.** PreviewScreenComponent forces `.game-stack` to `overflow:visible; height:auto` (see the inline critical CSS injected by ScreenLayout). Game CSS MUST NOT override `overflow-y:auto` / `overflow:scroll` / fixed `height` on `.game-stack` or any of its descendants. Instruction body + `#gameContent` + `#mathai-transition-slot` share ONE scroll container: `.mathai-preview-body`. A game that introduces a second scroll surface breaks iOS momentum scrolling and produces layout jumps.
 
-- TransitionScreen has no `duration` / `persist` flags — always call `hide()` explicitly.
+- **CRITICAL: `show()` Promise resolves IMMEDIATELY** (next `requestAnimationFrame` after `onMounted` fires) — it does NOT block until a button is tapped, and it does NOT block for a `duration`. Code after `await transitionScreen.show(...)` runs before the student interacts. ALL game-flow continuation (phase changes, `showRoundIntro()`, `renderRound()`, `startGame()`, `restartGame()`) MUST go inside the button `action` callback, NEVER after `await show()`. If you put continuation code after `await show()`, the welcome / victory / game-over screen will flash for one frame then immediately get replaced by the next screen.
+- `duration` and `persist` are documented in the options table but the CDN `TransitionScreenComponent` does NOT implement either — `show()` never reads `config.duration` and never auto-hides. Always call `hide()` explicitly (from button `action` or after awaited audio).
 - TransitionScreen does not own sound or sticker — always fire `FeedbackManager.sound.play(id, {sticker})` from the `onMounted` callback.
-- For auto-dismiss (round intro, yay stars), `await FeedbackManager.sound.play(...)` then `ts.hide()`.
-- For tap-dismiss (welcome, ready-to-improve, victory, game over), the button click drives `ts.hide()`.
+- For auto-dismiss (round intro, yay stars), fire audio inside `onMounted`, and in the code after `await show()` call `ts.hide()` + then proceed. The `show()` resolves instantly, so audio and post-show code run concurrently — the `onMounted` audio starts, then `hide()` is called. To wait for audio to finish before hiding: move `await FeedbackManager.sound.play(...)` + `ts.hide()` into the `onMounted` callback (as an IIFE) and do NOT put continuation code after `await show()`.
+- For tap-dismiss (welcome, ready-to-improve, victory, game over), the button `action` callback drives `ts.hide()` AND all game-flow continuation (next phase, `showRoundIntro(1)`, `restartGame()`, etc.).
 
 ## Progress bar lifecycle
 
