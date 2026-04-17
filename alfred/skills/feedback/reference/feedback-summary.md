@@ -43,7 +43,7 @@ What plays depends on the **game type** and the **moment**.
 | Round complete (all matched)         | All-correct SFX + sticker + subtitle                                  |
 | Wrong (single-step, lives remaining) | Wrong SFX + sad sticker → dynamic TTS explanation + sticker           |
 | Wrong (multi-step, lives remaining)  | Wrong SFX + sad sticker only                                          |
-| Wrong (last life)                    | **Nothing** — skip wrong SFX, go straight to game over                |
+| Wrong (last life)                    | Wrong SFX + sad sticker (awaited, 1500ms min) → then game over        |
 | Tile select/deselect                 | Bubble SFX only (no sticker, no TTS)                                  |
 | Partial progress (chains)            | Chain SFX + sticker (fire-and-forget)                                 |
 | Victory (3★)                         | Victory SFX + big celebration sticker → dynamic VO                    |

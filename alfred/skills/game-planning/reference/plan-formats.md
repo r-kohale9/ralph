@@ -149,7 +149,7 @@ List every distinct round type.
    e. `await FeedbackManager.sound.play('incorrect_sound_effect', {sticker})` — awaited
    f. `await FeedbackManager.playDynamicFeedback({audio_content: '[context-aware explanation]', subtitle: '[same text]', sticker})` — awaited after SFX
    g. [If lives game: life decremented, progress bar updated, heart-break animation 600ms]
-   h. [If lives = 0: skip wrong SFX entirely, go straight to game_over (feedback/SKILL.md Case 8)]
+   h. [If lives = 0: ALWAYS play wrong SFX (awaited, Promise.all 1500ms min) BEFORE proceeding to game_over (feedback/SKILL.md Case 8) — never skip]
    i. `gameState.isProcessing = false`, input unblocks
    j. Student stays on same round — retries
 5alt. **Wrong path (multi-step — SFX + sticker only):**

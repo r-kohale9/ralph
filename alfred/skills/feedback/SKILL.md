@@ -107,7 +107,7 @@ Matched elements turn green. Correct SFX plays with sticker — **fire-and-forge
 
 ### CASE 8: Wrong Answer (Last Life → Game Over)
 
-Life lost — progress bar shows 0 lives. Red flash same as Case 7. **Wrong-answer SFX is skipped entirely** — game goes straight to Game Over (Case 12). No point playing incorrect audio before game-over audio.
+Life lost — progress bar shows 0 lives. Red flash same as Case 7. **Wrong-answer SFX MUST play before game over** — same SFX + sticker as Case 7, awaited with `Promise.all` 1500ms minimum duration (same as every other answer-feedback call). After the wrong SFX finishes, game proceeds to Game Over (Case 12). The student must hear/see the incorrect feedback before the game-over screen appears.
 
 ### CASE 9: Tile Select / Deselect (Micro-interaction)
 

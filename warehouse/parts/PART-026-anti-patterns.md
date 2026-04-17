@@ -528,6 +528,42 @@ If your spec needs a dramatic heart-break animation on wrong answer, target the 
 
 **Source incident:** `scale-it-up-ratios` (2026-04-17) — injected `#lives-row` with a per-heart `<span class="heart">` loop and a `renderLivesRow()` function, producing a duplicate hearts row above the question alongside the ProgressBar's header strip.
 
+## Anti-Pattern 34: Bare `await` on Answer-Feedback `sound.play()` Without Minimum Duration
+
+```javascript
+// WRONG — sound.play() can resolve BEFORE the audio finishes playing;
+// round advances / tiles reset / game-over check runs while audio still audible
+try {
+  await FeedbackManager.sound.play('sound_life_lost', { sticker });
+} catch (e) { /* ... */ }
+// This line runs while life_lost audio may still be playing
+gameState.selectedTiles = [];
+gameState.isProcessing = false;
+```
+
+Symptom: incorrect/correct feedback audio gets cut short — next round starts, tiles reset, or game-over screen appears while the previous feedback sound is still playing. Previously `Promise.race` was banned (Anti-Pattern 32), but plain `await` has the same problem: `sound.play()` resolves early.
+
+Validator rule: `5e0-FEEDBACK-MIN-DURATION`.
+
+**Correct:** Wrap answer-feedback `sound.play()` in `Promise.all` with a 1500ms minimum delay floor. This guarantees the audio/sticker has at least 1.5 seconds to play AND waits for the sound promise, whichever is longer.
+
+```javascript
+// RIGHT — minimum 1500ms AND full audio duration, whichever is longer
+try {
+  await Promise.all([
+    FeedbackManager.sound.play('sound_life_lost', { sticker }),
+    new Promise(function(r) { setTimeout(r, 1500); })
+  ]);
+} catch (e) { /* ... */ }
+// Audio has fully played — safe to proceed
+```
+
+**Applies to these feedback sound IDs:** `sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_attempt1`, `all_incorrect_last_attempt`, `partial_correct_attempt1`, `partial_correct_last_attempt`.
+
+**Does NOT apply to:** VO audio (`vo_game_start`, `vo_level_start_*`, `vo_victory_stars_*`) or transition audio (`sound_game_complete`, `sound_game_over`, `sound_game_victory`) — these play during transition screens where no immediate state change follows.
+
+**Source incident:** `make-x` (2026-04-17) — `sound_life_lost` and `sound_correct` both resolved early, causing rounds to advance while feedback audio was still playing.
+
 ## Verification
 
 - [ ] All 4 script `src` URLs use `storage.googleapis.com/test-dynamic-assets/...` — no relative paths, no `cdn.homeworkapp.ai`, no invented domains
@@ -573,3 +609,4 @@ If your spec needs a dramatic heart-break animation on wrong answer, target the 
 - [ ] If `<audio>` present: audio player in instruction/question area, NOT inside interactive play area
 - [ ] No `new Audio()` anywhere (RULE-006)
 - [ ] No `Promise.race` wrapping `FeedbackManager.sound.play` / `playDynamicFeedback` / `audioRace` helper (PART-017 Anti-Pattern 32, validator rule `5e0-FEEDBACK-RACE-FORBIDDEN`)
+- [ ] Answer-feedback `sound.play()` calls (`sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_*`, `partial_correct_*`) wrapped in `Promise.all` with 1500ms minimum delay (Anti-Pattern 34, validator rule `5e0-FEEDBACK-MIN-DURATION`)

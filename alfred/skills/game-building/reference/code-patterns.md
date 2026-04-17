@@ -254,7 +254,7 @@ The core game loop MUST follow this order:
 7. FeedbackManager audio (per `skills/feedback/SKILL.md`):
    - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` ��� SFX wrapped in Promise.all for minimum duration, then dynamic TTS awaited sequentially. Dynamic TTS ALWAYS plays with context-aware explanation.
    - **Multi-step mid-round match:** `FeedbackManager.sound.play(id, {sticker}).catch(...)` — fire-and-forget. NO dynamic TTS, NO subtitle. SFX + sticker only.
-   - Last-life wrong: skip wrong SFX, go to game-over
+   - Last-life wrong: ALWAYS play wrong SFX (awaited, Promise.all 1500ms min) BEFORE endGame(false) — never skip
 8. `isProcessing = false`, `trackEvent('round_complete')`, check end conditions, advance round
 
 ### resetGame (restartGame)

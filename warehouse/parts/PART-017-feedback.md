@@ -60,29 +60,49 @@ try {
 
 ## Code — Playing Audio with Sticker
 
-```javascript
-// Correct answer — play audio + show correct sticker
-await FeedbackManager.sound.play('correct_tap', {
-  subtitle: '**Great job!** That is correct!',
-  sticker: {
-    image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-30.gif',
-    duration: 2,
-    type: 'IMAGE_GIF'
-  }
-});
-// Next action goes here (after await resolves)
+### CRITICAL: Minimum Feedback Duration (Promise.all wrapper)
 
-// Incorrect answer — play audio + show incorrect sticker
-await FeedbackManager.sound.play('wrong_tap', {
-  subtitle: 'Not quite. Try again!',
-  sticker: {
-    image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-49.gif',
-    duration: 2,
-    type: 'IMAGE_GIF'
-  }
-});
-// Next action goes here (after await resolves)
+`FeedbackManager.sound.play()` can resolve **BEFORE** the audio finishes playing. Any code after `await sound.play(...)` (round advance, tile reset, game-over check) may run while the audio/sticker is still audible. All answer-feedback `sound.play()` calls MUST be wrapped in `Promise.all` with a 1500ms minimum delay floor.
+
+```javascript
+// Correct answer — wrapped in Promise.all for minimum duration
+try {
+  await Promise.all([
+    FeedbackManager.sound.play('correct_tap', {
+      subtitle: '**Great job!** That is correct!',
+      sticker: {
+        image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-30.gif',
+        duration: 2,
+        type: 'IMAGE_GIF'
+      }
+    }),
+    new Promise(function(r) { setTimeout(r, 1500); })
+  ]);
+} catch (e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+// Next action goes here — audio has fully played
+
+// Incorrect answer — same Promise.all wrapper
+try {
+  await Promise.all([
+    FeedbackManager.sound.play('wrong_tap', {
+      subtitle: 'Not quite. Try again!',
+      sticker: {
+        image: 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757512958230-49.gif',
+        duration: 2,
+        type: 'IMAGE_GIF'
+      }
+    }),
+    new Promise(function(r) { setTimeout(r, 1500); })
+  ]);
+} catch (e) { console.error('Audio error:', JSON.stringify({ error: e.message }, null, 2)); }
+// Next action goes here — audio has fully played
 ```
+
+**Applies to:** `sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_*`, `partial_correct_*`.
+
+**Does NOT apply to:** VO (`vo_game_start`, `vo_level_start_*`) or transition audio (`sound_game_complete`, `sound_game_over`, `sound_game_victory`) — these play during transition screens with no immediate state change after.
+
+Validator rule: `5e0-FEEDBACK-MIN-DURATION`. See also PART-026 Anti-Pattern 34.
 
 ## Code — Dynamic Audio (TTS for completion)
 
@@ -224,6 +244,7 @@ try {
 - [ ] No `new Audio()` anywhere
 - [ ] VisibilityTracker uses `sound.pause()`/`sound.resume()` — NOT `sound.stopAll()`
 - [ ] No `Promise.race(...)` wrapping `FeedbackManager.sound.play` / `playDynamicFeedback` / `audioRace` helper; templates await FeedbackManager calls directly inside `try/catch`
+- [ ] Answer-feedback `sound.play()` calls wrapped in `Promise.all` with 1500ms minimum delay — bare `await` resolves before audio finishes (Anti-Pattern 34, validator rule `5e0-FEEDBACK-MIN-DURATION`)
 
 ## Source Code
 
