@@ -92,6 +92,7 @@ Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
 - **Init:** `await FeedbackManager.init()` in DOMContentLoaded
 - **Preload:** `await FeedbackManager.sound.preload([...])` with exact SFX URLs from `feedback/reference/feedbackmanager-api.md`
 - **Static SFX:** `await FeedbackManager.sound.play(id, {sticker: STICKER_URL})` — sticker is a string URL. Awaited for terminal moments, fire-and-forget for mid-round
+- **CRITICAL — Minimum Feedback Duration:** `sound.play()` can resolve BEFORE audio finishes. ALL answer-feedback calls (`sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_*`, `partial_correct_*`) MUST use `Promise.all` with a 1500ms floor: `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ]);` — guarantees audio fully plays before round advance / tile reset / game-over. Does NOT apply to VO or transition audio. Validator rule `5e0-FEEDBACK-MIN-DURATION`. See PART-026 Anti-Pattern 34.
 - **Dynamic VO:** `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — all VO is dynamic TTS, never preloaded
 - **Sequential audio (transitions, end-game, SFX+TTS):** Always `await` first audio before starting second. Never fire both simultaneously. Use `audioStopped` flag to prevent second audio if CTA tapped during first:
   ```javascript
@@ -122,7 +123,8 @@ Per PART-024. Game-building rules:
 - ALL `transitionScreen.show()` calls MUST be awaited (returns a Promise).
 - **Every transition screen MUST play audio** (SFX ± dynamic VO). No silent transitions. Fire via the `onMounted` callback: `onMounted: () => FeedbackManager.sound.play('<id>', { sticker })`. Approved IDs per PART-024: `vo_game_start`, `sound_game_complete`, `sound_game_over`, `vo_level_start_N`, `vo_motivation`.
 - **`stars:` and `icons:` are mutually exclusive.** TransitionScreenComponent renders them into the same `.mathai-ts-icons` DOM element — `stars:` always wins, so any `icons: [...]` emoji silently disappears. Pick one per screen: Victory passes `stars: N`; Game Over / Round Intro / Motivation / Stars Collected pass `icons: ['<emoji>']`. Do NOT pass both. `test/content-match.test.js` fails the build if you do.
-- **Audio + render sequence for Victory / Game Over:** `await transitionScreen.show({ content, persist: true, buttons, onMounted: () => FeedbackManager.sound.play(...) })`. The `onMounted` fires the audio after DOM mounts; the `show` Promise resolves when a button is tapped. If a button click should interrupt audio, call `FeedbackManager.sound.stopAll()` in the click handler.
+- **CRITICAL: `show()` Promise resolves IMMEDIATELY (next rAF after `onMounted` fires) — NOT when a button is tapped, NOT after a `duration`.** `duration` and `persist` are documented in the options table but the CDN component does NOT implement either — `show()` never reads them. Code after `await transitionScreen.show(...)` runs before the student interacts with the screen. ALL game-flow continuation (phase changes, `showRoundIntro()`, `renderRound()`, `startGame()`, `restartGame()`) MUST go inside the button `action` callback, NEVER after `await show()`. If you put continuation code after `await show()`, the screen flashes for one frame then gets replaced. For auto-dismiss screens (round intro), fire audio + `hide()` + continuation inside the `onMounted` IIFE. Validator rule `5e2-TS-PERSIST-FALLTHROUGH` blocks the anti-pattern.
+- **Audio + render sequence for Victory / Game Over:** `await transitionScreen.show({ content: metricsHTML, buttons: [...], onMounted: () => FeedbackManager.sound.play(...) })`. The `onMounted` fires the audio after DOM mounts. If a button click should interrupt audio, call `FeedbackManager.sound.stopAll()` in the `action` handler. The button `action` callback MUST contain `transitionScreen.hide()` AND all game-flow continuation (`restartGame()`, `showMotivation()`, etc.).
 - Button labels come from `pre-generation/screens.md` verbatim. See "Plan → build contract" in `flow-implementation.md`.
 - See `parts/PART-024.md` for full API.
 
@@ -250,7 +252,7 @@ The core game loop MUST follow this order:
 5. Update score/lives, `syncDOM()`
 6. Visual feedback (selected-wrong/selected-correct classes, correct-reveal)
 7. FeedbackManager audio (per `skills/feedback/SKILL.md`):
-   - **Single-step correct/wrong (DEFAULT):** `await FeedbackManager.sound.play(id, {sticker})` → `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — both awaited sequentially. Dynamic TTS ALWAYS plays with context-aware explanation.
+   - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` ��� SFX wrapped in Promise.all for minimum duration, then dynamic TTS awaited sequentially. Dynamic TTS ALWAYS plays with context-aware explanation.
    - **Multi-step mid-round match:** `FeedbackManager.sound.play(id, {sticker}).catch(...)` — fire-and-forget. NO dynamic TTS, NO subtitle. SFX + sticker only.
    - Last-life wrong: skip wrong SFX, go to game-over
 8. `isProcessing = false`, `trackEvent('round_complete')`, check end conditions, advance round
