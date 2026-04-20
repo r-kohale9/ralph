@@ -240,23 +240,55 @@ tracker.addAttempt(attempt);
 See [workflows/checklists/subjective-evaluation.md](../workflows/checklists/subjective-evaluation.md) for complete implementation guide.
 
 **Quick Example:**
+
+> ⚠️ Both prompts MUST be customised per game concept. See [workflows/checklists/subjective-evaluation.md § Phase 2](../workflows/checklists/subjective-evaluation.md#phase-2-evaluation-logic) for the full design rules.
+> - `evaluation_prompt` → returns a **single lowercase label** (e.g. `correct` / `partial` / `incorrect` / `gibberish`) used to color the UI.
+> - `feedback_prompt` → uses `{{evaluation}}` to produce **plain spoken-style prose** that is shown on screen AND played via TTS.
+> - **`{{evaluation}}` is the ONLY template variable.** The student's answer, the question, and any other dynamic context must be embedded into the prompt string via JavaScript interpolation (`${...}`) BEFORE calling `evaluate()`. There is no `{{userAnswer}}` / `{{student_answer}}` placeholder — those would be sent to the LLM as literal text.
+
 ```javascript
+// Build prompts at call time — student's answer is interpolated via ${}, NOT a template variable.
+const question = "<QUESTION>";
+const expected = "<EXPECTED>";
+const answer = answerInput.value.trim();
+
+const evaluationPrompt = `
+Question: "${question}"
+Expected: "${expected}"
+Student's answer: "${answer}"
+
+Classify as exactly one of: correct, partial, incorrect, gibberish.
+Respond with ONLY the single lowercase label. No punctuation. No explanation.
+`.trim();
+
+const feedbackPrompt = `
+Question: "${question}"
+Student's answer: "${answer}"
+Evaluation label: {{evaluation}}
+
+Write 1–2 short spoken-style sentences to the student, tone adapted to {{evaluation}}.
+Plain prose only. No markdown, no emojis. This text will be read aloud.
+`.trim();
+
 // Call subjective evaluation (via MathAIHelpers namespace)
 const result = await MathAIHelpers.SubjectiveEvaluation.evaluate({
   components: [
     {
       component_id: "q1",
-      evaluation_prompt: "Evaluate: User says '{{userAnswer}}'",
-      feedback_prompt: "Based on {{evaluation}}, provide feedback",
+      evaluation_prompt: evaluationPrompt, // → one-word label, drives UI color
+      feedback_prompt: feedbackPrompt,     // → sentence for screen + TTS
     },
   ],
 });
 
 // Get evaluation and feedback
-const evaluation = result.data[0].evaluation;
-const feedback = result.data[0].feedback;
+const evaluation = result.data[0].evaluation.trim().toLowerCase(); // e.g. "correct"
+const feedback = result.data[0].feedback;                          // sentence for screen + TTS
 
-// Optionally play audio feedback
+// Paint UI from evaluation label
+answerBox.dataset.evaluation = evaluation; // CSS: [data-evaluation="correct"] { background:#d1fae5; }
+
+// Play audio feedback with synced subtitle
 await FeedbackManager.playDynamicFeedback({
   audio_content: feedback,
   subtitle: feedback,

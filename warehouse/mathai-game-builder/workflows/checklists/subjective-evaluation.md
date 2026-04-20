@@ -105,22 +105,136 @@ SubjectiveEvaluation is **ONLY available via Helpers package**. Do NOT use stand
 
 ### Phase 2: Evaluation Logic
 
-**Prompt Writing:**
+**🚨 CRITICAL: Prompts MUST be tailored to the specific game concept. Never ship the generic example verbatim.**
 
-- [ ] Write clear `evaluation_prompt` with evaluation criteria
-- [ ] Write `feedback_prompt` using `{{evaluation}}` variable
-- [ ] Test prompts with sample answers
-- [ ] Verify prompts produce relevant feedback
+Each call to `SubjectiveEvaluation.evaluate` takes two prompts that serve very different purposes. Design them deliberately.
 
-**Example Prompts:**
+**⚠️ Template variables — the ONLY supported one is `{{evaluation}}`**
+
+- `{{evaluation}}` is the sole variable the helper substitutes at runtime. It is only available in `feedback_prompt` and resolves to the label produced by `evaluation_prompt`.
+- There is **NO** `{{student_answer}}`, `{{userAnswer}}`, `{{question}}`, or any other placeholder. Anything else in double-braces will be sent to the LLM as literal text.
+- The student's answer (and any other dynamic context: question text, expected answer, difficulty, etc.) **must be embedded into the prompt string by your game code at call time**, using normal JavaScript string interpolation (template literals / concatenation) **before** calling `evaluate()`.
+
+#### 2a. `evaluation_prompt` — Classification (drives UI color)
+
+**Purpose:** Produce a **single lowercase label** that the UI uses to render visual feedback (green background for correct, red for incorrect, amber/grey for partial or gibberish). This is NOT shown to the user.
+
+**Rules:**
+
+- [ ] Output MUST be ONE WORD from a fixed, game-specific label set
+- [ ] Instruct the LLM explicitly: "Respond with only one word: ..."
+- [ ] Forbid explanations, punctuation, or extra tokens
+- [ ] Keep the label set small (typically 2–4 values): e.g. `correct` / `incorrect`, or `correct` / `partial` / `incorrect` / `gibberish`
+- [ ] Include the question context and correct answer(s) inside the prompt so the LLM can judge
+- [ ] Embed the student's answer **via JS interpolation** (e.g. `` `Student said: "${answer}"` ``) — NOT a template placeholder
+- [ ] Sanitize the interpolated answer (trim, escape embedded backticks/quotes) to avoid breaking the prompt
+- [ ] Labels MUST match what the UI switch-case / CSS classes expect — agree on the set before writing CSS
+
+**Template (build the string inline, at call time):**
 
 ```javascript
-{
-  component_id: "q1",
-  evaluation_prompt: "Evaluate this answer about variables: '{{student_answer}}'. Is it correct, partially correct, or incorrect?",
-  feedback_prompt: "Based on {{evaluation}}, provide short constructive feedback for the student."
-}
+const question = "<QUESTION TEXT>";
+const expected = "<EXPECTED IDEA / CORRECT ANSWER>";
+const answer = answerInput.value.trim();
+
+const evaluationPrompt = `
+You are evaluating a student's response for a <GAME CONCEPT> activity.
+
+Question: "${question}"
+Expected idea / correct answer: "${expected}"
+Student's answer: "${answer}"
+
+Classify the student's answer into EXACTLY ONE of these labels:
+- correct     → matches the expected idea (allow paraphrasing / synonyms)
+- partial     → shows understanding but is incomplete or partly wrong
+- incorrect   → a clear, on-topic but wrong answer
+- gibberish   → empty, nonsense, random characters, or off-topic
+
+Respond with ONLY the single lowercase label. No punctuation. No explanation.
+`.trim();
 ```
+
+Pass `evaluationPrompt` into the component: `{ component_id: "q1", evaluation_prompt: evaluationPrompt, ... }`.
+
+**Using the label in the UI (green/red/etc.):**
+
+```javascript
+const evaluation = result.data[0].evaluation.trim().toLowerCase();
+
+const colorMap = {
+  correct:   { bg: "#d1fae5", border: "#10b981" }, // green
+  partial:   { bg: "#fef3c7", border: "#f59e0b" }, // amber
+  incorrect: { bg: "#fee2e2", border: "#ef4444" }, // red
+  gibberish: { bg: "#e5e7eb", border: "#6b7280" }, // grey
+};
+
+answerBox.style.background = colorMap[evaluation]?.bg ?? "#e5e7eb";
+answerBox.style.borderColor = colorMap[evaluation]?.border ?? "#6b7280";
+answerBox.dataset.evaluation = evaluation; // for CSS hooks
+```
+
+#### 2b. `feedback_prompt` — Human text (shown + spoken via TTS)
+
+**Purpose:** Produce natural language that is **displayed to the learner AND played aloud via dynamic audio (TTS)**. It receives the label from `evaluation_prompt` through the `{{evaluation}}` template variable so the tone can adapt.
+
+**Rules:**
+
+- [ ] MUST reference `{{evaluation}}` so the feedback tone aligns with the classification (celebrate on `correct`, nudge on `partial`, correct gently on `incorrect`, re-prompt on `gibberish`)
+- [ ] Output is plain spoken-style prose — NO markdown, NO bullet points, NO emoji, NO code blocks (TTS will read them literally)
+- [ ] Keep it short: 1–2 sentences (≈ 15–35 words) so audio stays under ~10 seconds
+- [ ] Second-person voice ("you"), friendly tutor tone, age-appropriate for the learner
+- [ ] Tailor wording to the game concept (reference the actual concept, not generic "answer")
+- [ ] Do NOT repeat the label verbatim — translate it into encouragement / explanation
+- [ ] Avoid numbers-as-digits when possible (say "three" not "3") for smoother TTS
+
+**Template (build the string inline, at call time):**
+
+```javascript
+// `{{evaluation}}` stays as a literal placeholder — the helper substitutes it.
+// `${question}` and `${answer}` are interpolated NOW by your game code.
+const feedbackPrompt = `
+The student is working on a <GAME CONCEPT> activity.
+Question: "${question}"
+Student's answer: "${answer}"
+Evaluation label: {{evaluation}}
+
+Write 1–2 short, spoken-style sentences directly to the student:
+- If {{evaluation}} is "correct": celebrate briefly and reinforce the key idea.
+- If {{evaluation}} is "partial": acknowledge what is right, then nudge toward what is missing.
+- If {{evaluation}} is "incorrect": gently correct and hint at the right idea without giving the full answer.
+- If {{evaluation}} is "gibberish": kindly ask them to try again with a real answer.
+
+Plain prose only. No markdown, no bullets, no emojis. This text will be read aloud by text-to-speech.
+`.trim();
+```
+
+> Reminder: only `{{evaluation}}` is a real template variable. `${question}` / `${answer}` are JavaScript interpolations that happen before the string is sent to the API.
+
+**Wiring display + audio together:**
+
+```javascript
+const { evaluation, feedback } = result.data[0];
+
+// 1. Color the answer box from evaluation label (see 2a)
+applyEvaluationColor(evaluation);
+
+// 2. Show feedback text AND speak it — same string for both
+await FeedbackManager.playDynamicFeedback({
+  audio_content: feedback,  // TTS reads this
+  subtitle: feedback,       // visible subtitle stays in sync
+});
+```
+
+#### 2c. Prompt QA checklist (per game)
+
+- [ ] Label set in `evaluation_prompt` matches the UI color map keys exactly
+- [ ] `evaluation_prompt` explicitly says "respond with only one word"
+- [ ] The student's answer is embedded via **JS interpolation (`${...}`)** — NOT as a `{{...}}` placeholder
+- [ ] The only `{{...}}` placeholder anywhere in either prompt is `{{evaluation}}` (inside `feedback_prompt`)
+- [ ] `feedback_prompt` contains the literal string `{{evaluation}}`
+- [ ] `feedback_prompt` forbids markdown / emoji (TTS-safe)
+- [ ] Both prompts name the specific game concept (not generic)
+- [ ] Dry-run with 4 sample answers (correct / partial / incorrect / gibberish) → each returns the right label AND TTS-safe feedback
 
 **API Call Pattern:**
 
@@ -519,7 +633,10 @@ TTS: https://asia-south1-mathai-449208.cloudfunctions.net/generate-audio?text={t
 **Key Patterns:**
 
 - SubjectiveEvaluation is ONLY available in Helpers package (use `MathAIHelpers.SubjectiveEvaluation.evaluate()`)
-- Use `{{evaluation}}` in feedback_prompt to reference evaluation result
+- **`evaluation_prompt` → ONE-WORD label** (e.g. `correct` / `partial` / `incorrect` / `gibberish`) used to drive UI color (green/red/amber/grey). Must tell the LLM "respond with only one word".
+- **`feedback_prompt` → human sentence** shown on screen AND spoken via TTS. Must reference `{{evaluation}}`, be plain prose (no markdown/emoji), 1–2 sentences.
+- Tailor both prompts to the specific game concept — never ship the generic template verbatim.
+- Label set in `evaluation_prompt` MUST match the keys in the UI color map / CSS classes.
 - Always handle loading states (5 states: idle, evaluating, generating, playing, complete)
 - Always re-enable button on complete OR error
 - Always clean up streams after playback
