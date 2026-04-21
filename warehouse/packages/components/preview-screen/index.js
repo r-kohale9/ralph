@@ -1,18 +1,21 @@
 /**
- * PreviewScreenComponent v2 — Persistent game wrapper
+ * PreviewScreenComponent v3 — Persistent game wrapper (split)
  *
  * The preview screen is a PERSISTENT WRAPPER for the entire game session.
  * It has two states:
  *   1. preview — instruction + non-interactable game overlay + skip button + audio
- *   2. game    — interactable game content + optional timer in header
+ *   2. game    — interactable game content; overlay removed
  *
- * The header bar (avatar, stars, back, label) persists in BOTH states.
+ * v3 split: the action-bar (back, avatar, question label, score, star)
+ * moved to ActionBarComponent. PreviewScreenComponent now owns:
+ *   - preview body DOM (#previewInstruction, overlay, skip button)
+ *   - #previewProgressBar (driven by preview-phase audio-sync rAF only)
+ *   - audio lifecycle (preload, play, pause, resume, visibility gating)
  *
- * DOM structure is created by ScreenLayoutComponent. PreviewScreenComponent
- * populates content, manages state transitions, and syncs the header timer
- * with the game's TimerComponent.
+ * PreviewScreen instantiates ActionBar internally — game code continues to
+ * see a single PreviewScreenComponent and its public API is unchanged.
  *
- * @version 2.0.0
+ * @version 3.1.0
  * @license MIT
  */
 
@@ -28,16 +31,34 @@
   // Constants
   // ============================================================
 
-  var VERSION = "2.0.0";
-  var SPEAKING_AVATAR_URL =
-    "https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/videos/optimized_speaking_avatar.mp4";
-  var SILENT_AVATAR_URL =
-    "https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/videos/optimized_silent_avatar.mp4";
-  var STAR_CDN_URL =
-    "https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/images/star-full.png";
+  var VERSION = "3.2.0";
   var DEFAULT_TIMER_DURATION = 5000;
   var FEEDBACK_MANAGER_CDN =
     "https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js";
+  var FEEDBACK_MANAGER_LOAD_TIMEOUT_MS = 5000; // R7
+
+  // R9: ActionBar lazy-load fallback. If the components bundle that loaded
+  // preview-screen did not also load action-bar (cache drift, partial deploy,
+  // out-of-order script tags), PreviewScreen lazy-loads it from CDN on first
+  // construct. Header renders once the script resolves.
+  var ACTION_BAR_CDN =
+    "https://storage.googleapis.com/test-dynamic-assets/packages/components/action-bar/index.js";
+  var ACTION_BAR_LOAD_TIMEOUT_MS = 5000;
+
+  // R1: play() retry
+  var PLAY_MAX_RETRIES = 2;
+  var PLAY_RETRY_DELAY_MS = 250;
+
+  // R2: preload retry
+  var PRELOAD_MAX_RETRIES = 1;
+  var PRELOAD_RETRY_DELAY_MS = 500;
+
+  // R3: TTS retry
+  var TTS_MAX_RETRIES = 2;
+  var TTS_RETRY_DELAYS_MS = [250, 750];
+
+  // R4: minimum valid duration
+  var MIN_VALID_AUDIO_DURATION_MS = 500;
 
   // Sentry
   var SENTRY_CDN = "https://browser.sentry-cdn.com/10.23.0/bundle.min.js";
@@ -64,10 +85,6 @@
 
     // State machine
     this._state = "idle"; // 'idle' | 'preview' | 'game'
-
-    // Show-once guard: preview is shown only on first show() call per session.
-    // Subsequent show() calls (e.g. from restartGame → setupGame) auto-skip
-    // to game state and fire onComplete synchronously.
     this._hasBeenShown = false;
 
     // Audio / progress bar
@@ -91,95 +108,50 @@
     this._permissionCallbacks = [];
     this._permissionPollId = null;
 
-    // Play generation counter (prevents stale promise resolutions)
+    // Play generation — R10: bump on switchToGame so stale retry callbacks abort
     this._playGeneration = 0;
 
-    // Deferred-start flags: if the tab goes hidden between permission grant
-    // and the moment audio/timer would start, we mark the start as pending
-    // and let resume() actually kick it off when the tab is visible again.
+    // Deferred-start flags
     this._audioPendingPlay = false;
     this._pendingAudioUrl = null;
     this._timerPendingStart = false;
 
-    // Game-state timer sync
-    this._timerConfig = null;       // { type: 'decrease'|'increase', startTime, endTime }
-    this._timerInstance = null;     // TimerComponent reference
-    this._timerSyncRafId = null;
+    // PATH A offset restoration state
+    this._pauseSavedOffset = false;
 
     // Sentry
     this._sentryReady = false;
     this._sentryQueue = [];
 
     // DOM refs (filled in injectIntoSlot)
-    this._header = null;
-    this._headerLeft = null;
-    this._headerRight = null;
     this._progressBar = null;
-    this._timerTextEl = null;
     this._instructionArea = null;
     this._gameContainer = null;
     this._gameStack = null;
     this._overlay = null;
     this._skipWrap = null;
-    this._speakingVideo = null;
-    this._silentVideo = null;
-    this._questionLabelEl = null;
-    this._scoreEl = null;
-    this._starEl = null;
 
-    // game_init payload data
-    this._gameInitData = null;
+    // ActionBar — internal child component. Instantiate synchronously if the
+    // global is already present; otherwise lazy-load the CDN script and
+    // instantiate when it resolves. Callbacks queued via _whenActionBarReady
+    // fire once the instance exists.
+    this._actionBar = null;
+    this._actionBarReadyCallbacks = [];
+    this._ensureActionBar();
 
     var self = this;
-    this._gameInitListener = function (event) {
-      if (event.data && event.data.type === "game_init" && event.data.data) {
-        self._gameInitData = event.data.data;
-        self._populateHeaderFromGameInit();
-      }
-    };
-    window.addEventListener("message", this._gameInitListener);
 
-    // Visibility safety net
-    //
-    // Pause-only. NEVER auto-resume on visible:
-    //   - hidden  → pause() so audio/timer stop in background
-    //   - visible → DO NOT auto-resume — resume is gated on a user gesture
-    //
-    // Rationale: the canonical wiring is VisibilityTracker.onInactive →
-    // previewScreen.pause() and VisibilityTracker.onResume → previewScreen
-    // .resume(), with onResume firing only after the user clicks the
-    // "Resume Activity" popup. Auto-resuming here would bypass that gate
-    // and cause audio to blast the moment the tab becomes visible again.
-    //
-    // Two special cases that used to rely on this auto-resume branch are
-    // now handled elsewhere:
-    //
-    //   1. Tab-switch BEFORE audio-permission grant (permission popup visible
-    //      the whole time). VisibilityTracker's resume popup is suppressed
-    //      because the permission popup is already up, so onResume never
-    //      fires. `_waitForAudioPermission()` now unpauses the component
-    //      when it detects the permission popup was dismissed.
-    //
-    //   2. Tab-switch DURING audio playback. VisibilityTracker shows its
-    //      Resume Activity popup (with a 100ms delay to avoid stacking with
-    //      other popups). The user clicks Resume → VisibilityTracker.onResume
-    //      → game handler → previewScreen.resume(). The 100ms delay is why
-    //      a naive isPopupVisible() check at the time of visibilitychange
-    //      is not reliable — the popup has not been rendered yet.
-    //
-    // Scoped to states other than "idle" so we don't disturb a component
-    // that hasn't been shown yet.
+    // Visibility safety net — pause-only. NEVER auto-resume on visible.
+    // (See README comment in v2 for the full rationale — unchanged.)
     this._visibilityListener = function () {
       if (document.hidden) {
         if (self._state !== "idle" && !self._isPaused) {
           self.pause();
         }
       }
-      // NOTE: no "visible" branch — see header comment above.
     };
     document.addEventListener("visibilitychange", this._visibilityListener);
 
-    // Init
     this.injectStyles();
     this.injectIntoSlot();
     this._initSentry();
@@ -197,10 +169,7 @@
     var style = document.createElement("style");
     style.id = "mathai-preview-screen-styles";
     style.textContent =
-      /* Preview slot — persistent wrapper with an explicit scroll owner.
-         Do not rely on root-page scroll here: touch gestures that start on the
-         gameplay surface can fail to pan the document even when content is
-         taller than the viewport. The preview body must own scrolling. */
+      /* Slot wrapper — owns scroll. */
       ".mathai-preview-slot {" +
       "  position: relative;" +
       "  max-width: var(--mathai-game-max-width, 480px);" +
@@ -213,77 +182,18 @@
       "  overflow: hidden;" +
       "}" +
 
-      /* Header bar — fixed at top */
-      ".mathai-preview-header {" +
-      "  position: fixed; top: 0; left: 0; right: 0;" +
-      "  height: 56px; background: #fff; z-index: 20;" +
-      "  display: flex; align-items: center;" +
-      "  padding: 0 12px; box-sizing: border-box;" +
-      "  overflow: hidden;" +
-      "  max-width: var(--mathai-game-max-width, 480px); margin: 0 auto;" +
-      "}" +
+      /* Progress bar — owned by preview-screen (audio-sync only). */
       ".mathai-preview-header-progress {" +
       "  position: absolute; top: 0; left: 0; bottom: 0;" +
       "  background: #D7FFFF;" +
       "  width: 100%; transform-origin: left;" +
       "  transition: none;" +
       "}" +
-      ".mathai-preview-header-progress.game-decrease {" +
-      "  background: rgba(255, 246, 0, 0.2);" + /* cadmium yellow @ 20% opacity */
-      "}" +
       ".mathai-preview-header-progress.hidden {" +
       "  display: none;" +
       "}" +
-      ".mathai-preview-header-content {" +
-      "  position: relative; z-index: 1;" +
-      "  display: flex; align-items: center;" +
-      "  width: 100%; justify-content: space-between;" +
-      "  gap: 8px;" +
-      "}" +
-      ".mathai-preview-header-left {" +
-      "  display: flex; align-items: center; gap: 8px;" +
-      "}" +
-      ".mathai-preview-header-center {" +
-      "  flex: 1; display: flex; align-items: center; justify-content: center;" +
-      "}" +
-      ".mathai-preview-timer-text {" +
-      "  display: none;" +
-      "  font-weight: 700; font-size: 18px; color: #270F36;" +
-      "  font-family: var(--mathai-font-family, sans-serif);" +
-      "  font-variant-numeric: tabular-nums;" +
-      "}" +
-      ".mathai-preview-timer-text.visible {" +
-      "  display: inline-block;" +
-      "}" +
-      ".mathai-preview-back-btn {" +
-      "  background: none; border: none; cursor: pointer;" +
-      "  padding: 4px; display: flex; align-items: center;" +
-      "}" +
-      ".mathai-preview-avatar-wrap {" +
-      "  width: 40px; height: 40px; border-radius: 20%;" +
-      "  overflow: hidden; position: relative; flex-shrink: 0;" +
-      "}" +
-      ".mathai-preview-avatar-wrap video {" +
-      "  width: 100%; height: 100%;" +
-      "  object-fit: cover; object-position: 10% 25%;" +
-      "  position: absolute; top: 0; left: 0;" +
-      "}" +
-      ".mathai-preview-question-label {" +
-      "  font-weight: 700; font-size: 16px; color: #270F36;" +
-      "  font-family: var(--mathai-font-family, sans-serif);" +
-      "}" +
-      ".mathai-preview-header-right {" +
-      "  display: flex; align-items: center; gap: 6px;" +
-      "}" +
-      ".mathai-preview-score {" +
-      "  font-weight: 700; font-size: 16px; line-height: 22px; color: #270F36;" +
-      "  font-family: var(--mathai-font-family, sans-serif);" +
-      "}" +
-      ".mathai-preview-star {" +
-      "  width: 32px; height: 32px;" +
-      "}" +
 
-      /* Body — single scroll area below fixed header */
+      /* Body — single scroll area below fixed header. */
       ".mathai-preview-body {" +
       "  padding: 80px 16px 100px 16px;" +
       "  text-align: left;" +
@@ -300,9 +210,7 @@
       "  color: #333333;" +
       "  font-family: var(--mathai-font-family, sans-serif);" +
       "}" +
-      ".mathai-preview-instruction:empty {" +
-      "  display: none;" +
-      "}" +
+      ".mathai-preview-instruction:empty { display: none; }" +
       ".mathai-preview-instruction img { max-width: 100%; height: auto; }" +
       ".mathai-preview-instruction video { width: 100%; }" +
 
@@ -316,11 +224,7 @@
       ".mathai-preview-game-container.game-hidden .game-stack {" +
       "  visibility: hidden;" +
       "}" +
-
-      /* CRITICAL: kill nested scroll — .game-stack's base CSS sets overflow-y:auto
-         which creates its own scroll container inside the preview body. Inside the
-         preview wrapper, everything must flow as ONE scroll area (instruction +
-         game content). Override to let content size naturally. */
+      /* Kill nested scroll — preview body owns scrolling. */
       ".mathai-preview-game-container .game-stack {" +
       "  overflow: visible;" +
       "  height: auto;" +
@@ -351,9 +255,7 @@
       "  box-shadow: 0px 2px 1px rgba(0, 0, 0, 0.1);" +
       "  font-family: var(--mathai-font-family, sans-serif);" +
       "}" +
-      ".mathai-preview-skip-btn:active {" +
-      "  border-color: #270F36;" +
-      "}";
+      ".mathai-preview-skip-btn:active { border-color: #270F36; }";
 
     document.head.appendChild(style);
     console.log("[PreviewScreen] Styles injected");
@@ -372,67 +274,17 @@
       );
     }
 
-    // Find skeleton elements (created by ScreenLayout)
-    this._header = this.container.querySelector(".mathai-preview-header");
     this._progressBar = this.container.querySelector("#previewProgressBar");
-    this._timerTextEl = this.container.querySelector("#previewTimerText");
-    this._headerLeft = this.container.querySelector(".mathai-preview-header-left");
-    this._headerRight = this.container.querySelector(".mathai-preview-header-right");
     this._instructionArea = this.container.querySelector("#previewInstruction");
     this._gameContainer = this.container.querySelector("#previewGameContainer");
     this._gameStack = this._gameContainer && this._gameContainer.querySelector(".game-stack");
 
-    if (!this._header || !this._gameContainer || !this._gameStack) {
+    if (!this._progressBar || !this._instructionArea || !this._gameContainer || !this._gameStack) {
       throw new Error(
         "PreviewScreen: Slot skeleton incomplete. " +
         "Ensure ScreenLayout v2.0+ is used with slots.previewScreen: true."
       );
     }
-
-    // Populate header left (back btn + avatar + question label)
-    this._headerLeft.innerHTML =
-      '<button class="mathai-preview-back-btn" id="previewBackBtn">' +
-        '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#270F36" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-          '<polyline points="15 18 9 12 15 6"></polyline>' +
-        '</svg>' +
-      '</button>' +
-      '<div class="mathai-preview-avatar-wrap">' +
-        '<video id="previewAvatarSpeaking" src="' + SPEAKING_AVATAR_URL + '" autoplay loop muted playsinline style="display:none;"></video>' +
-        '<video id="previewAvatarSilent" src="' + SILENT_AVATAR_URL + '" autoplay loop muted playsinline></video>' +
-      '</div>' +
-      '<span class="mathai-preview-question-label" id="previewQuestionLabel"></span>';
-
-    // Populate header right (score + star)
-    this._headerRight.innerHTML =
-      '<span class="mathai-preview-score" id="previewScore"></span>' +
-      '<img class="mathai-preview-star" id="previewStar" src="' + STAR_CDN_URL + '" alt="star" />';
-
-    // Cache video/label refs
-    this._speakingVideo = document.getElementById("previewAvatarSpeaking");
-    this._silentVideo = document.getElementById("previewAvatarSilent");
-    this._questionLabelEl = document.getElementById("previewQuestionLabel");
-    this._scoreEl = document.getElementById("previewScore");
-    this._starEl = document.getElementById("previewStar");
-
-    // Wire back button
-    var self = this;
-    var backBtn = document.getElementById("previewBackBtn");
-    if (backBtn) {
-      backBtn.addEventListener("click", function () {
-        try {
-          window.parent.postMessage({ type: "WORKSHEET_BACK" }, "*");
-        } catch (e) {
-          self._captureError(e, { action: "back_button" });
-        }
-      });
-    }
-  };
-
-  PreviewScreenComponent.prototype._populateHeaderFromGameInit = function () {
-    var d = this._gameInitData || {};
-    if (this._questionLabelEl) this._questionLabelEl.textContent = d.questionLabel || "Q1";
-    if (this._scoreEl) this._scoreEl.textContent = d.score || "0/3";
-    if (this._starEl) this._starEl.style.display = d.showStar !== false ? "inline-block" : "none";
   };
 
   // ============================================================
@@ -444,8 +296,6 @@
    * @param {string} config.instruction - HTML string
    * @param {string} config.audioUrl - Audio URL (optional)
    * @param {boolean} config.showGameOnPreview - Show game underneath overlay (default false)
-   * @param {object} config.timerConfig - { type: 'decrease'|'increase', startTime, endTime }
-   * @param {object} config.timerInstance - Reference to game's TimerComponent
    * @param {function} config.onComplete - Called when preview transitions to game state
    * @param {function} config.onPreviewInteraction - Called when setPreviewData is invoked
    */
@@ -453,27 +303,14 @@
     var self = this;
     config = config || {};
 
-    // Show-once guard: if the preview has already been COMPLETED (user saw it
-    // and either skipped or waited for timer), skip directly to game state.
-    // This handles restartGame() → setupGame() → showPreviewScreen() without
-    // forcing the player through the preview again.
-    //
-    // NOTE: _hasBeenShown is set in switchToGame(), NOT here. This means:
-    //   - First show() with fallback content → enters preview state (flag is false)
-    //   - game_init arrives, calls show() again before user finished preview →
-    //     flag is still false → re-enters preview with real content (correct!)
-    //   - User skips/timer completes → switchToGame() sets flag to true
-    //   - restartGame calls show() → flag is true → auto-skips (correct!)
     if (this._hasBeenShown) {
+      // Auto-skip on restart — preserve current behavior
       this._state = "game";
-      this._timerConfig = config.timerConfig || null;
-      this._timerInstance = config.timerInstance || null;
       this._previewData = { duration: 0, skippedRepeat: true };
       if (this._gameContainer) this._gameContainer.classList.remove("game-hidden");
       this._removeOverlay();
       this._removeSkipButton();
-      this._configureGameStateHeader();
-      if (this._timerInstance && this._timerConfig) this._startGameTimerSync();
+      if (this._progressBar) this._progressBar.classList.add("hidden");
       if (typeof config.onComplete === "function") {
         try { config.onComplete(this._previewData); } catch (e) { this._captureError(e, { method: "show", autoSkip: true }); }
       }
@@ -483,7 +320,6 @@
 
     try {
       // Clean up any in-flight audio/timer from a prior show() call
-      // (e.g. game_init arrived with real content while fallback preview was playing)
       this._stopAudio();
       this._cancelRaf();
       this._removeOverlay();
@@ -498,22 +334,11 @@
       this._onCompleteCallback = config.onComplete || null;
       this._onPreviewInteractionCallback = config.onPreviewInteraction || null;
       this._hasAudio = !!config.audioUrl;
-      this._timerConfig = config.timerConfig || null;
-      this._timerInstance = config.timerInstance || null;
 
-      // Populate header from any prior game_init payload
-      this._populateHeaderFromGameInit();
-
-      // Reset progress bar to preview state (blue, full)
+      // Reset progress bar to preview state (full, visible)
       if (this._progressBar) {
-        this._progressBar.classList.remove("game-decrease", "hidden");
+        this._progressBar.classList.remove("hidden");
         this._progressBar.style.transform = "scaleX(1)";
-      }
-
-      // Hide timer text in preview state
-      if (this._timerTextEl) {
-        this._timerTextEl.classList.remove("visible");
-        this._timerTextEl.textContent = "";
       }
 
       // Instruction
@@ -521,36 +346,31 @@
         this._instructionArea.innerHTML = config.instruction || "";
       }
 
-      // Game stack visibility — hidden by default unless showGameOnPreview
+      // Game stack visibility
       if (config.showGameOnPreview) {
         this._gameContainer.classList.remove("game-hidden");
       } else {
         this._gameContainer.classList.add("game-hidden");
       }
 
-      // Add overlay (non-interactable)
       this._addOverlay();
-
-      // Add skip button
       this._addSkipButton();
 
-      // Avatar: start with silent
-      this._setAvatarState(false);
+      // Avatar: start with silent. Null-safe because ActionBar may still be
+      // in its lazy-load window — the silent video is the default anyway.
+      if (this._actionBar) this._actionBar.setAvatarSpeaking(false);
 
-      // Signal: screen transition
       this._recordViewEvent("screen_transition", { from: "init", to: "preview" });
       this._recordViewEvent("content_render", { instruction: !!config.instruction, showGameOnPreview: !!config.showGameOnPreview });
 
-      // BUG FIX: if the tab is already hidden when show() is called (e.g.,
-      // game opened in a background tab), pre-pause so the audio/timer flow
-      // takes the deferred-start path.
+      // If the tab is already hidden at show() time, pre-pause so the audio/
+      // timer flow takes the deferred-start path.
       if (document.hidden) {
         this._isPaused = true;
         this._pausedAt = performance.now();
         console.log("[PreviewScreen] show() called with hidden tab — entering paused state");
       }
 
-      // Audio / Timer flow
       this._instruction = config.instruction || "";
       if (config.audioUrl) {
         this._startWithAudio(config.audioUrl);
@@ -583,7 +403,7 @@
     this._skipWrap.className = "mathai-preview-skip-wrap";
     this._skipWrap.innerHTML = '<button class="mathai-preview-skip-btn" id="previewSkipBtn">Skip &amp; show options</button>';
     this.container.appendChild(this._skipWrap);
-    var skipBtn = document.getElementById("previewSkipBtn");
+    var skipBtn = this._skipWrap.querySelector("#previewSkipBtn");
     if (skipBtn) {
       skipBtn.addEventListener("click", function () { self.skip(); });
     }
@@ -597,7 +417,7 @@
   };
 
   // ============================================================
-  // Runtime TTS fallback
+  // Runtime TTS fallback — R3: retry on transient failure
   // ============================================================
 
   var TTS_API_URL = "https://asia-south1-mathai-449208.cloudfunctions.net/generate-audio";
@@ -615,25 +435,125 @@
       return;
     }
 
-    try {
-      fetch(TTS_API_URL + "?sendUrl=true&text=" + encodeURIComponent(text))
-        .then(function (res) {
-          if (!res.ok) throw new Error("TTS API returned " + res.status);
-          return res.json();
-        })
-        .then(function (data) {
-          if (data.audio_url && self._state === "preview") {
-            self._hasAudio = true;
-            self._startWithAudio(data.audio_url);
-          } else {
-            self._startWithTimer();
-          }
-        })
-        .catch(function () {
-          if (self._state === "preview") self._startWithTimer();
-        });
-    } catch (e) {
-      this._startWithTimer();
+    function attempt(tryIndex) {
+      if (self._state !== "preview") return;
+      try {
+        fetch(TTS_API_URL + "?sendUrl=true&text=" + encodeURIComponent(text))
+          .then(function (res) {
+            if (!res.ok) throw new Error("TTS API returned " + res.status);
+            return res.json();
+          })
+          .then(function (data) {
+            if (self._state !== "preview") return;
+            if (data && data.audio_url) {
+              self._hasAudio = true;
+              self._startWithAudio(data.audio_url);
+            } else {
+              self._startWithTimer();
+            }
+          })
+          .catch(function (err) {
+            if (self._state !== "preview") return;
+            if (tryIndex < TTS_MAX_RETRIES) {
+              var delay = TTS_RETRY_DELAYS_MS[tryIndex] || 500;
+              console.warn("[PreviewScreen] TTS fetch failed (attempt " + (tryIndex + 1) + "), retrying in " + delay + "ms:", err);
+              setTimeout(function () { attempt(tryIndex + 1); }, delay);
+            } else {
+              console.warn("[PreviewScreen] TTS fetch failed after retries — falling back to timer");
+              self._recordViewEvent("component_state", { tts_failed_final: true });
+              self._startWithTimer();
+            }
+          });
+      } catch (e) {
+        if (tryIndex < TTS_MAX_RETRIES) {
+          var delay2 = TTS_RETRY_DELAYS_MS[tryIndex] || 500;
+          setTimeout(function () { attempt(tryIndex + 1); }, delay2);
+        } else {
+          self._startWithTimer();
+        }
+      }
+    }
+
+    attempt(0);
+  };
+
+  // ============================================================
+  // ActionBar resolution (sync if present, lazy-load from CDN otherwise)
+  // ============================================================
+
+  PreviewScreenComponent.prototype._ensureActionBar = function () {
+    var self = this;
+
+    if (typeof window.ActionBarComponent === "function") {
+      try {
+        this._actionBar = new window.ActionBarComponent({ slotId: this.config.slotId });
+      } catch (err) {
+        this._captureError(err, { method: "_ensureActionBar.sync" });
+        console.warn("[PreviewScreen] ActionBar construction failed — header will be blank:", err);
+      }
+      this._flushActionBarReadyCallbacks();
+      return;
+    }
+
+    // Fallback: lazy-load from CDN. The components bundle may have shipped
+    // before action-bar was added, or the bundle may be cached. Load the
+    // current CDN copy now; on success, construct and flush queued callbacks.
+    console.log("[PreviewScreen] ActionBarComponent not found — lazy-loading from CDN");
+
+    var timedOut = false;
+    var timeoutId = setTimeout(function () {
+      timedOut = true;
+      console.warn(
+        "[PreviewScreen] ActionBar lazy-load timed out after " +
+        ACTION_BAR_LOAD_TIMEOUT_MS + "ms — header will be blank for this session"
+      );
+      // Flush callbacks with no actionBar so callers don't hang indefinitely.
+      self._flushActionBarReadyCallbacks();
+    }, ACTION_BAR_LOAD_TIMEOUT_MS);
+
+    var script = document.createElement("script");
+    script.src = ACTION_BAR_CDN;
+    script.async = false;
+    script.onload = function () {
+      clearTimeout(timeoutId);
+      if (timedOut) return;
+      if (typeof window.ActionBarComponent === "function") {
+        try {
+          self._actionBar = new window.ActionBarComponent({ slotId: self.config.slotId });
+          console.log("[PreviewScreen] ActionBar lazy-loaded successfully");
+        } catch (err) {
+          self._captureError(err, { method: "_ensureActionBar.lazy" });
+          console.warn("[PreviewScreen] ActionBar lazy-construct failed:", err);
+        }
+      } else {
+        console.warn("[PreviewScreen] ActionBar script loaded but window.ActionBarComponent still undefined");
+      }
+      self._flushActionBarReadyCallbacks();
+    };
+    script.onerror = function () {
+      clearTimeout(timeoutId);
+      console.warn("[PreviewScreen] Failed to lazy-load ActionBar from CDN — header will be blank");
+      self._flushActionBarReadyCallbacks();
+    };
+    document.head.appendChild(script);
+  };
+
+  PreviewScreenComponent.prototype._whenActionBarReady = function (callback) {
+    if (this._actionBar || this._actionBarReadyCallbacks === null) {
+      // ready (or permanently unavailable after timeout — callback still fires
+      // so show() can proceed with a blank header rather than deadlock)
+      try { callback(); } catch (e) { this._captureError(e, { method: "_whenActionBarReady.immediate" }); }
+      return;
+    }
+    this._actionBarReadyCallbacks.push(callback);
+  };
+
+  PreviewScreenComponent.prototype._flushActionBarReadyCallbacks = function () {
+    var cbs = this._actionBarReadyCallbacks || [];
+    // Mark as "done" so future _whenActionBarReady calls fire inline.
+    this._actionBarReadyCallbacks = null;
+    for (var i = 0; i < cbs.length; i++) {
+      try { cbs[i](); } catch (e) { this._captureError(e, { method: "_flushActionBarReadyCallbacks" }); }
     }
   };
 
@@ -641,35 +561,56 @@
   // Audio flow
   // ============================================================
 
+  /**
+   * R7: Load FeedbackManager from CDN with a 5s timeout so a stuck network
+   * doesn't leave us polling forever. On timeout → timer-only fallback.
+   */
   PreviewScreenComponent.prototype._ensureFeedbackManager = function (callback) {
     if (typeof FeedbackManager !== "undefined" && FeedbackManager.sound) {
       callback();
       return;
     }
 
+    var timedOut = false;
+    var resolved = false;
+    function done() {
+      if (resolved) return;
+      resolved = true;
+      callback();
+    }
+
+    var timeoutId = setTimeout(function () {
+      timedOut = true;
+      console.warn("[PreviewScreen] FeedbackManager load timed out after " + FEEDBACK_MANAGER_LOAD_TIMEOUT_MS + "ms — continuing without audio");
+      done();
+    }, FEEDBACK_MANAGER_LOAD_TIMEOUT_MS);
+
     var script = document.createElement("script");
     script.src = FEEDBACK_MANAGER_CDN;
     script.onload = function () {
+      clearTimeout(timeoutId);
+      if (timedOut) return; // already fell through to timer
       if (typeof FeedbackManager !== "undefined") {
         if (typeof FeedbackManager.init === "function") {
           FeedbackManager.init();
         }
-        callback();
       }
+      done();
     };
     script.onerror = function () {
+      clearTimeout(timeoutId);
       console.warn("[PreviewScreen] Failed to load FeedbackManager — falling back to timer");
-      callback();
+      done();
     };
     document.head.appendChild(script);
   };
 
   PreviewScreenComponent.prototype._startWithAudio = function (audioUrl) {
     var self = this;
-    this._pendingAudioUrl = audioUrl; // remembered for deferred-start path
+    this._pendingAudioUrl = audioUrl;
 
     this._ensureFeedbackManager(function () {
-      if (!FeedbackManager || !FeedbackManager.sound) {
+      if (typeof FeedbackManager === "undefined" || !FeedbackManager.sound) {
         self._startWithTimer();
         return;
       }
@@ -683,24 +624,38 @@
         }
       }
 
-      try {
-        var preloadPromise = FeedbackManager.sound.preload([{ id: self._audioId, url: audioUrl }]);
-        if (preloadPromise && typeof preloadPromise.then === "function") {
-          preloadPromise.then(function () {
+      function preloadAttempt(tryIndex) {
+        try {
+          var preloadPromise = FeedbackManager.sound.preload([{ id: self._audioId, url: audioUrl }]);
+          if (preloadPromise && typeof preloadPromise.then === "function") {
+            preloadPromise.then(function () {
+              preloadDone = true;
+              tryPlay();
+            }).catch(function (err) {
+              if (tryIndex < PRELOAD_MAX_RETRIES) {
+                console.warn("[PreviewScreen] Audio preload failed (attempt " + (tryIndex + 1) + "), retrying in " + PRELOAD_RETRY_DELAY_MS + "ms:", err);
+                setTimeout(function () { preloadAttempt(tryIndex + 1); }, PRELOAD_RETRY_DELAY_MS);
+              } else {
+                console.warn("[PreviewScreen] Audio preload failed after retries — falling back to timer:", err);
+                self._recordViewEvent("component_state", { preload_failed_final: true });
+                self._startWithTimer();
+              }
+            });
+          } else {
             preloadDone = true;
             tryPlay();
-          }).catch(function (err) {
-            console.warn("[PreviewScreen] Audio preload failed:", err);
+          }
+        } catch (err) {
+          self._captureError(err, { method: "_startWithAudio.preload" });
+          if (tryIndex < PRELOAD_MAX_RETRIES) {
+            setTimeout(function () { preloadAttempt(tryIndex + 1); }, PRELOAD_RETRY_DELAY_MS);
+          } else {
             self._startWithTimer();
-          });
-        } else {
-          preloadDone = true;
+          }
         }
-      } catch (err) {
-        self._captureError(err, { method: "_startWithAudio", audioUrl: audioUrl });
-        self._startWithTimer();
-        return;
       }
+
+      preloadAttempt(0);
 
       self._waitForAudioPermission(function () {
         permissionDone = true;
@@ -714,7 +669,6 @@
 
     this._ensureFeedbackManager(function () {
       self._waitForAudioPermission(function () {
-        // BUG FIX: defer if tab is hidden so the timer doesn't tick down in background
         if (document.hidden || self._isPaused) {
           self._timerPendingStart = true;
           if (!self._isPaused) {
@@ -735,7 +689,7 @@
   PreviewScreenComponent.prototype._waitForAudioPermission = function (callback) {
     var self = this;
 
-    if (!FeedbackManager || !FeedbackManager.sound) {
+    if (typeof FeedbackManager === "undefined" || !FeedbackManager.sound) {
       callback();
       return;
     }
@@ -762,6 +716,17 @@
 
     if (!isPopupVisible()) {
       this._audioUnlockDone = true;
+      // If pause() was called while the permission popup was up (e.g., tab-
+      // switch during a retry-backoff delay that made us arrive here late,
+      // AFTER the popup was already dismissed), _isPaused is still true and
+      // the caller's callback would take the deferred-start path. Clear it —
+      // popup-dismissal is a user gesture, same semantics as the poll-
+      // interval branch below.
+      if (this._isPaused) {
+        this._isPaused = false;
+        this._pausedAt = 0;
+        this._pauseSavedOffset = false;
+      }
       this._flushPermissionCallbacks();
       return;
     }
@@ -784,17 +749,13 @@
         var bd = document.getElementById("popup-backdrop");
         if (bd) { bd.style.display = "none"; bd.style.pointerEvents = "none"; }
         console.log("[PreviewScreen] Audio permission granted, starting timer");
-        // If the tab was hidden and is now visible while we were still
-        // waiting for permission, the pause() from the hide is still in
-        // effect — visibility listener no longer auto-resumes (to avoid
-        // bypassing the Resume Activity popup during mid-playback tab
-        // switches). Dismissal of the PERMISSION popup is a genuine user
-        // gesture, so clear the paused state inline before flushing
-        // callbacks. Without this, _playPreviewAudio() would stash
-        // _audioPendingPlay=true and return, and nothing would call
-        // resume() again — preview stays frozen.
+        // Permission-grant is a genuine user gesture. If pause() was called
+        // while the permission popup was up (tab switch), clear the paused
+        // state here so the deferred-start path isn't entered again. The
+        // visibility listener never auto-resumes (see its header comment),
+        // so without this inline clear the preview would stay frozen.
         if (self._isPaused) {
-          console.log("[PreviewScreen] Clearing paused state on permission-grant (tab-switch-during-permission path)");
+          console.log("[PreviewScreen] Clearing paused state on permission-grant");
           self._isPaused = false;
           self._pausedAt = 0;
           self._pauseSavedOffset = false;
@@ -812,12 +773,16 @@
     }
   };
 
+  /**
+   * R1: play() retry with bounded attempts. On final failure, engage timer-
+   *     only fallback — progress bar keeps advancing and onComplete fires at
+   *     DEFAULT_TIMER_DURATION. Silent for the student (no visible error).
+   * R10: retry callbacks check _playGeneration and abort on mismatch so a
+   *     late retry doesn't flip avatar speaking AFTER switchToGame.
+   */
   PreviewScreenComponent.prototype._playPreviewAudio = function () {
     var self = this;
 
-    // BUG FIX: Defer audio start if the tab is hidden or we are already in
-    // a paused state (e.g. visibility listener fired between permission grant
-    // and this call). resume() will pick this up and start the audio.
     if (document.hidden || this._isPaused) {
       this._audioPendingPlay = true;
       if (!this._isPaused) {
@@ -833,40 +798,56 @@
     var gen = this._playGeneration;
 
     try {
-      var duration = FeedbackManager.sound.getDuration(self._audioId);
-      if (duration && duration > 0) {
-        self._duration = duration * 1000;
+      // R4: clamp suspicious durations.
+      var rawDuration = FeedbackManager.sound.getDuration(self._audioId);
+      var rawMs = (typeof rawDuration === "number" && !isNaN(rawDuration)) ? rawDuration * 1000 : NaN;
+      if (!isNaN(rawMs) && rawMs >= MIN_VALID_AUDIO_DURATION_MS) {
+        self._duration = rawMs;
       } else {
         self._duration = DEFAULT_TIMER_DURATION;
       }
 
-      // FeedbackManager.SoundManager.play() does NOT forward onplay/onerror
-      // callbacks to the underlying audioKit, so we cannot rely on them.
-      // Set the avatar to speaking state synchronously and start the progress
-      // bar immediately. Then watch the playAndWait promise to detect when
-      // audio finishes, so we can flip the avatar back to silent.
       self._isAudioPlaying = true;
-      self._setAvatarState(true);
+      if (self._actionBar) self._actionBar.setAvatarSpeaking(true);
       self._beginProgressBar();
 
-      var playResult = FeedbackManager.sound.play(this._audioId, {
-        volume: 1,
-      });
-
-      if (playResult && typeof playResult.then === "function") {
-        playResult.then(function () {
-          if (gen !== self._playGeneration) return;
-          // Audio finished naturally — flip avatar back to silent.
-          // Progress bar continues independently and triggers switchToGame.
-          self._isAudioPlaying = false;
-          self._setAvatarState(false);
-        }).catch(function (err) {
-          if (gen !== self._playGeneration) return;
-          console.warn("[PreviewScreen] play() rejected:", err);
-          self._isAudioPlaying = false;
-          self._setAvatarState(false);
-        });
+      function attempt(tryIndex) {
+        // R10: stale retry — switchToGame bumped _playGeneration.
+        if (gen !== self._playGeneration) return;
+        try {
+          var playResult = FeedbackManager.sound.play(self._audioId, { volume: 1 });
+          if (playResult && typeof playResult.then === "function") {
+            playResult.then(function () {
+              if (gen !== self._playGeneration) return;
+              self._isAudioPlaying = false;
+              if (self._actionBar) self._actionBar.setAvatarSpeaking(false);
+            }).catch(function (err) {
+              if (gen !== self._playGeneration) return;
+              if (tryIndex < PLAY_MAX_RETRIES) {
+                console.warn("[PreviewScreen] play() rejected (attempt " + (tryIndex + 1) + "), retrying in " + PLAY_RETRY_DELAY_MS + "ms:", err);
+                setTimeout(function () { attempt(tryIndex + 1); }, PLAY_RETRY_DELAY_MS);
+              } else {
+                console.warn("[PreviewScreen] play() failed after retries — falling back silently (progress bar continues):", err);
+                self._recordViewEvent("component_state", { audio_play_failed_final: true });
+                self._isAudioPlaying = false;
+                if (self._actionBar) self._actionBar.setAvatarSpeaking(false);
+                // Progress bar already running — it'll complete at _duration
+                // and trigger switchToGame(). No extra work needed.
+              }
+            });
+          }
+        } catch (err) {
+          if (tryIndex < PLAY_MAX_RETRIES) {
+            setTimeout(function () { attempt(tryIndex + 1); }, PLAY_RETRY_DELAY_MS);
+          } else {
+            self._captureError(err, { method: "_playPreviewAudio.attempt" });
+            self._isAudioPlaying = false;
+            if (self._actionBar) self._actionBar.setAvatarSpeaking(false);
+          }
+        }
       }
+
+      attempt(0);
     } catch (err) {
       this._captureError(err, { method: "_playPreviewAudio" });
       this._duration = DEFAULT_TIMER_DURATION;
@@ -875,7 +856,7 @@
   };
 
   // ============================================================
-  // Preview-state progress bar (rAF)
+  // Preview-state progress bar (rAF) — R5 clamps elapsed overshoot
   // ============================================================
 
   PreviewScreenComponent.prototype._beginProgressBar = function () {
@@ -887,7 +868,34 @@
     function tick(now) {
       if (self._state !== "preview" || self._isPaused) return;
 
-      var elapsed = now - self._startTime - self._totalPausedDuration;
+      // R5: clamp so a tab-wake spike never produces elapsed > duration.
+      var elapsed = Math.min(self._duration, now - self._startTime - self._totalPausedDuration);
+      self._elapsed = elapsed;
+      var progress = Math.max(0, 1 - elapsed / self._duration);
+
+      if (self._progressBar) {
+        self._progressBar.style.transform = "scaleX(" + progress + ")";
+      }
+
+      if (elapsed >= self._duration) {
+        self._onTimerComplete();
+        return;
+      }
+
+      self._rafId = requestAnimationFrame(tick);
+    }
+
+    this._rafId = requestAnimationFrame(tick);
+  };
+
+  PreviewScreenComponent.prototype._beginResumedProgressBar = function () {
+    var self = this;
+    if (this._startTime === 0) return;
+
+    function tick(now) {
+      if (self._state !== "preview" || self._isPaused) return;
+
+      var elapsed = Math.min(self._duration, now - self._startTime - self._totalPausedDuration);
       self._elapsed = elapsed;
       var progress = Math.max(0, 1 - elapsed / self._duration);
 
@@ -923,19 +931,6 @@
   };
 
   // ============================================================
-  // Avatar
-  // ============================================================
-
-  PreviewScreenComponent.prototype._setAvatarState = function (isSpeaking) {
-    if (this._speakingVideo) {
-      this._speakingVideo.style.display = isSpeaking ? "block" : "none";
-    }
-    if (this._silentVideo) {
-      this._silentVideo.style.display = isSpeaking ? "none" : "block";
-    }
-  };
-
-  // ============================================================
   // pause / resume
   // ============================================================
 
@@ -948,35 +943,18 @@
 
       if (this._state === "preview") {
         this._cancelRaf();
-        if (this._hasAudio && FeedbackManager && FeedbackManager.sound) {
-          // Pause the active voice — internally calls audioKit.pauseVoice()
-          // which saves pausedOffset and stops the BufferSource. Resume will
-          // restart playback from that exact offset.
-          //
-          // We track whether a pausedVoice was actually saved. On mobile, the
-          // browser may auto-finalize the BufferSource when audioCtx suspends
-          // BEFORE this listener runs, leaving voice=null. In that case
-          // pauseVoice() returns null, no pausedVoice is saved, and resume
-          // can't restore. We detect this by checking pausedAudioId AFTER
-          // calling pause, and fall back to deferred-fresh-play if saving
-          // the offset failed.
+        if (this._hasAudio && typeof FeedbackManager !== "undefined" && FeedbackManager.sound) {
           try {
-            if (FeedbackManager.sound.audioKit.getCurrentlyPlaying()) {
+            if (FeedbackManager.sound.audioKit && FeedbackManager.sound.audioKit.getCurrentlyPlaying && FeedbackManager.sound.audioKit.getCurrentlyPlaying()) {
               FeedbackManager.sound.pause();
             }
-            // Did the underlying pauseVoice() actually save a pausedVoice?
-            // SoundManager.pause() sets pausedAudioId only if pausedVoice
-            // was successfully saved.
             this._pauseSavedOffset = !!FeedbackManager.sound.pausedAudioId;
           } catch (e) {
             this._pauseSavedOffset = false;
           }
           this._isAudioPlaying = false;
         }
-        this._setAvatarState(false);
-      } else if (this._state === "game") {
-        // In game state, just stop syncing — game owns the timer
-        this._stopGameTimerSync();
+        if (this._actionBar) this._actionBar.setAvatarSpeaking(false);
       }
 
       this._recordViewEvent("component_state", { progressBar: "paused", elapsed: this._elapsed, state: this._state });
@@ -994,9 +972,7 @@
       this._isPaused = false;
 
       if (this._state === "preview") {
-        // BUG FIX: deferred-start path — audio/timer never began because the
-        // tab was hidden when permission was granted. Start it now (no pause
-        // duration accumulation since nothing was playing).
+        // Deferred-start paths — tab was hidden when start would have fired.
         if (this._audioPendingPlay) {
           this._audioPendingPlay = false;
           this._pausedAt = 0;
@@ -1016,22 +992,7 @@
         }
 
         this._totalPausedDuration += pauseDuration;
-        if (this._hasAudio && FeedbackManager && FeedbackManager.sound) {
-          // Two paths depending on whether pause() actually saved a paused
-          // voice with offset:
-          //
-          //   PATH A — offset was saved: bypass SoundManager.sound.resume()
-          //   (its internal `await audioKit.resume()` consumes the user
-          //   gesture on mobile) and call audioKit.resumeVoice() directly,
-          //   fully synchronously inside the click handler. This restarts
-          //   playback from the saved offset.
-          //
-          //   PATH B — no offset saved (mobile auto-finalized the
-          //   BufferSource when audioCtx suspended, OR the audio was already
-          //   finished): fall back to a fresh play() of the same audio from
-          //   the beginning. We use the deferred-start path which calls
-          //   _playPreviewAudio() synchronously inside this resume() call,
-          //   preserving the user gesture for mobile.
+        if (this._hasAudio && typeof FeedbackManager !== "undefined" && FeedbackManager.sound) {
           var ak = FeedbackManager.sound.audioKit;
           var resumed = false;
           if (this._pauseSavedOffset && ak && typeof ak.resumeVoice === "function") {
@@ -1045,10 +1006,7 @@
           }
           if (resumed) {
             this._isAudioPlaying = true;
-            this._setAvatarState(true);
-            // Clear FeedbackManager's pausedAudioId since we just consumed
-            // the pausedVoice — keeps SoundManager state consistent for any
-            // subsequent pause/resume cycles.
+            if (this._actionBar) this._actionBar.setAvatarSpeaking(true);
             try { FeedbackManager.sound.pausedAudioId = null; } catch (e) {}
             console.log("[PreviewScreen] Audio resumed from offset");
           } else {
@@ -1061,8 +1019,6 @@
           this._pauseSavedOffset = false;
         }
         this._beginResumedProgressBar();
-      } else if (this._state === "game") {
-        this._startGameTimerSync();
       }
 
       this._recordViewEvent("component_state", { progressBar: "resumed", pausedFor: Math.round(pauseDuration), state: this._state });
@@ -1072,41 +1028,10 @@
     }
   };
 
-  PreviewScreenComponent.prototype._beginResumedProgressBar = function () {
-    var self = this;
-    if (this._startTime === 0) return;
-
-    function tick(now) {
-      if (self._state !== "preview" || self._isPaused) return;
-
-      var elapsed = now - self._startTime - self._totalPausedDuration;
-      self._elapsed = elapsed;
-      var progress = Math.max(0, 1 - elapsed / self._duration);
-
-      if (self._progressBar) {
-        self._progressBar.style.transform = "scaleX(" + progress + ")";
-      }
-
-      if (elapsed >= self._duration) {
-        self._onTimerComplete();
-        return;
-      }
-
-      self._rafId = requestAnimationFrame(tick);
-    }
-
-    this._rafId = requestAnimationFrame(tick);
-  };
-
   // ============================================================
   // skip / switchToGame / destroy
   // ============================================================
 
-  /**
-   * Returns true while the preview overlay is mounted (state === 'preview').
-   * Use in setTimeout / requestIdleCallback fallbacks to avoid racing a live
-   * preview. Public contract — refactors must preserve this method.
-   */
   PreviewScreenComponent.prototype.isActive = function () {
     return this._state === "preview";
   };
@@ -1120,41 +1045,44 @@
   };
 
   /**
-   * Transition from preview state to game state.
-   * - Removes overlay (game becomes interactable)
-   * - Hides skip button
-   * - Configures progress bar / timer text based on timerConfig
-   * - Fires onComplete callback (game code starts its logic)
+   * Transition preview → game.
+   *   - Overlay removed (game interactable)
+   *   - Skip button removed
+   *   - Progress bar hidden
+   *   - onComplete callback fires (game code starts its logic)
    */
   PreviewScreenComponent.prototype.switchToGame = function () {
     if (this._state === "game") return;
 
-    // Mark preview as completed — subsequent show() calls will auto-skip.
     this._hasBeenShown = true;
 
     var prevState = this._state;
     this._state = "game";
 
+    // R10: bump generation so any in-flight play-retry aborts.
+    this._playGeneration++;
+
     var duration = Date.now() - this._showStartTime;
     this._previewData.duration = duration;
 
-    // Reveal game stack if it was hidden
     if (this._gameContainer) {
       this._gameContainer.classList.remove("game-hidden");
     }
 
-    // Remove preview-state UI
     this._removeOverlay();
     this._removeSkipButton();
     this._stopAudio();
     this._cancelRaf();
 
-    // Configure header for game state
-    this._configureGameStateHeader();
+    // Progress bar is idle in game state.
+    if (this._progressBar) {
+      this._progressBar.classList.add("hidden");
+      this._progressBar.style.transform = "scaleX(0)";
+    }
 
     this._recordViewEvent("screen_transition", { from: prevState, to: "game" });
 
-    // Fire callback (game code starts its logic, including timer.start())
+    // Fire callback (game code starts its logic)
     if (typeof this._onCompleteCallback === "function") {
       try {
         this._onCompleteCallback(this._previewData);
@@ -1162,100 +1090,23 @@
         this._captureError(err, { method: "switchToGame", callback: "onComplete" });
       }
     }
-
-    // Start timer sync after callback (so game has started its timer)
-    if (this._timerInstance && this._timerConfig) {
-      this._startGameTimerSync();
-    }
-  };
-
-  PreviewScreenComponent.prototype._configureGameStateHeader = function () {
-    if (!this._progressBar || !this._timerTextEl) return;
-
-    if (!this._timerConfig) {
-      // No timer — hide progress bar entirely, no timer text
-      this._progressBar.classList.add("hidden");
-      this._timerTextEl.classList.remove("visible");
-      return;
-    }
-
-    if (this._timerConfig.type === "decrease") {
-      // Orange progress bar + timer text overlay
-      this._progressBar.classList.remove("hidden");
-      this._progressBar.classList.add("game-decrease");
-      this._progressBar.style.transform = "scaleX(1)";
-      this._timerTextEl.classList.add("visible");
-    } else if (this._timerConfig.type === "increase") {
-      // No progress bar fill, just timer text
-      this._progressBar.classList.add("hidden");
-      this._timerTextEl.classList.add("visible");
-    } else {
-      this._progressBar.classList.add("hidden");
-      this._timerTextEl.classList.remove("visible");
-    }
-  };
-
-  PreviewScreenComponent.prototype._startGameTimerSync = function () {
-    var self = this;
-    if (!this._timerInstance || !this._timerConfig) return;
-    this._stopGameTimerSync();
-
-    function sync() {
-      if (self._state !== "game" || self._isPaused) {
-        self._timerSyncRafId = null;
-        return;
-      }
-
-      var timer = self._timerInstance;
-      if (!timer) { self._timerSyncRafId = null; return; }
-
-      // Update timer text
-      if (self._timerTextEl && typeof timer.getFormattedTime === "function") {
-        self._timerTextEl.textContent = timer.getFormattedTime();
-      }
-
-      // Update progress bar (decreasing only)
-      if (self._timerConfig.type === "decrease" && self._progressBar) {
-        var start = (typeof self._timerConfig.startTime === "number")
-          ? self._timerConfig.startTime
-          : (timer.config && timer.config.startTime) || 0;
-        var end = (typeof self._timerConfig.endTime === "number")
-          ? self._timerConfig.endTime
-          : (timer.config && timer.config.endTime) || 0;
-        var current = (typeof timer.getCurrentTime === "function") ? timer.getCurrentTime() : start;
-        var total = Math.max(1, start - end);
-        var elapsed = Math.max(0, start - current);
-        var progress = Math.max(0, Math.min(1, 1 - elapsed / total));
-        self._progressBar.style.transform = "scaleX(" + progress + ")";
-      }
-
-      self._timerSyncRafId = requestAnimationFrame(sync);
-    }
-
-    this._timerSyncRafId = requestAnimationFrame(sync);
-  };
-
-  PreviewScreenComponent.prototype._stopGameTimerSync = function () {
-    if (this._timerSyncRafId) {
-      cancelAnimationFrame(this._timerSyncRafId);
-      this._timerSyncRafId = null;
-    }
   };
 
   PreviewScreenComponent.prototype.destroy = function () {
     this._stopAudio();
     this._cancelRaf();
-    this._stopGameTimerSync();
     this._removeOverlay();
     this._removeSkipButton();
 
-    if (this._gameInitListener) {
-      window.removeEventListener("message", this._gameInitListener);
-      this._gameInitListener = null;
-    }
     if (this._visibilityListener) {
       document.removeEventListener("visibilitychange", this._visibilityListener);
       this._visibilityListener = null;
+    }
+
+    // Tear down the internal ActionBar — it owns its own listeners and rAF.
+    if (this._actionBar) {
+      try { this._actionBar.destroy(); } catch (e) { /* ignore */ }
+      this._actionBar = null;
     }
 
     this._state = "idle";
@@ -1263,26 +1114,22 @@
   };
 
   PreviewScreenComponent.prototype._stopAudio = function () {
-    if (FeedbackManager && FeedbackManager.sound) {
+    if (typeof FeedbackManager !== "undefined" && FeedbackManager.sound) {
       try {
         FeedbackManager.sound.stopAll();
       } catch (e) { /* ignore */ }
     }
     this._isAudioPlaying = false;
-    this._setAvatarState(false);
+    if (this._actionBar) this._actionBar.setAvatarSpeaking(false);
   };
 
   // ============================================================
-  // Public state accessor
+  // Public accessors / pass-throughs
   // ============================================================
 
   PreviewScreenComponent.prototype.getState = function () {
     return this._state;
   };
-
-  // ============================================================
-  // setPreviewData — for preview content interaction capture
-  // ============================================================
 
   PreviewScreenComponent.prototype.setPreviewData = function (key, value) {
     this._previewData[key] = value;
@@ -1292,6 +1139,14 @@
         this._onPreviewInteractionCallback({ key: key, value: value });
       } catch (e) { /* ignore */ }
     }
+  };
+
+  /**
+   * Pass-through to ActionBar — runtime star visibility update.
+   * Safe no-op after destroy().
+   */
+  PreviewScreenComponent.prototype.setStar = function (visible) {
+    if (this._actionBar) this._actionBar.setStar(visible);
   };
 
   // ============================================================
@@ -1308,7 +1163,7 @@
   };
 
   // ============================================================
-  // Sentry Integration
+  // Sentry
   // ============================================================
 
   PreviewScreenComponent.prototype._initSentry = function () {
@@ -1382,6 +1237,7 @@
     try {
       Sentry.captureException(err, {
         tags: {
+          component: "preview_screen",
           preview_screen: VERSION,
           game_id: (context && context.game_id) || "unknown",
           play_id: (context && context.play_id) || "unknown"

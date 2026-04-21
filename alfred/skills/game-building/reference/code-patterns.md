@@ -160,7 +160,7 @@ Per PART-039. Game-building rules:
   A per-round *prompt* is allowed ONLY when it carries round-specific information that is NOT in the preview (e.g. "What is 3 × 4?" — the question itself; "Match the shapes below" after a round-type change screen). Generic how-to-play restated in different words is NOT distinct — it duplicates.
   When in doubt: omit the gameplay banner. Players already heard/read the preview. If the round-type change is material, convey it via a Round-N-intro TransitionScreen, not a banner.
 - Instantiated in DOMContentLoaded with `{ slotId: 'mathai-preview-slot' }` only. Do NOT pass `autoInject`, `gameContentId`, `previewContent`, `questionLabel`, `score`, or `showStar`.
-- `previewScreen.show({ instruction, audioUrl, showGameOnPreview, timerConfig, timerInstance, onComplete })` is called as the LAST step of `setupGame()` — after `#gameContent` has been rendered.
+- `previewScreen.show({ instruction, audioUrl, showGameOnPreview, onComplete })` is called as the LAST step of `setupGame()` — after `#gameContent` has been rendered. The `show()` option list is **exactly** those four keys plus optional `onPreviewInteraction`; no other options are accepted.
 - Preview audio URL sourced from `content.previewAudio || fallbackContent.previewAudio || null`. Never hardcode.
 - **Audio URL source hierarchy** (PART-039 layer order): `content.previewAudio` → `fallbackContent.previewAudio` → runtime TTS fallback using `previewAudioText` → 5s silent timer. The component handles the TTS fallback internally when `audioUrl` is null; you do NOT need to generate TTS yourself at runtime. Deploy step patches `fallbackContent.previewAudio` with a CDN URL from `previewAudioText` TTS.
 - **`previewScreen.isActive()`** returns `true` while the preview overlay is mounted (between `show()` and `switchToGame()`). Use this in any timed fallback (setTimeout, requestIdleCallback, race-guards) that might otherwise fire during a live preview. Preview does NOT mutate `gameState.phase`, so `phase === 'start_screen'` stays true for the entire preview — `isActive()` is the authoritative signal. See `html-template.md` rule 11 (standalone-fallback gate).
@@ -181,7 +181,8 @@ Per PART-039. Game-building rules:
     }
   });
   ```
-- See `parts/PART-039.md` for full API and `warehouse/parts/PART-039-preview-screen.md` for authoritative spec.
+- **Header star runtime toggle.** `previewScreen.setStar(visible: boolean)` hides or shows the header star at runtime (use-case: clear the star indicator after a wrong answer, re-show on next round).
+- See `parts/PART-039.md` for full API and `warehouse/parts/PART-039-preview-screen.md` for the authoritative spec.
 
 ---
 
@@ -283,8 +284,6 @@ function setupGame() {
     instruction: content.previewInstruction || fallbackContent.previewInstruction,
     audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
     showGameOnPreview: content.showGameOnPreview === true,
-    timerConfig: timer ? { type: 'decrease', startTime: 60, endTime: 0 } : null,
-    timerInstance: timer || null,
     onComplete: function(previewData) { startGameAfterPreview(previewData); }
   });
 }
@@ -377,9 +376,12 @@ function endGame(won) {
 }
 ```
 
-### Preview timer sync
+### Game timer
 
-When the game has a `TimerComponent`, pass `timerConfig` + `timerInstance` into `previewScreen.show()`. The PreviewScreen reads the game's TimerComponent each frame via `requestAnimationFrame` and mirrors it in the header — the game still owns `timer.start()` / `timer.pause()`. Game CSS MUST NOT override `.mathai-preview-header .mathai-timer-*` classes.
+When the game has a `TimerComponent`, instantiate it into a container inside `#gameContent` and own its full lifecycle:
+- `timer.start()` in `startGameAfterPreview()`
+- `timer.pause()` / `timer.resume()` from VisibilityTracker's `onInactive` / `onResume` callbacks, so the countdown freezes while the tab is hidden
+- `timer.reset()` on restart
 
 ### Audio permission gate
 

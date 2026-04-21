@@ -16,7 +16,7 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 
 | Screen | Component | Key call |
 |---|---|---|
-| Preview | PreviewScreenComponent | `previewScreen.show({ instruction, audioUrl, showGameOnPreview, timerConfig, timerInstance, onComplete })` — ctor is `new PreviewScreenComponent({ slotId: 'mathai-preview-slot' })`. `onComplete(previewData)` invokes `startGameAfterPreview(previewData)` (callback, not awaited). Render `#gameContent` BEFORE calling `show()`. See PART-039. |
+| Preview | PreviewScreenComponent | `previewScreen.show({ instruction, audioUrl, showGameOnPreview, onComplete, onPreviewInteraction? })` — ctor is `new PreviewScreenComponent({ slotId: 'mathai-preview-slot' })`. `onComplete(previewData)` invokes `startGameAfterPreview(previewData)` (callback, not awaited). Render `#gameContent` BEFORE calling `show()`. See PART-039. |
 | Welcome | TransitionScreenComponent | `ts.show({ title, buttons:[{text:"I'm ready"}], onMounted: () => FeedbackManager.sound.play(vo, {sticker}) })` |
 | Round N intro | TransitionScreenComponent | `ts.show({ title:"Round N", onMounted: () => sound.play(round_n) })` — await sound, then `ts.hide()` |
 | Ready to improve your score? | TransitionScreenComponent | tap-dismiss, onMounted fires motivation VO |
@@ -68,7 +68,6 @@ async function startGame() {
   await new Promise(resolve => {
     previewScreen.show({
       instruction, audioUrl, showGameOnPreview: false,
-      timerConfig: null, timerInstance: null,
       onComplete: (previewData) => { startGameAfterPreview(previewData); resolve(); }
     });
   });

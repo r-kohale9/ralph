@@ -4423,4 +4423,59 @@ describe('5e0-DOM-BOUNDARY: preview private DOM boundary', () => {
       `Rule fired when PreviewScreenComponent absent. Got: ${output}`,
     );
   });
+
+  it('errors when previewScreen.show() passes timerInstance', () => {
+    const html = buildPreviewHtml().replace(
+      /previewScreen\.show\s*\(\s*\{/,
+      "previewScreen.show({ timerInstance: null, ",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('5e0-DRIFTED-OPTIONS'),
+      `Expected 5e0-DRIFTED-OPTIONS on timerInstance. Got: ${output}`,
+    );
+    assert.ok(output.includes('timerInstance'), `Message should name the key. Got: ${output}`);
+  });
+
+  it('errors when previewScreen.show() passes timerConfig', () => {
+    const html = buildPreviewHtml().replace(
+      /previewScreen\.show\s*\(\s*\{/,
+      "previewScreen.show({ timerConfig: { type: 'decrease', startTime: 60, endTime: 0 }, ",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('5e0-DRIFTED-OPTIONS'),
+      `Expected 5e0-DRIFTED-OPTIONS on timerConfig. Got: ${output}`,
+    );
+    assert.ok(output.includes('timerConfig'), `Message should name the key. Got: ${output}`);
+  });
+
+  it('does NOT error on a clean previewScreen.show() (no drifted options)', () => {
+    const html = buildPreviewHtml();
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-DRIFTED-OPTIONS'),
+      `Unexpected 5e0-DRIFTED-OPTIONS on clean show(). Got: ${output}`,
+    );
+  });
+
+  it('errors when ActionBarComponent alone is present and banned ID is reached into', () => {
+    // After the PART-039 → PART-040 split, some callers may use ActionBarComponent
+    // directly (without PreviewScreen). The rule must still fire on banned IDs.
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "new ActionBarComponent({ slotId: 'mathai-preview-slot' });\n" +
+        "var _pi = document.getElementById('previewInstruction'); if (_pi) _pi.style.display = 'none';\n" +
+        'initGame();',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('5e0-DOM-BOUNDARY'),
+      `Rule did not fire with ActionBarComponent present. Got: ${output}`,
+    );
+    assert.ok(
+      output.includes('ActionBarComponent') || output.includes('PreviewScreenComponent'),
+      `Error message should name the owning component. Got: ${output}`,
+    );
+  });
 });

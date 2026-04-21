@@ -36,6 +36,7 @@
     sticker: "https://storage.googleapis.com/test-dynamic-assets/packages/sticker/index.js",
     timer: "https://storage.googleapis.com/test-dynamic-assets/packages/timer/index.js",
     stories: "https://storage.googleapis.com/test-dynamic-assets/packages/components/stories/index.js",
+    actionBar: "https://storage.googleapis.com/test-dynamic-assets/packages/components/action-bar/index.js",
     previewScreen: "https://storage.googleapis.com/test-dynamic-assets/packages/components/preview-screen/index.js",
     voiceInput: "https://storage.googleapis.com/test-dynamic-assets/packages/components/voice-input/index.js"
   };
@@ -94,6 +95,8 @@
         .then(() => loadScript(COMPONENT_URLS.screenLayout, "ScreenLayout"))
         .then(() => loadScript(COMPONENT_URLS.progressBar, "ProgressBar"))
         .then(() => loadScript(COMPONENT_URLS.transitionScreen, "TransitionScreen"))
+        // ActionBar must load BEFORE PreviewScreen — PreviewScreen constructs ActionBar internally.
+        .then(() => loadScript(COMPONENT_URLS.actionBar, "ActionBar"))
         .then(() => loadScript(COMPONENT_URLS.previewScreen, "PreviewScreen"))
         // 3. Load dependencies
         .then(() => loadScript(COMPONENT_URLS.lottiePlayer, "LottiePlayer"))
@@ -129,10 +132,12 @@
         StickerComponent: window.StickerComponent,
         TimerComponent: window.TimerComponent,
         StoriesComponent: window.StoriesComponent,
+        ActionBarComponent: window.ActionBarComponent,
+        ActionBar: window.ActionBar,
         PreviewScreenComponent: window.PreviewScreenComponent,
         PreviewScreen: window.PreviewScreen,
         VoiceInput: window.VoiceInput,
-        version: "1.3.0"
+        version: "1.4.0"
       };
     })
     .catch(function (error) {

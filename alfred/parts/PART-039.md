@@ -19,8 +19,6 @@ const previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot'
 | `instruction` | string | HTML allowed (bold, images, video) |
 | `audioUrl` | string\|null | Preview audio; null → runtime TTS fallback |
 | `showGameOnPreview` | boolean | Default false. If true, render game behind transparent blocking overlay |
-| `timerConfig` | object\|null | `{ type: 'decrease'\|'increase', startTime, endTime }` |
-| `timerInstance` | TimerComponent\|null | Reference to game timer for header sync |
 | `onComplete` | function | Called with `previewData` when preview ends (skip or timer) |
 | `onPreviewInteraction` | function | Called when `setPreviewData()` fires |
 
@@ -45,6 +43,6 @@ const previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot'
 
 **State enum:** `getState()` returns `'idle'` (pre-`show`), `'preview'` (overlay visible), or `'game'` (overlay dismissed, wrapper still mounted).
 
-**Methods:** `show`, `pause`, `resume`, `skip`, `setPreviewData`, `getState`, `destroy`.
+**Methods:** `show`, `pause`, `resume`, `skip`, `setPreviewData`, `getState`, `isActive`, `destroy`, `setStar(visible)` — show/hide the header star at runtime.
 
-See `warehouse/parts/PART-039-preview-screen.md` for full detail (audio layers, timer sync rAF, verification checklist).
+See `warehouse/parts/PART-039-preview-screen.md` and `warehouse/parts/PART-040-action-bar.md` for full detail (audio layers, reliability rules R1–R10, verification checklist).
