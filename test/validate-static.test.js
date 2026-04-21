@@ -4328,3 +4328,99 @@ describe('GEN-ISPROCESSING-RESET: isProcessing must be reset to false', () => {
     );
   });
 });
+
+describe('5e0-DOM-BOUNDARY: preview private DOM boundary', () => {
+  // Inject a snippet into a PreviewScreen-enabled HTML by splicing it in just before
+  // the closing </script> tag. buildPreviewHtml() produces HTML that already has
+  // PreviewScreenComponent + mathai-preview-slot compat CSS, so the rule is gated-on.
+  function injectSnippet(snippet) {
+    return buildPreviewHtml().replace('</script>', `${snippet}\n</script>`);
+  }
+
+  it('errors when game code calls getElementById(\'previewInstruction\')', () => {
+    const html = injectSnippet(
+      "var _pi = document.getElementById('previewInstruction'); if (_pi) _pi.style.display = 'none';",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
+    assert.ok(
+      output.includes('5e0-DOM-BOUNDARY'),
+      `Expected 5e0-DOM-BOUNDARY error, got: ${output}`,
+    );
+    assert.ok(
+      output.includes('previewInstruction'),
+      `Error should name the specific banned ID. Got: ${output}`,
+    );
+  });
+
+  it('errors when game code calls querySelector(\'#previewScore\')', () => {
+    const html = injectSnippet("var s = document.querySelector('#previewScore');");
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
+    assert.ok(
+      output.includes('5e0-DOM-BOUNDARY'),
+      `Expected 5e0-DOM-BOUNDARY error, got: ${output}`,
+    );
+  });
+
+  it('errors when game code calls querySelector(\'.mathai-preview-header\')', () => {
+    const html = injectSnippet("var h = document.querySelector('.mathai-preview-header');");
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
+    assert.ok(
+      output.includes('5e0-DOM-BOUNDARY'),
+      `Expected 5e0-DOM-BOUNDARY error, got: ${output}`,
+    );
+  });
+
+  it('errors when game code calls classList.add(\'mathai-preview-overlay\')', () => {
+    const html = injectSnippet(
+      "var el = document.getElementById('gameContent'); if (el) el.classList.add('mathai-preview-overlay');",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
+    assert.ok(
+      output.includes('5e0-DOM-BOUNDARY'),
+      `Expected 5e0-DOM-BOUNDARY error, got: ${output}`,
+    );
+  });
+
+  it('does NOT error on getElementById(\'gameContent\') — public contract', () => {
+    const html = injectSnippet("var gc = document.getElementById('gameContent');");
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-DOM-BOUNDARY'),
+      `Unexpected 5e0-DOM-BOUNDARY on public #gameContent. Got: ${output}`,
+    );
+    // exitCode may be 0 (pass) — but even if other rules fail, this rule should be silent.
+    // We assert only on the absence of our rule string, not exitCode.
+    assert.ok(exitCode === 0 || !output.includes('5e0-DOM-BOUNDARY'), output);
+  });
+
+  it('does NOT error on getElementById(\'mathai-preview-slot\') — legit slot container', () => {
+    const html = injectSnippet(
+      "var slot = document.getElementById('mathai-preview-slot'); if (slot) slot.appendChild(document.createElement('div'));",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-DOM-BOUNDARY'),
+      `Unexpected 5e0-DOM-BOUNDARY on legitimate #mathai-preview-slot. Got: ${output}`,
+    );
+    // Same as above — other unrelated rules may still fire.
+    assert.ok(exitCode === 0 || !output.includes('5e0-DOM-BOUNDARY'), output);
+  });
+
+  it('does NOT error when PreviewScreenComponent is absent (rule is gated)', () => {
+    // Plain HTML with no PreviewScreenComponent — even a matching pattern must be ignored.
+    // Other unrelated rules may fire on VALID_HTML; we only assert our rule is silent.
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "var _pi = document.getElementById('previewInstruction'); if (_pi) _pi.style.display = 'none';\ninitGame();",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-DOM-BOUNDARY'),
+      `Rule fired when PreviewScreenComponent absent. Got: ${output}`,
+    );
+  });
+});

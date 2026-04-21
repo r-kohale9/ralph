@@ -102,7 +102,7 @@ Student answers incorrectly. Lives: 3 → 2.
 
 ---
 
-### Case 3: Wrong answer — last life lost (skip wrong SFX, go to game over)
+### Case 3: Wrong answer — last life lost (wrong SFX plays, then game over)
 
 **Priority:** P0
 **Type:** edge-case
@@ -118,10 +118,10 @@ Student answers incorrectly. Lives: 1 → 0.
 **Expect:**
 
 - [ ] Life decremented to 0
-- [ ] **Wrong-answer SFX is NOT played** — skipped entirely
-- [ ] Game goes directly to game-over flow
+- [ ] **Wrong-answer SFX plays** — same SFX + sticker as Case 2 (awaited with Promise.all 1500ms minimum)
+- [ ] After wrong SFX finishes, game proceeds to game-over flow
 - [ ] Game Over screen renders FIRST (title, sad emoji, rounds completed, "Try Again" CTA)
-- [ ] `game_complete` postMessage sent to parent BEFORE audio
+- [ ] `game_complete` postMessage sent to parent BEFORE game-over audio
 - [ ] Game over SFX plays (with sad sticker, 3s) → game over VO plays (sequential await)
 - [ ] CTA is already visible during audio — if tapped, all audio stops, game restarts
 - [ ] [LLM] No "incorrect" audio plays before game-over audio (priority rule)
@@ -274,7 +274,7 @@ Game is mid-round. Student switches tabs.
 |------|----------|----------------|
 | Case 1: Correct answer (awaited) | P0 | PASS |
 | Case 2: Wrong answer (stay on round) | P0 | PASS |
-| Case 3: Last life (skip wrong SFX) | P0 | PASS |
+| Case 3: Last life (wrong SFX plays, then game over) | P0 | PASS |
 | Case 4: Multi-step match (fire-and-forget) | P0 | PASS |
 | Case 5: Round complete (awaited) | P1 | PASS or PARTIAL |
 | Case 6: CTA stops audio | P1 | PASS or PARTIAL |

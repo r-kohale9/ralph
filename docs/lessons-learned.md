@@ -2788,3 +2788,34 @@ This guarantees at least 1500ms AND waits for the sound promise, whichever is lo
 - Validator (`lib/validate-static.js`): `5e0-FEEDBACK-MIN-DURATION` — detects answer-feedback sound IDs not preceded by `Promise.all([` within 80 chars.
 - Docs: PART-017 "Minimum Feedback Duration" section + PART-026 Anti-Pattern 34 + code-patterns.md updated.
 - Tests: `test/content-match.test.js` per-fixture assertion.
+
+### Lesson 213 — Last-life wrong answer must play incorrect SFX before game over (make-x, geo-quad-match, 2026-04-17)
+
+**Symptom:** When the student had 1 life remaining and answered incorrectly, the game jumped instantly to the game-over screen without playing the incorrect feedback audio/sticker. The student had no feedback that their answer was wrong — just an abrupt game over.
+
+**Root cause:** Pipeline rule "CASE 8" in `alfred/skills/feedback/SKILL.md` explicitly instructed: "Wrong-answer SFX is skipped entirely — game goes straight to Game Over." This was an intentional design choice that turned out to be wrong pedagogically — the student needs to hear/see the incorrect feedback before game over.
+
+**Why the LLM did it:** The LLM correctly followed CASE 8 as documented. The pattern `if (gameState.lives <= 0) { endGame(false); return; }` was placed BEFORE the feedback audio block, so the early return skipped the SFX entirely.
+
+**Fix — pipeline level:** Reversed CASE 8 across all pipeline docs. Wrong-answer SFX now ALWAYS plays (awaited with Promise.all 1500ms minimum per GEN-FEEDBACK-MIN-DURATION), including on last life. The lives<=0 check + endGame call goes AFTER the feedback audio block, never before it.
+
+**Correct pattern:**
+```javascript
+// 1. Decrement lives, update progress bar
+gameState.lives--;
+if (progressBar) progressBar.update(round, Math.max(0, gameState.lives));
+// 2. ALWAYS play wrong SFX (even on last life)
+try {
+  await Promise.all([
+    FeedbackManager.sound.play('wrong_tap', { sticker }),
+    new Promise(function(r) { setTimeout(r, 1500); })
+  ]);
+} catch(e) {}
+// 3. THEN check if game over
+if (gameState.lives <= 0) { endGame(false); return; }
+```
+
+**Rules:**
+- Prompt (`lib/prompts.js`): GEN-LASTLIFE-FEEDBACK — mandates wrong SFX before endGame on last life.
+- Validator (`lib/validate-static.js`): `5e0-LASTLIFE-SKIP-FORBIDDEN` — detects endGame inside lives<=0 block without preceding FeedbackManager.sound.play.
+- Docs: feedback/SKILL.md CASE 8 reversed, feedback-summary.md, code-patterns.md, plan-formats.md, game-building/SKILL.md rule 3, eval.md Case 3 all updated.

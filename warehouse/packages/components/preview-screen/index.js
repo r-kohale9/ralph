@@ -140,10 +140,42 @@
     window.addEventListener("message", this._gameInitListener);
 
     // Visibility safety net
+    //
+    // Pause-only. NEVER auto-resume on visible:
+    //   - hidden  → pause() so audio/timer stop in background
+    //   - visible → DO NOT auto-resume — resume is gated on a user gesture
+    //
+    // Rationale: the canonical wiring is VisibilityTracker.onInactive →
+    // previewScreen.pause() and VisibilityTracker.onResume → previewScreen
+    // .resume(), with onResume firing only after the user clicks the
+    // "Resume Activity" popup. Auto-resuming here would bypass that gate
+    // and cause audio to blast the moment the tab becomes visible again.
+    //
+    // Two special cases that used to rely on this auto-resume branch are
+    // now handled elsewhere:
+    //
+    //   1. Tab-switch BEFORE audio-permission grant (permission popup visible
+    //      the whole time). VisibilityTracker's resume popup is suppressed
+    //      because the permission popup is already up, so onResume never
+    //      fires. `_waitForAudioPermission()` now unpauses the component
+    //      when it detects the permission popup was dismissed.
+    //
+    //   2. Tab-switch DURING audio playback. VisibilityTracker shows its
+    //      Resume Activity popup (with a 100ms delay to avoid stacking with
+    //      other popups). The user clicks Resume → VisibilityTracker.onResume
+    //      → game handler → previewScreen.resume(). The 100ms delay is why
+    //      a naive isPopupVisible() check at the time of visibilitychange
+    //      is not reliable — the popup has not been rendered yet.
+    //
+    // Scoped to states other than "idle" so we don't disturb a component
+    // that hasn't been shown yet.
     this._visibilityListener = function () {
-      if (document.hidden && self._state === "preview" && !self._isPaused) {
-        self.pause();
+      if (document.hidden) {
+        if (self._state !== "idle" && !self._isPaused) {
+          self.pause();
+        }
       }
+      // NOTE: no "visible" branch — see header comment above.
     };
     document.addEventListener("visibilitychange", this._visibilityListener);
 
@@ -752,6 +784,21 @@
         var bd = document.getElementById("popup-backdrop");
         if (bd) { bd.style.display = "none"; bd.style.pointerEvents = "none"; }
         console.log("[PreviewScreen] Audio permission granted, starting timer");
+        // If the tab was hidden and is now visible while we were still
+        // waiting for permission, the pause() from the hide is still in
+        // effect — visibility listener no longer auto-resumes (to avoid
+        // bypassing the Resume Activity popup during mid-playback tab
+        // switches). Dismissal of the PERMISSION popup is a genuine user
+        // gesture, so clear the paused state inline before flushing
+        // callbacks. Without this, _playPreviewAudio() would stash
+        // _audioPendingPlay=true and return, and nothing would call
+        // resume() again — preview stays frozen.
+        if (self._isPaused) {
+          console.log("[PreviewScreen] Clearing paused state on permission-grant (tab-switch-during-permission path)");
+          self._isPaused = false;
+          self._pausedAt = 0;
+          self._pauseSavedOffset = false;
+        }
         self._flushPermissionCallbacks();
       }
     }, 150);

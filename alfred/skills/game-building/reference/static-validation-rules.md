@@ -108,6 +108,7 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | 5e0-DUP-HEADER | `#gameContent` markup contains an element with class containing `header`, `score-display`, or `avatar` (duplicates preview header) | warning | game-building (html-template) | Advisory |
 | 5e0-NEW-AUDIO | `new Audio(` appears anywhere in generated game code — preview/game audio must route through `FeedbackManager.sound` | error | game-building (code-patterns) | Advisory |
 | 5e0-PREVIEWRESULT | `game_complete` postMessage payload does not reference `previewResult` field | warning | game-building (code-patterns) | Advisory |
+| 5e0-DOM-BOUNDARY | Game code calling getElementById/querySelector on preview-owned IDs (#previewInstruction, #previewProgressBar, #previewTimerText, #previewQuestionLabel, #previewScore, #previewStar, #previewSkipBtn, #previewBackBtn, #previewAvatarSpeaking, #previewAvatarSilent, #previewGameContainer, #popup-backdrop) or .mathai-preview-* class selectors / classList toggles — boundary violation (component owns its DOM). See PART-039, PART-026 AP-35. | error | game-building (code-patterns) | Implemented in lib/validate-static.js |
 
 ## ScreenLayout
 

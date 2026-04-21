@@ -167,9 +167,40 @@ async function showResults(metrics, reason) {
 
 TransitionScreen hides `#gameContent` when shown. A `#results-screen` inside `#gameContent` would be hidden too. Always use the `content` property to inject results into the transition card. See PART-019 for details.
 
+## CRITICAL: show() Promise Resolves IMMEDIATELY
+
+The CDN `TransitionScreenComponent.show()` promise resolves **immediately** (next `requestAnimationFrame` after `onMounted` fires). It does NOT wait for a button tap. It does NOT wait for a `duration` to elapse. `duration` and `persist` are accepted as options but **neither is implemented** in the current CDN code — `show()` never reads them.
+
+**Consequence:** code after `await transitionScreen.show(...)` runs BEFORE the student interacts with the screen. ALL game-flow continuation (phase changes, `showRoundIntro()`, `renderRound()`, `startGame()`, `restartGame()`) MUST go inside the button `action` callback, NEVER after `await show()`.
+
+```javascript
+// WRONG — showRoundIntro(1) runs immediately, welcome screen is skipped
+await transitionScreen.show({
+  title: "Let's go!",
+  buttons: [{ text: "I'm ready", type: 'primary', action: function() {
+    transitionScreen.hide();
+  }}]
+});
+showRoundIntro(1);  // ← runs before student taps "I'm ready" — BUG
+
+// RIGHT — continuation inside action callback, runs ONLY on button tap
+await transitionScreen.show({
+  title: "Let's go!",
+  buttons: [{ text: "I'm ready", type: 'primary', action: function() {
+    transitionScreen.hide();
+    showRoundIntro(1);  // ← runs only when student taps "I'm ready"
+  }}]
+});
+// Nothing after await — button action drives the flow
+```
+
+For auto-dismiss screens (round intro, stars collected) that have no buttons: fire audio + `hide()` + continuation inside the `onMounted` IIFE (as an async function). Code after `await show()` can also call `hide()` since it runs immediately — either approach works.
+
+Validator rule: `5e2-TS-PERSIST-FALLTHROUGH`.
+
 ## Common Issue: duration + buttons
 
-Do NOT combine `duration` with `buttons` on the same screen — the screen may auto-hide before the user clicks. Use one or the other.
+Do NOT combine `duration` with `buttons` on the same screen — the screen may auto-hide before the user clicks. Use one or the other. Note: the CDN does not currently implement `duration` — the option is accepted but ignored.
 
 ## Requires ScreenLayout v2
 
@@ -200,6 +231,7 @@ document.getElementById('results-screen').style.display = 'block';
 - [ ] ScreenLayout has `sections.transitionScreen: true`
 - [ ] No `#results-screen` div in HTML (use content slot instead)
 - [ ] No mix of `duration` + `buttons` on same screen
+- [ ] No game-flow continuation after `await transitionScreen.show(...)` with `buttons` — all continuation (phase changes, showRoundIntro, renderRound, startGame, restartGame) must go inside the button `action` callback (show() resolves immediately; validator rule `5e2-TS-PERSIST-FALLTHROUGH`)
 - [ ] `voGameStartPlayed` guard prevents duplicate welcome VO
 
 ## Source Code

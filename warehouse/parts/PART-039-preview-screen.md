@@ -258,6 +258,54 @@ Do NOT call `setupGame()` from `restartGame()` if `setupGame()` ends with `showP
 
 ---
 
+## Component Boundary (CRITICAL)
+
+PreviewScreenComponent owns its internal DOM. Game code operates only within `#gameContent` and its children; the CDN manages preview visibility via `switchToGame()` (internal, called by `skip()` / timer-complete) and `destroy()` (once, in `endGame()` cleanup).
+
+**Game HTML MUST NOT** reference these preview-owned IDs via `getElementById` / `querySelector` / `querySelectorAll`, and MUST NOT toggle any `.mathai-preview-*` class via `classList.add/remove/toggle/contains`:
+
+| Banned reference | Owner |
+|---|---|
+| `#previewInstruction` | preview instruction area |
+| `#previewProgressBar` | preview audio/timer countdown strip |
+| `#previewTimerText` | preview timer label |
+| `#previewQuestionLabel` | header question label |
+| `#previewScore` | header score |
+| `#previewStar` | header star |
+| `#previewSkipBtn` | skip button |
+| `#previewBackBtn` | back button |
+| `#previewAvatarSpeaking`, `#previewAvatarSilent` | avatar states |
+| `#previewGameContainer` | internal game container |
+| `#popup-backdrop` | popup layer |
+| `.mathai-preview-*` (all classes) | preview internals |
+
+**Allowed (public contract):** `#gameContent` and its children, `.game-stack`, `.game-block`, `.game-wrapper`, `.page-center`, and `#mathai-preview-slot` (the slot container — a legitimate fallback host in `injectGameHTML`, distinct from `.mathai-preview-*` class selectors).
+
+**Why:** the component already hides its overlay at `switchToGame()` time. Game code reaching in to set `display: 'none'` on `#previewInstruction` (or similar) competes with the component's lifecycle, tightly couples the game to private implementation details, and will break on the next component revision.
+
+**Wrong:**
+```javascript
+function startGameAfterPreview() {
+  var _pi = document.getElementById('previewInstruction');  // ← boundary violation
+  if (_pi) _pi.style.display = 'none';
+}
+```
+
+**Right:**
+```javascript
+function startGameAfterPreview() {
+  // CDN already called switchToGame(); overlay is hidden by the component itself.
+  gameState.isActive = true;
+  gameState.startTime = Date.now();
+  syncDOM();
+  showRoundIntro();
+}
+```
+
+Validator rule `5e0-DOM-BOUNDARY` enforces this. Cross-reference: PART-026 Anti-Pattern 35.
+
+---
+
 ## Verification Checklist
 
 - [ ] `ScreenLayout.inject()` includes `previewScreen: true`
@@ -276,3 +324,4 @@ Do NOT call `setupGame()` from `restartGame()` if `setupGame()` ends with `showP
 - [ ] Game DOM is rendered into `#gameContent` BEFORE `previewScreen.show()` is called (otherwise preview overlay covers empty space when `showGameOnPreview: true`)
 - [ ] `gameState.previewResult` included in `game_complete` payload if interactive
 - [ ] Standalone `setTimeout` fallback inside DOMContentLoaded gates on `previewScreen && previewScreen.isActive()` before running any `startGame()` / `showRoundIntro()` / `injectGameHTML()`. The fallback exists only to recover from `waitForPackages()` timeout; it MUST abort when a live preview is mounted. `gameState.phase === 'start_screen'` alone is NOT a sufficient gate because preview does not mutate `gameState.phase`.
+- [ ] **Component boundary:** game code does NOT call `getElementById` / `querySelector` / `querySelectorAll` on preview-owned IDs (`#previewInstruction`, `#previewProgressBar`, `#previewTimerText`, `#previewQuestionLabel`, `#previewScore`, `#previewStar`, `#previewSkipBtn`, `#previewBackBtn`, `#previewAvatarSpeaking`, `#previewAvatarSilent`, `#previewGameContainer`, `#popup-backdrop`), and does NOT reference any `.mathai-preview-*` class via selector or `classList.add/remove/toggle/contains`. `#mathai-preview-slot` (slot container) is allowed. Game code operates only within `#gameContent`. Validator rule `5e0-DOM-BOUNDARY`; PART-026 Anti-Pattern 35.

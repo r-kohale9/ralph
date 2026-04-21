@@ -209,7 +209,7 @@ Write the complete `index.html` file. No placeholder comments. No TODO markers. 
 
 1. **CRITICAL** -- Never build custom feedback overlays -- FeedbackManager owns the overlay layer.
 2. **CRITICAL** -- Single-step correct/wrong: `await FeedbackManager.sound.play(...)` — awaited, blocks input via `gameState.isProcessing`. Multi-step mid-round matches: fire-and-forget, no blocking.
-3. **CRITICAL** -- Last-life wrong answer: skip wrong SFX entirely, go straight to game-over audio (Case 8).
+3. **CRITICAL** -- Last-life wrong answer: ALWAYS play wrong SFX (awaited with Promise.all 1500ms minimum, same as any other answer-feedback call) BEFORE proceeding to game-over flow (Case 8). Never skip the wrong SFX on last life.
 4. **CRITICAL** -- Screen renders BEFORE end-game audio. `game_complete` postMessage sent BEFORE audio plays (Cases 11, 12).
 5. **CRITICAL** -- CTA taps stop all audio (`FeedbackManager.sound.stopAll()` + `_stopCurrentDynamic()`).
 6. **CRITICAL** -- All SFX URLs from `feedback/reference/feedbackmanager-api.md` Standard Audio URLs table. Never invent URLs.
