@@ -143,7 +143,7 @@ function handleReset() {
 
   gameState.lives--;
   syncDOM();
-  if (progressBar) progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
+  if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
 
   FeedbackManager.sound.play('incorrect_sound_effect', { sticker: INCORRECT_STICKER }).catch(function() {});
 

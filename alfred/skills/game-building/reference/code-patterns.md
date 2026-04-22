@@ -136,9 +136,10 @@ Per PART-023. Game-building rules:
 - `slotId` must be exactly `'mathai-progress-slot'` (GEN-UX-003). **Do NOT use `'previewProgressBar'`** or `'progress-bar-container'` — those are different things (see ID disambiguation below).
 - **ID disambiguation.** `#previewProgressBar` is the audio countdown strip **inside the preview header** (~4px tall, populated by PreviewScreenComponent during preview state — it animates full → empty as preview audio plays). `#mathai-progress-slot` is a **separate** element ScreenLayout creates at the top of `.game-stack` for the round counter + lives bar. Two different elements, two different purposes. If you instantiate ProgressBarComponent with `slotId: 'previewProgressBar'`, the round bar mounts into the countdown strip and crushes the whole header row.
 - `ScreenLayout.inject` slots MUST include `progressBar: true` for the slot to be created in preview-wrapper mode (`slots: { previewScreen: true, progressBar: true, transitionScreen: true }`).
-- **`update(roundsCompleted, livesRemaining)`** — first arg is rounds **completed**, not the current round number. On start: `update(0, totalLives)`. Entering round N: `update(N-1, livesLeft)`. After correct feedback on round N: `update(N, livesLeft)`. After wrong feedback: `update(roundsCompleted, livesLeft-1)` (hearts decrement only). On restart: `update(0, totalLives)`.
-- Call `progressBar.update(currentRound, Math.max(0, lives))` after each answer (LP-PROGRESSBAR-CLAMP).
-- First arg to `update()` is rounds COMPLETED, not totalRounds (GEN-112).
+- **`update(progress, livesRemaining)` — INVARIANT: `progress` starts at `0` when the game begins, never at `1`.** The first `progressBar.update()` call on the initial flow path (inside `startGame` / `startGameAfterPreview` / the `DOMContentLoaded` init path) MUST be `update(0, totalLives)`. Validator rule `5e0-PROGRESSBAR-START-ONE` blocks any first-call whose first arg is not literal `0` (e.g. `update(currentRound + 1, …)`, `update(1, …)`). On restart (before the first new round): `update(0, totalLives)`.
+- **Increment policy is game-specific.** What `progress` counts — rounds completed, correct answers, points earned, section progress, etc. — is defined per game. The skill does NOT prescribe a single policy. Pick the metric that matches your spec and increment it when that metric changes. The canonical "rounds completed, incremented on correct feedback" loop in `flow-implementation.md` is ONE example of the invariant; swap the increment condition to match your progression metric.
+- `livesRemaining` MUST be clamped: `progressBar.update(progress, Math.max(0, lives))` (LP-PROGRESSBAR-CLAMP). Passing a negative value (e.g. after the last wrong answer decrements to -1) throws a RangeError inside the CDN component.
+- First arg to `update()` is a **progression counter**, never `totalRounds` (GEN-112) — the component computes `progress / totalRounds` internally from the constructor's `totalRounds`.
 - Never wrap `destroy()` in `setTimeout` -- synchronous only (GEN-PROGRESSBAR-DESTROY).
 - See `parts/PART-023.md` for constructor options and createProgressBar helper.
 
@@ -393,27 +394,32 @@ When the game has a `TimerComponent`, instantiate it into a container inside `#g
 - `timer.pause()` / `timer.resume()` from VisibilityTracker's `onInactive` / `onResume` callbacks, so the countdown freezes while the tab is hidden
 - `timer.reset()` on restart
 
-### Round-complete handler — progress bar bumps FIRST
+### Round-complete handler — progress bar bumps FIRST (ordering rule)
 
-Every round-complete handler (the code path that fires when the round's answer is accepted / last sub-question is locked) **MUST** start with:
+Every round-complete handler (the code path that fires when the round's progression metric changes) **MUST** bump the progress bar BEFORE any awaited SFX / VO / transition:
 
 ```javascript
 if (progressBar) {
-  try { progressBar.update(gameState.currentRound, Math.max(0, gameState.lives)); } catch (e) {}
+  // gameState.progress is whatever counter this game tracks (rounds completed,
+  // correct answers, points earned, section progress, …). Increment the counter
+  // in state FIRST, then pass the new value here.
+  try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
 }
 ```
 
 BEFORE any of: awaited round-complete SFX, sticker, subtitle, VO, `trackEvent('round_complete', ...)`, `nextRound()`, `endGame('victory')`.
 
-Why: round-complete SFX is typically awaited (1–2s) and the final round hands off directly to `endGame('victory')` → Victory transition. If the bar is updated after the await, the Victory screen renders with the bar still at `N-1/N`. Bumping first makes the bar paint `N/N` the instant the last answer locks, in sync with the visual "green / locked" state. Same ordering principle as `recordAttempt`-before-audio — data/UI first, audio/transitions second. PART-023 + feedback/SKILL.md ordering priority 0.
+Why: round-complete SFX is typically awaited (1–2s) and the final round hands off directly to `endGame('victory')` → Victory transition. If the bar is updated after the await, the Victory screen renders with the bar still at the previous value. Bumping first makes the bar paint the new value the instant the metric changes, in sync with the visual "green / locked" state. Same ordering principle as `recordAttempt`-before-audio — data/UI first, audio/transitions second. PART-023 + feedback/SKILL.md ordering priority 0.
+
+Note: the counter itself is game-specific (see the ProgressBarComponent section above). Only the **ordering** rule — bump before await — is universal. The *start-at-0* invariant still applies: the very first `progressBar.update()` on the init path is `update(0, totalLives)`, regardless of what increment policy this handler uses later.
 
 **Anti-pattern — bar updated after the await:**
 
 ```javascript
-// WRONG — Victory renders with "8/9" on the final round
+// WRONG — Victory renders with the pre-bump value on the final round
 async function onRoundComplete() {
   await FeedbackManager.sound.play('all_correct', { ... });
-  progressBar.update(gameState.currentRound, gameState.lives);   // too late
+  progressBar.update(gameState.progress, gameState.lives);   // too late
   if (lastRound) endGame('victory');
 }
 ```
@@ -422,7 +428,8 @@ async function onRoundComplete() {
 
 ```javascript
 async function onRoundComplete() {
-  progressBar.update(gameState.currentRound, Math.max(0, gameState.lives));   // first
+  gameState.progress++;                                                        // bump state first
+  progressBar.update(gameState.progress, Math.max(0, gameState.lives));        // then UI
   await FeedbackManager.sound.play('all_correct', { ... });                    // then SFX
   if (lastRound) endGame('victory');                                           // then transition
 }

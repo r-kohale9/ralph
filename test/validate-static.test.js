@@ -1017,11 +1017,12 @@ describe('progressBar hallucinated methods check (5f10)', () => {
   });
 
   it('does not flag progressBar.update() as a hallucinated method', () => {
-    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(1, 3);');
+    // Use literal 0 as first arg to satisfy 5e0-PROGRESSBAR-START-ONE (bare positive literals violate the start-at-0 invariant).
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(0, 3);');
     const { exitCode, output } = runValidator(html);
     assert.ok(
-      !output.includes('progressBar.update') || !output.includes('ERROR'),
-      `Unexpected error for progressBar.update(): ${output}`,
+      !/progressBar\.update[^]*?\b(5f7|5f9|5f10|hallucinated)\b/i.test(output),
+      `Unexpected hallucination error for progressBar.update(): ${output}`,
     );
   });
 });
@@ -1114,6 +1115,128 @@ describe('GEN-112 false-positive regression: Math.max(0, lives) must NOT trigger
     assert.ok(
       output.includes('3 args'),
       `Expected 3-arg error but got: ${output}`,
+    );
+  });
+});
+
+describe('5e0-PROGRESSBAR-START-ONE — progressBar.update() first arg must not be 1-indexed', () => {
+  it('fails when first arg is `gameState.currentRound + 1` (sort-the-shapes regression)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Expected 5e0-PROGRESSBAR-START-ONE error but got: ${output}`,
+    );
+    assert.ok(
+      output.includes('gameState.currentRound + 1'),
+      `Expected offending arg in error message. Output: ${output}`,
+    );
+  });
+
+  it('fails when first arg is a bare positive literal `1`', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(1, 3);',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Expected 5e0-PROGRESSBAR-START-ONE error but got: ${output}`,
+    );
+  });
+
+  it('fails when first arg is `i + 1` in a loop', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); for (let i = 0; i < 5; i++) { progressBar.update(i + 1, 3); }',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Expected 5e0-PROGRESSBAR-START-ONE error but got: ${output}`,
+    );
+  });
+
+  it('passes when first arg is literal `0`', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(0, gameState.totalLives);',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Unexpected 5e0-PROGRESSBAR-START-ONE error for update(0, ...). Output: ${output}`,
+    );
+  });
+
+  it('passes when first arg is `gameState.roundsCompleted` (0-initialized counter)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(gameState.roundsCompleted, gameState.lives);',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Unexpected 5e0-PROGRESSBAR-START-ONE error for roundsCompleted. Output: ${output}`,
+    );
+  });
+
+  it('passes when first arg is `gameState.currentRound` (no +1)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(gameState.currentRound, gameState.lives);',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Unexpected 5e0-PROGRESSBAR-START-ONE error for gameState.currentRound. Output: ${output}`,
+    );
+  });
+
+  it('passes when first arg is `Math.max(0, gameState.currentRound - 1)` (defensive pattern)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(Math.max(0, gameState.currentRound - 1), Math.max(0, gameState.lives));',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Unexpected 5e0-PROGRESSBAR-START-ONE error for Math.max(0, ...-1) pattern. Output: ${output}`,
+    );
+  });
+
+  it('does not fire when progressBar is not used at all', () => {
+    // VALID_HTML has no progressBar reference
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Unexpected 5e0-PROGRESSBAR-START-ONE error when progressBar is absent. Output: ${output}`,
+    );
+  });
+
+  it('reports the overflow count when there are multiple offenders', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+        progressBar.update(gameState.currentRound + 1, 3);
+        progressBar.update(gameState.currentRound + 1, 2);
+        progressBar.update(gameState.currentRound + 1, 1);`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Expected 5e0-PROGRESSBAR-START-ONE error. Output: ${output}`,
+    );
+    assert.ok(
+      /\+2 more offending calls/.test(output),
+      `Expected overflow count in error. Output: ${output}`,
     );
   });
 });

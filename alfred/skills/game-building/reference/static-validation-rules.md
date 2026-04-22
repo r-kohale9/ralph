@@ -132,6 +132,7 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | LP-1 | `progressBar.update()` 2nd arg must not be `totalRounds` | error | game-building (code-patterns) | Covered |
 | GEN-PROGRESSBAR-LIVES | `totalLives: 0` or negative in ProgressBarComponent constructor | error | game-building (code-patterns) | Covered |
 | W14/LP-PROGRESSBAR-CLAMP | `progressBar.update()` with unclamped `gameState.lives` (negative -> RangeError) | warning | game-building (code-patterns) | Covered |
+| 5e0-PROGRESSBAR-START-ONE | `progressBar.update()` first arg is `<expr> + <positive-literal>` or a bare positive literal (e.g. `currentRound + 1`, `1`) — violates start-at-0 invariant, bar paints "Round 1/N" before round 1 is played | error | game-building (code-patterns, PART-023) | Covered |
 
 ## Timer
 

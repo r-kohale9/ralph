@@ -13,15 +13,15 @@ const progressBar = new ProgressBarComponent({
 });
 ```
 
-**Methods:** `update(roundsCompleted, livesRemaining)`, `show()`, `hide()`, `destroy()`. No `.init()` / `.start()` / `.reset()` exist.
+**Methods:** `update(progress, livesRemaining)`, `show()`, `hide()`, `destroy()`. No `.init()` / `.start()` / `.reset()` exist.
 
 **update() semantics:**
-- First arg is rounds **completed**, NOT the current round number.
-- On start: `update(0, totalLives)`.
-- Entering round N: reflects prior state → typically `update(N-1, livesLeft)` (already satisfied by the previous correct feedback).
-- **Round-complete bump — MUST be the first action in the round-complete handler, BEFORE any awaited SFX/subtitle/VO, BEFORE `nextRound`, BEFORE `endGame('victory')`:** `update(gameState.currentRound, Math.max(0, gameState.lives))`. Firing the bar bump synchronously when the last pair/answer locks keeps the visual fill in sync with the locked state. On the final round this paints `N/N` *before* the victory screen renders — otherwise the bar sticks at `N-1/N` on victory (matching-doubles regression, April 2026). Same ordering principle as `recordAttempt`-before-feedback-audio: UI/data events update first, audio/transitions play second.
-- After wrong feedback with lives remaining: `update(roundsCompleted, livesLeft-1)` (hearts decrement only; round count unchanged).
-- On restart entry: `update(0, totalLives)` (reset).
+- **INVARIANT — starts at 0:** The first `progressBar.update()` call on the initial flow path MUST be `update(0, totalLives)` — the progression counter begins at 0 when the game starts, never at 1. Validator rule `5e0-PROGRESSBAR-START-ONE` blocks any first-call whose first arg is not literal `0`.
+- **First arg is a game-specific progression counter**, NOT the 1-indexed current round number. What it counts — rounds completed, correct answers, points earned, section progress — is defined per game. The component renders `progress / totalRounds` internally.
+- Entering round N: reflects current progression state (e.g. `update(state.progress, livesLeft)`) — do NOT compute from the round index. Idempotent no-op if state hasn't changed since the last update.
+- **Round-complete bump — MUST be the first action in the round-complete handler, BEFORE any awaited SFX/subtitle/VO, BEFORE `nextRound`, BEFORE `endGame('victory')`:** increment the counter in state first, then `update(state.progress, Math.max(0, gameState.lives))`. Firing the bar bump synchronously when the round's progression metric changes keeps the visual fill in sync with the locked state. On the final round this paints the full bar *before* the victory screen renders — otherwise the bar sticks at the pre-bump value on victory (matching-doubles regression, April 2026). Same ordering principle as `recordAttempt`-before-feedback-audio: UI/data events update first, audio/transitions play second.
+- After wrong feedback with lives remaining: `update(state.progress, livesLeft-1)` (hearts decrement; progress changes only if the game's metric counts wrong answers).
+- On restart entry: `update(0, totalLives)` (reset to the start-at-0 invariant).
 - Second arg MUST be clamped: `Math.max(0, lives)` — a negative value throws RangeError inside the heart renderer.
 
 **Lifecycle — `createProgressBar()` helper:**
@@ -63,8 +63,8 @@ See `warehouse/parts/PART-023-progress-bar.md` for full detail.
 
 - [ ] `createProgressBar()` helper exists (called at init and restart)
 - [ ] `ProgressBarComponent` instantiated with `totalRounds` and `totalLives`
-- [ ] `progressBar.update(0, lives)` called at init (NOT 1)
-- [ ] `update(currentRound, lives)` called as the FIRST action in the round-complete handler (before awaited round-complete SFX, before `nextRound`/`endGame`) — final round must paint `N/N` on Victory, not `N-1/N`
+- [ ] `progressBar.update(0, lives)` called at init (NOT 1) — first-call invariant, enforced by `5e0-PROGRESSBAR-START-ONE`
+- [ ] `update(state.progress, lives)` called as the FIRST action in the round-complete handler (counter bumped in state first, before awaited round-complete SFX, before `nextRound`/`endGame`) — final round must paint the full bar on Victory, not the pre-bump value
 - [ ] `destroy()` called before recreation in `createProgressBar()`
 - [ ] ScreenLayout has `progressBar: true` in slots (preview-wrapper) or sections (legacy)
 - [ ] ProgressBar recreated on `handlePostMessage` and `restartGame()`
