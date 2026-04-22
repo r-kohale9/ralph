@@ -147,6 +147,26 @@ Output the verdict block as specified in the Output section.
 
 3. **Never restate mobile.md values.** Reference `mobile.md` sections by name (e.g., "per mobile.md Section 2, touch targets must be 44px minimum"). Do not copy constraint values into your review output.
 
+4. **Component boundary is non-negotiable.** The preview instruction text, preview header, and preview score label persist in game state **by design** — the instruction must stay visible so students can scroll up to re-read, the header is the persistent chrome, and the score format is owned by the CDN. Never "fix" a visual concern by writing code that reaches into preview-owned DOM. Every one of these is a hard-banned anti-pattern:
+   - `document.getElementById('previewInstruction').style.display = 'none'`
+   - `document.getElementById('previewScore').textContent = '0/1'`
+   - `document.getElementById('previewBackBtn')`, `#previewQuestionLabel`, `#previewStar`, `#previewAvatarSpeaking`, `#previewAvatarSilent`, `#previewProgressBar`, `#previewTimerText`, `#previewSkipBtn`, `#previewGameContainer`, `#popup-backdrop` — any reach-in
+   - `querySelector('#mathai-preview-slot .mathai-preview-header')` or any compound selector containing `.mathai-preview-*`
+   - `classList.add('mathai-preview-*')` on any game element
+   - CSS rules (inside `<style>`) that target the banned IDs or `.mathai-preview-header`
+   - Adding a game-defined class (`my-preview-hidden`, etc.) on `#mathai-preview-slot` combined with CSS that hides preview descendants
+   If the instruction feels too tall or the score format (`0/3`) looks wrong for the game's round count, fix it inside `#gameContent` (tighter game UI, shorter `fallbackContent.previewInstruction`, a game-owned score badge) — never by mutating preview DOM. Validator rule `5e0-DOM-BOUNDARY` enforces this. See PART-026 Anti-Pattern 35 + PART-039 Component Boundary section.
+
+5. **Static validation is a hard gate at ENTRY and EXIT of this skill — not only after fixes.**
+
+   - **ENTRY:** The FIRST action when invoking this skill is to run `node lib/validate-static.js <game-html-path>`. If exit ≠ 0, your first job is to fix the validator errors BEFORE conducting any visual review. The file may contain a boundary / contract violation committed by a previous visual-review invocation or by Step 6's test-and-fix loop — a re-run does not automatically make stale violations clean.
+
+   - **EXIT:** Run the validator again immediately before emitting the APPROVED verdict, EVERY time, regardless of whether you applied any changes this run. Exit code MUST be 0.
+
+   - A visual approval with validator exit ≠ 0 is a skill violation. An APPROVED verdict on a file that fails `5e0-DOM-BOUNDARY` is invalid.
+
+   - **NEVER list an anti-pattern as a passing check.** Entries like `"Preview instruction hidden after skip — PASS"` or `"Header score labelled 0/1 (overrides CDN default 0/3) — PASS"` are RED flags, not green ones. The code producing those visible effects is a boundary violation. Screenshot-level correctness does NOT override the validator exit code.
+
 ### STANDARD
 4. **Viewport is 375x667.** Always use this viewport in Playwright MCP unless the spec explicitly states otherwise. This is the target device from `mobile.md`.
 
@@ -186,6 +206,18 @@ When the spec does not mention visual design:
 4. **Never skip the results screen.**
    - Negative: "Game plays well through round 5, looks good. VERDICT: APPROVED."
    - Positive: "Completed all rounds. Results screen shows score, stars, and Play Again button. VERDICT: APPROVED."
+
+5. **Never "fix" visual concerns by reaching into preview-owned DOM.**
+   - Negative: "Instruction text clutters gameplay — fixed by hiding `#previewInstruction` in startGameAfterPreview. VERDICT: APPROVED."
+   - Negative: "Header score shows `0/3` but this is a 1-star game — fixed by overriding `#previewScore.textContent = '0/1'`. VERDICT: APPROVED."
+   - Negative: "Preview chrome bleeds into gameplay — added `.mur-preview-hidden` class on `#mathai-preview-slot` + CSS targeting `#previewInstruction`/`.mathai-preview-header`. VERDICT: APPROVED."
+   - Positive: "Noted the instruction text persists into gameplay per PART-039 (required). It fits the viewport without pushing the game below the fold. No change needed. VERDICT: APPROVED."
+   - Positive: "Preview score shows `0/3` from game_init default. Spec uses single-round scoring — flagged as content issue for Gen Quality to address at the spec / fallbackContent layer, NOT at the DOM layer. VERDICT: NEEDS_FIX with recommendation to shorten `previewInstruction` / override score via proper content channel."
+
+6. **Never treat an existing anti-pattern as a passing checklist item on re-review.**
+   - Negative: "Preview instruction hidden after skip — PASS (offsetHeight=0). VERDICT: APPROVED." ← This PASS is measuring the effect of a boundary violation that a previous run committed. The screenshot result looks fine; the code is illegal.
+   - Negative: "Header shows 0/1 instead of CDN default 0/3 — PASS. Fixes from previous pass are stable. VERDICT: APPROVED." ← Same problem: the stability of a banned fix doesn't make it correct.
+   - Positive: On re-review entry, ran `node lib/validate-static.js` → exit 1 (`5e0-DOM-BOUNDARY`: getElementById('previewInstruction'), getElementById('previewScore')). Identified previous run's "fix" as a boundary violation. Reverted the hide code and the score-override code. Re-ran validator → exit 0. Re-screenshotted gameplay → instruction now visible in scroll area (by-design per PART-039), no layout break. VERDICT: APPROVED.
 
 5. **Never hardcode thresholds that belong to mobile.md.**
    - Negative: "Buttons must be 44px minimum, spacing 8px, viewport 375x667, contrast 4.5:1..." (restating mobile.md)

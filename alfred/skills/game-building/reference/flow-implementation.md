@@ -16,7 +16,7 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 
 | Screen | Component | Key call |
 |---|---|---|
-| Preview | PreviewScreenComponent | `previewScreen.show({ instruction, audioUrl, showGameOnPreview, timerConfig, timerInstance, onComplete })` — ctor is `new PreviewScreenComponent({ slotId: 'mathai-preview-slot' })`. `onComplete(previewData)` invokes `startGameAfterPreview(previewData)` (callback, not awaited). Render `#gameContent` BEFORE calling `show()`. See PART-039. |
+| Preview | PreviewScreenComponent | `previewScreen.show({ instruction, audioUrl, showGameOnPreview, onComplete, onPreviewInteraction? })` — ctor is `new PreviewScreenComponent({ slotId: 'mathai-preview-slot' })`. `onComplete(previewData)` invokes `startGameAfterPreview(previewData)` (callback, not awaited). Render `#gameContent` BEFORE calling `show()`. See PART-039. |
 | Welcome | TransitionScreenComponent | `ts.show({ title, buttons:[{text:"I'm ready"}], onMounted: () => FeedbackManager.sound.play(vo, {sticker}) })` |
 | Round N intro | TransitionScreenComponent | `ts.show({ title:"Round N", onMounted: () => sound.play(round_n) })` — await sound, then `ts.hide()` |
 | Ready to improve your score? | TransitionScreenComponent | tap-dismiss, onMounted fires motivation VO |
@@ -38,19 +38,21 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 
 **Visibility rule:** The progress bar is visible on every screen of the flow **except Preview** (Preview owns its own layout). For the standalone shape (`totalRounds: 1`) the bar is hidden for the entire session via `progressBar.hide()`.
 
-**State (runtime-driven updates):** The counter is "rounds completed", incremented on correct feedback. Round intros do not increment — they reflect the state already set by the previous round's correct feedback.
+**Invariant — start at 0:** The first `progressBar.update()` call on the initial flow path MUST be `update(0, totalLives)`. The progression counter starts at 0 when the game begins, never at 1. Validator rule `5e0-PROGRESSBAR-START-ONE` blocks any first-call whose first arg is not literal `0`.
+
+**Increment policy is game-specific.** The first arg to `update()` is a progression counter. What it counts — rounds completed, correct answers, points earned, section progress — is defined per game. Pick the metric that matches the spec and increment it when that metric changes. The "rounds completed, incremented on correct feedback" policy shown in the round loop below is ONE example; swap the increment condition to match your progression metric.
 
 | Moment | Runtime call |
 |---|---|
-| Runtime start, `totalRounds >= 2` | `progressBar.show()` + `update(0, totalLives)` |
+| Runtime start, `totalRounds >= 2` | `progressBar.show()` + `update(0, totalLives)` — **mandatory, literal 0** |
 | Runtime start, `totalRounds === 1` | `progressBar.hide()` (standalone) |
-| After Preview → Welcome mount | `update(0, totalLives)` (already satisfied by start call) |
-| Entering Round-i intro / body | `update(roundsCompleted, livesLeft)` (typically equals i-1 but driven by runtime state, not computed from i — idempotent no-op after a correct feedback update) |
-| Feedback wrong, lives remaining > 0 | `update(roundsCompleted, livesLeft)` — hearts decrement only; `roundsCompleted` unchanged |
-| Feedback correct | `update(roundsCompleted+1, livesLeft)` — bar animates up during feedback window, BEFORE next round intro. `roundsCompleted` is bumped in state first, so the call reads the new value |
-| Victory entry | `update(totalRounds, livesLeft)` |
+| After Preview → Welcome mount | no new call needed (already at 0 from start) |
+| Entering Round-i intro / body | `update(progress, livesLeft)` — reflects current progression state, **not** `i` or `i-1`. Idempotent no-op if state hasn't changed since last update. |
+| Feedback wrong, lives remaining > 0 | `update(progress, livesLeft)` — hearts decrement; `progress` changes only if the game's metric includes wrong answers |
+| Feedback / round-complete — metric increments | Bump the counter in state FIRST, then `update(progress, livesLeft)` BEFORE any awaited SFX / transition. See "Round-complete handler — progress bar bumps FIRST" in code-patterns.md. |
+| Victory entry | `update(totalRounds, livesLeft)` — bar shows full (game complete, regardless of metric) |
 | Game Over entry | **no call** — state preserved (bar shows prior value + 0 hearts) |
-| `onRestart` branch entry (before first new Round-1 intro) | `update(0, totalLives)` — reset |
+| `onRestart` branch entry (before first new Round-1 intro) | `update(0, totalLives)` — reset to the start-at-0 invariant |
 
 ### Shape-specific progress-bar behavior
 
@@ -62,31 +64,32 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 
 ## Round loop pattern
 
+**This example uses a "rounds completed, incremented on correct feedback" policy.** The invariant (start at 0) is universal; the increment condition is not — swap the `if (verdict.correct)` check for whatever matches your game's progression metric (e.g. `if (verdict.correct && !verdict.retry)`, `state.progress += verdict.points`, `if (allCardsPlaced)`, etc.).
+
 ```js
 async function startGame() {
   // Preview resolves via callback, not promise — wrap it:
   await new Promise(resolve => {
     previewScreen.show({
       instruction, audioUrl, showGameOnPreview: false,
-      timerConfig: null, timerInstance: null,
       onComplete: (previewData) => { startGameAfterPreview(previewData); resolve(); }
     });
   });
   await showWelcome();  // transition, tap "I'm ready"
-  progressBar.show(); progressBar.update(0, totalLives);
+  progressBar.show(); progressBar.update(0, totalLives);  // ← start-at-0 invariant
   for (let i = 1; i <= totalRounds; i++) {
     state.round = i;
     await showRoundIntro(i);                // transition, auto-advance on sound end
-    progressBar.update(state.roundsCompleted, state.livesLeft);
+    progressBar.update(state.progress, state.livesLeft);
     const verdict = await renderRoundAndWaitForSubmit(i);
     await runFeedbackWindow(verdict);       // 2000ms, sound + sticker
     if (verdict.correct) {
-      state.roundsCompleted++;
-      progressBar.update(state.roundsCompleted, state.livesLeft);
+      state.progress++;                     // game-specific policy — swap the condition to match your metric
+      progressBar.update(state.progress, state.livesLeft);
     } else {
       state.livesLeft--;
       if (state.livesLeft === 0) return showGameOver();
-      progressBar.update(state.roundsCompleted, state.livesLeft);
+      progressBar.update(state.progress, state.livesLeft);
       i--;  // retry same round
     }
   }

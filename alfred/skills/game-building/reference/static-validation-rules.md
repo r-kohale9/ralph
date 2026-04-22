@@ -108,7 +108,8 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | 5e0-DUP-HEADER | `#gameContent` markup contains an element with class containing `header`, `score-display`, or `avatar` (duplicates preview header) | warning | game-building (html-template) | Advisory |
 | 5e0-NEW-AUDIO | `new Audio(` appears anywhere in generated game code — preview/game audio must route through `FeedbackManager.sound` | error | game-building (code-patterns) | Advisory |
 | 5e0-PREVIEWRESULT | `game_complete` postMessage payload does not reference `previewResult` field | warning | game-building (code-patterns) | Advisory |
-| 5e0-DOM-BOUNDARY | Game code calling getElementById/querySelector on preview-owned IDs (#previewInstruction, #previewProgressBar, #previewTimerText, #previewQuestionLabel, #previewScore, #previewStar, #previewSkipBtn, #previewBackBtn, #previewAvatarSpeaking, #previewAvatarSilent, #previewGameContainer, #popup-backdrop) or .mathai-preview-* class selectors / classList toggles — boundary violation (component owns its DOM). See PART-039, PART-026 AP-35. | error | game-building (code-patterns) | Implemented in lib/validate-static.js |
+| 5e0-DOM-BOUNDARY | Game code calling getElementById/querySelector on preview/action-bar-owned IDs (#previewInstruction, #previewProgressBar, #previewTimerText, #previewQuestionLabel, #previewScore, #previewStar, #previewSkipBtn, #previewBackBtn, #previewAvatarSpeaking, #previewAvatarSilent, #previewGameContainer, #popup-backdrop) or .mathai-preview-* class selectors / classList toggles — boundary violation (component owns its DOM). Gate: fires when either `PreviewScreenComponent` or `ActionBarComponent` is present. See PART-039, PART-040, PART-026 AP-35. | error | game-building (code-patterns) | Implemented in lib/validate-static.js |
+| 5e0-DRIFTED-OPTIONS | `previewScreen.show(...)` passes `timerInstance:` or `timerConfig:`. Neither option exists on the component. | error | game-building (code-patterns) | Implemented in lib/validate-static.js |
 
 ## ScreenLayout
 
@@ -131,6 +132,7 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | LP-1 | `progressBar.update()` 2nd arg must not be `totalRounds` | error | game-building (code-patterns) | Covered |
 | GEN-PROGRESSBAR-LIVES | `totalLives: 0` or negative in ProgressBarComponent constructor | error | game-building (code-patterns) | Covered |
 | W14/LP-PROGRESSBAR-CLAMP | `progressBar.update()` with unclamped `gameState.lives` (negative -> RangeError) | warning | game-building (code-patterns) | Covered |
+| 5e0-PROGRESSBAR-START-ONE | `progressBar.update()` first arg is `<expr> + <positive-literal>` or a bare positive literal (e.g. `currentRound + 1`, `1`) — violates start-at-0 invariant, bar paints "Round 1/N" before round 1 is played | error | game-building (code-patterns, PART-023) | Covered |
 
 ## Timer
 
