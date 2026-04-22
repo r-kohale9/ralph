@@ -208,6 +208,8 @@ Show me the test results summary with per-category pass/total counts.
 
 STEP 7 — Visual Review [MAIN CONTEXT — requires Playwright]
 Read alfred/skills/visual-review.md
+Read alfred/skills/game-building/reference/static-validation-rules.md
+Read warehouse/parts/PART-026-anti-patterns.md (specifically Anti-Pattern 35 — preview private DOM)
 
 DO NOT delegate this step to a sub-agent. Sub-agents cannot access Playwright MCP.
 Run this step directly in the main orchestrator context.
@@ -231,10 +233,47 @@ For each issue:
 - Fix all CRITICAL issues immediately
 - Re-test after fixes
 
-Report: verdict (APPROVED / NEEDS_FIX), list of issues found and fixed.
+**CRITICAL — component boundary.** Visual concerns about the preview header or
+preview instruction text MUST NOT be resolved by reaching into preview-owned
+DOM. The instruction text persists in game state by design (required — students
+must be able to scroll up and re-read). If the stacked instruction + game UI
+layout looks cramped, solve it inside `#gameContent` (tighter game UI, shorter
+`fallbackContent.previewInstruction`) — never by writing
+`getElementById('previewInstruction').style.display = 'none'`, hiding the
+header, overriding `#previewScore` text, or adding CSS rules that target
+preview-private IDs or `.mathai-preview-*` classes. See PART-026 Anti-Pattern 35
+and validator rule `5e0-DOM-BOUNDARY`.
+
+**VALIDATOR GATE — at ENTRY and EXIT of Step 7, no exceptions.**
+
+1. **ENTRY (FIRST action of Step 7, before any Playwright work).** Run
+   `node lib/validate-static.js <game-html-path>`. If exit ≠ 0, Step 7's
+   first job is to FIX the validator errors. A previous invocation (or Step 6's
+   test-fix loop) may have committed code that violates a rule — this gate
+   catches lingering violations the previous run approved.
+
+2. **EXIT (before reporting APPROVED, every single time).** Run the validator
+   again. Exit code MUST be 0. This gate fires regardless of whether you made
+   any change during this invocation. An APPROVED verdict with a non-zero exit
+   is a skill violation.
+
+**NEVER treat an anti-pattern as a passing visual check.** A line like
+"Preview instruction hidden after skip — PASS (offsetHeight=0)" is a RED
+flag, not a green one: the visible effect may look clean, but the code
+producing it is a `5e0-DOM-BOUNDARY` violation. The validator exit code is
+the only source of truth for correctness, not the screenshot.
+
+If the validator rejects any code in the file (whether you wrote it this run
+or not), revert the offending code and address the underlying visual issue
+a different way. Never APPROVE while exit ≠ 0.
+
+Report: verdict (APPROVED / NEEDS_FIX), list of issues found and fixed,
+ENTRY validator exit code, EXIT validator exit code (both MUST be 0 for
+APPROVED).
 
 STEP 8 — Final Review (with rejection fix loop) [MAIN CONTEXT — requires Playwright]
 Read alfred/skills/final-review.md
+Read alfred/skills/game-building/reference/static-validation-rules.md
 
 DO NOT delegate this step to a sub-agent. Sub-agents cannot access Playwright MCP.
 Run this step directly in the main orchestrator context.
@@ -248,11 +287,20 @@ Perform a final comprehensive review comparing the game against the original spe
 - Quality: production-ready visual appearance, smooth UX, responsive on mobile
 
 Fix any final issues found.
-Report: spec compliance score (%), issues found, verdict (APPROVED / REJECTED).
+
+**Hard gate — before declaring APPROVED:** run `node lib/validate-static.js <game-html-path>`.
+If exit code ≠ 0, treat as REJECTED regardless of other review signals and enter
+the rejection fix loop. Any fix you apply in the loop must re-pass the validator
+(exit 0) before the next APPROVED verdict attempt. This gate catches any
+boundary / contract violation introduced by Step 6's test-and-fix loop or Step 7's
+visual-review fixes after Step 5's original validation pass.
+
+Report: spec compliance score (%), issues found, verdict (APPROVED / REJECTED),
+confirmation that `node lib/validate-static.js` exits 0.
 
 If REJECTED: enter the rejection fix loop (up to 2 attempts):
   1. Fix all rejection reasons and flagged issues (CRITICAL first, then warnings)
-  2. Verify each fix with Playwright
+  2. Verify each fix with Playwright AND with `node lib/validate-static.js`
   3. Re-review the game
   4. Repeat if still REJECTED (max 2 fix attempts)
 
