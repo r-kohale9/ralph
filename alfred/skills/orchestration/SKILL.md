@@ -160,14 +160,24 @@ Wire all required platform integrations (recordAttempt, game_complete, FeedbackM
 Save the file and tell me the path.
 
 STEP 5 — Deterministic Validation [SUB-AGENT]
-Read alfred/skills/data-contract.md
+Read alfred/skills/data-contract/SKILL.md
+Read alfred/skills/game-building/reference/static-validation-rules.md
 
-Run the deterministic contract validation checks against the generated HTML:
-- validate-contract checks (game_complete schema, recordAttempt shape, syncDOMState, required handlers)
-- validate-static checks (no external CDN deps, valid HTML structure)
+Run BOTH deterministic checks against the generated HTML:
 
-If any checks fail, fix the HTML immediately and re-run until all pass.
-Report: number of issues found and fixed, all checks now passing.
+1. Contract validation — follow the procedure in data-contract/SKILL.md.
+   Covers: gameState, recordAttempt, postMessage (game_ready/game_init/game_complete),
+   syncDOM attributes.
+
+2. Static validation — run `node lib/validate-static.js <game-html-path>` and
+   resolve every error it prints. This script enforces 5e0-* and GEN-* rules
+   (component boundary violations, drifted options, preview-screen invariants,
+   duplicate lives UI, etc.) — see static-validation-rules.md for the full rule
+   table. Exit code must be 0 before this step is considered passed.
+
+If any check fails, fix the HTML immediately and re-run until both pass.
+Report: number of issues found and fixed per check, and confirm exit code 0 from
+`node lib/validate-static.js`.
 
 STEP 6 — Test and Fix [MAIN CONTEXT — requires Playwright]
 Read alfred/skills/game-testing.md

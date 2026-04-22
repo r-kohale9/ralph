@@ -90,6 +90,7 @@ Effects:
 - Skip button removed
 - Game stack revealed (if it was hidden)
 - Preview progress bar hidden
+- `#previewInstruction` **stays rendered** above `#gameContent` in the shared scroll container — this is required: the student must be able to scroll up and re-read the instruction at any point during gameplay.
 
 PreviewScreen does not render, sync, or pause any game timer. Games that need a visible timer render their own `TimerComponent` inside `#gameContent` and own its full lifecycle (`start()`, `pause()`, `resume()`, `reset()`). The preview header stays minimal — avatar / question label / score / star only.
 

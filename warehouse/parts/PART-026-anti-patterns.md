@@ -612,7 +612,25 @@ function restartGame() {
 
 If you need to fully remove the preview at end-of-game, call `previewScreen.destroy()` inside `endGame()` cleanup — never reach into its DOM directly.
 
-**Source incident:** `word-problem-workshop` build #1 (2026-04) — emitted `getElementById('previewInstruction').style.display = 'none'` in `startGameAfterPreview`, lifted via in-context examples from `games/matching-doubles/index.html` (since cleaned). Cross-reference: validator rule `5e0-DOM-BOUNDARY`, PART-039 component boundary invariant.
+**Why the instruction is intentionally persistent (read this before "fixing" the layout):** `switchToGame()` deliberately does NOT clear or hide `#previewInstruction`. After the transition, the instruction HTML remains above `#gameContent` in the same scroll container. This is a product requirement — students must be able to scroll up and re-read the instruction at any point during gameplay. The stacked `instruction + game UI` layout is the expected end state, not a bug.
+
+Common LLM misfire: reading the layout as "cluttered" and writing defensive code to hide `#previewInstruction`, `.mathai-preview-header`, or `#mathai-preview-slot` after `switchToGame()`. Every such variant is banned:
+
+```javascript
+// ALL of these are 5e0-DOM-BOUNDARY violations:
+document.getElementById('previewInstruction').style.display = 'none';
+document.querySelector('#mathai-preview-slot .mathai-preview-header').style.display = 'none';
+document.querySelectorAll('.mathai-preview-header').forEach(h => h.style.display = 'none');
+document.getElementById('mathai-preview-slot').classList.add('my-preview-hidden');  // plus a CSS rule targeting .mathai-preview-*
+```
+
+If the stacked layout feels too tall in your specific game, solve it INSIDE `#gameContent`: tighten the game UI, use `content.showGameOnPreview: true` so the student sees the game under the overlay during preview, or shorten the `fallbackContent.previewInstruction` / spec `previewInstruction` text. Never reach up into preview-owned DOM.
+
+**Source incidents:**
+- `word-problem-workshop` build #1 (2026-04) — emitted `getElementById('previewInstruction').style.display = 'none'` in `startGameAfterPreview`, lifted via in-context examples from `games/matching-doubles/index.html` (since cleaned).
+- `match-up-ratios` (2026-04) — bypassed the ID-based ban with a compound selector `querySelectorAll('#mathai-preview-slot .mathai-preview-header')` and a classList toggle on `#mathai-preview-slot` that a game-defined CSS rule used to hide `.mathai-preview-*` descendants. Validator regex was subsequently tightened to catch compound selectors containing `.mathai-preview-*` anywhere in the string.
+
+Cross-reference: validator rule `5e0-DOM-BOUNDARY`, PART-039 component boundary invariant.
 
 ## Verification
 

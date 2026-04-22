@@ -4373,6 +4373,42 @@ describe('5e0-DOM-BOUNDARY: preview private DOM boundary', () => {
     );
   });
 
+  it('errors when game code uses a compound selector containing .mathai-preview-* (match-up-ratios bypass)', () => {
+    const html = injectSnippet(
+      "var headers = document.querySelectorAll('#mathai-preview-slot .mathai-preview-header'); for (var i = 0; i < headers.length; i++) headers[i].style.display = 'none';",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
+    assert.ok(
+      output.includes('5e0-DOM-BOUNDARY'),
+      `Expected 5e0-DOM-BOUNDARY on compound selector. Got: ${output}`,
+    );
+    assert.ok(
+      output.includes('mathai-preview-header'),
+      `Error should name the offending class token. Got: ${output}`,
+    );
+  });
+
+  it('errors when game <style> targets a banned preview ID via CSS selector (match-up-ratios CSS bypass)', () => {
+    // Scenario: game uses the allowed `#mathai-preview-slot` + game-defined class (`mur-preview-hidden`)
+    // as an anchor, then a CSS rule uses descendant combinator to hide `#previewInstruction` which IS banned.
+    // The JS alone doesn't trigger the ID or class regex; the violation lives in the CSS.
+    const html = buildPreviewHtml().replace(
+      '</style>',
+      '#mathai-preview-slot.mur-preview-hidden #previewInstruction { display: none !important; }\n</style>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
+    assert.ok(
+      output.includes('5e0-DOM-BOUNDARY'),
+      `Expected 5e0-DOM-BOUNDARY on CSS-bypass. Got: ${output}`,
+    );
+    assert.ok(
+      output.includes('#previewInstruction'),
+      `Error should name the banned ID in CSS. Got: ${output}`,
+    );
+  });
+
   it('errors when game code calls classList.add(\'mathai-preview-overlay\')', () => {
     const html = injectSnippet(
       "var el = document.getElementById('gameContent'); if (el) el.classList.add('mathai-preview-overlay');",
