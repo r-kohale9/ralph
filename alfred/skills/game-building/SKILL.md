@@ -22,6 +22,7 @@ When generating HTML from an approved spec + plan. The main generation step.
 - `skills/interaction/SKILL.md` -- 8 canonical interaction patterns (tap, chain, match, swipe, drag-path, drag-drop, input, toggle), event handling, touch specifics, state machines, guards, undo, hit detection (reference/patterns.md for full code, reference/touch-events.md for pointer events, reference/state-and-guards.md for state management) -- **ALWAYS**
 - `reference/flow-implementation.md` -- screen→component mapping + progress bar lifecycle + round loop pattern -- **ALWAYS**
 - `alfred/skills/game-planning/reference/default-flow.md` -- canonical flow diagram -- **ALWAYS**
+- `alfred/parts/PART-050.md` -- CDN FloatingButtonComponent API (submit/retry/next lifecycle, submittable-predicate contract) -- **WHEN the game flow has a Submit CTA**
 
 ## Input
 
@@ -31,12 +32,14 @@ When generating HTML from an approved spec + plan. The main generation step.
 
 ## Output
 
-A single file: `index.html`
+A single file: `index.html` — this is the ONLY file this skill writes.
 
 - Self-contained: all CSS and JS inline (no external files except CDN scripts)
 - Under 500KB total file size
 - Passes `validate-static.js` (all GEN-* rules)
 - Passes Playwright test suite (all 5 categories: game-flow, mechanics, level-progression, edge-cases, contract)
+
+**CRITICAL — spec.md and plan.md are READ-ONLY during this step.** They were authored in step 1 (Draft Spec) and step 3 (Plan) and went through human review. The build step (step 4) MUST NOT modify `spec.md`, `plan.md`, or any file under `games/<id>/` other than `index.html`. If a validator rule is blocking the build, FIX the HTML — do not edit the spec to silence the rule. Writing `floatingButton: false` into spec.md during a build to silence `GEN-FLOATING-BUTTON-*` rules is a scope violation and a trust breach: spec flags are per-game design decisions that belong to the spec author, NOT to the build-time code generator. The user reviews spec changes via `git diff` and will revert any build-originated mutation.
 
 ---
 
@@ -97,6 +100,11 @@ Before outputting, verify against every check:
 - [ ] GEN-SHOWRESULTS-SYNC: showResults calls syncDOM after phase assignment
 - [ ] GEN-RESTART-RESET: resetGame resets phase, currentRound, score, attempts, events
 - [ ] GEN-CORRECT-ANSWER-EXPOSURE: `gameState.correctAnswer` set each round
+- [ ] GEN-FLOATING-BUTTON-CDN: When spec has a Submit CTA, the FloatingButton CDN script (or the bundle `components/index.js`) is included and `new FloatingButtonComponent(...)` is instantiated in DOMContentLoaded
+- [ ] GEN-FLOATING-BUTTON-SLOT: `ScreenLayout.inject(...)` passes `slots.floatingButton: true` whenever `FloatingButtonComponent` is used
+- [ ] GEN-FLOATING-BUTTON-PREDICATE: At least one input / state-change handler calls `floatingBtn.setSubmittable(...)` (prevents the "show once, never hide" regression)
+- [ ] 5e0-FLOATING-BUTTON-DUP: No custom `<button>` anywhere in source whose **id / class / data-testid / aria-label / inner text** contains `submit / commit / retry / next / check / done / cta` when FloatingButton is used. Renaming id/class while keeping a telltale `data-testid` or inner text "Submit" still fires the rule — delete the button entirely.
+- [ ] GEN-FLOATING-BUTTON-MISSING: No hand-rolled Submit / Check / Done / Commit `<button>` when `FloatingButtonComponent` is NOT instantiated. Narrative reasons in HTML comments or plan notes ("submit-only flow doesn't need retry/next", "standalone totalRounds:1", "inline button inside the form") do NOT silence this rule. PART-050 handles submit-only flows. The ONLY valid opt-out is `floatingButton: false` in `spec.md` (mirrors PART-039 `previewScreen: false`) — a spec-author decision reviewed at step 2. The build step MUST NOT add `floatingButton: false` to `spec.md` to silence the rule; any spec mutation during build shows up in `git diff` and is a scope violation. If the spec genuinely has no Submit CTA (no Submit/Check/Done mentioned in core mechanic), do NOT emit the button at all. The archetype PART-flag row is a default; the spec's flow overrides it (game-archetypes constraint #8)
 
 **Mobile checklist (from mobile.md):**
 - [ ] Viewport meta tag present with `width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no`

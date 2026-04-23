@@ -22,6 +22,7 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 | Ready to improve your score? | TransitionScreenComponent | tap-dismiss, onMounted fires motivation VO |
 | Yay stars collected! | TransitionScreenComponent | auto-dismiss, onMounted fires stars sound + animation, await → hide |
 | Victory / Game Over | TransitionScreenComponent | with `stars` + `buttons` |
+| Submit / Retry / Next | FloatingButtonComponent | Define `isSubmittable()` over `gameState`; every input/state-change handler calls `floatingBtn.setSubmittable(isSubmittable())`. `floatingBtn.on('submit', async () => { await feedback; floatingBtn.setMode(correct ? 'next' : 'retry'); })`. Ctor: `new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' })`. Requires `slots.floatingButton: true` in `ScreenLayout.inject()`. See PART-050. |
 | Gameplay | bare DOM | inject into `.game-stack` |
 
 ## Component invariants

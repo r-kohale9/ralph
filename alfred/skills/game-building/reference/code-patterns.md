@@ -143,6 +143,98 @@ Per PART-023. Game-building rules:
 - Never wrap `destroy()` in `setTimeout` -- synchronous only (GEN-PROGRESSBAR-DESTROY).
 - See `parts/PART-023.md` for constructor options and createProgressBar helper.
 
+### FloatingButtonComponent
+Per PART-050. Game-building rules:
+- **Required when the spec has a Submit CTA.** If the flow evaluates the player's answer on demand (text input, DnD completion, option commit), instantiate `FloatingButtonComponent` and do NOT hand-roll a submit button inside `#gameContent`.
+- **Per-game opt-out (`floatingButton: false` in spec.md):** mirrors PART-039's `previewScreen: false` pattern. When the spec declares a top-level `floatingButton: false` (e.g. `**Floating button:** false`), the validator auto-skips all FloatingButton rules and the author hand-rolls Submit / Retry / Next inline per PART-022. Two reasons this flag is set: (1) the flow has no Submit CTA at all (timer-driven auto-advance, drag-to-commit), (2) the spec author deliberately prefers inline buttons for this specific game. **CRITICAL: step 4 (Build) MUST NOT write `floatingButton: false` into `spec.md` to silence a validator error.** Spec mutations during build show up in `git diff` and are a scope violation the user can revert. If you cannot make the game pass with FloatingButton, report the blocker — do not silence the rule by editing the spec.
+- **No narrative opt-out. Validator rule `GEN-FLOATING-BUTTON-MISSING` has no escape hatch.** Do NOT reason yourself out of using FloatingButton with any of these (all WRONG):
+  - "Standalone totalRounds:1 game, no retry/next lifecycle needed" — FloatingButton works in submit-only mode; retry/next are optional modes, not required.
+  - "Submit sits inside the form next to the input, it's an in-form button" — inputs stay in `#gameContent`, only the button moves to the floating slot.
+  - "Archetype profile doesn't list PART-050" — the archetype row is a default starting point; the spec's flow (presence of a Submit CTA) overrides it per game-archetypes constraint #8.
+  - "Speed Blitz / Lives Challenge / [any archetype] doesn't need it" — if the spec mentions a Submit button, PART-050 applies, period.
+
+  If the spec genuinely has no Submit CTA, do NOT emit any `<button>` whose id / class / data-testid / aria-label / text contains `submit` / `check` / `done` / `commit` — the flow should auto-evaluate on interaction instead.
+- **CDN:** include `https://storage.googleapis.com/test-dynamic-assets/packages/components/floating-button/index.js` OR the bundled `components/index.js` (which loads it automatically). Missing tag → `GEN-FLOATING-BUTTON-CDN`.
+- **Slot:** `ScreenLayout.inject(...)` MUST include `slots: { floatingButton: true, ... }`. Missing slot → `GEN-FLOATING-BUTTON-SLOT`.
+- **Constructor:** `const floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });` — do NOT pass a different slotId; the slot is fixed-position and lives as a sibling of the layout root.
+- **Visibility is game-state-driven, NOT interaction-driven.** Component starts hidden. Define an `isSubmittable()` predicate over `gameState` (e.g. `return gameState.userInput.trim() !== '';`, or `return gameState.placedTiles.length === gameState.expectedTiles;`). Call `floatingBtn.setSubmittable(isSubmittable())` from EVERY handler that can change the predicate's value: `input`, `change`, `keyup` on inputs; `click` on option chips; `drop` / `dragend` on DnD targets; any programmatic state mutation (undo, reset, clear). Never show-once and rely on a single flip — the button must disappear again when the player clears their input. Missing predicate wiring → `GEN-FLOATING-BUTTON-PREDICATE`.
+- **Submit handler (async):** register via `floatingBtn.on('submit', async () => { /* evaluate, recordAttempt, feedback */; /* then decide what happens: standalone+lives → retry; else → endGame(correct) */ });`. Because the handler returns a Promise, the component auto-disables itself and shows `Submitting…` until it resolves — no manual `setDisabled` needed. Do NOT directly flip `setMode('next')` from the submit handler — Next appears AFTER the end TransitionScreen dismisses, not as a reaction to submit.
+- **Next flow — Next is the LAST thing the player sees.** Every FloatingButton-using game MUST wire the Next button, AND `setMode('next')` MUST happen only AFTER feedback audio has completed. The sequence differs by shape:
+
+  **Standalone (`totalRounds: 1`) — NO TransitionScreen.** The inline feedback panel in `#gameContent` IS the end-of-game display. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks TransitionScreen usage in standalone.
+  ```js
+  async function endGame(correct) {
+    await FeedbackManager.play(correct ? 'correct' : 'incorrect');   // 1. await feedback
+    renderInlineFeedbackPanel(correct);                               // 2. update #gameContent
+    window.parent.postMessage({ type: 'game_complete', data: {...} }, '*');  // 3. post
+    floatingBtn.setMode('next');                                      // 4. Next appears
+  }
+
+  floatingBtn.on('next', function () {
+    window.parent.postMessage({ type: 'next_ended' }, '*');
+    floatingBtn.destroy();
+  });
+  ```
+  ScreenLayout.inject() for standalone omits `transitionScreen`: `slots: { floatingButton: true, previewScreen: true }` (no `transitionScreen` key).
+
+  **Multi-round (`totalRounds > 1`) — TransitionScreen with `buttons: []` + onDismiss.**
+  ```js
+  async function endRound(correct) {
+    await FeedbackManager.play(correct ? 'correct' : 'incorrect');   // 1. await feedback
+    window.parent.postMessage({ type: 'game_complete', data: {...} }, '*');  // 2. post
+    transitionScreen.show({ stars: correct?3:0, content: resultsHtml, buttons: [] });  // 3. no buttons
+    transitionScreen.onDismiss(() => {                                // 4. dismiss callback
+      transitionScreen.hide();
+      floatingBtn.setMode('next');                                    // 5. Next appears
+    });
+  }
+
+  floatingBtn.on('next', function () {
+    window.parent.postMessage({ type: 'next_ended' }, '*');
+    floatingBtn.destroy();
+  });
+  ```
+  **BANNED patterns (validator `GEN-FLOATING-BUTTON-NEXT-TIMING` / `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN` / `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` will block these):**
+  - ❌ `postGameComplete(...); floatingBtn.setMode('next');` in the body of `endGame()` — Next appears during feedback audio (bodmas-blitz regression 2026-04-23).
+  - ❌ `setMode('next')` in the same function as a `game_complete` postMessage without any `await` / `transitionScreen.onDismiss(` / `transitionScreen.hide()` separating them.
+  - ❌ Fire-and-forget end-of-game feedback (`FeedbackManager.play(...).catch(...)` without `await`) — end-of-game feedback MUST be awaited so the TransitionScreen and Next button appear AFTER audio completes, not simultaneously.
+  - ❌ **`transitionScreen.show({ buttons: [{ text: 'Next', action: function() { floatingBtn.setMode('next'); } }] })` — WRONG.** This produces a confusing double-Next UX (the card has a Next button whose click reveals ANOTHER Next button at the bottom). Victory / game_over TransitionScreens MUST use `buttons: []` (empty array). The player tap-dismisses the card; the FloatingButton Next appears only then. Any `text: 'Next' / 'Continue' / 'Done' / 'Finish' / 'Play Again'` inside a TransitionScreen's `buttons:` array fires `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN`. Welcome / round-intro / motivation screens may still have buttons (`I'm ready`, `Let's go`, `Skip`) — those labels are not reserved.
+  - ❌ **`transitionScreen.show(...)` OR `new TransitionScreenComponent(...)` in a standalone (`totalRounds: 1`) game — WRONG.** Standalone games have a single question, single submit, single end state — nothing to transition between. The inline feedback panel in `#gameContent` IS the end-of-game display. TransitionScreen in standalone is architecturally redundant AND invites the double-Next regression. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks this. Omit the `transitionScreen: true` slot from `ScreenLayout.inject()` and do NOT instantiate the component.
+
+  Validator rules: `GEN-FLOATING-BUTTON-NEXT-MISSING`, `GEN-FLOATING-BUTTON-NEXT-POSTMESSAGE`, `GEN-FLOATING-BUTTON-NEXT-TIMING`.
+- **Try Again flow — standalone + `totalLives > 1` ONLY.** When the spec declares `totalRounds: 1` AND `totalLives > 1`, the Try Again path MUST be wired. Multi-round games use TransitionScreen retry buttons (out of scope). Canonical sequence:
+  ```js
+  // Inside the wrong-answer branch of on('submit'):
+  gameState.lives -= 1;
+  gameState.attempts.push({
+    correct: false,
+    is_retry: (gameState.retryCount || 0) > 0,
+    /* other required fields */
+  });
+  await FeedbackManager.play('incorrect');
+
+  if (gameState.lives > 0) {
+    gameState.retryCount = (gameState.retryCount || 0) + 1;
+    if (!RETRY_PRESERVES_INPUT) {
+      inputEl.value = '';
+      gameState.userInput = '';
+    }
+    gameState.isProcessing = false;            // re-enable interaction
+    floatingBtn.setMode('retry');              // label: "Try again"
+  } else {
+    endGame(false);                            // out of lives — feeds into Next flow
+  }
+
+  floatingBtn.on('retry', function () {
+    floatingBtn.setMode(null);                 // predicate takes over again
+    if (inputEl && !RETRY_PRESERVES_INPUT) inputEl.focus();
+  });
+  ```
+  `RETRY_PRESERVES_INPUT` is a game-scope const set from `spec.retryPreservesInput` (default `false` = clear input). The retry handler MUST preserve `gameState.lives`, `gameState.attempts`, `gameState.score`, and `gameState.retryCount` — NEVER reset them. Validator rules: `GEN-FLOATING-BUTTON-RETRY-STANDALONE`, `GEN-FLOATING-BUTTON-RETRY-LIVES-RESET`.
+- **No duplicate buttons — DELETE, don't rename.** When FloatingButton is instantiated, NO other `<button>` in the source may carry a Submit / Check / Done / Commit / Retry / Next / CTA word in its **id, class, data-testid, aria-label, OR inner text**. Validator `5e0-FLOATING-BUTTON-DUP` scans all 5 attributes. **Known evasion pattern (do NOT attempt):** renaming `id="bbSubmitBtn" class="bb-submit"` to `id="bbGoBtn" class="bb-go"` while keeping `data-testid="bb-submit-btn"` and inner text `Submit` — rule still fires and the build fails. The correct fix is to DELETE the hand-rolled button entirely and wire its handler via `floatingBtn.on('submit', ...)`. If tests reference a `data-testid`, point them at the FloatingButton DOM (`.mathai-fb-btn-primary`), or add a `data-testid` via the FloatingButton API — do not keep a parallel button to satisfy tests. Reset remains inline per PART-022 — FloatingButton does NOT absorb Reset.
+- **endGame:** call `floatingBtn.destroy()`.
+- See `alfred/parts/PART-050.md` for the full API, dual-button variant, styling variables, and validator rule list.
+
 ### Debug Functions
 Per PART-012. See `parts/PART-012.md`.
 

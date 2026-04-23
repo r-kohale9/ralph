@@ -16,6 +16,7 @@
  * - PopupComponent: Modal popups with customizable content
  * - StoriesComponent: Sequential story navigation with duration tracking
  * - VoiceInput: Voice/keyboard input with mic recording, transcription, and visual feedback
+ * - FloatingButtonComponent: Fixed-bottom Submit/Retry/Next action button (PART-050)
  */
 
 (function (window) {
@@ -38,7 +39,8 @@
     stories: "https://storage.googleapis.com/test-dynamic-assets/packages/components/stories/index.js",
     actionBar: "https://storage.googleapis.com/test-dynamic-assets/packages/components/action-bar/index.js",
     previewScreen: "https://storage.googleapis.com/test-dynamic-assets/packages/components/preview-screen/index.js",
-    voiceInput: "https://storage.googleapis.com/test-dynamic-assets/packages/components/voice-input/index.js"
+    voiceInput: "https://storage.googleapis.com/test-dynamic-assets/packages/components/voice-input/index.js",
+    floatingButton: "https://storage.googleapis.com/test-dynamic-assets/packages/components/floating-button/index.js"
   };
 
   // Load CSS file
@@ -98,6 +100,13 @@
         // ActionBar must load BEFORE PreviewScreen — PreviewScreen constructs ActionBar internally.
         .then(() => loadScript(COMPONENT_URLS.actionBar, "ActionBar"))
         .then(() => loadScript(COMPONENT_URLS.previewScreen, "PreviewScreen"))
+        // FloatingButton loads SERIALLY here (not in the parallel block below)
+        // so `typeof FloatingButtonComponent !== 'undefined'` is reliable for
+        // games that check at DOMContentLoaded time. Moving this to the
+        // parallel block was the bodmas-blitz regression (2026-04-23):
+        // `new FloatingButtonComponent(...)` was silently skipped because the
+        // class hadn't loaded yet by the time game init ran.
+        .then(() => loadScript(COMPONENT_URLS.floatingButton, "FloatingButton"))
         // 3. Load dependencies
         .then(() => loadScript(COMPONENT_URLS.lottiePlayer, "LottiePlayer"))
         .then(() => loadScript(COMPONENT_URLS.popupLayout, "PopupComponent"))
@@ -137,7 +146,9 @@
         PreviewScreenComponent: window.PreviewScreenComponent,
         PreviewScreen: window.PreviewScreen,
         VoiceInput: window.VoiceInput,
-        version: "1.4.0"
+        FloatingButtonComponent: window.FloatingButtonComponent,
+        FloatingButton: window.FloatingButton,
+        version: "1.5.1"
       };
     })
     .catch(function (error) {

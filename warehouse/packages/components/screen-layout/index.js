@@ -33,7 +33,8 @@
     progressBar: 'mathai-progress-slot',
     playArea: 'gameContent',
     transitionSlot: 'mathai-transition-slot',
-    previewSlot: 'mathai-preview-slot'
+    previewSlot: 'mathai-preview-slot',
+    floatingButtonSlot: 'mathai-floating-button-slot'
   };
 
   // Default CSS injected by the component
@@ -190,6 +191,7 @@
         progressSlot: resolveSlotId(slots.progressBar, DEFAULT_IDS.progressBar),
         previewSlot: resolveSlotId(slots.previewScreen, DEFAULT_IDS.previewSlot),
         transitionSlot: resolveSlotId(slots.transitionScreen, DEFAULT_IDS.transitionSlot),
+        floatingButtonSlot: resolveSlotId(slots.floatingButton, DEFAULT_IDS.floatingButtonSlot),
         gameContent: DEFAULT_IDS.playArea
       };
 
@@ -271,6 +273,12 @@
 
       html += '</div>'; // page-center
 
+      // Floating button slot — sibling of .page-center, uses position:fixed so
+      // it must NOT be inside any scrollable container.
+      if (slotIds.floatingButtonSlot) {
+        html += '<div id="' + slotIds.floatingButtonSlot + '" class="mathai-floating-button-slot"></div>';
+      }
+
       container.innerHTML = html;
 
       console.log('[ScreenLayout] Injected layout with slots:', slotIds);
@@ -302,7 +310,8 @@
         progressBar: resolveSlotId(sec.progressBar, DEFAULT_IDS.progressBar),
         playArea: resolveSlotId(sec.playArea !== undefined ? sec.playArea : true, DEFAULT_IDS.playArea),
         transitionSlot: resolveSlotId(sec.transitionScreen, DEFAULT_IDS.transitionSlot),
-        previewSlot: resolveSlotId(sec.previewScreen, DEFAULT_IDS.previewSlot)
+        previewSlot: resolveSlotId(sec.previewScreen, DEFAULT_IDS.previewSlot),
+        floatingButtonSlot: resolveSlotId(sec.floatingButton, DEFAULT_IDS.floatingButtonSlot)
       };
 
       // Clear container
@@ -371,6 +380,14 @@
       root.appendChild(bodyEl);
       container.appendChild(root);
 
+      // --- Floating button slot (sibling of layout root, uses position:fixed) ---
+      if (ids.floatingButtonSlot) {
+        var fbEl = document.createElement('div');
+        fbEl.id = ids.floatingButtonSlot;
+        fbEl.className = 'mathai-floating-button-slot';
+        container.appendChild(fbEl);
+      }
+
       // Build return object
       var result = {
         // v2 keys
@@ -380,6 +397,7 @@
         playArea: ids.playArea || DEFAULT_IDS.playArea,
         transitionSlot: ids.transitionSlot,
         previewSlot: ids.previewSlot,
+        floatingButtonSlot: ids.floatingButtonSlot,
         // compat aliases
         progressSlot: ids.progressBar,
         gameContent: ids.playArea || DEFAULT_IDS.playArea

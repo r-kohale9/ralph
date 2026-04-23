@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FloatingButtonComponent — usage</title>
+    <style>
+      :root {
+        --mathai-game-max-width: 480px;
+        --mathai-font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        --mathai-font-size-button: 16px;
+        --mathai-border-radius-button: 10px;
+        --mathai-green: #10b981;
+        --mathai-accent-blue: #3b82f6;
+        --mathai-warning: #f59e0b;
+        --mathai-danger: #e11d48;
+      }
+      body {
+        font-family: var(--mathai-font-family);
+        max-width: var(--mathai-game-max-width);
+        margin: 0 auto;
+        padding: 24px;
+        background: #f9fafb;
+        min-height: 100dvh;
+        box-sizing: border-box;
+      }
+      h1 { font-size: 18px; margin: 0 0 16px; }
+      .card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+        margin-bottom: 16px;
+      }
+      label { display: block; font-size: 14px; margin-bottom: 8px; font-weight: 600; }
+      input, select {
+        width: 100%;
+        padding: 12px;
+        font-size: 16px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-sizing: border-box;
+      }
+      .log {
+        background: #111827;
+        color: #d1fae5;
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        padding: 12px;
+        border-radius: 8px;
+        max-height: 240px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+      }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; }
+      button.action {
+        padding: 8px 14px;
+        font-size: 13px;
+        border: 1px solid #d1d5db;
+        background: #fff;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      /* Space so the floating bar doesn't cover the bottom card. */
+      .spacer { height: 120px; }
+    </style>
+  </head>
+  <body>
+    <h1>FloatingButton — live demo</h1>
+
+    <div class="card">
+      <label for="answer">Your answer (button appears when non-empty)</label>
+      <input id="answer" type="text" placeholder="Type something…" />
+    </div>
+
+    <div class="card">
+      <label>Manual controls</label>
+      <div class="row">
+        <button class="action" data-mode="submit">setMode('submit')</button>
+        <button class="action" data-mode="retry">setMode('retry')</button>
+        <button class="action" data-mode="next">setMode('next')</button>
+        <button class="action" data-mode="hidden">setMode(null)</button>
+        <button class="action" id="toggle-secondary">toggle dual-button</button>
+        <button class="action" id="toggle-error">toggle error text</button>
+        <button class="action" id="toggle-disabled">toggle disabled</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <label>Event log</label>
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <!-- Slot the component mounts into. In production this is created by ScreenLayout. -->
+    <div id="mathai-floating-button-slot"></div>
+
+    <script src="./index.js"></script>
+    <script>
+      var logEl = document.getElementById("log");
+      function log(msg) {
+        var ts = new Date().toISOString().split("T")[1].replace("Z", "");
+        logEl.textContent = "[" + ts + "] " + msg + "\n" + logEl.textContent;
+      }
+
+      var fb = new FloatingButtonComponent({
+        slotId: "mathai-floating-button-slot",
+        addDelay: true // first show delays 1.5s to match React FlowButton
+      });
+
+      fb.on("submit", function () {
+        log("submit clicked — simulating async check");
+        return new Promise(function (resolve) {
+          setTimeout(function () {
+            var correct = Math.random() > 0.5;
+            log("submit resolved: " + (correct ? "correct → next" : "wrong → retry"));
+            fb.setMode(correct ? "next" : "retry");
+            resolve();
+          }, 600);
+        });
+      });
+
+      fb.on("retry", function () {
+        log("retry clicked — resetting input");
+        document.getElementById("answer").value = "";
+        fb.setMode(null);
+      });
+
+      fb.on("next", function () {
+        log("next clicked — advancing round, input reset");
+        document.getElementById("answer").value = "";
+        fb.setMode(null);
+      });
+
+      fb.on("secondary", function () {
+        log("secondary clicked");
+      });
+
+      // Submittable predicate wired to the input.
+      var inputEl = document.getElementById("answer");
+      inputEl.addEventListener("input", function () {
+        fb.setSubmittable(inputEl.value.trim() !== "");
+      });
+
+      // Manual test controls
+      document.querySelectorAll("button.action[data-mode]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var m = btn.getAttribute("data-mode");
+          fb.setMode(m === "hidden" ? null : m);
+          log("manual setMode('" + m + "')");
+        });
+      });
+
+      var secondaryOn = false;
+      document.getElementById("toggle-secondary").addEventListener("click", function () {
+        secondaryOn = !secondaryOn;
+        fb.setLabels(secondaryOn ? { submit: "Yes", secondary: "No" } : { submit: "Submit", secondary: null });
+        log("dual-button: " + (secondaryOn ? "ON" : "OFF"));
+      });
+
+      var errorOn = false;
+      document.getElementById("toggle-error").addEventListener("click", function () {
+        errorOn = !errorOn;
+        fb.setError(errorOn ? "That answer is not quite right." : "");
+        log("error: " + (errorOn ? "ON" : "OFF"));
+      });
+
+      var disabledOn = false;
+      document.getElementById("toggle-disabled").addEventListener("click", function () {
+        disabledOn = !disabledOn;
+        fb.setDisabled(disabledOn);
+        log("disabled: " + (disabledOn ? "ON" : "OFF"));
+      });
+    </script>
+  </body>
+</html>
