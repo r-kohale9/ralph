@@ -43,6 +43,34 @@ A single file: `index.html` — this is the ONLY file this skill writes.
 
 ---
 
+## Regeneration modes — fresh vs edit (MANDATORY read)
+
+Step 4 runs in one of two modes. Pick the right one before starting; picking wrong silently produces an out-of-date HTML.
+
+### Fresh mode (REQUIRED when any skill / PART document you read has changed since the last generation of this game)
+
+1. Delete the existing `games/<gameId>/index.html` (the sub-agent cannot reason about "what changed" from a diff; it only reads what's in front of it).
+2. Generate the HTML from scratch off the current skill docs. Every MANDATORY block in flow-implementation.md / code-patterns.md / PART files gets emitted, because there is no existing code for the sub-agent to "preserve".
+3. Run Step 5 (`node lib/validate-static.js`). All GEN-* rules green.
+
+**Use fresh mode whenever:**
+- A new MANDATORY rule / checklist item was added to this SKILL.md or any reference doc.
+- A new validator rule (GEN-*) was added that the existing HTML does not satisfy.
+- A component's CDN API changed in a way that requires new call-sites (e.g. PART-040 added `setScore` / `setQuestionLabel` / `show_star.data.score`).
+- The spec itself changed non-trivially (new rounds, new mechanic, new screens).
+
+### Edit mode (only for targeted one-line fixes where the doc set has NOT changed)
+
+1. Keep the existing HTML.
+2. Make surgical changes based on the specific instruction (e.g. "rename this button label", "increase timer from 30 to 45").
+3. Run Step 5. All GEN-* rules green.
+
+**Use edit mode only when:**
+- Creator is fixing a specific local issue (typo, value tweak, one-function bugfix).
+- No doc updates are in flight — the sub-agent would otherwise preserve soon-to-be-incorrect code.
+
+**Signal to the sub-agent:** the invoking prompt should say either "FRESH: delete and regenerate from scratch" or "EDIT: surgical change, leave the rest alone". If ambiguous, default to **FRESH** — edit mode skipping a MANDATORY new rule is a silent failure that only the validator (and only if a new GEN-* rule covers it) catches.
+
 ## Procedure
 
 ### Step 1: Read and Internalize
@@ -104,6 +132,12 @@ Before outputting, verify against every check:
 - [ ] GEN-FLOATING-BUTTON-SLOT: `ScreenLayout.inject(...)` passes `slots.floatingButton: true` whenever `FloatingButtonComponent` is used
 - [ ] GEN-FLOATING-BUTTON-PREDICATE: At least one input / state-change handler calls `floatingBtn.setSubmittable(...)` (prevents the "show once, never hide" regression)
 - [ ] 5e0-FLOATING-BUTTON-DUP: No custom `<button>` anywhere in source whose **id / class / data-testid / aria-label / inner text** contains `submit / commit / retry / next / check / done / cta` when FloatingButton is used. Renaming id/class while keeping a telltale `data-testid` or inner text "Submit" still fires the rule — delete the button entirely.
+- [ ] End-of-game sequencing (PART-050 "Next flow" beats 1–5): SFX awaited → feedback panel + `game_complete` SYNC → TTS awaited (when `playDynamicFeedback` is used) → `show_star` postMessage → `setTimeout(() => setMode('next'), 1100)`. Do NOT fire `show_star` before dynamic TTS finishes — fire-and-forget TTS at end-of-game causes Next and the star animation to overlap with audio (bodmas-blitz 2026-04-24 regression). If `spec.autoShowStar === false`, shorten the final `setTimeout` to 300 ms.
+- [ ] show_star `count` and `score` must agree: whatever number of stars the animation visually celebrates (`count`), the `score` string in the same payload must express the same quantity. `×2` animation with `/1` score = broken (solve-for-x-speed-round 2026-04-24 regression). For standalone games where one round awards up to N stars, use `count: Math.max(1,Math.min(N,stars))` + `score: stars + '/' + N`, not `gameState.score + '/' + gameState.totalRounds`. See code-patterns.md "show_star count ↔ score agreement" table.
+- [ ] GEN-HEADER-REFRESH (PART-040): Every game that uses `PreviewScreenComponent` MUST update the ActionBar header score as the game progresses. Two mandatory moments:
+  - **Correct answer**: fire `window.postMessage({type:'show_star', data:{count, variant:'yellow', score: gameState.score + '/' + gameState.totalRounds}}, '*')`. The `score` field is applied AFTER the 1 s animation finishes, so the celebration visibly precedes the number change.
+  - **Round advance (multi-round only)**: call `previewScreen.setQuestionLabel('Q' + gameState.currentRound)` directly (no star animation on round start).
+  Do NOT re-post `game_init` from game code to update header fields — the game's own `handlePostMessage` would re-run `setupGame()` with fallback content. Direct methods + `show_star` payload extensions are the only sanctioned paths. See PART-040 "Updating header state from game code".
 - [ ] GEN-FLOATING-BUTTON-MISSING: No hand-rolled Submit / Check / Done / Commit `<button>` when `FloatingButtonComponent` is NOT instantiated. Narrative reasons in HTML comments or plan notes ("submit-only flow doesn't need retry/next", "standalone totalRounds:1", "inline button inside the form") do NOT silence this rule. PART-050 handles submit-only flows. The ONLY valid opt-out is `floatingButton: false` in `spec.md` (mirrors PART-039 `previewScreen: false`) — a spec-author decision reviewed at step 2. The build step MUST NOT add `floatingButton: false` to `spec.md` to silence the rule; any spec mutation during build shows up in `git diff` and is a scope violation. If the spec genuinely has no Submit CTA (no Submit/Check/Done mentioned in core mechanic), do NOT emit the button at all. The archetype PART-flag row is a default; the spec's flow overrides it (game-archetypes constraint #8)
 
 **Mobile checklist (from mobile.md):**

@@ -49,7 +49,9 @@ new ActionBarComponent({ slotId: 'mathai-preview-slot' });
 |---|---|---|
 | `setAvatarSpeaking(bool)` | speaking state | PreviewScreen on audio play / pause / stop |
 | `setStar(visible: boolean)` | runtime star toggle | Games (via `previewScreen.setStar(...)` pass-through) |
-| `destroy()` | remove `message` listener | PreviewScreen on own `destroy()` |
+| `setScore(text: string)` | runtime score text update (e.g. "1/10") | Games (via `previewScreen.setScore(...)` pass-through) on every state change |
+| `setQuestionLabel(text: string)` | runtime question-label update (e.g. "Q2") | Games (via `previewScreen.setQuestionLabel(...)` pass-through) on round advance |
+| `destroy()` | remove `message` listener, cancel star animations, flush queue | PreviewScreen on own `destroy()` |
 
 ## DOM ownership
 
@@ -64,9 +66,43 @@ new ActionBarComponent({ slotId: 'mathai-preview-slot' });
 **NOT owned** (lives in header visually but belongs to PreviewScreen):
 - `#previewProgressBar` (preview-phase audio sync)
 
-## game_init payload contract
+## Updating header state from game code
 
-ActionBar listens to `window.message` events for `{ type: 'game_init', data: { questionLabel, score, showStar } }`. Each payload **shallow-merges** into the internal state so partial updates (e.g. `{ score: '2/3' }` alone) don't blank previously-set fields — this is reliability rule R8.
+Call the pass-through methods on PreviewScreen:
+
+```js
+previewScreen.setQuestionLabel('Q' + gameState.currentRound);
+previewScreen.setScore(gameState.score + '/' + gameState.totalRounds);
+previewScreen.setStar(true);
+```
+
+These forward to `ActionBarComponent.setScore` / `setQuestionLabel` / `setStar` and mutate the header DOM directly. No messages are posted, so the game's own `handlePostMessage` listener is not re-triggered.
+
+**Why NOT re-post `game_init` from the game:** the game listens on the same `window` for `{type:'game_init'}` to run `setupGame()`. A re-fire from the game would re-run setup with fallback content and reset state. Games fire `game_init` exactly once — from the host-harness path — and use the direct methods above for all subsequent header updates.
+
+## game_init payload contract (host → game + ActionBar)
+
+ActionBar ALSO listens to `window.message` events for `{ type: 'game_init', data: { questionLabel, score, showStar } }`. Each payload **shallow-merges** into the internal state so partial updates (e.g. `{ score: '2/3' }` alone) don't blank previously-set fields — this is reliability rule R8. This path remains for the host harness (and for demo pages like `usage.html` that have no competing listener) but games should not use it.
+
+## show_star payload contract
+
+The same `window.message` listener also handles `{ type: 'show_star', data?: { count?, variant?, silent? } }` — an **intra-frame** message dispatched by the game via `window.postMessage(...)` (NOT `window.parent.postMessage(...)`). It triggers the same star-award animation used in mathai-client: the star renders at the viewport top-left at its intrinsic image size and collapses toward the header's `#previewStar` via animated `transform-origin` + `scale` + `opacity` over 1 s, while an award chime plays. The static `#previewStar` itself is not modified — its `src` and visibility are untouched by the animation.
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `count` | `1 \| 2 \| 3` | `1` | Picks `star-full.png` / `*_x2.png` / `*_x3.png`. Values outside {1,2,3} are clamped. |
+| `variant` | `'yellow' \| 'blue'` | `'yellow'` | Palette family. Yellow matches the static-star default. |
+| `silent` | `boolean` | `false` | Skips the success chime for rapid combos. |
+| `score` | `string` | *undefined → no change* | Applied to `#previewScore` AFTER the 1 s animation finishes. Use this to atomically bump the header count in lockstep with the award — celebration visibly precedes the number change. |
+| `questionLabel` | `string` | *undefined → no change* | Applied to `#previewQuestionLabel` AFTER the animation finishes. Rarely needed here; round advance normally uses `previewScreen.setQuestionLabel(...)` directly. |
+
+Rapid-fire behavior:
+- Identical payloads within 500 ms are **deduped** (swallowed silently) to absorb accidental double-fires.
+- Distinct payloads while an animation is in flight are **queued** (up to 3) and drained on each `animationend`.
+
+Audio is autoplay-policy aware: the first user gesture on the page unlocks playback; before then the visual still runs but the chime is skipped by the browser.
+
+Games MUST NOT fire `show_star` via `window.parent.postMessage` — that target is the host app, not the ActionBar in the same frame. See [data-contract/schemas/postmessage-schema.md](../../alfred/skills/data-contract/schemas/postmessage-schema.md) for the complete intra-frame vs cross-frame table.
 
 ## Reliability (R-rules this part addresses)
 
@@ -76,6 +112,3 @@ ActionBar listens to `window.message` events for `{ type: 'game_init', data: { q
 
 Game code MUST NOT call `getElementById` / `querySelector` on ActionBar-owned IDs (`previewBackBtn`, `previewAvatarSpeaking`, `previewAvatarSilent`, `previewQuestionLabel`, `previewScore`, `previewStar`) or `.mathai-preview-*` classes in that set. Validator rule `5e0-DOM-BOUNDARY` (lib/validate-static.js) enforces this — it fires when either `PreviewScreenComponent` or `ActionBarComponent` is present in the HTML.
 
-## Version
-
-- v1.1.0 — current. ActionBar owns header-left / header-right + back / avatar / question label / score / star. No timer display, no rAF loop, no pause/resume surface.

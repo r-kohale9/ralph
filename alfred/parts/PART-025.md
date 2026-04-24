@@ -1,4 +1,4 @@
-### PART-025: ScreenLayout Component (v2)
+### PART-025: ScreenLayout Component
 
 **Source of truth:** `warehouse/parts/PART-025-screen-layout-component.md`
 

@@ -51,6 +51,44 @@ window.parent.postMessage({ type: 'next_ended' }, '*');
 
 Validator rules: `GEN-FLOATING-BUTTON-NEXT-MISSING`, `GEN-FLOATING-BUTTON-NEXT-POSTMESSAGE` — both fire when a FloatingButton-using game reaches end-game without the Next + `next_ended` wiring.
 
+### show_star (PART-040) — intra-frame star-award animation
+
+A game-triggered postMessage consumed by the ActionBar in the **same window** (not the host). Fires the flying-star animation, plays the award chime, and upgrades the static `#previewStar` image to the awarded tier.
+
+```javascript
+// Default 1 yellow star
+window.postMessage({ type: 'show_star' }, '*');
+
+// 2 blue stars, no sound
+window.postMessage({
+  type: 'show_star',
+  data: { count: 2, variant: 'blue', silent: true }
+}, '*');
+```
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `data.count` | `1 \| 2 \| 3` | `1` | Tier of the awarded star image. |
+| `data.variant` | `'yellow' \| 'blue'` | `'yellow'` | Palette family. |
+| `data.silent` | `boolean` | `false` | Skip the success chime. |
+| `data.score` | `string` | *omitted → header unchanged* | Applied to `#previewScore` AFTER the 1 s animation ends — atomically bumps the header count in lockstep with the award. Use `gameState.score + '/' + gameState.totalRounds`. |
+| `data.questionLabel` | `string` | *omitted → header unchanged* | Applied to `#previewQuestionLabel` after the animation ends. Rarely used here — round advance normally calls `previewScreen.setQuestionLabel(...)` directly. |
+
+**Target matters.** `show_star` uses `window.postMessage(...)` because the ActionBar listens in the same frame as the game. `game_complete` / `next_ended` / `WORKSHEET_BACK` use `window.parent.postMessage(...)` because they target the host. Mixing the two targets is the most common mistake:
+
+| Message | Target | Consumer |
+|---|---|---|
+| `game_ready` | `window.parent` | host iframe harness |
+| `game_complete` | `window.parent` | host iframe harness |
+| `next_ended` | `window.parent` | host iframe harness |
+| `WORKSHEET_BACK` | `window.parent` | host iframe harness |
+| `game_init` | `window` (same frame) | PreviewScreen / ActionBar |
+| `show_star` | `window` (same frame) | ActionBar |
+
+ActionBar dedupes identical payloads within 500 ms and queues distinct ones (up to 3 deep), so over-firing is safe.
+
+**Default trigger points (generator-emitted).** The generator fires `show_star` automatically at PART-050's end-of-game spot — before `floatingBtn.setMode('next')` in standalone, inside `transitionScreen.onDismiss` in multi-round. Set `spec.autoShowStar: false` to suppress the default and fire it manually at a custom beat (e.g. from a button's `action()` callback).
+
 ### previewResult field (PART-039)
 
 The `data` object in `game_complete` SHOULD include `previewResult: gameState.previewResult || null`. Required when the preview was interactive (any `setPreviewData()` call during the preview phase). Shape:

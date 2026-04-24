@@ -78,8 +78,13 @@ async function startGame() {
   });
   await showWelcome();  // transition, tap "I'm ready"
   progressBar.show(); progressBar.update(0, totalLives);  // ← start-at-0 invariant
+  // Seed the ActionBar header — PART-040 expects direct method calls,
+  // NOT re-posting game_init (which would re-trigger setupGame()).
+  previewScreen.setQuestionLabel('Q1');
+  previewScreen.setScore('0/' + totalRounds);
   for (let i = 1; i <= totalRounds; i++) {
     state.round = i;
+    previewScreen.setQuestionLabel('Q' + i);
     await showRoundIntro(i);                // transition, auto-advance on sound end
     progressBar.update(state.progress, state.livesLeft);
     const verdict = await renderRoundAndWaitForSubmit(i);
@@ -87,6 +92,7 @@ async function startGame() {
     if (verdict.correct) {
       state.progress++;                     // game-specific policy — swap the condition to match your metric
       progressBar.update(state.progress, state.livesLeft);
+      previewScreen.setScore(state.progress + '/' + totalRounds);  // header count tracks progress
     } else {
       state.livesLeft--;
       if (state.livesLeft === 0) return showGameOver();
@@ -97,6 +103,129 @@ async function startGame() {
   await showVictory();
 }
 ```
+
+## ActionBar header state updates — MANDATORY
+
+The header's `#previewScore` and `#previewQuestionLabel` text are state-driven — games MUST refresh them on every progression change. Two paths, each for a different moment:
+
+| Moment | Call |
+|---|---|
+| After `previewScreen` is instantiated (in `startGameAfterPreview`) | `previewScreen.setQuestionLabel('Q1')` + `previewScreen.setScore('0/' + totalRounds)` — direct methods, no animation |
+| Round advance (new round begins, multi-round) | `previewScreen.setQuestionLabel('Q' + gameState.currentRound)` — direct method, no animation |
+| **Correct answer evaluated (score bumps)** | `window.postMessage({type:'show_star', data:{count, variant:'yellow', score: gameState.score + '/' + totalRounds}}, '*')` — `score` is applied AFTER the 1 s flying-star animation, so the celebration visibly precedes the number change |
+| Non-award score mutation (rare: penalty, undo) | `previewScreen.setScore(gameState.score + '/' + totalRounds)` — direct, no animation |
+
+**Never fire `game_init` from game code to update these fields.** Games already have a `handlePostMessage` listener that processes `game_init` by calling `setupGame()` — a re-fire would reset state with fallback content. The direct methods + show_star payload mutate header DOM in-process and bypass the message bus. See PART-040 "Updating header state from game code" and code-patterns.md "ActionBar header refresh".
+
+**Validator gate:** `GEN-HEADER-REFRESH` errors if a FloatingButton-using, PreviewScreen-using game contains neither `previewScreen.setScore(` nor a show_star payload with a `score:` field.
+
+## End-of-game star-award animation (`show_star`) — MANDATORY
+
+Every game MUST fire `show_star` at the end-of-game moment so the ActionBar flies a celebratory star into the header (PART-040).
+
+**Target is `window`, NOT `window.parent`.** ActionBar listens in the same frame. `window.parent.postMessage(...)` goes to the host and the animation never fires.
+
+**Destroy ordering (critical).** `previewScreen.destroy()` MUST NOT be called in `endGame()`. The preview wrapper owns the ActionBar header + `#previewStar`, which are the animation's DOM target. If destroy runs before the 1 s animation finishes, the target vanishes mid-flight. Destroys move into the `floatingBtn.on('next', ...)` handler — after `next_ended` is posted — so the header survives the entire end-screen view (PART-039 destroy mandate).
+
+Fire location by shape:
+
+- **Standalone** (`totalRounds: 1`): INSIDE `endGame`, AFTER `postGameComplete()`. Then reveal Next via `setTimeout(function(){ floatingBtn.setMode('next'); }, 300)` — the setTimeout also satisfies `GEN-FLOATING-BUTTON-NEXT-TIMING` (Next must not appear synchronously with `game_complete`). No destroys here.
+- **Multi-round** (`N ≥ 2`): INSIDE `transitionScreen.onDismiss(...)`, immediately after `transitionScreen.hide()`. Then `floatingBtn.setMode('next')`. No destroys here.
+
+End-of-game sequencing — MANDATORY serial order:
+
+```
+Beat 1: SFX + sticker (await, min 1500 ms)
+Beat 2: render inline feedback panel + post game_complete (SYNC — never
+        block on TTS for this, host harness relies on it)
+Beat 3: await dynamic TTS (if the game uses playDynamicFeedback)
+Beat 4: fire show_star (animation takes ~1 s; score applied at END)
+Beat 5: setTimeout(1100) → setMode('next')   ← Next appears AFTER animation
+```
+
+Do NOT overlap these. User-visible order: SFX → feedback panel renders → TTS audio → star animation → Next button. The GEN-FLOATING-BUTTON-NEXT-TIMING validator accepts `await` and `setTimeout(` as separators, so Beat 3's await and Beat 5's setTimeout both satisfy it.
+
+Canonical snippet — standalone:
+
+```js
+async function endGame(correct) {
+  // ... existing phase / sync / trackEvent updates ...
+
+  // Beat 1 — SFX + sticker.
+  await FeedbackManager.sound.play(correct ? 'sound_correct' : 'sound_incorrect', { sticker });
+
+  // Beat 2 — render feedback panel, post game_complete (SYNC).
+  renderInlineFeedbackPanel(correct);
+  postGameComplete();
+
+  // Beat 3 — dynamic TTS (awaited, never fire-and-forget at end-of-game).
+  // Omit the block entirely if the game has no TTS.
+  try {
+    await FeedbackManager.playDynamicFeedback({
+      audio_content: ttsText,
+      subtitle: subtitle,
+      sticker: sticker
+    });
+  } catch (e) { /* TTS failures must not block the end sequence */ }
+
+  // Beat 4 — star-award animation (applied to header at animation end).
+  if (correct) {
+    try {
+      window.postMessage({
+        type: 'show_star',
+        data: {
+          count: gameState.stars || 1,
+          variant: 'yellow',
+          score: gameState.score + '/' + gameState.totalRounds
+        }
+      }, '*');
+    } catch (e) {}
+  }
+
+  // Beat 5 — reveal Next AFTER the 1 s animation. (Shorten to 300 ms if
+  // spec.autoShowStar === false.)
+  setTimeout(function () {
+    if (floatingBtn) {
+      try { floatingBtn.setMode('next'); } catch (e) {}
+    }
+  }, 1100);
+}
+
+floatingBtn.on('next', function () {
+  window.parent.postMessage({ type: 'next_ended' }, '*');
+  try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+  floatingBtn.destroy();
+});
+```
+
+Canonical snippet — multi-round:
+
+```js
+transitionScreen.onDismiss(() => {
+  transitionScreen.hide();
+  // Star-award animation AFTER the transition dismisses.
+  try {
+    window.postMessage({
+      type: 'show_star',
+      data: {
+        count: gameState.stars || 1,
+        variant: 'yellow',
+        score: gameState.score + '/' + gameState.totalRounds
+      }
+    }, '*');
+  } catch (e) {}
+  // Reveal Next AFTER the 1 s animation.
+  setTimeout(function () { floatingBtn.setMode('next'); }, 1100);
+});
+
+floatingBtn.on('next', function () {
+  window.parent.postMessage({ type: 'next_ended' }, '*');
+  try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+  floatingBtn.destroy();
+});
+```
+
+Spec opt-out: if `spec.autoShowStar === false`, omit the `show_star` postMessage. The destroy-in-Next-handler rule still applies — do not move destroys back into `endGame()`. The author fires `show_star` themselves at a custom beat. See PART-050 "Next flow" for the full canonical wirings.
 
 ## Star computation
 

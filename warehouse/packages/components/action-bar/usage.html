@@ -42,6 +42,16 @@
     <button onclick="toggleStar()">Toggle Star</button>
     <button class="danger" onclick="ab.destroy()">Destroy</button>
   </div>
+  <div class="demo-controls">
+    <button onclick="awardStar(1,'yellow')">Award ×1 (yellow)</button>
+    <button onclick="awardStar(2,'yellow')">Award ×2 (yellow)</button>
+    <button onclick="awardStar(3,'yellow')">Award ×3 (yellow)</button>
+    <button onclick="awardStar(1,'blue')">Award ×1 (blue)</button>
+    <button onclick="awardStar(2,'blue')">Award ×2 (blue)</button>
+    <button onclick="awardStar(3,'blue')">Award ×3 (blue)</button>
+    <button onclick="toggleSilent()">Silent: <span id="silent-flag">off</span></button>
+    <button onclick="resetScore()">Reset score</button>
+  </div>
   <div id="log">ready...</div>
 
   <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/screen-layout/index.js"></script>
@@ -77,6 +87,52 @@
       starVisible = !starVisible;
       ab.setStar(starVisible);
       log('Star visible=' + starVisible);
+    }
+
+    var silentMode = false;
+    function toggleSilent() {
+      silentMode = !silentMode;
+      document.getElementById('silent-flag').textContent = silentMode ? 'on' : 'off';
+      log('Silent mode=' + silentMode);
+    }
+
+    // Simulated score so awardStar() can demonstrate the atomic score bump.
+    // ActionBar applies `data.score` to #previewScore AFTER the 1s animation.
+    var simulatedScore = 0;
+    var SIM_TOTAL = 10;
+
+    // Seed the header at boot so the score field starts at "0/10" instead of
+    // the ActionBar's built-in "0/3" default.
+    setTimeout(function () {
+      window.postMessage({
+        type: 'game_init',
+        data: { questionLabel: 'Q1', score: simulatedScore + '/' + SIM_TOTAL, showStar: true }
+      }, '*');
+    }, 50);
+
+    function awardStar(count, variant) {
+      simulatedScore = Math.min(SIM_TOTAL, simulatedScore + count);
+      var scoreText = simulatedScore + '/' + SIM_TOTAL;
+      window.postMessage({
+        type: 'show_star',
+        data: {
+          count: count,
+          variant: variant,
+          silent: silentMode,
+          score: scoreText          // applied AFTER the animation
+        }
+      }, '*');
+      log('Dispatched show_star count=' + count + ' variant=' + variant +
+          ' silent=' + silentMode + ' score=' + scoreText);
+    }
+
+    function resetScore() {
+      simulatedScore = 0;
+      window.postMessage({
+        type: 'game_init',
+        data: { score: '0/' + SIM_TOTAL }
+      }, '*');
+      log('Reset score to 0/' + SIM_TOTAL);
     }
   </script>
 </body>

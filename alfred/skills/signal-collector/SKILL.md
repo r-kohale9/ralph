@@ -190,7 +190,7 @@ Target identification priority: `data-signal-id` > `id` > `tag.className` > tag 
 
 1. `new SignalCollector()` with no args — produces invalid analytics payloads, fails GEN-UX-005.
 2. `window.SignalCollector = class {...}` — inline polyfill shadows CDN package; real class never loads.
-3. `signalCollector.trackEvent()` — method does NOT exist in v3 API, crashes at runtime with ReferenceError.
+3. `signalCollector.trackEvent()` — this method does NOT exist on SignalCollector; crashes at runtime with ReferenceError. Use `recordViewEvent()` / the documented API in `reference/signalcollector-api.md`.
 4. `seal()` + `new SignalCollector()` in restartGame — causes batch number collision in GCS. Use `reset()` instead.
 5. Calling `seal()` in `endGame()` of a restartable game — permanently removes DOM listeners, breaks the Try Again flow. Unload handlers already cover iframe destruction.
 6. Calling `seal()` then `reset()` — seal's listener removal cannot be undone; reset() on a sealed collector is a no-op.

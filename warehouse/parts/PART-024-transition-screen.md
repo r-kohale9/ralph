@@ -1,4 +1,4 @@
-# PART-024: TransitionScreen Component (v2)
+# PART-024: TransitionScreen Component
 
 **Category:** MANDATORY | **Condition:** Every game | **Dependencies:** PART-002, PART-025
 
@@ -208,16 +208,6 @@ Do NOT combine `duration` with `buttons` on the same screen — the screen may a
 ScreenLayout.inject('app', {
   sections: { questionText: true, progressBar: true, playArea: true, transitionScreen: true }
 });
-```
-
-## Deprecated: v1 Patterns
-
-```javascript
-// ⛔ DEPRECATED: Using ScreenLayout v1 slots
-ScreenLayout.inject('app', { slots: { transitionScreen: true } });
-
-// ⛔ DEPRECATED: Using #results-screen div
-document.getElementById('results-screen').style.display = 'block';
 ```
 
 ## Verification

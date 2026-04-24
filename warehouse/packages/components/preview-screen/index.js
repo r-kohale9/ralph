@@ -1149,6 +1149,24 @@
     if (this._actionBar) this._actionBar.setStar(visible);
   };
 
+  /**
+   * Pass-through to ActionBar — runtime score-text update (e.g. "1/10").
+   * Games MUST call this on correct-answer / round-advance instead of
+   * re-posting `game_init`, because the game's own `message` listener
+   * also processes `game_init` and would re-trigger `setupGame()`.
+   */
+  PreviewScreenComponent.prototype.setScore = function (text) {
+    if (this._actionBar) this._actionBar.setScore(text);
+  };
+
+  /**
+   * Pass-through to ActionBar — runtime question-label update (e.g. "Q2").
+   * Same reasoning as setScore: call this instead of re-posting game_init.
+   */
+  PreviewScreenComponent.prototype.setQuestionLabel = function (text) {
+    if (this._actionBar) this._actionBar.setQuestionLabel(text);
+  };
+
   // ============================================================
   // SignalCollector
   // ============================================================

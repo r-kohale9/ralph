@@ -82,7 +82,7 @@ Text colour: `#333333` (dark-charcoal). Secondary button (dual-button variant): 
    - `click` on MCQ option chips
    - `drop`, `dragend` on DnD targets
    - Any programmatic state mutation (reset, undo, clear)
-3. **On submit click:** `on('submit')` handler runs. If it returns a Promise, the button auto-shows `Submitting…` and ignores clicks until resolved. Handler dispatches to `setMode('retry')` or `setMode('next')` based on result.
+3. **On submit click:** the component **auto-hides the button immediately** — internal `setMode(null)` fires BEFORE the `on('submit')` handler runs, so the player sees the button disappear the instant they tap it. The player's focus shifts to feedback audio / inline results, not a still-visible CTA. The handler runs after the auto-hide; its job is to evaluate, await feedback, then re-show the button in the next appropriate mode via `setMode('retry')` / `setMode('next')` / `setMode(null)` (which keeps it hidden and lets the submittable-predicate re-fire on next interaction). The handler can be sync or async — the auto-hide happens regardless, so returning a Promise is not required.
 4. **On retry click:** clear feedback, reset input, set mode to `null` (back to predicate-driven).
 5. **On next click:** advance round, set mode to `null` until the player re-enters a submittable state.
 6. **`endGame()`:** call `floatingBtn.destroy()`.
@@ -143,17 +143,52 @@ Canonical wiring:
 
 ```js
 async function endGame(correct) {
+  // Beat 1 — SFX + sticker (minimum 1500 ms, awaited).
   await FeedbackManager.play(correct ? 'correct' : 'incorrect');
+
+  // Beat 2 — render inline feedback panel + post game_complete. SYNC so
+  // game_complete fires even if TTS stalls (host-harness safety).
   renderInlineFeedbackPanel(correct);                               // update #gameContent
   window.parent.postMessage({ type: 'game_complete', data: {...} }, '*');
-  floatingBtn.setMode('next');
+
+  // Beat 3 — dynamic TTS (if the game uses playDynamicFeedback). AWAIT IT.
+  // The star-award animation must play AFTER feedback audio ends, not on top.
+  // Omit this block entirely if the game has no TTS.
+  try {
+    await FeedbackManager.playDynamicFeedback({
+      audio_content: ttsText,
+      subtitle: subtitle,
+      sticker: sticker
+    });
+  } catch (e) { /* TTS failures must never block the end sequence */ }
+
+  // Beat 4 — star-award animation. Omit if spec.autoShowStar === false.
+  if (correct) {
+    window.postMessage({
+      type: 'show_star',
+      data: {
+        count: gameState.stars || 1,
+        variant: 'yellow',
+        score: gameState.score + '/' + gameState.totalRounds  // applied AFTER the 1 s animation
+      }
+    }, '*');
+  }
+
+  // Beat 5 — reveal Next. setTimeout(1100) so Next appears AFTER the 1 s
+  // flying-star animation finishes. If `spec.autoShowStar === false` (no
+  // animation fires), shorten to 300 ms — that still satisfies
+  // GEN-FLOATING-BUTTON-NEXT-TIMING's separator requirement.
+  setTimeout(function () { floatingBtn.setMode('next'); }, 1100);
 }
 
 floatingBtn.on('next', function () {
   window.parent.postMessage({ type: 'next_ended' }, '*');
+  try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
   floatingBtn.destroy();
 });
 ```
+
+**Note on targets:** `game_complete` and `next_ended` travel to the host via `window.parent.postMessage` (cross-frame). `show_star` is an **intra-frame** message consumed by the ActionBar in the same window, so it uses `window.postMessage` (no `.parent`). See PART-040.
 
 `ScreenLayout.inject()` for standalone MUST omit `transitionScreen`: `slots: { floatingButton: true, previewScreen: true, transitionScreen: false }` (or omit the key entirely). Do NOT instantiate `new TransitionScreenComponent(...)`.
 
@@ -183,17 +218,61 @@ async function endRound(correct) {
   });
   transitionScreen.onDismiss(() => {
     transitionScreen.hide();
-    floatingBtn.setMode('next');         // ONLY setMode('next') call in the game
+    // Star-award animation — fires AFTER the transition dismisses. Omit
+    // the postMessage if spec.autoShowStar === false.
+    if (correct) {
+      window.postMessage({
+        type: 'show_star',
+        data: {
+          count: gameState.stars || 1,
+          variant: 'yellow',
+          score: gameState.score + '/' + gameState.totalRounds  // applied AFTER the animation
+        }
+      }, '*');
+    }
+    // Reveal Next AFTER the 1 s animation. If spec.autoShowStar === false,
+    // shorten the delay to 300 ms (no animation to wait for).
+    setTimeout(function () { floatingBtn.setMode('next'); }, 1100);
   });
 }
 
 floatingBtn.on('next', function () {
   window.parent.postMessage({ type: 'next_ended' }, '*');
+  try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
   floatingBtn.destroy();
 });
 ```
 
-**Hard rules for both variants.** `setMode('next')` MUST NOT be in `endGame()`, `handleGameOver()`, `postGameComplete()`, or any function that immediately precedes `setMode('next')` with a `game_complete` postMessage and nothing else. The only valid separators between `game_complete` and `setMode('next')` are: `await` (standalone — feedback already awaited), OR `transitionScreen.onDismiss(...)` + `transitionScreen.hide()` (multi-round). Validator `GEN-FLOATING-BUTTON-NEXT-TIMING` catches all other patterns.
+**Opt-in Claim-Stars button.** Instead of the `buttons: []` tap-dismiss, a victory screen may expose an explicit `Claim Stars` CTA. The button's own `action()` posts `show_star` — TransitionScreen has no knowledge of the star protocol, so authors retain full control over count, variant, timing, and whether to fire at all:
+
+```js
+transitionScreen.show({
+  stars: 3,
+  title: 'Victory!',
+  buttons: [{
+    text: 'Claim Stars',
+    type: 'primary',
+    action: () => {
+      window.postMessage({
+        type: 'show_star',
+        data: { count: 3, variant: 'yellow' }
+      }, '*');
+      transitionScreen.hide();
+      floatingBtn.setMode('next');
+    }
+  }]
+});
+```
+
+`Claim Stars` is NOT on the `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN` reserved list, so it is allowed alongside the FloatingButton-owned Next. **When you use this variant, set `spec.autoShowStar: false` to suppress the generator-emitted `show_star` inside `onDismiss` — otherwise the animation fires twice (once from the author's action, once from the default hook).**
+
+**Note on targets:** `game_complete` / `next_ended` travel to the host via `window.parent.postMessage`. `show_star` is **intra-frame** (ActionBar listens in the same window) — use `window.postMessage`. See PART-040.
+
+**Spec-level opt-out.** `spec.autoShowStar: false` tells the generator to skip emitting the default `show_star` postMessage in both standalone and multi-round templates. The game author then fires `show_star` manually wherever they want — ActionBar dedupes identical payloads within 500 ms, so an unintentional double-fire is safe.
+
+**Hard rules for both variants.** `setMode('next')` MUST NOT be in `endGame()`, `handleGameOver()`, `postGameComplete()`, or any function that immediately precedes `setMode('next')` with a `game_complete` postMessage and nothing else. The only valid separators between `game_complete` and `setMode('next')` are: `await` (standalone — feedback already awaited), OR `transitionScreen.onDismiss(...)` + `transitionScreen.hide()` (multi-round), OR a `setTimeout(...)` deferral (e.g. the short 300 ms delay the standalone star-award template uses). Validator `GEN-FLOATING-BUTTON-NEXT-TIMING` catches all other patterns.
+
+**Destroy ordering.** `previewScreen.destroy()` MUST NOT be called inside `endGame()` — the preview wrapper owns the ActionBar header + `#previewStar`, which are the target of the star-award animation that plays AFTER `endGame()` fires `show_star`. Destroys happen once, inside the `floatingBtn.on('next', ...)` handler, AFTER `window.parent.postMessage({type:'next_ended'}, '*')`. This keeps the header mounted through the entire end-screen view and matches PART-039's destroy mandate.
 
 **Banned — DO NOT do any of these** (the exact patterns previous runs have produced and each was rejected):
 
@@ -307,7 +386,7 @@ floatingBtn.on('submit', async () => {
 });
 ```
 
-The Promise-return pattern keeps the button in `Submitting…` for the full feedback duration — no race between animation and the Retry / Next reveal. Never call `setMode('next')` directly from the submit handler for the victory path — Next appears AFTER the end TransitionScreen dismisses, not alongside it.
+The button auto-hides on submit click, so the feedback sequence has no CTA competing for attention. When feedback completes, the handler explicitly sets the next mode — `setMode(null)` in multi-round (predicate will re-drive on next interaction), `setMode('retry')` in standalone+lives, or continues to end-game flow. Never call `setMode('next')` directly from the submit handler for the victory path — Next appears AFTER the end TransitionScreen dismisses (multi-round) or AFTER the inline-feedback render (standalone), not alongside it.
 
 ---
 

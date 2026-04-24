@@ -4,9 +4,9 @@
 
 ---
 
-> ⛔ **DEPRECATED (v1):** The standalone `#results-screen` HTML div approach is **deprecated**. All new games MUST show results via **TransitionScreen v2 content slot** (PART-024). TransitionScreen hides `#gameContent` when shown — any results div inside `#gameContent` would be hidden. Using the TransitionScreen content slot avoids this issue entirely.
+Results MUST be shown via the TransitionScreen `content` slot (PART-024). A standalone `#results-screen` div is NOT valid — TransitionScreen hides `#gameContent` when shown, so any results div inside `#gameContent` would be hidden. Using the `content` slot avoids this entirely.
 
-## v2 Approach — Results via TransitionScreen Content Slot (REQUIRED)
+## Usage
 
 ```javascript
 function showResults(metrics, reason) {
@@ -89,7 +89,7 @@ var metricsHTML =
   '</div>';
 ```
 
-## CRITICAL: Why Not a Separate #results-screen Div?
+## Why NOT a separate `#results-screen` div
 
 TransitionScreen toggles `#gameContent` visibility:
 - `show()` sets `#gameContent.style.display = 'none'`
@@ -113,32 +113,9 @@ await FeedbackManager.sound.play('sound_game_over');
 showResults(metrics, 'game_over');
 ```
 
----
-
-## Legacy v1 Approach (DEPRECATED)
-
-> ⛔ The HTML below is deprecated. Do not use in new games.
-
-```html
-<!-- ⛔ DEPRECATED: Use TransitionScreen content slot instead -->
-<div id="results-screen" style="display:none;">
-  <div class="results-container">
-    <h2 id="results-title">Game Complete!</h2>
-    <div id="stars-display" class="stars-display"></div>
-    <div class="results-metrics">
-      <div class="metric-row">
-        <span class="metric-label">Score</span>
-        <span id="result-score" class="metric-value">0%</span>
-      </div>
-    </div>
-    <button onclick="location.reload()">Play Again</button>
-  </div>
-</div>
-```
-
 ## Verification
 
-- [ ] ⛔ NOT using standalone `#results-screen` div (deprecated)
+- [ ] NOT using a standalone `#results-screen` div
 - [ ] Results shown via `transitionScreen.show({ content: metricsHTML, persist: true })`
 - [ ] Stars passed to TransitionScreen (`stars: metrics.stars`)
 - [ ] "Play Again" button calls `restartGame()` (not `location.reload()`)

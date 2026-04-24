@@ -1,6 +1,6 @@
 # SignalCollector API
 
-Production API reference for SignalCollector v3.0.0 — raw input event capture for MathAI games.
+Production API reference for SignalCollector — raw input event capture for MathAI games.
 
 ## CDN Loading
 

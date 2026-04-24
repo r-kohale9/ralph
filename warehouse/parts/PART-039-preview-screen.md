@@ -242,18 +242,20 @@ Do NOT call `setupGame()` from `restartGame()` if `setupGame()` ends with `showP
 | `resume()` | Resume preview audio + progress bar. |
 | `skip()` | Skip preview, transition to game state |
 | `setPreviewData(key, value)` | Store user interaction data from preview content |
-| `setStar(visible)` | Runtime toggle of the header star (show/hide). |
+| `setStar(visible)` | Runtime toggle of the header star (show/hide). Pass-through to ActionBar. |
+| `setScore(text)` | Runtime score text update (e.g. `"1/10"`). Pass-through to ActionBar. Call on every correct answer / round advance so the header reflects current progress. |
+| `setQuestionLabel(text)` | Runtime question-label update (e.g. `"Q2"`). Pass-through to ActionBar. Call when advancing to a new round. |
 | `getState()` | Returns current state: `'idle'`, `'preview'`, or `'game'` |
 | `isActive()` | Returns true while the preview overlay is mounted |
-| `destroy()` | Full cleanup. Call in `endGame()`. |
+| `destroy()` | Full cleanup. Call exactly once in the end-of-game teardown — inside the FloatingButton `on('next', ...)` handler, AFTER `next_ended` is posted. `endGame()` wires the handler but MUST NOT call `destroy()` directly, because the preview wrapper (including the ActionBar header + `#previewStar`) must stay mounted while the end-screen star-award animation plays and while the player absorbs results. Per PART-040, the star animation fires on `show_star` postMessage AFTER `endGame()` and relies on the header existing until the player advances. |
 
-`hide()` does NOT exist — the preview wrapper is persistent. Use `destroy()` only in `endGame()` cleanup.
+`hide()` does NOT exist — the preview wrapper is persistent. Use `destroy()` only in the end-of-game Next handler (not in `endGame()` itself, and never mid-game).
 
 ---
 
 ## Component Boundary (CRITICAL)
 
-PreviewScreenComponent owns its internal DOM. Game code operates only within `#gameContent` and its children; the CDN manages preview visibility via `switchToGame()` (internal, called by `skip()` / timer-complete) and `destroy()` (once, in `endGame()` cleanup).
+PreviewScreenComponent owns its internal DOM. Game code operates only within `#gameContent` and its children; the CDN manages preview visibility via `switchToGame()` (internal, called by `skip()` / timer-complete) and `destroy()` (once, in the end-of-game Next-click handler).
 
 **Game HTML MUST NOT** reference these preview-owned IDs via `getElementById` / `querySelector` / `querySelectorAll`, and MUST NOT toggle any `.mathai-preview-*` class via `classList.add/remove/toggle/contains`:
 
@@ -310,7 +312,7 @@ Validator rule `5e0-DOM-BOUNDARY` enforces this. Cross-reference: PART-026 Anti-
 - [ ] `startGameAfterPreview()` sets `gameState.startTime` AFTER preview ends
 - [ ] `gameState.duration_data.preview[]` populated with `{ duration }`
 - [ ] VisibilityTracker wired to `pause()`/`resume()`
-- [ ] `endGame()` calls `previewScreen.destroy()`
+- [ ] `previewScreen.destroy()` is called exactly once, inside `floatingBtn.on('next', ...)` (AFTER `next_ended` is posted). NOT called in `endGame()` — the header must stay mounted through the star-award animation and end-screen viewing.
 - [ ] No `new Audio()` for preview audio (must use FeedbackManager)
 - [ ] Preview audio preloaded via `FeedbackManager.sound.preload()`
 - [ ] Game does NOT render its own header bar inside `#gameContent` (preview header is the only header)

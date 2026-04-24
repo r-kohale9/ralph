@@ -74,6 +74,7 @@ A structured `spec.md` file with ALL of the following sections. Every section is
 - **Timer:** [None, or seconds per round]
 - **Lives:** [0 or exact number]
 - **retryPreservesInput:** [true | false — default `false`. Applicable only when `Rounds: 1` AND `Lives > 1` (standalone + Try Again reachable). `true` keeps the input value intact after the player taps Try Again; `false` clears it. See PART-050 "Try Again flow". Ignored for multi-round games and for standalone games with Lives = 1.]
+- **autoShowStar:** [true | false — default `true`. When `true`, the generator emits the default `show_star` postMessage at PART-050's canonical end-of-game spot (before `floatingBtn.setMode('next')` in standalone, inside `transitionScreen.onDismiss(...)` in multi-round). Set `false` to suppress the default trigger and fire `show_star` yourself at a custom beat. See PART-050 "Next flow".]
 - **Star rating:** 3 stars = [threshold], 2 stars = [threshold], 1 star = [threshold]
 - **Input:** [input type(s) with specifics]
 - **Feedback:** [feedback style]

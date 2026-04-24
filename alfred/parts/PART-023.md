@@ -1,4 +1,4 @@
-### PART-023: ProgressBar Component (v2)
+### PART-023: ProgressBar Component
 
 **Source of truth:** `warehouse/parts/PART-023-progress-bar.md`
 

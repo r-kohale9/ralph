@@ -74,10 +74,7 @@ floatingBtn.on('next', () => {
 });
 ```
 
-Because `on('submit')` returns a Promise, the button automatically:
-- disables itself
-- swaps its label to `Submitting…`
-- ignores additional clicks until the promise resolves
+**v1.2.0+ — auto-hide on submit click.** When the user taps Submit, the component **hides the button immediately** (internal `setMode(null)` fires BEFORE the registered `on('submit')` handler runs). The player sees the button disappear the instant they tap it and focuses on feedback audio / inline results instead of a still-visible CTA. The handler's job is to evaluate, await feedback, then re-show the button in the next mode (`setMode('retry')` / `setMode(null)` / continue to end-game flow). Because the hide is automatic, the handler can be sync or async — no need to return a Promise. The previous Promise-triggered "Submitting…" greyed-but-visible state is deprecated.
 
 ### Public API
 

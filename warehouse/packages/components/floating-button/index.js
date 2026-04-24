@@ -25,7 +25,7 @@
     return;
   }
 
-  var VERSION = "1.1.0";
+  var VERSION = "1.2.0";
   var STYLE_ID = "mathai-floating-button-styles";
 
   var DEFAULT_LABELS = {
@@ -380,8 +380,30 @@
     this._btn.setAttribute("data-mathai-fb-pressed", "true");
     if (this._btn2) this._btn2.setAttribute("data-mathai-fb-pressed", "false");
 
-    var handler = this._handlers[this._mode];
+    var currentMode = this._mode;
+    var handler = this._handlers[currentMode];
     if (!handler) return;
+
+    // AUTO-HIDE ON SUBMIT CLICK. After tapping Submit, the button must
+    // disappear immediately — the player is now watching feedback audio /
+    // inline results, not the button. Keeping Submit visible (or greyed with
+    // "Submitting…") during the async feedback leaves a tappable CTA on
+    // screen that invites double-submit and confuses the eye away from the
+    // feedback panel. The handler is responsible for flipping mode to retry
+    // / next when its async work completes; until then the button stays
+    // hidden. Retry / Next click paths keep their existing behaviour — their
+    // handlers typically call destroy() or setMode(null) themselves.
+    //
+    // This also fixes the sync-fire-and-forget mis-pattern:
+    //   floatingBtn.on('submit', function () {
+    //     handleSubmit(...);   // returns undefined — no Promise tracking
+    //   });
+    // Previously the button stayed in 'submit' mode during handleSubmit's
+    // async work because no Promise flowed back here to trigger the
+    // Submitting state. Now the button hides regardless.
+    if (currentMode === "submit") {
+      this.setMode(null);
+    }
 
     var result;
     try {
@@ -392,14 +414,9 @@
     }
 
     if (result && typeof result.then === "function") {
-      this._enterSubmittingState();
-      result
-        .catch(function (err) {
-          console.error("[FloatingButton] Async handler rejected:", err);
-        })
-        .then(function () {
-          self._exitSubmittingState();
-        });
+      result.catch(function (err) {
+        console.error("[FloatingButton] Async handler rejected:", err);
+      });
     }
   };
 
