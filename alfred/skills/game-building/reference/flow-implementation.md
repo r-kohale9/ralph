@@ -52,8 +52,20 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 | Feedback wrong, lives remaining > 0 | `update(progress, livesLeft)` — hearts decrement; `progress` changes only if the game's metric includes wrong answers |
 | Feedback / round-complete — metric increments | Bump the counter in state FIRST, then `update(progress, livesLeft)` BEFORE any awaited SFX / transition. See "Round-complete handler — progress bar bumps FIRST" in code-patterns.md. |
 | Victory entry | `update(totalRounds, livesLeft)` — bar shows full (game complete, regardless of metric) |
-| Game Over entry | **no call** — state preserved (bar shows prior value + 0 hearts) |
-| `onRestart` branch entry (before first new Round-1 intro) | `update(0, totalLives)` — reset to the start-at-0 invariant |
+| Game Over entry | **no call** — state preserved (bar shows prior value + 0 hearts so the student sees their final state) |
+| **Restart-path entry** (after Game Over `Try Again`, or after <3★ Victory `Play Again`) | `update(0, totalLives)` — **reset to the start-at-0 invariant** so a fresh start is visibly signaled before Round 1 begins. *Placement depends on flow shape — see below.* |
+
+### Restart-path reset — placement by flow shape
+
+The reset itself is universal; *where* you place the `update(0, totalLives)` call depends on whether the game's flow has a transition screen between the Game-Over / Victory end-state and the first new Round-1 intro. Two cases, one safety net:
+
+| Flow shape | Where to place the reset call | Visible effect |
+|---|---|---|
+| **Default flow** — Motivation ("Ready to improve your score?") exists between Try Again / Play Again and Round 1 | Inside Motivation's `transitionScreen.show({ onMounted: ... })`, alongside the motivation VO: `progressBar.update(0, totalLives)` | Bar visibly resets the instant Motivation mounts, so the student sees `0/N` + full hearts while reading "Ready to improve your score?" → reinforces the "fresh start, are you ready?" signal |
+| **Custom flow** — no Motivation screen (spec overrides it, or Try Again / Play Again routes directly to Round 1) | First line of `restartGame()`, before `renderRound()` / `showRoundIntro(1)` | Bar resets as Round 1 loads — no intermediate screen to show it on, but the invariant still holds |
+| **Universal safety net** — both shapes | `restartGame()` should ALSO call `progressBar.update(0, totalLives)` as its first runtime action | Idempotent when Motivation already reset; authoritative when it didn't. Guarantees the invariant regardless of how the restart path is entered (including future flow customizations, host-triggered restarts via `game_init`, etc.) |
+
+**Rule of thumb:** the reset is an attribute of the **restart action**, not of any specific screen. Attach it to the earliest visible moment of the restart path (Motivation's `onMounted` when it exists), AND guarantee it inside `restartGame()` as a safety net. The two calls are idempotent — `update(0, ...)` twice in a row produces the same visual state as one call.
 
 ### Shape-specific progress-bar behavior
 
@@ -106,18 +118,21 @@ async function startGame() {
 
 ## ActionBar header state updates — MANDATORY
 
-The header's `#previewScore` and `#previewQuestionLabel` text are state-driven — games MUST refresh them on every progression change. Two paths, each for a different moment:
+The header's `#previewScore` and `#previewQuestionLabel` text are state-driven — games MUST refresh them on every progression change. Mid-round updates use direct `previewScreen.setScore(...)` / `previewScreen.setQuestionLabel(...)` (no animation). The `show_star` flying-star animation is reserved for the ONE end-of-game celebration beat — firing it per round plays the animation 10 times in a row and spams the player (equivalent-ratio-quest regression).
 
-| Moment | Call |
-|---|---|
-| After `previewScreen` is instantiated (in `startGameAfterPreview`) | `previewScreen.setQuestionLabel('Q1')` + `previewScreen.setScore('0/' + totalRounds)` — direct methods, no animation |
-| Round advance (new round begins, multi-round) | `previewScreen.setQuestionLabel('Q' + gameState.currentRound)` — direct method, no animation |
-| **Correct answer evaluated (score bumps)** | `window.postMessage({type:'show_star', data:{count, variant:'yellow', score: gameState.score + '/' + totalRounds}}, '*')` — `score` is applied AFTER the 1 s flying-star animation, so the celebration visibly precedes the number change |
-| Non-award score mutation (rare: penalty, undo) | `previewScreen.setScore(gameState.score + '/' + totalRounds)` — direct, no animation |
+| Moment | Call | Animation? |
+|---|---|---|
+| After `previewScreen` is instantiated (in `startGameAfterPreview`) | `previewScreen.setQuestionLabel('Q1')` + `previewScreen.setScore('0/' + totalRounds)` | No |
+| Round advance (new round begins, multi-round) | `previewScreen.setQuestionLabel('Q' + gameState.currentRound)` | No |
+| Correct answer evaluated mid-round (score bumps) | `previewScreen.setScore(gameState.score + '/' + totalRounds)` | No |
+| Non-award score mutation (penalty, undo) | `previewScreen.setScore(gameState.score + '/' + totalRounds)` | No |
+| **End-of-game celebration (once per session)** | `window.postMessage({type:'show_star', data:{count, variant:'yellow', score: gameState.score + '/' + totalRounds}}, '*')` | **Yes** — the `score` is applied AFTER the 1 s flying-star animation |
 
-**Never fire `game_init` from game code to update these fields.** Games already have a `handlePostMessage` listener that processes `game_init` by calling `setupGame()` — a re-fire would reset state with fallback content. The direct methods + show_star payload mutate header DOM in-process and bypass the message bus. See PART-040 "Updating header state from game code" and code-patterns.md "ActionBar header refresh".
+**Never fire `game_init` from game code to update these fields.** Games already have a `handlePostMessage` listener that processes `game_init` by calling `setupGame()` — a re-fire would reset state with fallback content. The direct methods + end-of-game show_star mutate header DOM in-process and bypass the message bus. See PART-040 "Updating header state from game code" and code-patterns.md "ActionBar header refresh".
 
-**Validator gate:** `GEN-HEADER-REFRESH` errors if a FloatingButton-using, PreviewScreen-using game contains neither `previewScreen.setScore(` nor a show_star payload with a `score:` field.
+**Never fire `show_star` per round.** It is a one-time end-of-game celebration, not a per-correct-answer effect. If you need a per-round score bump, use `previewScreen.setScore(...)` directly.
+
+**Validator gate:** `GEN-HEADER-REFRESH` errors if a FloatingButton-using, PreviewScreen-using game never updates the header. A separate check flags show_star usage inside a per-round handler.
 
 ## End-of-game star-award animation (`show_star`) — MANDATORY
 

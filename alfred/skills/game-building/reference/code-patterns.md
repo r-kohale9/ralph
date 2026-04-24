@@ -88,53 +88,60 @@ Per PART-011. Game-building rules:
 
 ### ActionBar header refresh (score + question label) — MANDATORY
 
-The header's `#previewScore` text (e.g. `"1/10"`) and `#previewQuestionLabel` (e.g. `"Q3"`) reflect the game's progression. They update ONLY when the game tells them to. Two paths exist, each for a different moment:
+The header's `#previewScore` text (e.g. `"1/10"`) and `#previewQuestionLabel` (e.g. `"Q3"`) reflect the game's progression. They update ONLY when the game tells them to, via ONE of two paths:
 
-**Path 1 — `show_star` payload (correct-answer path; score bump is part of the celebration).**
+**Path 1 — Direct pass-through methods (per-round / state-change moments).**
 
-When the student answers correctly, `show_star` fires the celebratory flying-star animation. Pass the new score in the same payload — ActionBar applies it to `#previewScore` AFTER the animation finishes, so the celebration visibly precedes the number change. This is the canonical pattern for correct answers.
-
-```javascript
-// Multi-round game (one star per correct round) — score tracks rounds correct.
-window.postMessage({
-  type: 'show_star',
-  data: {
-    count: gameState.stars || 1,
-    variant: 'yellow',
-    score: gameState.score + '/' + gameState.totalRounds
-  }
-}, '*');
-```
-
-**`count` and `score` must agree.** The animation tier (`count`) is visually tied to the number change (`score`) — a ×2 animation with `+1` score looks broken. Choose the score formula that matches what the animation celebrates:
-
-| Game shape | `count` source | `score` string to send |
-|---|---|---|
-| Multi-round, 1 star per correct round | `gameState.stars || 1` | `gameState.score + '/' + gameState.totalRounds` |
-| Standalone, 1 round awards up to N stars (e.g. lives-based rating) | `Math.max(1, Math.min(N, stars))` | `stars + '/' + N` |
-| Cumulative star points (multi-round, varying per-round awards) | stars awarded this round | `(gameState.totalStars) + '/' + gameState.maxStars` |
-
-Rule: **whatever number your `count` visually communicates, the `score` text should express the same quantity as a fraction.** If the player sees ×2 stars fly, the header should read `X+2/Y` not `X+1/Y`. Mis-matched games have been rejected in QA (solve-for-x-speed-round 2026-04-24 — ×2 animation, `/1` score).
-
-**Path 2 — Direct pass-through methods (non-award moments).**
+Use for everything EXCEPT the single end-of-game celebration. No animation, just a value bump.
 
 ```javascript
 // Initial seed — call once from startGameAfterPreview() after previewScreen exists.
 previewScreen.setQuestionLabel('Q1');
 previewScreen.setScore('0/' + gameState.totalRounds);
 
-// Round advance (new round begins — multi-round games). No animation.
+// Correct answer mid-round — immediate score bump, NO star-flying animation.
+previewScreen.setScore(gameState.score + '/' + gameState.totalRounds);
+
+// Round advance (new round begins — multi-round games).
 previewScreen.setQuestionLabel('Q' + (gameState.currentRound + 1));
 
-// Any non-award score mutation (rare: partial credit, penalty, undo). No animation.
+// Any non-award score mutation (partial credit, penalty, undo).
 previewScreen.setScore(gameState.score + '/' + gameState.totalRounds);
 ```
 
-**Do NOT re-post `game_init` from the game.** The game's own `handlePostMessage` listener catches `game_init` and runs `setupGame()` — a re-fire with just `{data:{score:'1/10'}}` triggers `setupGame()` with fallback content and resets everything. Use the direct methods / show_star payload only; they mutate header DOM in-process and bypass the message bus entirely.
+**Path 2 — `show_star` payload (end-of-game celebration only).**
 
-For standalone games (`totalRounds: 1`), use Path 1 in the correct-answer endGame and skip `setQuestionLabel` (there is only one round).
+`show_star` fires the big flying-star animation into the header. It is a ONE-TIME celebration triggered at the end of the game — NOT per round. Firing it on every correct answer in a 10-round game plays 10 animations and spams the user.
 
-**Validator gate:** `GEN-HEADER-REFRESH` errors if a FloatingButton-using, PreviewScreen-using game contains neither `previewScreen.setScore(` nor a show_star payload with a `score:` field. Step 5 rejects the build until one is present.
+Fire `show_star` exactly ONCE per game session, at the end-of-game celebration beat:
+- **Standalone** (`totalRounds: 1`): inside `endGame` / feedback sequence, after all feedback audio completes.
+- **Multi-round** (`totalRounds > 1`): inside the victory / stars-collected TransitionScreen's `onMounted` (or `onDismiss`), after celebration audio — NOT inside the per-round correct handler.
+
+```javascript
+// End-of-game victory — the one place show_star belongs.
+window.postMessage({
+  type: 'show_star',
+  data: {
+    count: gameState.stars || 1,         // 1-3 stars earned overall
+    variant: 'yellow',
+    score: gameState.score + '/' + gameState.totalRounds
+  }
+}, '*');
+```
+
+**`count` and `score` must agree.** Whatever number your `count` visually communicates, the `score` text should express the same quantity as a fraction. If the player sees ×2 stars fly, the header should read `X+2/Y` not `X+1/Y`. Mis-matched games have been rejected in QA (solve-for-x-speed-round — ×2 animation, `/1` score).
+
+| Game shape | `count` source | `score` string to send |
+|---|---|---|
+| Multi-round, 1 star per correct round (cumulative rating) | `gameState.stars || 1` | `gameState.score + '/' + gameState.totalRounds` |
+| Standalone, 1 round awards up to N stars (e.g. lives-based rating) | `Math.max(1, Math.min(N, stars))` | `stars + '/' + N` |
+| Cumulative star points (multi-round, varying per-round awards) | stars awarded this game | `(gameState.totalStars) + '/' + gameState.maxStars` |
+
+**Do NOT fire `show_star` per round.** Regression from equivalent-ratio-quest: mid-round correct handlers fired `show_star`, so players saw the flying-star animation ten times in a row. Use `previewScreen.setScore(...)` for per-round bumps; `show_star` is reserved for the one end-of-game celebration.
+
+**Do NOT re-post `game_init` from the game.** The game's own `handlePostMessage` listener catches `game_init` and runs `setupGame()` — a re-fire with just `{data:{score:'1/10'}}` triggers `setupGame()` with fallback content and resets everything. Use the direct methods / end-of-game show_star only; they mutate header DOM in-process and bypass the message bus entirely.
+
+**Validator gate:** `GEN-HEADER-REFRESH` errors if a FloatingButton-using, PreviewScreen-using game contains neither `previewScreen.setScore(` nor a show_star payload with a `score:` field. Step 5 rejects the build until one is present. A separate check flags show_star used more than once per session.
 
 ### Star-award animation (`show_star`)
 Per PART-040 + PART-050. Intra-frame postMessage that animates a flying star into the ActionBar header, plays an award chime, upgrades the header's static star image to match the awarded tier, and (optionally) updates the header score text at animation end.
@@ -519,6 +526,11 @@ function restartGame() {
   gameState.startTime = Date.now();
   gameState.isActive = true;
   gameState.duration_data.startTime = new Date().toISOString();
+  // Progress bar reset — universal safety net.
+  // Idempotent if Motivation's onMounted already reset it; authoritative if the
+  // flow has no Motivation screen (spec override, or Try Again / Play Again routed
+  // directly here). See flow-implementation.md § "Restart-path reset — placement by flow shape".
+  if (progressBar) progressBar.update(0, gameState.totalLives);
   trackEvent('game_start', { totalRounds: gameState.totalRounds });
   renderRound();  // or showLevelTransition() for sectioned games
 }
