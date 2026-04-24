@@ -1017,11 +1017,12 @@ describe('progressBar hallucinated methods check (5f10)', () => {
   });
 
   it('does not flag progressBar.update() as a hallucinated method', () => {
-    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(1, 3);');
+    // Use literal 0 as first arg to satisfy 5e0-PROGRESSBAR-START-ONE (bare positive literals violate the start-at-0 invariant).
+    const html = VALID_HTML.replace('initGame();', 'initGame(); progressBar.update(0, 3);');
     const { exitCode, output } = runValidator(html);
     assert.ok(
-      !output.includes('progressBar.update') || !output.includes('ERROR'),
-      `Unexpected error for progressBar.update(): ${output}`,
+      !/progressBar\.update[^]*?\b(5f7|5f9|5f10|hallucinated)\b/i.test(output),
+      `Unexpected hallucination error for progressBar.update(): ${output}`,
     );
   });
 });
@@ -1114,6 +1115,128 @@ describe('GEN-112 false-positive regression: Math.max(0, lives) must NOT trigger
     assert.ok(
       output.includes('3 args'),
       `Expected 3-arg error but got: ${output}`,
+    );
+  });
+});
+
+describe('5e0-PROGRESSBAR-START-ONE — progressBar.update() first arg must not be 1-indexed', () => {
+  it('fails when first arg is `gameState.currentRound + 1` (sort-the-shapes regression)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Expected 5e0-PROGRESSBAR-START-ONE error but got: ${output}`,
+    );
+    assert.ok(
+      output.includes('gameState.currentRound + 1'),
+      `Expected offending arg in error message. Output: ${output}`,
+    );
+  });
+
+  it('fails when first arg is a bare positive literal `1`', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(1, 3);',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Expected 5e0-PROGRESSBAR-START-ONE error but got: ${output}`,
+    );
+  });
+
+  it('fails when first arg is `i + 1` in a loop', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); for (let i = 0; i < 5; i++) { progressBar.update(i + 1, 3); }',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Expected 5e0-PROGRESSBAR-START-ONE error but got: ${output}`,
+    );
+  });
+
+  it('passes when first arg is literal `0`', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(0, gameState.totalLives);',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Unexpected 5e0-PROGRESSBAR-START-ONE error for update(0, ...). Output: ${output}`,
+    );
+  });
+
+  it('passes when first arg is `gameState.roundsCompleted` (0-initialized counter)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(gameState.roundsCompleted, gameState.lives);',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Unexpected 5e0-PROGRESSBAR-START-ONE error for roundsCompleted. Output: ${output}`,
+    );
+  });
+
+  it('passes when first arg is `gameState.currentRound` (no +1)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(gameState.currentRound, gameState.lives);',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Unexpected 5e0-PROGRESSBAR-START-ONE error for gameState.currentRound. Output: ${output}`,
+    );
+  });
+
+  it('passes when first arg is `Math.max(0, gameState.currentRound - 1)` (defensive pattern)', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      'initGame(); progressBar.update(Math.max(0, gameState.currentRound - 1), Math.max(0, gameState.lives));',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Unexpected 5e0-PROGRESSBAR-START-ONE error for Math.max(0, ...-1) pattern. Output: ${output}`,
+    );
+  });
+
+  it('does not fire when progressBar is not used at all', () => {
+    // VALID_HTML has no progressBar reference
+    const { output } = runValidator(VALID_HTML);
+    assert.ok(
+      !output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Unexpected 5e0-PROGRESSBAR-START-ONE error when progressBar is absent. Output: ${output}`,
+    );
+  });
+
+  it('reports the overflow count when there are multiple offenders', () => {
+    const html = VALID_HTML.replace(
+      'initGame();',
+      `initGame();
+        progressBar.update(gameState.currentRound + 1, 3);
+        progressBar.update(gameState.currentRound + 1, 2);
+        progressBar.update(gameState.currentRound + 1, 1);`,
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('5e0-PROGRESSBAR-START-ONE'),
+      `Expected 5e0-PROGRESSBAR-START-ONE error. Output: ${output}`,
+    );
+    assert.ok(
+      /\+2 more offending calls/.test(output),
+      `Expected overflow count in error. Output: ${output}`,
     );
   });
 });
@@ -4373,6 +4496,42 @@ describe('5e0-DOM-BOUNDARY: preview private DOM boundary', () => {
     );
   });
 
+  it('errors when game code uses a compound selector containing .mathai-preview-* (match-up-ratios bypass)', () => {
+    const html = injectSnippet(
+      "var headers = document.querySelectorAll('#mathai-preview-slot .mathai-preview-header'); for (var i = 0; i < headers.length; i++) headers[i].style.display = 'none';",
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
+    assert.ok(
+      output.includes('5e0-DOM-BOUNDARY'),
+      `Expected 5e0-DOM-BOUNDARY on compound selector. Got: ${output}`,
+    );
+    assert.ok(
+      output.includes('mathai-preview-header'),
+      `Error should name the offending class token. Got: ${output}`,
+    );
+  });
+
+  it('errors when game <style> targets a banned preview ID via CSS selector (match-up-ratios CSS bypass)', () => {
+    // Scenario: game uses the allowed `#mathai-preview-slot` + game-defined class (`mur-preview-hidden`)
+    // as an anchor, then a CSS rule uses descendant combinator to hide `#previewInstruction` which IS banned.
+    // The JS alone doesn't trigger the ID or class regex; the violation lives in the CSS.
+    const html = buildPreviewHtml().replace(
+      '</style>',
+      '#mathai-preview-slot.mur-preview-hidden #previewInstruction { display: none !important; }\n</style>',
+    );
+    const { exitCode, output } = runValidator(html);
+    assert.equal(exitCode, 1, `Expected fail but got: ${output}`);
+    assert.ok(
+      output.includes('5e0-DOM-BOUNDARY'),
+      `Expected 5e0-DOM-BOUNDARY on CSS-bypass. Got: ${output}`,
+    );
+    assert.ok(
+      output.includes('#previewInstruction'),
+      `Error should name the banned ID in CSS. Got: ${output}`,
+    );
+  });
+
   it('errors when game code calls classList.add(\'mathai-preview-overlay\')', () => {
     const html = injectSnippet(
       "var el = document.getElementById('gameContent'); if (el) el.classList.add('mathai-preview-overlay');",
@@ -4421,6 +4580,61 @@ describe('5e0-DOM-BOUNDARY: preview private DOM boundary', () => {
     assert.ok(
       !output.includes('5e0-DOM-BOUNDARY'),
       `Rule fired when PreviewScreenComponent absent. Got: ${output}`,
+    );
+  });
+
+  it('errors when previewScreen.show() passes timerInstance', () => {
+    const html = buildPreviewHtml().replace(
+      /previewScreen\.show\s*\(\s*\{/,
+      "previewScreen.show({ timerInstance: null, ",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('5e0-DRIFTED-OPTIONS'),
+      `Expected 5e0-DRIFTED-OPTIONS on timerInstance. Got: ${output}`,
+    );
+    assert.ok(output.includes('timerInstance'), `Message should name the key. Got: ${output}`);
+  });
+
+  it('errors when previewScreen.show() passes timerConfig', () => {
+    const html = buildPreviewHtml().replace(
+      /previewScreen\.show\s*\(\s*\{/,
+      "previewScreen.show({ timerConfig: { type: 'decrease', startTime: 60, endTime: 0 }, ",
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('5e0-DRIFTED-OPTIONS'),
+      `Expected 5e0-DRIFTED-OPTIONS on timerConfig. Got: ${output}`,
+    );
+    assert.ok(output.includes('timerConfig'), `Message should name the key. Got: ${output}`);
+  });
+
+  it('does NOT error on a clean previewScreen.show() (no drifted options)', () => {
+    const html = buildPreviewHtml();
+    const { output } = runValidator(html);
+    assert.ok(
+      !output.includes('5e0-DRIFTED-OPTIONS'),
+      `Unexpected 5e0-DRIFTED-OPTIONS on clean show(). Got: ${output}`,
+    );
+  });
+
+  it('errors when ActionBarComponent alone is present and banned ID is reached into', () => {
+    // After the PART-039 → PART-040 split, some callers may use ActionBarComponent
+    // directly (without PreviewScreen). The rule must still fire on banned IDs.
+    const html = VALID_HTML.replace(
+      'initGame();',
+      "new ActionBarComponent({ slotId: 'mathai-preview-slot' });\n" +
+        "var _pi = document.getElementById('previewInstruction'); if (_pi) _pi.style.display = 'none';\n" +
+        'initGame();',
+    );
+    const { output } = runValidator(html);
+    assert.ok(
+      output.includes('5e0-DOM-BOUNDARY'),
+      `Rule did not fire with ActionBarComponent present. Got: ${output}`,
+    );
+    assert.ok(
+      output.includes('ActionBarComponent') || output.includes('PreviewScreenComponent'),
+      `Error message should name the owning component. Got: ${output}`,
     );
   });
 });

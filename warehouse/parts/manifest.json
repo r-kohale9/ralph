@@ -203,7 +203,7 @@
     },
     {
       "id": "PART-023",
-      "name": "ProgressBar Component (v2)",
+      "name": "ProgressBar Component",
       "version": "2.0.0",
       "category": "MANDATORY",
       "condition": "Every game with rounds/progress",
@@ -212,7 +212,7 @@
     },
     {
       "id": "PART-024",
-      "name": "TransitionScreen Component (v2)",
+      "name": "TransitionScreen Component",
       "version": "2.0.0",
       "category": "MANDATORY",
       "condition": "Every game — welcome, results, game-over screens with audio",
@@ -221,7 +221,7 @@
     },
     {
       "id": "PART-025",
-      "name": "ScreenLayout Component (v2)",
+      "name": "ScreenLayout Component",
       "version": "2.0.0",
       "category": "MANDATORY",
       "condition": "Every game — sections API (header/questionText/progressBar/playArea/transitionScreen)",

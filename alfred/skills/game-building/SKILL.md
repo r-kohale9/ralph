@@ -22,6 +22,7 @@ When generating HTML from an approved spec + plan. The main generation step.
 - `skills/interaction/SKILL.md` -- 8 canonical interaction patterns (tap, chain, match, swipe, drag-path, drag-drop, input, toggle), event handling, touch specifics, state machines, guards, undo, hit detection (reference/patterns.md for full code, reference/touch-events.md for pointer events, reference/state-and-guards.md for state management) -- **ALWAYS**
 - `reference/flow-implementation.md` -- screen→component mapping + progress bar lifecycle + round loop pattern -- **ALWAYS**
 - `alfred/skills/game-planning/reference/default-flow.md` -- canonical flow diagram -- **ALWAYS**
+- `alfred/parts/PART-050.md` -- CDN FloatingButtonComponent API (submit/retry/next lifecycle, submittable-predicate contract) -- **WHEN the game flow has a Submit CTA**
 
 ## Input
 
@@ -31,14 +32,44 @@ When generating HTML from an approved spec + plan. The main generation step.
 
 ## Output
 
-A single file: `index.html`
+A single file: `index.html` — this is the ONLY file this skill writes.
 
 - Self-contained: all CSS and JS inline (no external files except CDN scripts)
 - Under 500KB total file size
 - Passes `validate-static.js` (all GEN-* rules)
 - Passes Playwright test suite (all 5 categories: game-flow, mechanics, level-progression, edge-cases, contract)
 
+**CRITICAL — spec.md and plan.md are READ-ONLY during this step.** They were authored in step 1 (Draft Spec) and step 3 (Plan) and went through human review. The build step (step 4) MUST NOT modify `spec.md`, `plan.md`, or any file under `games/<id>/` other than `index.html`. If a validator rule is blocking the build, FIX the HTML — do not edit the spec to silence the rule. Writing `floatingButton: false` into spec.md during a build to silence `GEN-FLOATING-BUTTON-*` rules is a scope violation and a trust breach: spec flags are per-game design decisions that belong to the spec author, NOT to the build-time code generator. The user reviews spec changes via `git diff` and will revert any build-originated mutation.
+
 ---
+
+## Regeneration modes — fresh vs edit (MANDATORY read)
+
+Step 4 runs in one of two modes. Pick the right one before starting; picking wrong silently produces an out-of-date HTML.
+
+### Fresh mode (REQUIRED when any skill / PART document you read has changed since the last generation of this game)
+
+1. Delete the existing `games/<gameId>/index.html` (the sub-agent cannot reason about "what changed" from a diff; it only reads what's in front of it).
+2. Generate the HTML from scratch off the current skill docs. Every MANDATORY block in flow-implementation.md / code-patterns.md / PART files gets emitted, because there is no existing code for the sub-agent to "preserve".
+3. Run Step 5 (`node lib/validate-static.js`). All GEN-* rules green.
+
+**Use fresh mode whenever:**
+- A new MANDATORY rule / checklist item was added to this SKILL.md or any reference doc.
+- A new validator rule (GEN-*) was added that the existing HTML does not satisfy.
+- A component's CDN API changed in a way that requires new call-sites (e.g. PART-040 added `setScore` / `setQuestionLabel` / `show_star.data.score`).
+- The spec itself changed non-trivially (new rounds, new mechanic, new screens).
+
+### Edit mode (only for targeted one-line fixes where the doc set has NOT changed)
+
+1. Keep the existing HTML.
+2. Make surgical changes based on the specific instruction (e.g. "rename this button label", "increase timer from 30 to 45").
+3. Run Step 5. All GEN-* rules green.
+
+**Use edit mode only when:**
+- Creator is fixing a specific local issue (typo, value tweak, one-function bugfix).
+- No doc updates are in flight — the sub-agent would otherwise preserve soon-to-be-incorrect code.
+
+**Signal to the sub-agent:** the invoking prompt should say either "FRESH: delete and regenerate from scratch" or "EDIT: surgical change, leave the rest alone". If ambiguous, default to **FRESH** — edit mode skipping a MANDATORY new rule is a silent failure that only the validator (and only if a new GEN-* rule covers it) catches.
 
 ## Procedure
 
@@ -97,6 +128,18 @@ Before outputting, verify against every check:
 - [ ] GEN-SHOWRESULTS-SYNC: showResults calls syncDOM after phase assignment
 - [ ] GEN-RESTART-RESET: resetGame resets phase, currentRound, score, attempts, events
 - [ ] GEN-CORRECT-ANSWER-EXPOSURE: `gameState.correctAnswer` set each round
+- [ ] GEN-FLOATING-BUTTON-CDN: When spec has a Submit CTA, the FloatingButton CDN script (or the bundle `components/index.js`) is included and `new FloatingButtonComponent(...)` is instantiated in DOMContentLoaded
+- [ ] GEN-FLOATING-BUTTON-SLOT: `ScreenLayout.inject(...)` passes `slots.floatingButton: true` whenever `FloatingButtonComponent` is used
+- [ ] GEN-FLOATING-BUTTON-PREDICATE: At least one input / state-change handler calls `floatingBtn.setSubmittable(...)` (prevents the "show once, never hide" regression)
+- [ ] 5e0-FLOATING-BUTTON-DUP: No custom `<button>` anywhere in source whose **id / class / data-testid / aria-label / inner text** contains `submit / commit / retry / next / check / done / cta` when FloatingButton is used. Renaming id/class while keeping a telltale `data-testid` or inner text "Submit" still fires the rule — delete the button entirely.
+- [ ] End-of-game sequencing (PART-050 "Next flow" beats 1–5): SFX awaited → feedback panel + `game_complete` SYNC → TTS awaited (when `playDynamicFeedback` is used) → `show_star` postMessage → `setTimeout(() => setMode('next'), 1100)`. Do NOT fire `show_star` before dynamic TTS finishes — fire-and-forget TTS at end-of-game causes Next and the star animation to overlap with audio (bodmas-blitz 2026-04-24 regression). If `spec.autoShowStar === false`, shorten the final `setTimeout` to 300 ms.
+- [ ] show_star `count` and `score` must agree: whatever number of stars the animation visually celebrates (`count`), the `score` string in the same payload must express the same quantity. `×2` animation with `/1` score = broken (solve-for-x-speed-round 2026-04-24 regression). For standalone games where one round awards up to N stars, use `count: Math.max(1,Math.min(N,stars))` + `score: stars + '/' + N`, not `gameState.score + '/' + gameState.totalRounds`. See code-patterns.md "show_star count ↔ score agreement" table.
+- [ ] `show_star` fires EXACTLY ONCE per game session, at the end-of-game celebration beat — NEVER inside a per-round correct handler. Per-round score bumps use `previewScreen.setScore(gameState.score + '/' + gameState.totalRounds)` directly (no animation). Firing `show_star` on each correct answer stacks the flying-star animation N times in a multi-round game (equivalent-ratio-quest regression). See code-patterns.md "ActionBar header refresh" — Path 1 is per-round setScore, Path 2 is the one end-of-game show_star.
+- [ ] GEN-HEADER-REFRESH (PART-040): Every game that uses `PreviewScreenComponent` MUST update the ActionBar header score as the game progresses. Two mandatory moments:
+  - **Correct answer**: fire `window.postMessage({type:'show_star', data:{count, variant:'yellow', score: gameState.score + '/' + gameState.totalRounds}}, '*')`. The `score` field is applied AFTER the 1 s animation finishes, so the celebration visibly precedes the number change.
+  - **Round advance (multi-round only)**: call `previewScreen.setQuestionLabel('Q' + gameState.currentRound)` directly (no star animation on round start).
+  Do NOT re-post `game_init` from game code to update header fields — the game's own `handlePostMessage` would re-run `setupGame()` with fallback content. Direct methods + `show_star` payload extensions are the only sanctioned paths. See PART-040 "Updating header state from game code".
+- [ ] GEN-FLOATING-BUTTON-MISSING: No hand-rolled Submit / Check / Done / Commit `<button>` when `FloatingButtonComponent` is NOT instantiated. Narrative reasons in HTML comments or plan notes ("submit-only flow doesn't need retry/next", "standalone totalRounds:1", "inline button inside the form") do NOT silence this rule. PART-050 handles submit-only flows. The ONLY valid opt-out is `floatingButton: false` in `spec.md` (mirrors PART-039 `previewScreen: false`) — a spec-author decision reviewed at step 2. The build step MUST NOT add `floatingButton: false` to `spec.md` to silence the rule; any spec mutation during build shows up in `git diff` and is a scope violation. If the spec genuinely has no Submit CTA (no Submit/Check/Done mentioned in core mechanic), do NOT emit the button at all. The archetype PART-flag row is a default; the spec's flow overrides it (game-archetypes constraint #8)
 
 **Mobile checklist (from mobile.md):**
 - [ ] Viewport meta tag present with `width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no`

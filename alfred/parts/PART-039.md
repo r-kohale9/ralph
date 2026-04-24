@@ -19,8 +19,6 @@ const previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot'
 | `instruction` | string | HTML allowed (bold, images, video) |
 | `audioUrl` | string\|null | Preview audio; null → runtime TTS fallback |
 | `showGameOnPreview` | boolean | Default false. If true, render game behind transparent blocking overlay |
-| `timerConfig` | object\|null | `{ type: 'decrease'\|'increase', startTime, endTime }` |
-| `timerInstance` | TimerComponent\|null | Reference to game timer for header sync |
 | `onComplete` | function | Called with `previewData` when preview ends (skip or timer) |
 | `onPreviewInteraction` | function | Called when `setPreviewData()` fires |
 
@@ -41,10 +39,11 @@ const previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot'
 - `duration_data.preview[]` is populated with `{ duration }` in `startGameAfterPreview()`.
 - `game_complete` payload includes `previewResult: gameState.previewResult || null`.
 - Preview audio flows through `FeedbackManager.sound.preload`/`.play` — no `new Audio()`.
+- **Instruction persists in game state (REQUIRED).** `#previewInstruction` stays rendered above `#gameContent` in the shared scroll container after `switchToGame()`. This is a product requirement — students must be able to scroll up and re-read the instruction mid-gameplay. Game code MUST NOT hide, clear, remove, or wrap the instruction. If the stacked layout feels cramped, solve it inside `#gameContent` (tighten game UI, shorter fallback instruction) — never by reaching into preview DOM.
 - **Standalone-fallback gate (CRITICAL).** Any `setTimeout` standalone fallback inside `DOMContentLoaded` that calls `startGame()`, `showRoundIntro()`, or `injectGameHTML()` MUST, as its first statement, check `if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;`. The fallback exists only to recover from `waitForPackages()` timeout / CDN failure. Preview does NOT mutate `gameState.phase`, so the phase === 'start_screen' gate alone is insufficient — it stays true for the entire preview duration and lets the fallback fire Round 1 audio on top of preview audio, causing the welcome transition to be silently skipped.
 
 **State enum:** `getState()` returns `'idle'` (pre-`show`), `'preview'` (overlay visible), or `'game'` (overlay dismissed, wrapper still mounted).
 
-**Methods:** `show`, `pause`, `resume`, `skip`, `setPreviewData`, `getState`, `destroy`.
+**Methods:** `show`, `pause`, `resume`, `skip`, `setPreviewData`, `getState`, `isActive`, `destroy`, `setStar(visible)` — show/hide the header star at runtime.
 
-See `warehouse/parts/PART-039-preview-screen.md` for full detail (audio layers, timer sync rAF, verification checklist).
+See `warehouse/parts/PART-039-preview-screen.md` and `warehouse/parts/PART-040-action-bar.md` for full detail (audio layers, reliability rules R1–R10, verification checklist).

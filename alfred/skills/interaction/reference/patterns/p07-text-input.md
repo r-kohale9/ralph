@@ -71,7 +71,7 @@ async function handleSubmit() {
   if (isCorrect) gameState.score++;
   else if (gameState.totalLives > 0) gameState.lives--;
   syncDOM();
-  if (progressBar) progressBar.update(gameState.currentRound + 1, Math.max(0, gameState.lives));
+  if (progressBar) progressBar.update(gameState.progress, Math.max(0, gameState.lives));
 
   recordAttempt({ /* 12 fields */ });
   trackEvent('answer_submitted', { round: gameState.currentRound, isCorrect: isCorrect });

@@ -23,13 +23,12 @@
 | [PART-016](PART-016.md) | StoriesComponent | Narrative/story display | Conditional (stories) |
 | [PART-017](PART-017.md) | Feedback Integration | Audio feedback and sticker animations | Conditional (audio/stickers) |
 | [PART-018](PART-018.md) | Case Converter | camelCase/snake_case conversion | Conditional (backend data) |
-| [PART-019](PART-019.md) | Results Screen (v2) | End-of-game results via TransitionScreen | Yes |
+| [PART-019](PART-019.md) | Results Screen | End-of-game results via TransitionScreen | Yes |
 | [PART-020](PART-020.md) | CSS Variables & Colors | CSS custom properties from Components | Yes |
-| [PART-021](PART-021.md) | Screen Layout (DEPRECATED) | Legacy manual HTML layout | No (legacy only) |
 | [PART-022](PART-022.md) | Game Buttons | Standard button patterns | Yes |
-| [PART-023](PART-023.md) | ProgressBar Component (v2) | Round counter + lives display | Yes |
-| [PART-024](PART-024.md) | TransitionScreen Component (v2) | Welcome, results, game-over screens | Yes |
-| [PART-025](PART-025.md) | ScreenLayout Component (v2) | Auto-generates page structure | Yes |
+| [PART-023](PART-023.md) | ProgressBar Component | Round counter + lives display | Yes |
+| [PART-024](PART-024.md) | TransitionScreen Component | Welcome, results, game-over screens | Yes |
+| [PART-025](PART-025.md) | ScreenLayout Component | Auto-generates page structure | Yes |
 | [PART-026](PART-026.md) | Anti-Patterns | Verification checklist of common mistakes | Reference |
 | [PART-027](PART-027.md) | Play Area Construction | Interactive game area inside `#gameContent` | Yes |
 | [PART-028](PART-028.md) | InputSchema Patterns | Content structure for `game_init` | Yes |

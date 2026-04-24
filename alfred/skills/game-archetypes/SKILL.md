@@ -74,7 +74,7 @@ Timed pressure. Answer as many as possible before the clock runs out. Speed matt
 | **Scoring** | +1 per correct. Bonus for streaks or speed. Stars based on total correct (thresholds set by spec). No penalty for wrong (wrong just wastes time). |
 | **Feedback** | `playDynamicFeedback('correct')` / `playDynamicFeedback('incorrect')`. Minimal delay (0.5s or less). Show correct answer briefly. Speed of feedback is critical. |
 | **Screen state machine** | `start` -> `gameplay` -> (loop until timer expires) -> `results`. No `game_over` screen (timer expiry IS the natural end, shown on results). |
-| **PART flags** | PART-001, PART-004, PART-005, PART-006 (timer), PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-006 (timer), PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027, PART-050 (whenever the spec describes a Submit / Check / Done button — number-input variants and standalone `totalRounds: 1` variants especially; MCQ tap-to-answer variants skip it) |
 | **Rounds default** | 0 (unlimited -- timer is the constraint) |
 | **Lives default** | 0 (no lives) |
 | **Timer default** | 60 seconds |
@@ -94,7 +94,7 @@ Stakes game. Wrong answers cost lives. Survival pressure creates engagement.
 | **Scoring** | +1 per correct. -1 life per wrong. Stars at 90%/66%/33%. |
 | **Feedback** | `playDynamicFeedback('correct')` / `playDynamicFeedback('incorrect')`. Show correct answer after wrong. Life loss animation. If lives = 0, transition to game_over. |
 | **Screen state machine** | `start` -> `gameplay` -> (loop rounds, checking lives after each) -> `results` (if all rounds done) OR `game_over` (if lives = 0). Both `results` and `game_over` -> `start` (replay). |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023 (progress bar with lives display), PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023 (progress bar with lives display), PART-024, PART-025, PART-027, PART-050 (whenever the spec's flow uses number-input or an explicit Submit / Check CTA in a round — pure MCQ tap-to-answer variants skip it) |
 | **Rounds default** | 9 (3 per stage) |
 | **Lives default** | 3 |
 | **Timer default** | 0 (no timer; add PART-006 if spec says timed) |
@@ -116,7 +116,7 @@ Student categorizes items by dragging them into buckets or zones.
 | **Scoring** | Per-item scoring within each round. +1 per correctly placed item. Stars based on total percentage. |
 | **Feedback** | `playDynamicFeedback('correct')` when all items correctly placed in round. Per-item visual feedback (green/red highlight on drop). Show corrections for misplaced items. |
 | **Screen state machine** | `start` -> `gameplay` -> (loop rounds; each round = sort all items) -> `results`. No `game_over` (no lives by default). |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027, PART-033 (drag interaction) |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027, PART-033 (drag interaction), PART-050 (if spec's flow has an explicit Submit / Check CTA after placing items — auto-evaluate-on-drop variants skip it) |
 | **Rounds default** | 6 (2 per stage) |
 | **Lives default** | 0 |
 | **Timer default** | 0 |
@@ -156,7 +156,7 @@ A single state to solve. No sequential rounds -- the whole board IS the round. S
 | **Scoring** | Binary solve state per puzzle (solved/not-solved). Stars based on number of puzzles solved or attempts needed. |
 | **Feedback** | Per-action: constraint violation highlighted immediately (e.g., conflicting placement). On solve: `playDynamicFeedback('correct')` + celebration. Undo supported (click again to deselect). |
 | **Screen state machine** | `start` -> `gameplay` -> (solve puzzle; if multiple puzzles: next puzzle) -> `results`. Optional `game_over` if lives are added. |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-024, PART-025, PART-027, PART-050 (if spec's flow has an explicit "Check" CTA — auto-detect-on-solve variants skip it) |
 | **Rounds default** | 3 (3 puzzles of increasing difficulty) |
 | **Lives default** | 0 |
 | **Timer default** | 0 |
@@ -178,7 +178,7 @@ Student builds something (expression, sequence, structure) from provided parts. 
 | **Scoring** | +1 per correctly constructed expression/sequence. Partial credit possible (e.g., 3/4 parts correct). Stars at 90%/66%/33%. |
 | **Feedback** | On submit: `playDynamicFeedback('correct')` if construction matches target. `playDynamicFeedback('incorrect')` if not -- highlight which parts are wrong. Allow retry (clear and rebuild) or show correct answer. |
 | **Screen state machine** | `start` -> `gameplay` -> (loop rounds) -> `results`. No `game_over`. |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027, PART-033 (drag interaction, if drag-based) |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027, PART-033 (drag interaction, if drag-based), PART-050 (FloatingButton — required for the Submit CTA) |
 | **Rounds default** | 6 (2 per stage) |
 | **Lives default** | 0 |
 | **Timer default** | 0 |
@@ -198,7 +198,7 @@ Three-phase pedagogy: teacher demonstrates, then student fills blanks, then stud
 | **Scoring** | Per-step scoring in phases 2-3. No scoring in phase 1 (observation only). Stars based on phase 2+3 accuracy. |
 | **Feedback** | Phase 1: no feedback needed (demonstration). Phases 2-3: `playDynamicFeedback('correct')` / `playDynamicFeedback('incorrect')` per step. Show correct step if wrong. |
 | **Screen state machine** | `start` -> `example_phase` -> `faded_phase` -> `practice_phase` -> `results`. No `game_over`. Phase transitions are explicit (not automatic). |
-| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-024, PART-025, PART-027, PART-050 (whenever phase 2/3 uses number-input fill-blanks, OR any phase uses an explicit Next / Done / Submit CTA to advance — pure MCQ auto-advance variants skip it) |
 | **Rounds default** | 0 (not rounds-based; 3 phases with 3-5 steps each) |
 | **Lives default** | 0 |
 | **Timer default** | 0 |
@@ -242,7 +242,7 @@ Cognitive skill games. Student must track, count, or remember items under time p
 | **Scoring** | Timed accuracy. +1 per correct identification. Speed bonus possible. Stars based on accuracy. |
 | **Feedback** | `playDynamicFeedback('correct')` / `playDynamicFeedback('incorrect')`. Reveal correct answer (highlight what they should have tracked). |
 | **Screen state machine** | `start` -> `gameplay` -> (loop rounds; each round: stimulus display phase -> response phase) -> `results`. |
-| **PART flags** | PART-001, PART-004, PART-005, PART-006 (timer per round), PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027 |
+| **PART flags** | PART-001, PART-004, PART-005, PART-006 (timer per round), PART-007, PART-008, PART-009, PART-010, PART-042, PART-017, PART-019, PART-021, PART-023, PART-024, PART-025, PART-027, PART-050 (whenever the response phase uses a number-input or an explicit Submit — click-to-select variants skip it) |
 | **Rounds default** | 9 (3 per stage, increasing difficulty = more items to track) |
 | **Lives default** | 0 |
 | **Timer default** | Per-round timer, not global. Default 5-10 seconds per stimulus display, 15 seconds per response. |
@@ -330,6 +330,11 @@ Output the full profile with all attributes, including any spec-specific overrid
 6. **STANDARD — Timer = 0 means no PART-006.** Do not include the timer PART flag unless the archetype or spec explicitly requires a timer.
 
 7. **ADVISORY — Archetype does not override the spec.** If the spec says 12 rounds and the archetype default is 9, use 12. The archetype provides defaults and structure; the spec provides intent.
+
+8. **CRITICAL — PART-050 (FloatingButton) is flow-driven and OVERRIDES the per-archetype PART flag list.** If the spec's flow shows ANY explicit Submit / Check / Done / Commit CTA, PART-050 MUST be included — even if the archetype's PART-flags row does not list it, and even if the row lists it only conditionally. Flow > archetype row. Applies to every archetype, including MCQ-primary archetypes whose canonical variant auto-evaluates on tap (a customised MCQ Quiz or No-Penalty Explorer with a number-input round still needs PART-050). If the flow auto-evaluates on interaction only (MCQ tap, Memory Match pair reveal, Speed Blitz timer expiry with no Submit button), PART-050 does NOT apply — omit it. When in doubt, check the spec's core-mechanic description for the words "Submit" / "Check" / "Done" / "Commit" — presence of any of these strings triggers PART-050.
+   - **Sub-rule — Next button at end-of-game.** Every FloatingButton-using game MUST wire the Next mode after `game_complete` + end TransitionScreen dismissal, posting `next_ended` from `on('next', ...)`. This is non-negotiable regardless of archetype — the harness needs the signal to tear down the iframe. See PART-050 "Next flow" section. Validator: `GEN-FLOATING-BUTTON-NEXT-MISSING` / `-NEXT-POSTMESSAGE`.
+   - **Sub-rule — Try Again for standalone + lives.** When `totalRounds: 1` AND `totalLives > 1`, the plan MUST wire `on('retry', ...)` to implement the Try Again flow per PART-050. Multi-round games are unaffected (they use TransitionScreen retry buttons). Validator: `GEN-FLOATING-BUTTON-RETRY-STANDALONE` / `-RETRY-LIVES-RESET`.
+   - *Negative example:* A Speed Blitz game with `totalRounds: 1` and a Submit button is generated using a hand-rolled `<button class="bb-submit">` because the archetype row omitted PART-050. FloatingButton never mounts, the button uses game-local styling instead of the CDN-enforced 48px touch target, and the mobile layout contract drifts. The per-archetype PART flags row is a default starting point; the spec's flow overrides it. (bodmas-blitz regeneration, 2026-04-22.)
 
 ---
 

@@ -63,8 +63,6 @@ const previewScreen = new PreviewScreenComponent({
 | `instruction` | string | `''` | HTML string with rich content (bold, images, video) |
 | `audioUrl` | string\|null | `null` | URL of preview audio. If null, runtime TTS fallback is used |
 | `showGameOnPreview` | boolean | `false` | If true, the game is rendered in its initial state (non-interactable) underneath the preview overlay. If false, the area below the instruction is blank white space |
-| `timerConfig` | object\|null | `null` | `{ type: 'decrease' \| 'increase', startTime, endTime }` — describes the game's TimerComponent |
-| `timerInstance` | TimerComponent\|null | `null` | Reference to the game's TimerComponent for header sync in game state |
 | `onComplete` | function | — | Called with `previewData` when preview transitions to game state |
 | `onPreviewInteraction` | function | — | Called when `setPreviewData()` is invoked |
 
@@ -91,15 +89,10 @@ Effects:
 - Overlay removed (game becomes interactable)
 - Skip button removed
 - Game stack revealed (if it was hidden)
-- Header bar persists with new progress/timer behavior:
+- Preview progress bar hidden
+- `#previewInstruction` **stays rendered** above `#gameContent` in the shared scroll container — this is required: the student must be able to scroll up and re-read the instruction at any point during gameplay.
 
-| Game Timer Type | Header Display |
-|-----------------|----------------|
-| `'decrease'` | Cadmium yellow `rgba(255,246,0,0.2)` progress bar synced with TimerComponent + timer text centered on bar |
-| `'increase'` | No progress bar fill (hidden); timer text centered in header |
-| none (`timerConfig: null`) | No progress bar, no timer text |
-
-The PreviewScreen does NOT own the timer — it READS from the game's TimerComponent each frame via `requestAnimationFrame` and mirrors the value visually. The game still calls `timer.start()`, `timer.pause()`, etc.
+PreviewScreen does not render, sync, or pause any game timer. Games that need a visible timer render their own `TimerComponent` inside `#gameContent` and own its full lifecycle (`start()`, `pause()`, `resume()`, `reset()`). The preview header stays minimal — avatar / question label / score / star only.
 
 ---
 
@@ -120,8 +113,6 @@ previewScreen.show({
   instruction: content.previewInstruction || fallbackContent.previewInstruction,
   audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
   showGameOnPreview: content.showGameOnPreview === true,   // default false
-  timerConfig: timer ? { type: 'decrease', startTime: 60, endTime: 0 } : null,
-  timerInstance: timer || null,
   onComplete: function(previewData) {
     startGameAfterPreview(previewData);
   }
@@ -154,7 +145,7 @@ function startGameAfterPreview(previewData) {
 }
 ```
 
-**Important:** Game code MUST NOT manage its own header bar. The preview header (with avatar, label, score, star, and timer text) is the ONLY header. Do not create a duplicate header inside `#gameContent`.
+**Important:** Game code MUST NOT manage its own header bar. The preview header (with avatar, label, score, star) is the ONLY header. Do not create a duplicate header inside `#gameContent`.
 
 ---
 
@@ -188,7 +179,7 @@ const visibilityTracker = new VisibilityTracker({
 ```
 
 In **preview state**, pause/resume controls audio + the preview progress bar.
-In **game state**, pause/resume controls the header timer sync rAF (the game's TimerComponent is paused/resumed by the game code itself).
+In **game state**, PreviewScreen has nothing left to pause — the game's own `TimerComponent` is paused/resumed by the game code itself (or by the game's own VisibilityTracker wiring).
 
 ---
 
@@ -247,28 +238,32 @@ Do NOT call `setupGame()` from `restartGame()` if `setupGame()` ends with `showP
 |--------|-------------|
 | `show(config)` | Enter preview state with config |
 | `switchToGame()` | (Internal) Transition to game state. Called by `skip()` or timer-complete. Game code reacts via `onComplete` callback. |
-| `pause()` | Pause audio + progress bar (preview state) or timer sync (game state) |
-| `resume()` | Resume |
+| `pause()` | Pause preview audio + preview progress bar. No-op in game state (game owns its own timer's pause). |
+| `resume()` | Resume preview audio + progress bar. |
 | `skip()` | Skip preview, transition to game state |
 | `setPreviewData(key, value)` | Store user interaction data from preview content |
+| `setStar(visible)` | Runtime toggle of the header star (show/hide). Pass-through to ActionBar. |
+| `setScore(text)` | Runtime score text update (e.g. `"1/10"`). Pass-through to ActionBar. Call on every correct answer / round advance so the header reflects current progress. |
+| `setQuestionLabel(text)` | Runtime question-label update (e.g. `"Q2"`). Pass-through to ActionBar. Call when advancing to a new round. |
 | `getState()` | Returns current state: `'idle'`, `'preview'`, or `'game'` |
-| `destroy()` | Full cleanup. Call in `endGame()`. |
+| `isActive()` | Returns true while the preview overlay is mounted |
+| `destroy()` | Full cleanup. Call exactly once in the end-of-game teardown — inside the FloatingButton `on('next', ...)` handler, AFTER `next_ended` is posted. `endGame()` wires the handler but MUST NOT call `destroy()` directly, because the preview wrapper (including the ActionBar header + `#previewStar`) must stay mounted while the end-screen star-award animation plays and while the player absorbs results. Per PART-040, the star animation fires on `show_star` postMessage AFTER `endGame()` and relies on the header existing until the player advances. |
 
-`hide()` does NOT exist — the preview wrapper is persistent. Use `destroy()` only in `endGame()` cleanup.
+`hide()` does NOT exist — the preview wrapper is persistent. Use `destroy()` only in the end-of-game Next handler (not in `endGame()` itself, and never mid-game).
 
 ---
 
 ## Component Boundary (CRITICAL)
 
-PreviewScreenComponent owns its internal DOM. Game code operates only within `#gameContent` and its children; the CDN manages preview visibility via `switchToGame()` (internal, called by `skip()` / timer-complete) and `destroy()` (once, in `endGame()` cleanup).
+PreviewScreenComponent owns its internal DOM. Game code operates only within `#gameContent` and its children; the CDN manages preview visibility via `switchToGame()` (internal, called by `skip()` / timer-complete) and `destroy()` (once, in the end-of-game Next-click handler).
 
 **Game HTML MUST NOT** reference these preview-owned IDs via `getElementById` / `querySelector` / `querySelectorAll`, and MUST NOT toggle any `.mathai-preview-*` class via `classList.add/remove/toggle/contains`:
 
 | Banned reference | Owner |
 |---|---|
 | `#previewInstruction` | preview instruction area |
-| `#previewProgressBar` | preview audio/timer countdown strip |
-| `#previewTimerText` | preview timer label |
+| `#previewProgressBar` | preview audio countdown strip |
+| `#previewTimerText` | dormant header element — no component writes to it; game code still must not touch it |
 | `#previewQuestionLabel` | header question label |
 | `#previewScore` | header score |
 | `#previewStar` | header star |
@@ -312,12 +307,12 @@ Validator rule `5e0-DOM-BOUNDARY` enforces this. Cross-reference: PART-026 Anti-
 - [ ] `PreviewScreenComponent` instantiated in DOMContentLoaded
 - [ ] `previewScreen.show()` called in `game_init` handler
 - [ ] `previewScreen.show()` does NOT pass `questionLabel`, `score`, or `showStar` (read from game_init payload)
-- [ ] `previewScreen.show()` passes `timerConfig` and `timerInstance` if game has a TimerComponent
+- [ ] `previewScreen.show()` does NOT pass `timerInstance` or `timerConfig` — neither option exists. If the game has a visible timer, it renders its own `TimerComponent` inside `#gameContent` and owns its full lifecycle.
 - [ ] Game code does NOT call `previewScreen.hide()` — method removed
 - [ ] `startGameAfterPreview()` sets `gameState.startTime` AFTER preview ends
 - [ ] `gameState.duration_data.preview[]` populated with `{ duration }`
 - [ ] VisibilityTracker wired to `pause()`/`resume()`
-- [ ] `endGame()` calls `previewScreen.destroy()`
+- [ ] `previewScreen.destroy()` is called exactly once, inside `floatingBtn.on('next', ...)` (AFTER `next_ended` is posted). NOT called in `endGame()` — the header must stay mounted through the star-award animation and end-screen viewing.
 - [ ] No `new Audio()` for preview audio (must use FeedbackManager)
 - [ ] Preview audio preloaded via `FeedbackManager.sound.preload()`
 - [ ] Game does NOT render its own header bar inside `#gameContent` (preview header is the only header)

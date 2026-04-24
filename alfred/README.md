@@ -30,13 +30,12 @@ alfred/
   │   ├── PART-016.md                               StoriesComponent
   │   ├── PART-017.md                               Feedback Integration
   │   ├── PART-018.md                               Case Converter
-  │   ├── PART-019.md                               Results Screen (v2 via TransitionScreen)
+  │   ├── PART-019.md                               Results Screen (via TransitionScreen)
   │   ├── PART-020.md                               CSS Variables & Colors
-  │   ├── PART-021.md                               Screen Layout (DEPRECATED)
   │   ├── PART-022.md                               Game Buttons
-  │   ├── PART-023.md                               ProgressBar Component (v2)
-  │   ├── PART-024.md                               TransitionScreen Component (v2)
-  │   ├── PART-025.md                               ScreenLayout Component (v2)
+  │   ├── PART-023.md                               ProgressBar Component
+  │   ├── PART-024.md                               TransitionScreen Component
+  │   ├── PART-025.md                               ScreenLayout Component
   │   ├── PART-026.md                               Anti-Patterns
   │   ├── PART-027.md                               Play Area Construction
   │   ├── PART-028.md                               InputSchema Patterns

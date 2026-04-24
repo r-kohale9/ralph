@@ -1,4 +1,4 @@
-# PART-023: ProgressBar Component (v2)
+# PART-023: ProgressBar Component
 
 **Category:** MANDATORY | **Condition:** Game has multiple rounds with visible progress | **Dependencies:** PART-002, PART-025
 
@@ -119,15 +119,6 @@ ProgressBar requires ScreenLayout v2 with `progressBar: true`:
 ```javascript
 ScreenLayout.inject('app', {
   sections: { questionText: true, progressBar: true, playArea: true, transitionScreen: true }
-});
-```
-
-## Deprecated: v1 ScreenLayout Slots
-
-```javascript
-// ⛔ DEPRECATED — do not use
-ScreenLayout.inject('app', {
-  slots: { progressBar: true, transitionScreen: false }
 });
 ```
 

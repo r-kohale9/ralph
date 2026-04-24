@@ -1,4 +1,4 @@
-### PART-024: TransitionScreen Component (v2)
+### PART-024: TransitionScreen Component
 
 **Source of truth:** `warehouse/parts/PART-024-transition-screen.md`
 

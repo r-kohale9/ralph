@@ -50,6 +50,9 @@
     <button onclick="showLevelAuto()">Level Intro (auto-hide 2s)</button>
     <button onclick="showStarsClaimed()">Stars Claimed (persist)</button>
 
+    <h4>Claim Stars (author-fired)</h4>
+    <button onclick="showClaimStarsPattern()">Victory + Claim Stars (action fires show_star)</button>
+
     <h4>Custom Content</h4>
     <button onclick="showCustomHTML()">Custom HTML content</button>
     <button onclick="showCustomDOM()">Custom DOM element</button>
@@ -183,6 +186,33 @@
         persist: true
       });
     }
+
+    function showClaimStarsPattern() {
+      // Author-fired pattern: the button's own action() posts show_star.
+      // Fully customizable — change count, variant, timing, or skip entirely
+      // without any framework coupling.
+      ts.show({
+        stars: 3,
+        title: 'Victory!',
+        subtitle: 'Tap Claim Stars — action() posts show_star.',
+        buttons: [{
+          text: 'Claim Stars',
+          type: 'primary',
+          action: function() {
+            window.postMessage({
+              type: 'show_star',
+              data: { count: 3, variant: 'yellow' }
+            }, '*');
+          }
+        }]
+      });
+    }
+
+    window.addEventListener('message', function(e) {
+      if (e && e.data && e.data.type === 'show_star') {
+        console.log('[demo] show_star received:', JSON.stringify(e.data.data));
+      }
+    });
 
     /* ===== Custom Content ===== */
 

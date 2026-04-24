@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>ActionBar Component — Usage Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+    .mobile-frame {
+      width: 375px; height: 667px; margin: 20px auto;
+      background: #fff; position: relative; overflow: hidden;
+      box-shadow: 0 0 40px rgba(0,0,0,0.15); border-radius: 16px;
+    }
+    #app { width: 100%; height: 100%; position: relative; overflow: hidden; }
+    .demo-controls {
+      width: 375px; margin: 12px auto 0;
+      background: #1a1a2e; border-radius: 12px;
+      padding: 12px 16px; display: flex; gap: 8px; flex-wrap: wrap;
+      justify-content: center;
+    }
+    .demo-controls button {
+      background: #667eea; color: #fff; border: none; border-radius: 8px;
+      padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .demo-controls button.danger { background: #e74c3c; }
+    #log {
+      width: 375px; margin: 8px auto 0; max-height: 200px;
+      overflow-y: auto; background: #1a1a2e; color: #0f0; font-size: 11px;
+      font-family: monospace; padding: 8px 12px; border-radius: 8px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="mobile-frame">
+    <div id="app"></div>
+  </div>
+  <div class="demo-controls">
+    <button onclick="sendGameInit()">Send game_init</button>
+    <button onclick="toggleAvatar()">Toggle Avatar</button>
+    <button onclick="toggleStar()">Toggle Star</button>
+    <button class="danger" onclick="ab.destroy()">Destroy</button>
+  </div>
+  <div class="demo-controls">
+    <button onclick="awardStar(1,'yellow')">Award ×1 (yellow)</button>
+    <button onclick="awardStar(2,'yellow')">Award ×2 (yellow)</button>
+    <button onclick="awardStar(3,'yellow')">Award ×3 (yellow)</button>
+    <button onclick="awardStar(1,'blue')">Award ×1 (blue)</button>
+    <button onclick="awardStar(2,'blue')">Award ×2 (blue)</button>
+    <button onclick="awardStar(3,'blue')">Award ×3 (blue)</button>
+    <button onclick="toggleSilent()">Silent: <span id="silent-flag">off</span></button>
+    <button onclick="resetScore()">Reset score</button>
+  </div>
+  <div id="log">ready...</div>
+
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/screen-layout/index.js"></script>
+  <script src="./index.js"></script>
+
+  <script>
+    var logEl = document.getElementById('log');
+    function log(msg) { logEl.textContent += '\n' + msg; logEl.scrollTop = logEl.scrollHeight; }
+
+    ScreenLayout.inject('app', { slots: { previewScreen: true } });
+
+    var ab = new ActionBarComponent({ slotId: 'mathai-preview-slot' });
+    log('ActionBar instantiated.');
+
+    var avatarSpeaking = false;
+    var starVisible = true;
+
+    function sendGameInit() {
+      window.postMessage({
+        type: 'game_init',
+        data: { questionLabel: 'Q' + Math.floor(Math.random() * 10 + 1), score: (Math.floor(Math.random() * 3) + 1) + '/3', showStar: true }
+      }, '*');
+      log('Dispatched game_init');
+    }
+
+    function toggleAvatar() {
+      avatarSpeaking = !avatarSpeaking;
+      ab.setAvatarSpeaking(avatarSpeaking);
+      log('Avatar speaking=' + avatarSpeaking);
+    }
+
+    function toggleStar() {
+      starVisible = !starVisible;
+      ab.setStar(starVisible);
+      log('Star visible=' + starVisible);
+    }
+
+    var silentMode = false;
+    function toggleSilent() {
+      silentMode = !silentMode;
+      document.getElementById('silent-flag').textContent = silentMode ? 'on' : 'off';
+      log('Silent mode=' + silentMode);
+    }
+
+    // Simulated score so awardStar() can demonstrate the atomic score bump.
+    // ActionBar applies `data.score` to #previewScore AFTER the 1s animation.
+    var simulatedScore = 0;
+    var SIM_TOTAL = 10;
+
+    // Seed the header at boot so the score field starts at "0/10" instead of
+    // the ActionBar's built-in "0/3" default.
+    setTimeout(function () {
+      window.postMessage({
+        type: 'game_init',
+        data: { questionLabel: 'Q1', score: simulatedScore + '/' + SIM_TOTAL, showStar: true }
+      }, '*');
+    }, 50);
+
+    function awardStar(count, variant) {
+      simulatedScore = Math.min(SIM_TOTAL, simulatedScore + count);
+      var scoreText = simulatedScore + '/' + SIM_TOTAL;
+      window.postMessage({
+        type: 'show_star',
+        data: {
+          count: count,
+          variant: variant,
+          silent: silentMode,
+          score: scoreText          // applied AFTER the animation
+        }
+      }, '*');
+      log('Dispatched show_star count=' + count + ' variant=' + variant +
+          ' silent=' + silentMode + ' score=' + scoreText);
+    }
+
+    function resetScore() {
+      simulatedScore = 0;
+      window.postMessage({
+        type: 'game_init',
+        data: { score: '0/' + SIM_TOTAL }
+      }, '*');
+      log('Reset score to 0/' + SIM_TOTAL);
+    }
+  </script>
+</body>
+</html>

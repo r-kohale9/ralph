@@ -1,19 +1,24 @@
 # PART-022: Game Buttons
 
-**Category:** MANDATORY | **Condition:** Every game with user interactions | **Dependencies:** PART-020
+**Category:** MANDATORY | **Condition:** Every game with user interactions | **Dependencies:** PART-020 | **Superseded by:** PART-050 for Submit / Retry / Next (Reset remains owned by this part)
 
 ---
+
+> **Submit / Retry / Next are now owned by PART-050 FloatingButtonComponent.**
+> For any new game, do NOT hand-roll inline `.btn-primary` / `.btn-secondary` for Submit, Retry, or Next — instantiate `FloatingButtonComponent` per PART-050 and register handlers via `floatingBtn.on('submit' | 'retry' | 'next', ...)`. Emitting a custom `<button>` with id / class matching `submit` / `retry` / `next` / `cta` inside `#gameContent` while FloatingButton is in use trips validator rule `5e0-FLOATING-BUTTON-DUP` and fails the build.
+> **Reset** is unchanged — it remains inline below the play area per this part. FloatingButton does NOT absorb Reset.
+> Games that explicitly opt out via top-level `spec.floatingButton: false` (flows with no Submit CTA at all — timer-driven auto-advance, drag-to-commit) may still use the legacy inline Submit / Retry / Next shapes documented below.
 
 ## Required Buttons
 
 Every game must include these contextual buttons:
 
-| Button | Position | Visibility | Style | Function |
-|--------|----------|-----------|-------|----------|
-| **Reset** | Below play area | Always visible during gameplay | Secondary (gray/blue) | Resets all inputs to initial state |
-| **Submit** | Bottom-center | After at least 1 interaction | Primary (green) | Validates current answer |
-| **Retry** | Bottom-center | After incorrect submission | Secondary (blue) | Allows retry on same question |
-| **Next** | Bottom-center | After correct or round complete | Primary (green) | Advances to next round |
+| Button | Position | Visibility | Style | Function | Owner |
+|--------|----------|-----------|-------|----------|-------|
+| **Reset** | Below play area | Always visible during gameplay | Secondary (gray/blue) | Resets all inputs to initial state | **This part (inline)** |
+| **Submit** | Bottom-center | While game state is submittable | Primary (green) | Validates current answer | **PART-050 FloatingButton** |
+| **Retry** | Bottom-center | After incorrect submission | Secondary (blue) | Allows retry on same question | **PART-050 FloatingButton** |
+| **Next** | Bottom-center | After correct or round complete | Primary (green) | Advances to next round | **PART-050 FloatingButton** |
 
 ## Rules
 
