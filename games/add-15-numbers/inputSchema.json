@@ -1,0 +1,96 @@
+{
+  "type": "object",
+  "properties": {
+    "previewInstruction": {
+      "type": "string"
+    },
+    "previewAudioText": {
+      "type": "string"
+    },
+    "previewAudio": {
+      "type": "object"
+    },
+    "showGameOnPreview": {
+      "type": "boolean"
+    },
+    "rounds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "round": {
+            "type": "number"
+          },
+          "stage": {
+            "type": "number"
+          },
+          "type": {
+            "type": "string"
+          },
+          "tiles": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "correctSum": {
+            "type": "number"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "misconception_tags": {
+            "type": "object",
+            "properties": {
+              "64": {
+                "type": "string"
+              },
+              "77": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "64",
+              "77"
+            ]
+          },
+          "misconception_explanations": {
+            "type": "object",
+            "properties": {
+              "64": {
+                "type": "string"
+              },
+              "77": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "64",
+              "77"
+            ]
+          }
+        },
+        "required": [
+          "round",
+          "stage",
+          "type",
+          "tiles",
+          "correctSum",
+          "options",
+          "misconception_tags",
+          "misconception_explanations"
+        ]
+      }
+    }
+  },
+  "required": [
+    "previewInstruction",
+    "previewAudioText",
+    "previewAudio",
+    "showGameOnPreview",
+    "rounds"
+  ]
+}

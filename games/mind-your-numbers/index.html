@@ -1,0 +1,1985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mind Your Numbers</title>
+
+  <!-- Sentry (error tracking) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      try {
+        Sentry.init(SentryConfig.getConfig({ release: 'mind-your-numbers@1.0.0' }));
+      } catch (e) { /* noop */ }
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- Game CDN packages (exact order) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+      --mathai-light-green: #E5F8E5;
+      --mathai-light-red: #FDEEEE;
+
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+      padding-bottom: 320px;     /* Room for scrollIntoView with keyboard open (p07-input-behaviors) */
+      min-height: 100vh;
+    }
+
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    button,
+    [role="button"],
+    input[type="submit"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    /* ============================================================
+       Gameplay layout
+       ============================================================ */
+    #gameContent {
+      padding: 10px 14px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    /* Header-status strip (timer) below ProgressBar */
+    .status-strip {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 2px 0 8px 0;
+      padding: 0 4px;
+      font-size: 13px;
+    }
+    .status-strip .timer-pill {
+      background: var(--mathai-light-gray);
+      border: 1px solid var(--mathai-border-gray);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      font-variant-numeric: tabular-nums;
+      min-height: 26px;
+      display: inline-flex;
+      align-items: center;
+    }
+    .status-strip .timer-pill.low {
+      color: var(--mathai-red);
+      border-color: var(--mathai-red);
+    }
+
+    /* Cluster layout */
+    .cluster-row {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      margin-bottom: 4px;
+    }
+    .cluster-row .cluster {
+      margin: 0 6px;
+    }
+    .cluster {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 4px 0;
+    }
+    .cluster-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--mathai-gray);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      margin-bottom: 2px;
+    }
+    .cluster-target .cluster-label {
+      color: var(--mathai-primary);
+    }
+    .cluster svg {
+      display: block;
+    }
+    .cluster-target {
+      margin-top: 4px;
+    }
+
+    /* Input + CHECK */
+    .input-wrap {
+      display: flex;
+      justify-content: center;
+      margin: 10px auto 8px auto;
+      scroll-margin-top: 24px;
+      scroll-margin-bottom: 280px;
+    }
+    #answer-input {
+      font-family: var(--mathai-font-family);
+      font-size: 20px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      width: 120px;
+      min-width: 72px;
+      max-width: 300px;
+      text-align: center;
+      padding: 10px 14px;
+      border: 2px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-button);
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      -webkit-appearance: none;
+      appearance: none;
+      outline: none;
+      transition: width 140ms ease-out, border-color 0.2s ease, background 0.2s ease;
+    }
+    #answer-input:focus {
+      border-color: var(--mathai-purple);
+    }
+    #answer-input.input-correct {
+      border-color: var(--mathai-cell-border-green);
+      background: var(--mathai-light-green);
+      color: var(--mathai-success);
+    }
+    #answer-input.input-wrong {
+      border-color: var(--mathai-cell-border-red);
+      background: var(--mathai-light-red);
+      color: var(--mathai-error);
+      animation: shakeX 400ms ease;
+    }
+
+    .correct-answer-label {
+      text-align: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--mathai-error);
+      margin-bottom: 6px;
+      min-height: 20px;
+    }
+    .correct-answer-label.success {
+      color: var(--mathai-success);
+    }
+
+    .action-row {
+      display: flex;
+      justify-content: center;
+      margin-top: 4px;
+      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+    .action-btn {
+      background: var(--mathai-purple);
+      color: var(--mathai-white);
+      border: none;
+      border-radius: var(--mathai-border-radius-button);
+      font-family: var(--mathai-font-family);
+      font-size: var(--mathai-font-size-subtitle);
+      font-weight: 700;
+      padding: 14px 36px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      -webkit-appearance: none;
+      appearance: none;
+      min-height: 48px;
+      touch-action: manipulation;
+      transition: background 0.25s ease, color 0.25s ease, transform 0.15s ease;
+    }
+    .action-btn:disabled,
+    .action-btn.disabled {
+      background: var(--mathai-disabled-gray);
+      color: var(--mathai-gray);
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    /* Animations */
+    @keyframes shakeX {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-4px); }
+      60% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.35s ease; }
+
+    /* Landscape lock */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-round="0" data-lives="3" data-stars="0"></div>
+
+  <script>
+    /* ============================================================
+       Sticker URLs (standard set)
+       ============================================================ */
+    var STICKER_CORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_GAME_COMPLETE_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_GAME_COMPLETE_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    /* ============================================================
+       gameState (PART-007) — gameId MUST be first field
+       ============================================================ */
+    var gameState = {
+      gameId: 'mind-your-numbers',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 3,
+      totalLives: 3,
+      lives: 3,
+      score: 0,
+      correctAnswer: null,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      stars: 0,
+      firstCheckSolves: 0,
+      roundsCompleted: 0,
+      roundStartTime: null,
+      responseTimes: [],
+      previewResult: null,
+      currentRoundData: null,
+      roundTimerId: null,
+      roundTimerRemainingMs: 60000,
+      duration_data: {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      }
+    };
+    window.gameState = gameState;
+
+    /* ============================================================
+       fallbackContent — 3 rounds, hand-designed pattern rules
+       ============================================================ */
+    var fallbackContent = {
+      previewInstruction: '<p><b>Figure out the pattern in this image</b><br>Type the number that should replace the question mark to complete the pattern.</p>',
+      previewAudioText: 'Figure out the pattern in this image. Type the number that should replace the question mark to complete the pattern.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      rounds: [
+        {
+          round: 1,
+          rule: 'product-of-pairs',
+          ruleHint: 'top-left x top-right = bottom-left x bottom-right = centre',
+          clusters: [
+            { label: 'Example 1', colorScheme: 'yellow', outers: { tl: 2, tr: 6, bl: 4, br: 3 }, centre: 12 },
+            { label: 'Example 2', colorScheme: 'purple', outers: { tl: 4, tr: 4, bl: 8, br: 2 }, centre: 16 },
+            { label: 'Target',    colorScheme: 'pink',   outers: { tl: 9, tr: 2, bl: 6, br: 3 }, centre: null }
+          ],
+          answer: 18,
+          misconception_tags: {
+            'sum-not-product':  'Sums all four outer numbers instead of multiplying paired rows.',
+            'wrong-pairing':    'Pairs diagonally (tl x bl) or (tl x br) instead of top-row and bottom-row.'
+          }
+        },
+        {
+          round: 2,
+          rule: 'sum',
+          ruleHint: 'sum of all four outer numbers',
+          clusters: [
+            { label: 'Example 1', colorScheme: 'yellow', outers: { tl: 1, tr: 2, bl: 3, br: 4 }, centre: 10 },
+            { label: 'Example 2', colorScheme: 'purple', outers: { tl: 2, tr: 5, bl: 1, br: 4 }, centre: 12 },
+            { label: 'Target',    colorScheme: 'pink',   outers: { tl: 3, tr: 3, bl: 4, br: 2 }, centre: null }
+          ],
+          answer: 12,
+          misconception_tags: {
+            'product-instead-of-sum': 'Carries the product-of-pairs rule from Round 1.',
+            'sum-three-of-four':      'Omits one outer number while summing.'
+          }
+        },
+        {
+          round: 3,
+          rule: 'max-minus-min',
+          ruleHint: 'largest outer minus smallest outer',
+          clusters: [
+            { label: 'Example 1', colorScheme: 'yellow', outers: { tl: 9, tr: 3, bl: 2, br: 7 }, centre: 7 },
+            { label: 'Example 2', colorScheme: 'purple', outers: { tl: 8, tr: 4, bl: 6, br: 2 }, centre: 6 },
+            { label: 'Target',    colorScheme: 'pink',   outers: { tl: 9, tr: 5, bl: 1, br: 6 }, centre: null }
+          ],
+          answer: 8,
+          misconception_tags: {
+            'sum-not-range':     'Sums all four instead of taking max minus min.',
+            'first-minus-second': 'Subtracts top-right from top-left (tl - tr) instead of max - min.'
+          }
+        }
+      ]
+    };
+
+    /* ============================================================
+       Module-level refs
+       ============================================================ */
+    var previewScreen = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var floatingBtn = null;
+    var audioPermissionChecked = false;
+
+    /* ============================================================
+       syncDOM — writes #app data-* attrs
+       ============================================================ */
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+      app.setAttribute('data-lives', gameState.lives);
+      app.setAttribute('data-stars', gameState.stars);
+    }
+
+    /* ============================================================
+       trackEvent
+       ============================================================ */
+    function trackEvent(type, data) {
+      try {
+        var evt = { event: type, timestamp: Date.now() };
+        if (data && typeof data === 'object') {
+          for (var k in data) { if (data.hasOwnProperty(k)) evt[k] = data[k]; }
+        }
+        gameState.events.push(evt);
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       recordAttempt (12 fields per PART-009 / data-contract)
+       ============================================================ */
+    function recordAttempt(params) {
+      try {
+        var now = Date.now();
+        var sinceStart = gameState.startTime ? (now - gameState.startTime) : 0;
+        var responseMs = gameState.roundStartTime ? (now - gameState.roundStartTime) : 0;
+        if (params && typeof params.response_time_ms === 'number') {
+          responseMs = params.response_time_ms;
+        }
+        var attempt = {
+          attempt_timestamp: now,
+          time_since_start_of_game: sinceStart,
+          input_of_user: params.input_of_user,
+          correct: !!params.correct,
+          round_number: params.round_number,
+          question_id: params.question_id,
+          correct_answer: params.correct_answer,
+          response_time_ms: responseMs,
+          misconception_tag: params.misconception_tag == null ? null : params.misconception_tag,
+          difficulty_level: params.difficulty_level || 1,
+          is_retry: !!params.is_retry,
+          metadata: params.metadata || {}
+        };
+        gameState.attempts.push(attempt);
+        gameState.responseTimes.push(responseMs);
+        gameState.duration_data.attempts.push({
+          round: params.round_number,
+          timestamp: now,
+          response_time_ms: responseMs
+        });
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       getRounds — with fallback
+       ============================================================ */
+    function getRounds() {
+      if (gameState.content && gameState.content.rounds &&
+          gameState.content.rounds.length >= gameState.totalRounds) {
+        return gameState.content.rounds;
+      }
+      return fallbackContent.rounds;
+    }
+
+    /* ============================================================
+       getStars — by firstCheckSolves
+       ============================================================ */
+    function getStars() {
+      var s = gameState.firstCheckSolves || 0;
+      if (s >= 3) return 3;
+      if (s >= 2) return 2;
+      if (s >= 1) return 1;
+      return 0;
+    }
+
+    /* ============================================================
+       waitForPackages (PART-003)
+       ============================================================ */
+    function waitForPackages() {
+      return new Promise(function(resolve, reject) {
+        var startT = Date.now();
+        var timeout = 120000;
+        var interval = setInterval(function() {
+          var ok = (typeof FeedbackManager !== 'undefined') &&
+                   (typeof VisibilityTracker !== 'undefined') &&
+                   (typeof ScreenLayout !== 'undefined') &&
+                   (typeof ProgressBarComponent !== 'undefined') &&
+                   (typeof TransitionScreenComponent !== 'undefined') &&
+                   (typeof PreviewScreenComponent !== 'undefined') &&
+                   (typeof FloatingButtonComponent !== 'undefined');
+          if (ok) { clearInterval(interval); resolve(true); return; }
+          if (Date.now() - startT > timeout) {
+            clearInterval(interval);
+            try {
+              throw new Error('Packages failed to load within ' + timeout + 'ms');
+            } catch (err) {
+              reject(err);
+            }
+          }
+        }, 50);
+      });
+    }
+
+    /* ============================================================
+       Audio readiness check
+       ============================================================ */
+    function waitForAudioPermission() {
+      return new Promise(function(resolve) {
+        if (audioPermissionChecked) return resolve();
+        if (typeof FeedbackManager === 'undefined' || !FeedbackManager.canPlayAudio) {
+          audioPermissionChecked = true;
+          return resolve();
+        }
+        try {
+          if (FeedbackManager.canPlayAudio()) {
+            audioPermissionChecked = true;
+            return resolve();
+          }
+        } catch (e) { /* noop */ }
+        var check = setInterval(function() {
+          try {
+            if (FeedbackManager.canPlayAudio && FeedbackManager.canPlayAudio()) {
+              clearInterval(check);
+              audioPermissionChecked = true;
+              resolve();
+            }
+          } catch (e) { /* noop */ }
+        }, 200);
+        setTimeout(function() { clearInterval(check); audioPermissionChecked = true; resolve(); }, 15000);
+      });
+    }
+
+    /* ============================================================
+       FeedbackManager preload
+       ============================================================ */
+    function preloadAllAudio() {
+      return FeedbackManager.sound.preload([
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+      ]);
+    }
+
+    /* ============================================================
+       Safe FM wrappers
+       ============================================================ */
+    function safePlaySound(id, opts) {
+      try {
+        return FeedbackManager.sound.play(id, opts || {});
+      } catch (e) {
+        return Promise.resolve();
+      }
+    }
+    function safeStopAllAudio() {
+      try { if (FeedbackManager && FeedbackManager.sound && FeedbackManager.sound.pause) FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager.stream && FeedbackManager.stream.pauseAll) FeedbackManager.stream.pauseAll(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+    }
+
+    /* ============================================================
+       createProgressBar helper (PART-023)
+       ============================================================ */
+    function createProgressBar() {
+      try { if (progressBar && progressBar.destroy) progressBar.destroy(); } catch (e) {}
+      try {
+        progressBar = new ProgressBarComponent({
+          slotId: 'mathai-progress-slot',
+          totalRounds: gameState.totalRounds,
+          totalLives: gameState.totalLives
+        });
+        progressBar.show();
+        progressBar.update(0, Math.max(0, gameState.lives));
+      } catch (e) {
+        console.error('[progressBar] ' + e.message);
+      }
+    }
+
+    /* ============================================================
+       handlePostMessage (PART-008)
+       ============================================================ */
+    function handlePostMessage(event) {
+      try {
+        if (!event || !event.data || typeof event.data !== 'object') return;
+        var msg = event.data;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          var d = msg.data || msg;
+          if (d.content) gameState.content = d.content;
+          else if (msg.content) gameState.content = msg.content;
+
+          gameState.signalConfig = d.signalConfig || msg.signalConfig || {};
+          var sc = gameState.signalConfig;
+          if (signalCollector) {
+            try { signalCollector.flushUrl = sc.flushUrl; } catch (e) {}
+            try { signalCollector.playId = sc.playId; } catch (e) {}
+            try { signalCollector.gameId = sc.gameId || gameState.gameId; } catch (e) {}
+            try { signalCollector.sessionId = sc.sessionId; } catch (e) {}
+            try { signalCollector.contentSetId = sc.contentSetId; } catch (e) {}
+            try { signalCollector.studentId = sc.studentId; } catch (e) {}
+            try { if (signalCollector.startFlushing) signalCollector.startFlushing(); } catch (e) {}
+          }
+          syncDOM();
+          setupGame();
+        }
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       Cluster SVG rendering
+       ============================================================ */
+    function clusterColors(scheme) {
+      if (scheme === 'yellow') return { stroke: '#E6B800', text: '#2E3FB0', centreFill: '#FFF7D6', centreText: '#2E3FB0' };
+      if (scheme === 'purple') return { stroke: '#8E44D0', text: '#D13FA6', centreFill: '#F4E8FB', centreText: '#D13FA6' };
+      if (scheme === 'pink')   return { stroke: '#E67EA8', text: '#C28800', centreFill: '#FBE8EE', centreText: '#C28800' };
+      return { stroke: '#666', text: '#333', centreFill: '#FFF', centreText: '#333' };
+    }
+
+    function renderClusterSVG(cluster, isTarget) {
+      // 2x2 overlapping circles with a shared central circle.
+      // viewBox coords tuned so four circles r=34 overlap with centers at (±18, ±18) inside a 120x120 box.
+      var c = clusterColors(cluster.colorScheme);
+      var size = 128;
+      var r = 36;
+      var cx1 = 46, cy1 = 46;   // top-left circle centre
+      var cx2 = 82, cy2 = 46;   // top-right
+      var cx3 = 46, cy3 = 82;   // bottom-left
+      var cx4 = 82, cy4 = 82;   // bottom-right
+
+      var centreCx = 64, centreCy = 64, centreR = 18;
+
+      // Outer number positions (slightly toward each circle's outer quadrant)
+      var ntlX = 28, ntlY = 36;
+      var ntrX = 100, ntrY = 36;
+      var nblX = 28, nblY = 98;
+      var nbrX = 100, nbrY = 98;
+
+      var tl = cluster.outers.tl;
+      var tr = cluster.outers.tr;
+      var bl = cluster.outers.bl;
+      var br = cluster.outers.br;
+
+      var centreDisplay;
+      if (isTarget) {
+        centreDisplay = '<text x="64" y="70" text-anchor="middle" font-size="24" font-weight="900" fill="' + c.centreText + '" font-family="inherit">?</text>';
+      } else {
+        centreDisplay = '<text x="64" y="70" text-anchor="middle" font-size="20" font-weight="800" fill="' + c.centreText + '" font-family="inherit">' + cluster.centre + '</text>';
+      }
+
+      return (
+        '<svg viewBox="0 0 ' + size + ' ' + size + '" width="' + size + '" height="' + size + '" role="img" aria-label="' + escapeHTML(cluster.label) + ' cluster">' +
+          // 4 outer circles (stroke only, transparent fill so overlaps read)
+          '<circle cx="' + cx1 + '" cy="' + cy1 + '" r="' + r + '" fill="rgba(255,255,255,0.92)" stroke="' + c.stroke + '" stroke-width="2.5"></circle>' +
+          '<circle cx="' + cx2 + '" cy="' + cy2 + '" r="' + r + '" fill="rgba(255,255,255,0.60)" stroke="' + c.stroke + '" stroke-width="2.5"></circle>' +
+          '<circle cx="' + cx3 + '" cy="' + cy3 + '" r="' + r + '" fill="rgba(255,255,255,0.60)" stroke="' + c.stroke + '" stroke-width="2.5"></circle>' +
+          '<circle cx="' + cx4 + '" cy="' + cy4 + '" r="' + r + '" fill="rgba(255,255,255,0.60)" stroke="' + c.stroke + '" stroke-width="2.5"></circle>' +
+
+          // Central small circle (the answer container)
+          '<circle cx="' + centreCx + '" cy="' + centreCy + '" r="' + centreR + '" fill="' + c.centreFill + '" stroke="' + c.stroke + '" stroke-width="2"></circle>' +
+
+          // Outer numbers (top-left / top-right / bottom-left / bottom-right)
+          '<text x="' + ntlX + '" y="' + ntlY + '" text-anchor="middle" font-size="16" font-weight="800" fill="' + c.text + '" font-family="inherit">' + tl + '</text>' +
+          '<text x="' + ntrX + '" y="' + ntrY + '" text-anchor="middle" font-size="16" font-weight="800" fill="' + c.text + '" font-family="inherit">' + tr + '</text>' +
+          '<text x="' + nblX + '" y="' + nblY + '" text-anchor="middle" font-size="16" font-weight="800" fill="' + c.text + '" font-family="inherit">' + bl + '</text>' +
+          '<text x="' + nbrX + '" y="' + nbrY + '" text-anchor="middle" font-size="16" font-weight="800" fill="' + c.text + '" font-family="inherit">' + br + '</text>' +
+
+          // Centre value (or ?)
+          centreDisplay +
+        '</svg>'
+      );
+    }
+
+    function escapeHTML(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    /* ============================================================
+       Game HTML injection (scaffold)
+       ============================================================ */
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div class="status-strip" data-testid="status-strip">' +
+          '<span id="timerPill" class="timer-pill" data-testid="timer-pill">1:00</span>' +
+        '</div>' +
+        '<div id="clustersWrap" data-testid="clusters-wrap"></div>' +
+        '<div class="input-wrap">' +
+          '<input type="text" inputmode="numeric" pattern="[0-9]*" id="answer-input" data-testid="answer-input" autocomplete="off" placeholder="Type here" maxlength="4">' +
+        '</div>' +
+        '<div id="correctAnswerLabel" class="correct-answer-label" data-testid="correct-answer-label" aria-live="polite"></div>';
+    }
+
+    /* ============================================================
+       renderInitialState — paint Round 1 behind preview
+       ============================================================ */
+    function renderInitialState() {
+      var rounds = getRounds();
+      if (!rounds || !rounds[0]) return;
+      buildRoundDOM(rounds[0], /* interactive */ false);
+    }
+
+    /* ============================================================
+       buildRoundDOM — inject the three clusters for a given round
+       ============================================================ */
+    function buildRoundDOM(round, interactive) {
+      gameState.currentRoundData = round;
+      gameState.correctAnswer = round.answer;
+
+      var clustersWrap = document.getElementById('clustersWrap');
+      if (!clustersWrap) return;
+
+      var ex1 = round.clusters[0];
+      var ex2 = round.clusters[1];
+      var target = round.clusters[2];
+
+      var html =
+        '<div class="cluster-row">' +
+          '<div class="cluster" data-testid="cluster-0">' +
+            '<div class="cluster-label">' + escapeHTML(ex1.label) + '</div>' +
+            renderClusterSVG(ex1, false) +
+          '</div>' +
+          '<div class="cluster" data-testid="cluster-1">' +
+            '<div class="cluster-label">' + escapeHTML(ex2.label) + '</div>' +
+            renderClusterSVG(ex2, false) +
+          '</div>' +
+        '</div>' +
+        '<div class="cluster-row">' +
+          '<div class="cluster cluster-target" data-testid="cluster-2">' +
+            '<div class="cluster-label">' + escapeHTML(target.label) + '</div>' +
+            renderClusterSVG(target, true) +
+          '</div>' +
+        '</div>';
+
+      clustersWrap.innerHTML = html;
+
+      // Reset input (for interactive renders) — button is owned by FloatingButton
+      var input = document.getElementById('answer-input');
+      var label = document.getElementById('correctAnswerLabel');
+      if (input) {
+        input.value = '';
+        input.classList.remove('input-correct', 'input-wrong');
+        input.disabled = !interactive;
+      }
+      if (label) {
+        label.textContent = '';
+        label.classList.remove('success');
+      }
+      updateInputWidth();
+      // Floating button starts hidden until predicate re-drives it
+      try {
+        if (floatingBtn && interactive) {
+          floatingBtn.setMode(null);
+          floatingBtn.setSubmittable(isSubmittable());
+        }
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       renderRound — current round, interactive
+       ============================================================ */
+    function renderRound() {
+      if (gameState.gameEnded) return;
+      gameState.phase = 'gameplay';
+      gameState.isActive = true;
+      gameState.isProcessing = false;
+      gameState.roundStartTime = Date.now();
+
+      var rounds = getRounds();
+      var round = rounds[gameState.currentRound];
+      if (!round) {
+        showVictory();
+        return;
+      }
+      buildRoundDOM(round, /* interactive */ true);
+      bindInputHandlers();
+      bindActionHandler();
+      syncDOM();
+
+      // Floating button: predicate re-drives visibility on the round-render path
+      try { if (floatingBtn) floatingBtn.setSubmittable(isSubmittable()); } catch (e) {}
+
+      // Start per-round timer (60s)
+      startRoundTimer(60000);
+
+      // Programmatic focus after a tick (helps on desktop; mobile requires user tap)
+      setTimeout(function() {
+        var input = document.getElementById('answer-input');
+        if (input && !gameState.isProcessing && !gameState.gameEnded) {
+          try { input.focus({ preventScroll: true }); } catch (e) {}
+          try {
+            var wrap = input.parentElement;
+            if (wrap && wrap.scrollIntoView) {
+              wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          } catch (e) {}
+        }
+      }, 150);
+    }
+
+    /* ============================================================
+       Round timer
+       ============================================================ */
+    function startRoundTimer(ms) {
+      stopRoundTimer();
+      gameState.roundTimerRemainingMs = ms;
+      updateTimerPill(ms);
+      gameState.roundTimerId = setInterval(function() {
+        if (gameState.isProcessing || gameState.gameEnded || gameState.phase !== 'gameplay') {
+          return;
+        }
+        gameState.roundTimerRemainingMs -= 1000;
+        if (gameState.roundTimerRemainingMs <= 0) {
+          gameState.roundTimerRemainingMs = 0;
+          updateTimerPill(0);
+          stopRoundTimer();
+          handleTimeout();
+        } else {
+          updateTimerPill(gameState.roundTimerRemainingMs);
+        }
+      }, 1000);
+    }
+    function stopRoundTimer() {
+      if (gameState.roundTimerId) {
+        clearInterval(gameState.roundTimerId);
+        gameState.roundTimerId = null;
+      }
+    }
+    function updateTimerPill(ms) {
+      var pill = document.getElementById('timerPill');
+      if (!pill) return;
+      var secTotal = Math.max(0, Math.ceil(ms / 1000));
+      var m = Math.floor(secTotal / 60);
+      var s = secTotal % 60;
+      pill.textContent = m + ':' + (s < 10 ? '0' + s : s);
+      if (secTotal <= 10) pill.classList.add('low');
+      else pill.classList.remove('low');
+    }
+    function updateLivesPill() {
+      // ProgressBarComponent owns the lives display (PART-023). No custom hearts DOM.
+    }
+
+    /* ============================================================
+       Input + action handlers
+       ============================================================ */
+    var MIN_W = 72;
+    var MAX_W = 300;
+    var CHAR_W = 22;
+    var BASE_PADDING = 28;
+    function updateInputWidth() {
+      var input = document.getElementById('answer-input');
+      if (!input) return;
+      var len = input.value.length;
+      var target = len === 0
+        ? MIN_W
+        : Math.min(MAX_W, Math.max(MIN_W, len * CHAR_W + BASE_PADDING));
+      input.style.width = target + 'px';
+    }
+
+    function bindInputHandlers() {
+      var input = document.getElementById('answer-input');
+      if (!input) return;
+
+      input.addEventListener('click', focusAndScroll);
+      input.addEventListener('focus', function() {
+        setTimeout(function() {
+          var wrap = input.parentElement;
+          if (wrap && wrap.scrollIntoView) {
+            wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 50);
+      });
+      input.addEventListener('input', function() {
+        // Numeric-only filter (strip non-digits)
+        var cleaned = input.value.replace(/[^0-9]/g, '');
+        if (cleaned !== input.value) input.value = cleaned;
+        updateInputWidth();
+        input.classList.remove('input-correct', 'input-wrong');
+        try { if (floatingBtn) floatingBtn.setSubmittable(isSubmittable()); } catch (e) {}
+      });
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (isSubmittable() && !gameState.isProcessing && !gameState.gameEnded) {
+            handleSubmit();
+          }
+        }
+      });
+    }
+
+    function focusAndScroll() {
+      var input = document.getElementById('answer-input');
+      if (!input) return;
+      try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (e2) {} }
+      setTimeout(function() {
+        var wrap = input.parentElement;
+        if (wrap && wrap.scrollIntoView) {
+          wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
+    }
+
+    function isSubmittable() {
+      var input = document.getElementById('answer-input');
+      if (!input) return false;
+      if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return false;
+      if (gameState.phase !== 'gameplay') return false;
+      var raw = input.value.trim();
+      if (raw.length === 0) return false;
+      // Numeric check — strip any stray non-digits (already filtered on input)
+      if (!/^[0-9]+$/.test(raw)) return false;
+      var n = parseInt(raw, 10);
+      return !isNaN(n);
+    }
+    window.isSubmittable = isSubmittable;
+
+    function bindActionHandler() {
+      // No-op: FloatingButtonComponent owns the submit button; handler registered once at init.
+    }
+
+    /* ============================================================
+       Misconception derivation
+       ============================================================ */
+    function deriveMisconception(round, typedNum) {
+      if (typedNum === null || isNaN(typedNum)) return 'arbitrary-fill';
+      var o = round.clusters[2].outers;
+      if (round.rule === 'product-of-pairs') {
+        var sumAll = o.tl + o.tr + o.bl + o.br;
+        if (typedNum === sumAll) return 'sum-not-product';
+        return 'wrong-pairing';
+      }
+      if (round.rule === 'sum') {
+        var productPairs = o.tl * o.tr;
+        if (typedNum === productPairs || typedNum === (o.bl * o.br)) return 'product-instead-of-sum';
+        var sumThree1 = o.tr + o.bl + o.br;
+        var sumThree2 = o.tl + o.bl + o.br;
+        var sumThree3 = o.tl + o.tr + o.br;
+        var sumThree4 = o.tl + o.tr + o.bl;
+        if (typedNum === sumThree1 || typedNum === sumThree2 || typedNum === sumThree3 || typedNum === sumThree4) {
+          return 'sum-three-of-four';
+        }
+        return 'product-instead-of-sum';
+      }
+      if (round.rule === 'max-minus-min') {
+        var total = o.tl + o.tr + o.bl + o.br;
+        if (typedNum === total) return 'sum-not-range';
+        if (typedNum === (o.tl - o.tr)) return 'first-minus-second';
+        return 'sum-not-range';
+      }
+      return null;
+    }
+
+    /* ============================================================
+       Submit handler (CORE) — Pattern P7
+       ============================================================ */
+    function handleTimeout() {
+      // Timer ran out: treat as a wrong answer with empty input
+      if (gameState.isProcessing || gameState.gameEnded || gameState.phase !== 'gameplay') return;
+      var input = document.getElementById('answer-input');
+      if (input) input.value = '';
+      handleSubmit(/* isTimeout */ true);
+    }
+
+    function handleSubmit(isTimeout) {
+      if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
+
+      var input = document.getElementById('answer-input');
+      var raw = input ? input.value.trim() : '';
+
+      if (!isTimeout && !raw) return;            // double-guard (predicate gated)
+
+      gameState.isProcessing = true;
+      stopRoundTimer();
+
+      // FloatingButton auto-hides on submit click — enforce hide for Enter/timeout paths too
+      try { if (floatingBtn) floatingBtn.setMode(null); } catch (e) {}
+
+      if (input) {
+        try { input.blur(); } catch (e) {}
+        input.disabled = true;
+      }
+
+      var round = gameState.currentRoundData || getRounds()[gameState.currentRound];
+      var typedNum = (raw === '') ? NaN : parseInt(raw, 10);
+      var isCorrect = !isNaN(typedNum) && typedNum === round.answer;
+      var responseMs = gameState.roundStartTime ? (Date.now() - gameState.roundStartTime) : 0;
+
+      if (input) {
+        input.classList.remove('input-correct', 'input-wrong');
+        input.classList.add(isCorrect ? 'input-correct' : 'input-wrong');
+      }
+      var label = document.getElementById('correctAnswerLabel');
+      if (!isCorrect && label) {
+        label.classList.remove('success');
+        label.textContent = 'Correct answer: ' + round.answer;
+      } else if (isCorrect && label) {
+        label.classList.add('success');
+        label.textContent = 'Correct!';
+      }
+
+      // STATE update
+      if (isCorrect) {
+        gameState.score += 1;
+        gameState.firstCheckSolves += 1;
+      } else {
+        gameState.lives = Math.max(0, gameState.lives - 1);
+      }
+      gameState.roundsCompleted += 1;
+      updateLivesPill();
+
+      // progressBar.update is FIRST in round-complete handler
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, Math.max(0, gameState.lives));
+        }
+      } catch (e) {}
+
+      // recordAttempt BEFORE audio
+      var misc = isCorrect ? null : deriveMisconception(round, typedNum);
+      recordAttempt({
+        input_of_user: isTimeout ? null : raw,
+        correct: isCorrect,
+        round_number: round.round,
+        question_id: 'r' + round.round + '_' + round.rule,
+        correct_answer: round.answer,
+        response_time_ms: responseMs,
+        misconception_tag: misc,
+        difficulty_level: 1,
+        is_retry: false,
+        metadata: { rule: round.rule, timeout: !!isTimeout, typed: isTimeout ? null : typedNum }
+      });
+      trackEvent('answer_submitted', { round: round.round, isCorrect: isCorrect, timeout: !!isTimeout });
+
+      syncDOM();
+
+      // Audio + advance
+      return (async function() {
+        try {
+          if (isCorrect) {
+            await Promise.all([
+              safePlaySound('correct_sound_effect', { sticker: STICKER_CORRECT }),
+              new Promise(function(r) { setTimeout(r, 1500); })
+            ]);
+            try {
+              if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                await FeedbackManager.playDynamicFeedback({
+                  audio_content: buildCorrectVO(round),
+                  subtitle: buildCorrectVO(round),
+                  sticker: STICKER_CORRECT
+                });
+              }
+            } catch (e) {}
+            // Per-correct round-complete star celebration (intra-frame message).
+            try {
+              window.postMessage({
+                type: 'show_star',
+                data: {
+                  count: 1,
+                  variant: 'yellow',
+                  score: gameState.firstCheckSolves + '/' + gameState.totalRounds
+                }
+              }, '*');
+            } catch (e) {}
+          } else {
+            // LAST LIFE: still play wrong SFX (PART-017 rule)
+            await Promise.all([
+              safePlaySound('incorrect_sound_effect', { sticker: STICKER_WRONG }),
+              new Promise(function(r) { setTimeout(r, 1500); })
+            ]);
+            try {
+              if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                await FeedbackManager.playDynamicFeedback({
+                  audio_content: 'Not quite. The correct answer is ' + round.answer + '.',
+                  subtitle: 'The correct answer is ' + round.answer + '.',
+                  sticker: STICKER_WRONG
+                });
+              }
+            } catch (e) {}
+          }
+        } catch (e) { /* noop */ }
+
+        // Routing
+        if (!isCorrect && gameState.lives <= 0) {
+          showGameOver();
+          return;
+        }
+        if (!isCorrect && gameState.lives > 0) {
+          // Per task: wrong with lives remaining → offer Try Again (setMode('retry')).
+          // Retry handler (registered at init) clears input + returns to predicate.
+          gameState.isProcessing = false;
+          try { if (floatingBtn) floatingBtn.setMode('retry'); } catch (e) {}
+          return;
+        }
+        // Correct: advance to next round or victory
+        gameState.currentRound += 1;
+        if (gameState.currentRound >= gameState.totalRounds) {
+          showVictory();
+        } else {
+          showRoundIntro(gameState.currentRound + 1);
+        }
+      })();
+    }
+
+    function buildCorrectVO(round) {
+      if (round.rule === 'product-of-pairs') {
+        var o = round.clusters[2].outers;
+        return 'Nice! ' + o.tl + ' times ' + o.tr + ' is ' + (o.tl * o.tr) + ', and ' + o.bl + ' times ' + o.br + ' is ' + (o.bl * o.br) + '.';
+      }
+      if (round.rule === 'sum') {
+        var s = round.clusters[2].outers;
+        return 'Exactly! ' + s.tl + ' plus ' + s.tr + ' plus ' + s.bl + ' plus ' + s.br + ' is ' + round.answer + '.';
+      }
+      if (round.rule === 'max-minus-min') {
+        var m = round.clusters[2].outers;
+        var max = Math.max(m.tl, m.tr, m.bl, m.br);
+        var min = Math.min(m.tl, m.tr, m.bl, m.br);
+        return 'Well done! The largest is ' + max + ', the smallest is ' + min + ', so ' + max + ' minus ' + min + ' is ' + round.answer + '.';
+      }
+      return 'Great job! You found the pattern.';
+    }
+
+    /* ============================================================
+       showRoundIntro — TransitionScreen
+       ============================================================ */
+    function showRoundIntro(n) {
+      safeStopAllAudio();
+
+      // Clear leftover feedback DOM
+      var label = document.getElementById('correctAnswerLabel');
+      if (label) { label.textContent = ''; label.classList.remove('success'); }
+      var input = document.getElementById('answer-input');
+      if (input) {
+        input.classList.remove('input-correct', 'input-wrong');
+        input.value = '';
+        input.disabled = false;
+      }
+
+      gameState.phase = 'round_intro';
+      gameState.isProcessing = true;
+      syncDOM();
+
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, Math.max(0, gameState.lives));
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await waitForAudioPermission();
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              icons: ['🧠'],
+              title: 'Round ' + n,
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND });
+                  } catch (e) {}
+                  try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+                  enterGameplay(n);
+                })();
+              }
+            });
+          }
+        } catch (e) {
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          enterGameplay(n);
+        }
+      })();
+
+      // Hard fallback
+      setTimeout(function() {
+        if (gameState.phase === 'round_intro' && (gameState.currentRound + 1) === n && !gameState.gameEnded) {
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          enterGameplay(n);
+        }
+      }, 3500);
+    }
+
+    function enterGameplay(n) {
+      if (gameState.gameEnded) return;
+      // n is 1-based; currentRound is 0-based
+      gameState.currentRound = n - 1;
+      renderRound();
+    }
+
+    /* ============================================================
+       showVictory (CASE 11)
+       ============================================================ */
+    function showVictory() {
+      if (gameState.gameEnded) return;
+
+      safeStopAllAudio();
+      stopRoundTimer();
+
+      gameState.phase = 'results';
+      gameState.isActive = false;
+      gameState.stars = getStars();
+
+      // PROGRESS BAR BUMPS FIRST (MEMORY.md)
+      try {
+        if (progressBar && progressBar.update) {
+          var _finalRoundIdx = gameState.totalRounds;
+          progressBar.update(_finalRoundIdx, Math.max(0, gameState.lives));
+        }
+      } catch (e) {}
+
+      syncDOM();
+
+      // game_complete BEFORE audio
+      postGameComplete(true);
+
+      var stars = gameState.stars;
+      var fcs = gameState.firstCheckSolves;
+      var subtitle = 'You solved ' + fcs + ' of ' + gameState.totalRounds + ' on the first try!';
+      var victorySticker = (stars === 3) ? STICKER_VICTORY : (stars === 2 ? STICKER_GAME_COMPLETE_2 : STICKER_GAME_COMPLETE_1);
+
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            // PART-050 multi-round: buttons:[] + tap-dismiss, Next owned by FloatingButton
+            await transitionScreen.show({
+              stars: stars,
+              title: 'Victory 🎉',
+              subtitle: subtitle,
+              persist: true,
+              buttons: [],
+              onMounted: function() {
+                (async function() {
+                  try {
+                    var sfxId = (stars === 3) ? 'victory_sound_effect' : 'game_complete_sound_effect';
+                    await safePlaySound(sfxId, { sticker: victorySticker });
+                    try {
+                      if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                        var voText = stars === 3
+                          ? 'Amazing! Three stars! You spotted every pattern.'
+                          : (stars === 2
+                            ? 'Well done! You solved ' + fcs + ' of 3 on the first try.'
+                            : (stars === 1
+                              ? 'Good effort! You solved ' + fcs + ' of 3 on the first try.'
+                              : 'Nice try — every round completed.'));
+                        await FeedbackManager.playDynamicFeedback({
+                          audio_content: voText,
+                          subtitle: voText,
+                          sticker: victorySticker
+                        });
+                      }
+                    } catch (e) {}
+                  } catch (e) {}
+                })();
+              }
+            });
+            // PART-050 multi-round: onDismiss → show_star → setMode('next')
+            try {
+              if (transitionScreen && transitionScreen.onDismiss) {
+                transitionScreen.onDismiss(function() {
+                  try { transitionScreen.hide(); } catch (e) {}
+                  // Star-award animation AFTER the transition dismisses.
+                  try {
+                    window.postMessage({
+                      type: 'show_star',
+                      data: {
+                        count: Math.max(1, Math.min(3, stars)),
+                        variant: 'yellow',
+                        score: gameState.firstCheckSolves + '/' + gameState.totalRounds
+                      }
+                    }, '*');
+                  } catch (e) {}
+                  setTimeout(function() {
+                    try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+                  }, 1100);
+                });
+              }
+            } catch (e) {}
+          }
+        } catch (e) { /* noop */ }
+      })();
+    }
+
+    /* ============================================================
+       showGameOver (CASE 12)
+       ============================================================ */
+    function showGameOver() {
+      if (gameState.gameEnded) return;
+
+      safeStopAllAudio();
+      stopRoundTimer();
+
+      gameState.phase = 'results';
+      gameState.isActive = false;
+      gameState.stars = getStars();
+
+      syncDOM();
+
+      // game_complete BEFORE audio (DUAL-PATH: also on game-over)
+      postGameComplete(false);
+
+      var fcs = gameState.firstCheckSolves;
+      var subtitle = 'Great effort — you solved ' + fcs + ' of ' + gameState.totalRounds + '. Try again!';
+
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            // PART-050 multi-round: buttons:[] + tap-dismiss; Next owned by FloatingButton.
+            await transitionScreen.show({
+              icons: ['😔'],
+              title: 'Game Over',
+              subtitle: subtitle,
+              persist: true,
+              buttons: [],
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('game_complete_sound_effect', { sticker: STICKER_SAD });
+                    try {
+                      if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                        await FeedbackManager.playDynamicFeedback({
+                          audio_content: 'Great effort. Let us try again!',
+                          subtitle: 'Great effort — try again!',
+                          sticker: STICKER_SAD
+                        });
+                      }
+                    } catch (e) {}
+                  } catch (e) {}
+                })();
+              }
+            });
+            try {
+              if (transitionScreen && transitionScreen.onDismiss) {
+                transitionScreen.onDismiss(function() {
+                  try { transitionScreen.hide(); } catch (e) {}
+                  setTimeout(function() {
+                    try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+                  }, 300);
+                });
+              }
+            } catch (e) {}
+          }
+        } catch (e) { /* noop */ }
+      })();
+    }
+
+    /* ============================================================
+       showMotivation — restart path (no preview, no welcome)
+       ============================================================ */
+    function showMotivation() {
+      safeStopAllAudio();
+      gameState.phase = 'results';
+      syncDOM();
+
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              title: 'Ready to improve your score? ⚡',
+              persist: true,
+              buttons: [
+                {
+                  text: "I'm ready! 🙌",
+                  type: 'primary',
+                  action: function() {
+                    safeStopAllAudio();
+                    try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+                    restartGame();
+                  }
+                }
+              ],
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('rounds_sound_effect', { sticker: STICKER_RESTART });
+                    try {
+                      if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                        await FeedbackManager.playDynamicFeedback({
+                          audio_content: 'Ready to give it another shot?',
+                          subtitle: 'Ready to improve your score?',
+                          sticker: STICKER_RESTART
+                        });
+                      }
+                    } catch (e) {}
+                  } catch (e) {}
+                })();
+              }
+            });
+          }
+        } catch (e) { /* noop */ }
+      })();
+    }
+
+    /* ============================================================
+       showStarsCollected — auto-dismiss 2500ms
+       ============================================================ */
+    function showStarsCollected() {
+      safeStopAllAudio();
+      gameState.phase = 'results';
+      syncDOM();
+
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              title: 'Yay! 🎉\nStars collected!',
+              styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY });
+                  } catch (e) {}
+                })();
+              }
+            });
+          }
+        } catch (e) { /* noop */ }
+        setTimeout(function() {
+          safeStopAllAudio();
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          try { window.parent.postMessage({ type: 'game_exit' }, '*'); } catch (e) {}
+          endGame(gameState.stars > 0);
+        }, 2500);
+      })();
+    }
+
+    /* ============================================================
+       postGameComplete — fires BEFORE audio, on both victory & game-over paths
+       ============================================================ */
+    function postGameComplete(won) {
+      try {
+        var completedAt = Date.now();
+        var avgMs = 0;
+        if (gameState.responseTimes.length > 0) {
+          var sum = 0;
+          for (var i = 0; i < gameState.responseTimes.length; i++) sum += gameState.responseTimes[i];
+          avgMs = sum / gameState.responseTimes.length;
+        }
+        var accuracy = Math.round((gameState.firstCheckSolves / gameState.totalRounds) * 100);
+        if (accuracy < 0) accuracy = 0;
+        if (accuracy > 100) accuracy = 100;
+
+        var sigEventCount = 0;
+        var sigMetadata = {};
+        try {
+          if (signalCollector) {
+            if (typeof signalCollector.getInputEvents === 'function') {
+              var inputEvents = signalCollector.getInputEvents() || [];
+              sigEventCount = inputEvents.length;
+            }
+            if (typeof signalCollector.getMetadata === 'function') {
+              sigMetadata = signalCollector.getMetadata() || {};
+            }
+          }
+        } catch (e) { /* noop */ }
+
+        var metrics = {
+          accuracy: accuracy,
+          time: gameState.startTime ? Math.round((completedAt - gameState.startTime) / 1000) : 0,
+          stars: gameState.stars,
+          attempts: gameState.attempts,
+          duration_data: gameState.duration_data,
+          totalLives: gameState.totalLives,
+          firstCheckSolves: gameState.firstCheckSolves,
+          tries: computeTriesPerRound(),
+          avgResponseTime: avgMs,
+          livesRemaining: gameState.lives,
+          signal_event_count: sigEventCount,
+          signal_metadata: sigMetadata,
+          won: !!won
+        };
+
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: completedAt,
+            previewResult: gameState.previewResult || null
+          },
+          payload: {
+            score: gameState.firstCheckSolves,
+            totalQuestions: gameState.totalRounds,
+            stars: gameState.stars,
+            accuracy: accuracy,
+            timeSpent: gameState.startTime ? (completedAt - gameState.startTime) : 0,
+            avgResponseTime: avgMs,
+            livesRemaining: gameState.lives,
+            won: !!won
+          }
+        }, '*');
+      } catch (e) { /* noop */ }
+    }
+
+    function computeTriesPerRound() {
+      var byRound = {};
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        var a = gameState.attempts[i];
+        var k = a.round_number;
+        if (!byRound[k]) byRound[k] = { round: k, correct: false };
+        if (a.correct) byRound[k].correct = true;
+      }
+      var out = [];
+      for (var j = 1; j <= gameState.totalRounds; j++) {
+        if (byRound[j]) out.push({ round: byRound[j].round, correct: !!byRound[j].correct });
+      }
+      return out;
+    }
+
+    /* ============================================================
+       endGame — destroy() exactly once
+       ============================================================ */
+    function endGame(won) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      gameState.gameEnded = true;
+      stopRoundTimer();
+      trackEvent('game_end', { won: !!won, score: gameState.firstCheckSolves, stars: gameState.stars });
+      try {
+        if (floatingBtn && floatingBtn.destroy) floatingBtn.destroy();
+      } catch (e) { /* noop */ }
+      try {
+        if (previewScreen && previewScreen.destroy) previewScreen.destroy();
+      } catch (e) { /* noop */ }
+    }
+    window.endGame = endGame;
+
+    /* ============================================================
+       restartGame — NO preview, NO welcome
+       ============================================================ */
+    function restartGame() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+      stopRoundTimer();
+
+      gameState.phase = 'start_screen';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.firstCheckSolves = 0;
+      gameState.roundsCompleted = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.responseTimes = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.roundStartTime = null;
+      gameState.currentRoundData = null;
+      gameState.duration_data = {
+        startTime: null,
+        preview: gameState.duration_data.preview || [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      };
+
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+
+      // Reset progress bar
+      createProgressBar();
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true });
+      syncDOM();
+
+      // Re-inject scaffold
+      injectGameHTML();
+
+      showRoundIntro(1);
+    }
+    window.restartGame = restartGame;
+
+    /* ============================================================
+       startGame — test-harness entry
+       ============================================================ */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.firstCheckSolves = 0;
+      gameState.roundsCompleted = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.phase = 'gameplay';
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      if (!document.getElementById('answer-input')) injectGameHTML();
+      showRoundIntro(1);
+    }
+    window.startGame = startGame;
+
+    /* ============================================================
+       nextRound — test-harness hook
+       ============================================================ */
+    function nextRound() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+      stopRoundTimer();
+
+      if (gameState.currentRound + 1 >= gameState.totalRounds) {
+        showVictory();
+        return;
+      }
+      gameState.currentRound += 1;
+      showRoundIntro(gameState.currentRound + 1);
+    }
+    window.nextRound = nextRound;
+
+    /* ============================================================
+       startGameAfterPreview — called by PreviewScreen onComplete
+       ============================================================ */
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || null;
+      if (gameState.duration_data.preview == null) gameState.duration_data.preview = [];
+      if (previewData && typeof previewData.duration === 'number') {
+        gameState.duration_data.preview.push({ duration: previewData.duration });
+      }
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      try { if (signalCollector && signalCollector.recordViewEvent) signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+
+      showRoundIntro(1);
+    }
+
+    /* ============================================================
+       setupGame — render content first, show preview LAST
+       ============================================================ */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      if (!gameState.content) gameState.content = fallbackContent;
+
+      injectGameHTML();
+      renderInitialState();
+
+      try {
+        if (previewScreen && previewScreen.show) {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function(previewData) {
+              startGameAfterPreview(previewData);
+            }
+          });
+        } else {
+          gameState.startTime = Date.now();
+          gameState.isActive = true;
+          gameState.duration_data.startTime = new Date().toISOString();
+          trackEvent('game_start', { totalRounds: gameState.totalRounds });
+          showRoundIntro(1);
+        }
+      } catch (e) {
+        console.error('[setupGame] ' + e.message);
+      }
+    }
+
+    /* ============================================================
+       Debug + test helpers
+       ============================================================ */
+    window.debugGame = function() {
+      return {
+        phase: gameState.phase,
+        currentRound: gameState.currentRound,
+        firstCheckSolves: gameState.firstCheckSolves,
+        roundsCompleted: gameState.roundsCompleted,
+        lives: gameState.lives,
+        attempts: gameState.attempts.length,
+        gameEnded: gameState.gameEnded,
+        correctAnswer: gameState.correctAnswer
+      };
+    };
+    window.loadRound = function(n) {
+      if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+        gameState.currentRound = n - 1;
+        renderRound();
+      }
+    };
+    window.solveCurrentRound = function() {
+      var r = gameState.currentRoundData;
+      if (!r) return false;
+      var input = document.getElementById('answer-input');
+      if (!input) return false;
+      input.value = String(r.answer);
+      input.classList.remove('input-correct', 'input-wrong');
+      try { updateInputWidth(); } catch (e) {}
+      try { input.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+      try { if (floatingBtn) floatingBtn.setSubmittable(isSubmittable()); } catch (e) {}
+      return true;
+    };
+
+    /* ============================================================
+       visualViewport keyboard re-scroll
+       ============================================================ */
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', function() {
+        var input = document.getElementById('answer-input');
+        if (input && document.activeElement === input) {
+          setTimeout(function() {
+            var wrap = input.parentElement;
+            if (wrap && wrap.scrollIntoView) {
+              wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 50);
+        }
+      });
+    }
+
+    /* ============================================================
+       DOMContentLoaded — init sequence
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', function() {
+      (async function() {
+        try {
+          // 1. Wait for CDN packages
+          try {
+            await waitForPackages();
+          } catch (pkgErr) {
+            console.error('[init] ' + pkgErr.message);
+          }
+
+          // 2. Initialize FeedbackManager
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.init) {
+              await FeedbackManager.init();
+            }
+          } catch (e) { console.error('[init] FeedbackManager.init ' + e.message); }
+
+          // 3. SignalCollector
+          try {
+            if (typeof SignalCollector !== 'undefined') {
+              signalCollector = new SignalCollector({
+                sessionId: null,
+                studentId: null,
+                gameId: gameState.gameId,
+                contentSetId: null
+              });
+              window.signalCollector = signalCollector;
+            }
+          } catch (e) { /* noop */ }
+
+          // 4. ScreenLayout.inject
+          try {
+            if (typeof ScreenLayout !== 'undefined' && ScreenLayout.inject) {
+              ScreenLayout.inject('app', {
+                slots: {
+                  previewScreen: true,
+                  progressBar: true,
+                  transitionScreen: true,
+                  floatingButton: true
+                }
+              });
+            }
+          } catch (e) { console.error('[init] ScreenLayout.inject ' + e.message); }
+
+          // 5. VisibilityTracker
+          try {
+            if (typeof VisibilityTracker !== 'undefined') {
+              visibilityTracker = new VisibilityTracker({
+                popupProps: {
+                  title: 'Paused',
+                  description: 'Tap Resume to continue.',
+                  primaryText: 'Resume'
+                },
+                onInactive: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.pause(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.pauseAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.pause) previewScreen.pause(); } catch (e) {}
+                  // Pause round timer by flagging isProcessing (resumed on onResume)
+                },
+                onResume: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.resume(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.resumeAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.resume) previewScreen.resume(); } catch (e) {}
+                }
+              });
+            }
+          } catch (e) { console.error('[init] VisibilityTracker ' + e.message); }
+
+          // 6. createProgressBar
+          createProgressBar();
+
+          // 7. TransitionScreenComponent
+          try {
+            if (typeof TransitionScreenComponent !== 'undefined') {
+              transitionScreen = new TransitionScreenComponent({ autoInject: true });
+            }
+          } catch (e) { console.error('[init] TransitionScreen ' + e.message); }
+
+          // 8. PreviewScreenComponent
+          try {
+            if (typeof PreviewScreenComponent !== 'undefined') {
+              previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+            }
+          } catch (e) { console.error('[init] PreviewScreen ' + e.message); }
+
+          // 8b. FloatingButtonComponent (PART-050) — owns Submit / Next CTA
+          try {
+            if (typeof FloatingButtonComponent !== 'undefined') {
+              floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+              try { floatingBtn.setLabels({ submit: 'CHECK', next: 'Next' }); } catch (e) {}
+              floatingBtn.on('submit', async function() {
+                // Component auto-hides on click; evaluate + route handles next mode.
+                if (!isSubmittable()) return;
+                try { await handleSubmit(); } catch (e) { /* noop */ }
+              });
+              floatingBtn.on('retry', function() {
+                // Per PART-050 retry: clear input, return to predicate. Preserve lives/attempts/score.
+                try { if (floatingBtn) floatingBtn.setMode(null); } catch (e) {}
+                var input = document.getElementById('answer-input');
+                var label = document.getElementById('correctAnswerLabel');
+                if (input) {
+                  input.value = '';
+                  input.disabled = false;
+                  input.classList.remove('input-correct', 'input-wrong');
+                  try { input.focus({ preventScroll: true }); } catch (e) {}
+                }
+                if (label) {
+                  label.textContent = '';
+                  label.classList.remove('success');
+                }
+                try { updateInputWidth(); } catch (e) {}
+                gameState.isProcessing = false;
+                // Restart the per-round timer on retry so the learner has time on the same round
+                try { startRoundTimer(60000); } catch (e) {}
+                try { if (floatingBtn) floatingBtn.setSubmittable(isSubmittable()); } catch (e) {}
+              });
+              floatingBtn.on('next', function() {
+                try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+                try { if (previewScreen && previewScreen.destroy) previewScreen.destroy(); } catch (e) {}
+                try { if (floatingBtn && floatingBtn.destroy) floatingBtn.destroy(); } catch (e) {}
+              });
+            }
+          } catch (e) { console.error('[init] FloatingButton ' + e.message); }
+
+          // 9. Preload audio
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.sound && FeedbackManager.sound.preload) {
+              await preloadAllAudio();
+            }
+          } catch (e) { console.error('[init] preload ' + e.message); }
+
+          // 10. Register message listener BEFORE game_ready
+          window.addEventListener('message', handlePostMessage);
+
+          // 11. Send game_ready
+          try {
+            window.parent.postMessage({ type: 'game_ready' }, '*');
+          } catch (e) { /* noop */ }
+
+          // 12. setupGame — renders #gameContent then shows preview last
+          setupGame();
+
+        } catch (e) {
+          console.error('[init] ' + e.message);
+        }
+      })();
+
+      // Window exposures
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.nextRound = nextRound;
+      window.startGame = startGame;
+    });
+
+    /* ============================================================
+       Standalone fallback — runs independently of waitForPackages
+       ============================================================ */
+    setTimeout(function() {
+      try {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+        if (gameState.phase !== 'start_screen') return;
+
+        var gc = document.getElementById('gameContent');
+        if (!gc) {
+          var app = document.getElementById('app');
+          if (app && !document.getElementById('gameContent')) {
+            var fallbackDiv = document.createElement('div');
+            fallbackDiv.id = 'gameContent';
+            app.appendChild(fallbackDiv);
+          }
+        }
+
+        gameState.content = gameState.content || fallbackContent;
+        gameState.totalRounds = fallbackContent.rounds.length;
+
+        if (!gameState.isActive) {
+          startGame();
+        }
+      } catch (e) { /* noop */ }
+    }, 5000);
+  </script>
+</body>
+</html>

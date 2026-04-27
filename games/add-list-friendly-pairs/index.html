@@ -1,0 +1,1846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Equivalent Fractions Matching</title>
+
+  <!-- Sentry (error tracking) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      try {
+        Sentry.init(SentryConfig.getConfig({ release: 'add-list-friendly-pairs@1.0.0' }));
+      } catch (e) { /* noop */ }
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- Game CDN packages (exact order) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+      --mathai-pink: #EB5B8A;
+
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility — .mathai-preview-body is the single scroll owner */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    button,
+    .option-card,
+    [role="button"],
+    input[type="submit"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    /* ============================================================
+       Gameplay layout
+       ============================================================ */
+    #gameContent {
+      padding: 14px 16px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    /* Target fraction (large display) */
+    .target-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 6px 0 18px 0;
+    }
+    .target-label {
+      font-size: var(--mathai-font-size-small);
+      color: var(--mathai-gray);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .target-fraction {
+      font-family: var(--mathai-font-family);
+      font-weight: 800;
+      color: var(--mathai-primary);
+      text-align: center;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 1;
+      padding: 6px 14px;
+    }
+    .target-fraction .num {
+      font-size: 48px;
+      padding: 0 10px;
+    }
+    .target-fraction .bar {
+      display: block;
+      width: 58px;
+      height: 4px;
+      background: var(--mathai-primary);
+      border-radius: 2px;
+      margin: 6px 0;
+    }
+    .target-fraction .den {
+      font-size: 48px;
+      padding: 0 10px;
+    }
+
+    /* Pattern strip (Round 8) */
+    .pattern-strip {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 8px;
+      margin: 0 auto 14px;
+      background: var(--mathai-light-gray);
+      border: 1px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-card);
+      width: fit-content;
+      max-width: 100%;
+    }
+    .pattern-strip .pattern-cell {
+      width: 38px;
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pattern-strip .pattern-cell svg {
+      width: 32px;
+      height: 32px;
+      display: block;
+    }
+    .pattern-strip .pattern-cell.blank {
+      border: 2px dashed var(--mathai-purple);
+      border-radius: 6px;
+      color: var(--mathai-purple);
+      font-weight: 800;
+      font-size: 18px;
+    }
+
+    /* Question prompt */
+    .q-prompt {
+      font-size: 16px;
+      color: var(--mathai-text-primary);
+      font-weight: 600;
+      text-align: center;
+      margin: 0 0 10px 0;
+      line-height: 1.3;
+    }
+
+    /* Options row — 3 cards */
+    .options-row {
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      margin: 10px auto 18px auto;
+      width: 100%;
+    }
+    .option-card {
+      background: var(--mathai-white);
+      border: 2px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-card);
+      flex: 1 1 0;
+      max-width: 110px;
+      margin: 0 4px;
+      padding: 10px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+      -webkit-appearance: none;
+      appearance: none;
+      position: relative;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .option-card:hover {
+      border-color: var(--mathai-purple);
+    }
+    .option-card .shape-wrap {
+      width: 72px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 4px;
+    }
+    .option-card .shape-wrap svg {
+      width: 68px;
+      height: 68px;
+      display: block;
+    }
+    .option-card .card-label {
+      font-size: 13px;
+      color: var(--mathai-gray);
+      font-weight: 700;
+      line-height: 1.1;
+      text-align: center;
+      margin-top: 2px;
+      min-height: 14px;
+    }
+
+    .option-card.selected-correct {
+      border-color: var(--mathai-cell-border-green);
+      background: var(--mathai-cell-bg-green);
+      animation: cardFlashGreen 400ms ease;
+    }
+    .option-card.selected-wrong {
+      border-color: var(--mathai-cell-border-red);
+      background: var(--mathai-cell-bg-red);
+      animation: cardShakeRed 400ms ease;
+    }
+    .option-card.correct-reveal {
+      border-color: var(--mathai-cell-border-green);
+      background: var(--mathai-cell-bg-green);
+    }
+
+    /* Disabled during processing */
+    .options-disabled .option-card {
+      pointer-events: none !important;
+      cursor: not-allowed !important;
+    }
+
+    /* Animations */
+    @keyframes cardFlashGreen {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.07); }
+      100% { transform: scale(1); }
+    }
+    @keyframes cardShakeRed {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-4px); }
+      60% { transform: translateX(4px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.35s ease; }
+
+    /* Landscape lock */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-round="0" data-lives="3"></div>
+
+  <script>
+    /* ============================================================
+       Sticker URLs (standard set)
+       ============================================================ */
+    var STICKER_CORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_GAME_COMPLETE_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_GAME_COMPLETE_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    /* ============================================================
+       gameState (PART-007)
+       ============================================================ */
+    var gameState = {
+      gameId: 'add-list-friendly-pairs',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 3,
+      score: 0,
+      lives: 3,
+      totalLives: 3,
+      correctAnswer: null,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      stars: 0,
+      firstTryCorrect: 0,
+      roundsCompleted: 0,
+      roundStartTime: null,
+      responseTimes: [],
+      previewResult: null,
+      currentRoundData: null,
+      duration_data: {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      }
+    };
+    window.gameState = gameState;
+
+    /* ============================================================
+       fallbackContent — 3 rounds (halves & quarters only)
+       ============================================================ */
+    var fallbackContent = {
+      previewInstruction: '<p><b>Match the fraction!</b><br>Look at the fraction and tap the picture that shows it shaded.</p>',
+      previewAudioText: 'Look at the fraction and tap the picture that matches it.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      rounds: [
+        {
+          round: 1, stage: 1, type: 'A',
+          prompt: 'Choose the picture that matches the fraction.',
+          target: { num: 1, den: 2, displayText: 'one half' },
+          options: [
+            { id: 'o_half_rect',    kind: 'fraction', shape: 'rect',   num: 1, den: 2, cols: 2, rows: 1 },
+            { id: 'o_quarter_rect', kind: 'fraction', shape: 'rect',   num: 1, den: 4, cols: 2, rows: 2 },
+            { id: 'o_threeq_rect',  kind: 'fraction', shape: 'rect',   num: 3, den: 4, cols: 2, rows: 2 }
+          ],
+          correctId: 'o_half_rect',
+          misconception_tags: {
+            'confuse-halves-quarters': 'Confuses 1/2 with 1/4 because both have 1 on top.',
+            'any-shaded': 'Picks any shape with one region shaded.'
+          }
+        },
+        {
+          round: 2, stage: 1, type: 'A',
+          prompt: 'Choose the picture that matches the fraction.',
+          target: { num: 1, den: 4, displayText: 'one quarter' },
+          options: [
+            { id: 'o_quarter_circ', kind: 'fraction', shape: 'circle', num: 1, den: 4 },
+            { id: 'o_half_rect',    kind: 'fraction', shape: 'rect',   num: 1, den: 2, cols: 2, rows: 1 },
+            { id: 'o_threeq_rect',  kind: 'fraction', shape: 'rect',   num: 3, den: 4, cols: 2, rows: 2 }
+          ],
+          correctId: 'o_quarter_circ',
+          misconception_tags: {
+            'confuse-one-over-two': 'Confuses 1/4 with 1/2 because both have 1 on top.',
+            'pick-more-shaded': 'Picks the option with the most shading.'
+          }
+        },
+        {
+          round: 3, stage: 1, type: 'A',
+          prompt: 'Choose the picture that matches the fraction.',
+          target: { num: 3, den: 4, displayText: 'three quarters' },
+          options: [
+            { id: 'o_threeq_rect', kind: 'fraction', shape: 'rect', num: 3, den: 4, cols: 2, rows: 2 },
+            { id: 'o_quarter_rect',kind: 'fraction', shape: 'rect', num: 1, den: 4, cols: 2, rows: 2 },
+            { id: 'o_half_rect',   kind: 'fraction', shape: 'rect', num: 1, den: 2, cols: 2, rows: 1 }
+          ],
+          correctId: 'o_threeq_rect',
+          misconception_tags: {
+            'count-unshaded': 'Counts the unshaded parts (picks 1/4 when target is 3/4).',
+            'pick-half': 'Picks 1/2 instead of 3/4.'
+          }
+        }
+      ]
+    };
+
+    /* ============================================================
+       Module-scope runtime references
+       ============================================================ */
+    var timer = null;
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var audioPermissionChecked = false;
+
+    /* ============================================================
+       syncDOM
+       ============================================================ */
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+      app.setAttribute('data-lives', gameState.lives);
+    }
+
+    /* ============================================================
+       trackEvent
+       ============================================================ */
+    function trackEvent(type, data) {
+      try {
+        var evt = { event: type, timestamp: Date.now() };
+        if (data && typeof data === 'object') {
+          for (var k in data) { if (data.hasOwnProperty(k)) evt[k] = data[k]; }
+        }
+        gameState.events.push(evt);
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       recordAttempt — 12 fields per PART-009
+       ============================================================ */
+    function recordAttempt(params) {
+      try {
+        var now = Date.now();
+        var sinceStart = gameState.startTime ? (now - gameState.startTime) : 0;
+        var responseMs = gameState.roundStartTime ? (now - gameState.roundStartTime) : 0;
+        if (params && typeof params.response_time_ms === 'number') {
+          responseMs = params.response_time_ms;
+        }
+        var attempt = {
+          attempt_timestamp: now,
+          time_since_start_of_game: sinceStart,
+          input_of_user: params.input_of_user,
+          correct: !!params.correct,
+          round_number: params.round_number,
+          question_id: params.question_id,
+          correct_answer: params.correct_answer,
+          response_time_ms: responseMs,
+          misconception_tag: params.misconception_tag == null ? null : params.misconception_tag,
+          difficulty_level: params.difficulty_level || 1,
+          is_retry: !!params.is_retry,
+          metadata: params.metadata || {}
+        };
+        gameState.attempts.push(attempt);
+        gameState.duration_data.attempts.push({
+          round: params.round_number,
+          timestamp: now,
+          response_time_ms: responseMs
+        });
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       getRounds / getStars
+       ============================================================ */
+    function getRounds() {
+      if (gameState.content && gameState.content.rounds &&
+          gameState.content.rounds.length >= gameState.totalRounds) {
+        return gameState.content.rounds;
+      }
+      return fallbackContent.rounds;
+    }
+
+    function getStars() {
+      var s = gameState.firstTryCorrect || 0;
+      if (s >= 3) return 3;
+      if (s >= 2) return 2;
+      if (s >= 1) return 1;
+      return 0;
+    }
+
+    /* ============================================================
+       waitForPackages (PART-003)
+       ============================================================ */
+    function waitForPackages() {
+      return new Promise(function(resolve, reject) {
+        var startT = Date.now();
+        var timeout = 120000;
+        var interval = setInterval(function() {
+          var ok = (typeof FeedbackManager !== 'undefined') &&
+                   (typeof VisibilityTracker !== 'undefined') &&
+                   (typeof ScreenLayout !== 'undefined') &&
+                   (typeof ProgressBarComponent !== 'undefined') &&
+                   (typeof TransitionScreenComponent !== 'undefined') &&
+                   (typeof PreviewScreenComponent !== 'undefined');
+          if (ok) { clearInterval(interval); resolve(true); return; }
+          if (Date.now() - startT > timeout) {
+            clearInterval(interval);
+            try {
+              throw new Error('Packages failed to load within ' + timeout + 'ms');
+            } catch (err) {
+              reject(err);
+            }
+          }
+        }, 50);
+      });
+    }
+
+    /* ============================================================
+       Audio readiness
+       ============================================================ */
+    function waitForAudioPermission() {
+      return new Promise(function(resolve) {
+        if (audioPermissionChecked) return resolve();
+        if (typeof FeedbackManager === 'undefined' || !FeedbackManager.canPlayAudio) {
+          audioPermissionChecked = true;
+          return resolve();
+        }
+        try {
+          if (FeedbackManager.canPlayAudio()) {
+            audioPermissionChecked = true;
+            return resolve();
+          }
+        } catch (e) { /* noop */ }
+        var check = setInterval(function() {
+          try {
+            if (FeedbackManager.canPlayAudio && FeedbackManager.canPlayAudio()) {
+              clearInterval(check);
+              audioPermissionChecked = true;
+              resolve();
+            }
+          } catch (e) { /* noop */ }
+        }, 200);
+        setTimeout(function() { clearInterval(check); audioPermissionChecked = true; resolve(); }, 15000);
+      });
+    }
+
+    /* ============================================================
+       FeedbackManager preload
+       ============================================================ */
+    function preloadAllAudio() {
+      return FeedbackManager.sound.preload([
+        { id: 'correct_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'sound_game_over',        url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506665430.mp3' },
+        { id: 'tap_sound',              url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+        { id: 'sound_bubble_select',    url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'new_cards',              url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' }
+      ]);
+    }
+
+    /* ============================================================
+       Safe wrappers
+       ============================================================ */
+    function safePlaySound(id, opts) {
+      try {
+        return FeedbackManager.sound.play(id, opts || {});
+      } catch (e) {
+        return Promise.resolve();
+      }
+    }
+    function safeStopAllAudio() {
+      try { if (FeedbackManager && FeedbackManager.sound && FeedbackManager.sound.pause) FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager.stream && FeedbackManager.stream.pauseAll) FeedbackManager.stream.pauseAll(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+    }
+
+    /* ============================================================
+       createProgressBar (PART-023)
+       ============================================================ */
+    function createProgressBar() {
+      try { if (progressBar && progressBar.destroy) progressBar.destroy(); } catch (e) {}
+      try {
+        progressBar = new ProgressBarComponent({
+          slotId: 'mathai-progress-slot',
+          totalRounds: gameState.totalRounds,
+          totalLives: gameState.totalLives
+        });
+        progressBar.show();
+        progressBar.update(0, gameState.totalLives);
+      } catch (e) {
+        console.error('[progressBar] ' + e.message);
+      }
+    }
+
+    /* ============================================================
+       handlePostMessage (PART-008)
+       ============================================================ */
+    function handlePostMessage(event) {
+      try {
+        if (!event || !event.data || typeof event.data !== 'object') return;
+        var msg = event.data;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          var d = msg.data || msg;
+          if (d.content) gameState.content = d.content;
+          else if (msg.content) gameState.content = msg.content;
+
+          gameState.signalConfig = d.signalConfig || msg.signalConfig || {};
+          var sc = gameState.signalConfig;
+          if (signalCollector) {
+            try { signalCollector.flushUrl = sc.flushUrl; } catch (e) {}
+            try { signalCollector.playId = sc.playId; } catch (e) {}
+            try { signalCollector.gameId = sc.gameId || gameState.gameId; } catch (e) {}
+            try { signalCollector.sessionId = sc.sessionId; } catch (e) {}
+            try { signalCollector.contentSetId = sc.contentSetId; } catch (e) {}
+            try { signalCollector.studentId = sc.studentId; } catch (e) {}
+            try { if (signalCollector.startFlushing) signalCollector.startFlushing(); } catch (e) {}
+          }
+          syncDOM();
+          setupGame();
+        }
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       SVG renderers for shapes
+       ============================================================ */
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, function(ch) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+      });
+    }
+
+    // Rectangle grid: cols x rows, first N cells shaded
+    function svgRectGrid(num, den, cols, rows) {
+      rows = rows || 1;
+      cols = cols || den;
+      var W = 64, H = 64;
+      var cw = W / cols;
+      var rh = H / rows;
+      var cellsHTML = '';
+      var count = 0;
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          var idx = r * cols + c;
+          var isShaded = idx < num;
+          var x = c * cw;
+          var y = r * rh;
+          var fill = isShaded ? 'var(--mathai-blue)' : 'var(--mathai-white)';
+          cellsHTML +=
+            '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) +
+            '" width="' + cw.toFixed(2) + '" height="' + rh.toFixed(2) +
+            '" fill="' + fill + '" stroke="#4a4a4a" stroke-width="1.2" />';
+          count++;
+        }
+      }
+      return (
+        '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+        cellsHTML +
+        '</svg>'
+      );
+    }
+
+    // Circle split into 4 quadrants; first N shaded
+    function svgCircleQuadrants(num, den) {
+      // For simplicity we support den=4 here; generalize to den=2 if needed.
+      var cx = 32, cy = 32, r = 28;
+      var parts = [];
+      if (den === 4) {
+        // Quadrants: top-right (0->1), bottom-right (1->2), bottom-left (2->3), top-left (3->4)
+        // Use path for each pie slice.
+        function quad(i) {
+          var angStart = -Math.PI / 2 + i * Math.PI / 2;
+          var angEnd = angStart + Math.PI / 2;
+          var x1 = cx + r * Math.cos(angStart);
+          var y1 = cy + r * Math.sin(angStart);
+          var x2 = cx + r * Math.cos(angEnd);
+          var y2 = cy + r * Math.sin(angEnd);
+          return 'M ' + cx + ' ' + cy +
+                 ' L ' + x1.toFixed(2) + ' ' + y1.toFixed(2) +
+                 ' A ' + r + ' ' + r + ' 0 0 1 ' + x2.toFixed(2) + ' ' + y2.toFixed(2) +
+                 ' Z';
+        }
+        for (var i = 0; i < 4; i++) {
+          var shaded = i < num;
+          var fill = shaded ? 'var(--mathai-pink)' : 'var(--mathai-white)';
+          parts.push('<path d="' + quad(i) + '" fill="' + fill + '" stroke="#4a4a4a" stroke-width="1.2" />');
+        }
+      } else if (den === 2) {
+        // Two halves
+        function half(i) {
+          var angStart = -Math.PI / 2 + i * Math.PI;
+          var angEnd = angStart + Math.PI;
+          var x1 = cx + r * Math.cos(angStart);
+          var y1 = cy + r * Math.sin(angStart);
+          var x2 = cx + r * Math.cos(angEnd);
+          var y2 = cy + r * Math.sin(angEnd);
+          return 'M ' + cx + ' ' + cy +
+                 ' L ' + x1.toFixed(2) + ' ' + y1.toFixed(2) +
+                 ' A ' + r + ' ' + r + ' 0 0 1 ' + x2.toFixed(2) + ' ' + y2.toFixed(2) +
+                 ' Z';
+        }
+        for (var j = 0; j < 2; j++) {
+          var sh = j < num;
+          var fl = sh ? 'var(--mathai-pink)' : 'var(--mathai-white)';
+          parts.push('<path d="' + half(j) + '" fill="' + fl + '" stroke="#4a4a4a" stroke-width="1.2" />');
+        }
+      } else {
+        // Fallback: a plain circle
+        parts.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="var(--mathai-white)" stroke="#4a4a4a" stroke-width="1.2" />');
+      }
+      return (
+        '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+        parts.join('') +
+        '</svg>'
+      );
+    }
+
+    // Regular hexagon split into 6 equilateral triangles (pie-style)
+    function svgHexSixths(num, den) {
+      var cx = 32, cy = 32, r = 28;
+      // Hex vertices at angles -90, -30, 30, 90, 150, 210 degrees
+      var verts = [];
+      for (var i = 0; i < 6; i++) {
+        var ang = (-Math.PI / 2) + i * (Math.PI / 3);
+        verts.push({ x: cx + r * Math.cos(ang), y: cy + r * Math.sin(ang) });
+      }
+      var parts = [];
+      for (var k = 0; k < 6; k++) {
+        var v1 = verts[k];
+        var v2 = verts[(k + 1) % 6];
+        var shaded = k < num;
+        var fill = shaded ? 'var(--mathai-yellow)' : 'var(--mathai-white)';
+        var d = 'M ' + cx + ' ' + cy +
+                ' L ' + v1.x.toFixed(2) + ' ' + v1.y.toFixed(2) +
+                ' L ' + v2.x.toFixed(2) + ' ' + v2.y.toFixed(2) + ' Z';
+        parts.push('<path d="' + d + '" fill="' + fill + '" stroke="#4a4a4a" stroke-width="1.2" />');
+      }
+      return (
+        '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+        parts.join('') +
+        '</svg>'
+      );
+    }
+
+    // Pattern shape — a single SVG for square, circle, or triangle
+    function svgPatternShape(token) {
+      if (token === 'sq') {
+        return '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+          '<rect x="5" y="5" width="30" height="30" fill="var(--mathai-blue)" stroke="#4a4a4a" stroke-width="1.4"/>' +
+          '</svg>';
+      }
+      if (token === 'ci') {
+        return '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+          '<circle cx="20" cy="20" r="15" fill="var(--mathai-yellow)" stroke="#4a4a4a" stroke-width="1.4"/>' +
+          '</svg>';
+      }
+      if (token === 'tr') {
+        return '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+          '<polygon points="20,5 35,34 5,34" fill="var(--mathai-pink)" stroke="#4a4a4a" stroke-width="1.4"/>' +
+          '</svg>';
+      }
+      return '';
+    }
+
+    function renderOptionShape(opt) {
+      if (opt.kind === 'fraction') {
+        if (opt.shape === 'rect') {
+          return svgRectGrid(opt.num, opt.den, opt.cols, opt.rows);
+        }
+        if (opt.shape === 'circle') {
+          return svgCircleQuadrants(opt.num, opt.den);
+        }
+        if (opt.shape === 'hex') {
+          return svgHexSixths(opt.num, opt.den);
+        }
+      }
+      if (opt.kind === 'pattern') {
+        return svgPatternShape(opt.token);
+      }
+      return '';
+    }
+
+    function cardLabelFor(opt) {
+      if (opt.kind === 'fraction') {
+        return escapeHTML(opt.num + '/' + opt.den);
+      }
+      if (opt.kind === 'pattern') {
+        if (opt.token === 'sq') return 'Square';
+        if (opt.token === 'ci') return 'Circle';
+        if (opt.token === 'tr') return 'Triangle';
+      }
+      return '';
+    }
+
+    /* ============================================================
+       Game scaffolding
+       ============================================================ */
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div id="targetArea" class="fade-in"></div>' +
+        '<div id="optionsRow" class="options-row fade-in"></div>';
+    }
+
+    function renderInitialState() {
+      var rounds = getRounds();
+      if (!rounds || !rounds[0]) return;
+      buildRoundDOM(rounds[0], /* interactive */ false);
+    }
+
+    function buildRoundDOM(round, interactive) {
+      gameState.currentRoundData = round;
+
+      var targetArea = document.getElementById('targetArea');
+      var optionsRow = document.getElementById('optionsRow');
+      if (!targetArea || !optionsRow) return;
+
+      // Prompt + target
+      var promptHTML = '<div class="q-prompt">' + escapeHTML(round.prompt) + '</div>';
+      var targetHTML = '';
+      if (round.type === 'pattern') {
+        // Render pattern strip
+        var cells = round.target.patternTokens.map(function(t) {
+          return '<div class="pattern-cell">' + svgPatternShape(t) + '</div>';
+        }).join('');
+        cells += '<div class="pattern-cell blank" aria-label="unknown shape">?</div>';
+        targetHTML =
+          '<div class="target-wrap">' +
+            '<div class="target-label">PATTERN</div>' +
+            '<div class="pattern-strip" id="patternStrip">' + cells + '</div>' +
+          '</div>';
+      } else {
+        var t = round.target;
+        targetHTML =
+          '<div class="target-wrap">' +
+            '<div class="target-label">FRACTION</div>' +
+            '<div class="target-fraction" data-testid="target-fraction">' +
+              '<span class="num">' + escapeHTML(String(t.num)) + '</span>' +
+              '<span class="bar"></span>' +
+              '<span class="den">' + escapeHTML(String(t.den)) + '</span>' +
+            '</div>' +
+          '</div>';
+      }
+      targetArea.innerHTML = promptHTML + targetHTML;
+
+      // Options
+      var opts = round.options;
+      var cardsHTML = '';
+      for (var i = 0; i < opts.length; i++) {
+        var o = opts[i];
+        cardsHTML +=
+          '<button type="button" class="option-card" data-testid="option-' + escapeHTML(o.id) + '" data-option-id="' + escapeHTML(o.id) + '"' + (interactive ? '' : ' disabled') + '>' +
+            '<div class="shape-wrap">' + renderOptionShape(o) + '</div>' +
+            '<div class="card-label">' + cardLabelFor(o) + '</div>' +
+          '</button>';
+      }
+      optionsRow.innerHTML = cardsHTML;
+
+      // Reset any lingering selection classes
+      var all = optionsRow.querySelectorAll('.option-card');
+      for (var j = 0; j < all.length; j++) {
+        all[j].classList.remove('selected-correct', 'selected-wrong', 'correct-reveal');
+      }
+    }
+
+    /* ============================================================
+       renderRound — full gameplay entry
+       ============================================================ */
+    function renderRound() {
+      var rounds = getRounds();
+      var idx = gameState.currentRound - 1;
+      if (idx < 0) idx = 0;
+      if (idx >= rounds.length) idx = rounds.length - 1;
+      var r = rounds[idx];
+      if (!r) return;
+
+      gameState.correctAnswer = r.correctId;
+      gameState.isActive = true;
+      gameState.isProcessing = false;
+      gameState.phase = 'gameplay';
+      gameState.roundStartTime = Date.now();
+
+      buildRoundDOM(r, /* interactive */ true);
+
+      var gc = document.getElementById('gameContent');
+      if (gc) gc.classList.remove('options-disabled');
+
+      syncDOM();
+
+      // Wire delegated click
+      var optionsRow = document.getElementById('optionsRow');
+      if (optionsRow) {
+        optionsRow.onclick = onOptionsRowClick;
+      }
+
+      safePlaySound('new_cards', {});
+
+      trackEvent('question_shown', {
+        round: gameState.currentRound,
+        type: r.type,
+        stage: r.stage
+      });
+    }
+
+    function onOptionsRowClick(ev) {
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
+      var target = ev.target;
+      var card = target && (target.closest ? target.closest('.option-card') : null);
+      if (!card) return;
+      var optionId = card.getAttribute('data-option-id');
+      if (!optionId) return;
+      handleAnswer(optionId, card);
+    }
+
+    /* ============================================================
+       handleAnswer — canonical answer handler
+       ============================================================ */
+    function handleAnswer(optionId, cardEl) {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      gameState.isProcessing = true;
+
+      var round = gameState.currentRoundData;
+      if (!round) { gameState.isProcessing = false; return; }
+
+      var correct = (optionId === round.correctId);
+      var responseMs = Date.now() - gameState.roundStartTime;
+      gameState.responseTimes.push(responseMs);
+
+      // Determine misconception tag
+      var misconception = null;
+      if (!correct && round.misconception_tags) {
+        // Use the first tag as the fallback misconception
+        for (var k in round.misconception_tags) {
+          if (round.misconception_tags.hasOwnProperty(k)) { misconception = k; break; }
+        }
+      }
+
+      // recordAttempt BEFORE audio
+      recordAttempt({
+        input_of_user: optionId,
+        correct: correct,
+        round_number: gameState.currentRound,
+        question_id: 'r' + gameState.currentRound + '_' + round.type,
+        correct_answer: round.correctId,
+        response_time_ms: responseMs,
+        misconception_tag: misconception,
+        difficulty_level: round.stage || 1,
+        is_retry: false,
+        metadata: {
+          stage: round.stage,
+          type: round.type,
+          selectedOptionId: optionId,
+          correctOptionId: round.correctId
+        }
+      });
+      trackEvent('answer_submitted', {
+        round: gameState.currentRound,
+        correct: correct,
+        selectedOptionId: optionId
+      });
+
+      // Disable input
+      var gc = document.getElementById('gameContent');
+      if (gc) gc.classList.add('options-disabled');
+
+      if (correct) {
+        handleCorrect(round, cardEl, responseMs);
+      } else {
+        handleWrong(round, cardEl, optionId, responseMs);
+      }
+    }
+
+    function handleCorrect(round, cardEl, responseMs) {
+      gameState.score += 1;
+      gameState.firstTryCorrect += 1;
+      gameState.roundsCompleted += 1;
+      syncDOM();
+
+      if (cardEl) cardEl.classList.add('selected-correct');
+
+      // PROGRESS BAR BUMPS FIRST — before any await
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, Math.max(0, gameState.lives));
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await Promise.all([
+            safePlaySound('correct_sound_effect', { sticker: STICKER_CORRECT }),
+            new Promise(function(res) { setTimeout(res, 1500); })
+          ]);
+        } catch (e) { /* noop */ }
+
+        try {
+          if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+            var subtitle = 'Exactly! ';
+            if (round.type === 'pattern') {
+              subtitle += 'That completes the pattern.';
+            } else {
+              subtitle += round.target.num + ' out of ' + round.target.den + ' shaded.';
+            }
+            await FeedbackManager.playDynamicFeedback({
+              audio_content: subtitle,
+              subtitle: subtitle,
+              sticker: STICKER_CORRECT
+            });
+          }
+        } catch (e) { /* noop */ }
+
+        trackEvent('round_complete', { round: gameState.currentRound, correct: true });
+        advanceAfterFeedback();
+      })();
+    }
+
+    function handleWrong(round, cardEl, optionId, responseMs) {
+      gameState.lives = Math.max(0, gameState.lives - 1);
+      gameState.roundsCompleted += 1;
+      syncDOM();
+
+      if (cardEl) cardEl.classList.add('selected-wrong');
+      // Reveal correct
+      var correctEl = document.querySelector('.option-card[data-option-id="' + round.correctId + '"]');
+      if (correctEl && correctEl !== cardEl) correctEl.classList.add('correct-reveal');
+
+      // PROGRESS BAR BUMPS FIRST
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, Math.max(0, gameState.lives));
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await Promise.all([
+            safePlaySound('incorrect_sound_effect', { sticker: STICKER_WRONG }),
+            new Promise(function(res) { setTimeout(res, 1500); })
+          ]);
+        } catch (e) { /* noop */ }
+
+        try {
+          if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+            var hint = 'Not quite. ';
+            if (round.type === 'pattern') {
+              hint += 'The pattern needed the next shape.';
+            } else {
+              hint += round.target.num + ' out of ' + round.target.den + ' is the answer.';
+            }
+            await FeedbackManager.playDynamicFeedback({
+              audio_content: hint,
+              subtitle: hint,
+              sticker: STICKER_WRONG
+            });
+          }
+        } catch (e) { /* noop */ }
+
+        trackEvent('round_complete', { round: gameState.currentRound, correct: false });
+
+        if (gameState.lives <= 0) {
+          showGameOver();
+        } else {
+          advanceAfterFeedback();
+        }
+      })();
+    }
+
+    /* ============================================================
+       advanceAfterFeedback
+       ============================================================ */
+    function advanceAfterFeedback() {
+      safeStopAllAudio();
+      if (gameState.gameEnded) return;
+      if (gameState.phase === 'round_intro' || gameState.phase === 'results') return;
+
+      if (gameState.currentRound >= gameState.totalRounds) {
+        showVictory();
+        return;
+      }
+      gameState.currentRound += 1;
+      showRoundIntro(gameState.currentRound);
+    }
+
+    /* ============================================================
+       showRoundIntro
+       ============================================================ */
+    function showRoundIntro(n) {
+      safeStopAllAudio();
+
+      gameState.phase = 'round_intro';
+      syncDOM();
+
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, Math.max(0, gameState.lives));
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await waitForAudioPermission();
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              icons: ['🧩'],
+              title: 'Round ' + n,
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND });
+                  } catch (e) {}
+                  try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+                  enterGameplay(n);
+                })();
+              }
+            });
+          }
+        } catch (e) {
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          enterGameplay(n);
+        }
+      })();
+
+      // Hard fallback
+      setTimeout(function() {
+        if (gameState.phase === 'round_intro' && gameState.currentRound === n && !gameState.gameEnded) {
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          enterGameplay(n);
+        }
+      }, 3500);
+    }
+
+    function enterGameplay(n) {
+      if (gameState.gameEnded) return;
+      if (gameState.phase === 'gameplay' && gameState.currentRound === n) return;
+      gameState.currentRound = n;
+      renderRound();
+    }
+
+    /* ============================================================
+       showVictory (CASE 11)
+       ============================================================ */
+    function showVictory() {
+      if (gameState.gameEnded) return;
+
+      safeStopAllAudio();
+
+      gameState.phase = 'results';
+      gameState.isActive = false;
+      gameState.stars = getStars();
+
+      try {
+        if (progressBar && progressBar.update) {
+          var _finalRoundIdx = gameState.roundsCompleted;
+          if (_finalRoundIdx < gameState.totalRounds) _finalRoundIdx = gameState.totalRounds;
+          progressBar.update(_finalRoundIdx, Math.max(0, gameState.lives));
+        }
+      } catch (e) {}
+
+      syncDOM();
+
+      // game_complete BEFORE audio
+      postGameComplete(true);
+
+      var stars = gameState.stars;
+      var ftc = gameState.firstTryCorrect;
+      var subtitle = 'You matched ' + ftc + ' of ' + gameState.totalRounds + '!';
+
+      var buttons;
+      if (stars === 3) {
+        buttons = [
+          { text: 'Claim Stars', type: 'primary', action: function() {
+            safeStopAllAudio();
+            try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+            showStarsCollected();
+          } }
+        ];
+      } else {
+        buttons = [
+          { text: 'Play Again', type: 'secondary', action: function() {
+            safeStopAllAudio();
+            try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+            showMotivation();
+          } },
+          { text: 'Claim Stars', type: 'primary', action: function() {
+            safeStopAllAudio();
+            try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+            showStarsCollected();
+          } }
+        ];
+      }
+
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            var victorySticker = (stars === 3) ? STICKER_VICTORY : (stars === 2 ? STICKER_GAME_COMPLETE_2 : STICKER_GAME_COMPLETE_1);
+            await transitionScreen.show({
+              stars: stars,
+              title: 'Victory 🎉',
+              subtitle: subtitle,
+              persist: true,
+              buttons: buttons,
+              onMounted: function() {
+                (async function() {
+                  try {
+                    var sfxId = (stars === 3) ? 'victory_sound_effect' : 'game_complete_sound_effect';
+                    await safePlaySound(sfxId, { sticker: victorySticker });
+                    try {
+                      if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                        var voText = stars === 3
+                          ? 'Amazing! Three stars! Every fraction matched perfectly.'
+                          : (stars === 2
+                            ? 'Well done! You matched ' + ftc + ' of ' + gameState.totalRounds + '.'
+                            : (stars === 1
+                              ? 'Good effort! You matched ' + ftc + ' of ' + gameState.totalRounds + '.'
+                              : 'Nice try — keep practising fractions!'));
+                        await FeedbackManager.playDynamicFeedback({
+                          audio_content: voText,
+                          subtitle: voText,
+                          sticker: victorySticker
+                        });
+                      }
+                    } catch (e) {}
+                  } catch (e) {}
+                })();
+              }
+            });
+          }
+        } catch (e) { /* noop */ }
+      })();
+    }
+
+    /* ============================================================
+       showGameOver (CASE 12)
+       ============================================================ */
+    function showGameOver() {
+      if (gameState.gameEnded) return;
+
+      safeStopAllAudio();
+
+      gameState.phase = 'game_over';
+      gameState.isActive = false;
+      gameState.stars = getStars();
+
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      syncDOM();
+
+      postGameComplete(false);
+
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              icons: ['😔'],
+              title: 'Game Over',
+              subtitle: 'You ran out of lives!',
+              persist: true,
+              buttons: [
+                { text: 'Try Again', type: 'primary', action: function() {
+                  safeStopAllAudio();
+                  try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+                  restartGame();
+                } }
+              ],
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('sound_game_over', { sticker: STICKER_SAD });
+                    try {
+                      if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                        await FeedbackManager.playDynamicFeedback({
+                          audio_content: 'Nice try! Give it another go.',
+                          subtitle: "Nice try! Let's try again.",
+                          sticker: STICKER_SAD
+                        });
+                      }
+                    } catch (e) {}
+                  } catch (e) {}
+                })();
+              }
+            });
+          }
+        } catch (e) { /* noop */ }
+      })();
+    }
+
+    /* ============================================================
+       showMotivation
+       ============================================================ */
+    function showMotivation() {
+      safeStopAllAudio();
+      gameState.phase = 'results';
+      syncDOM();
+
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              title: 'Ready to improve your score? ⚡',
+              persist: true,
+              buttons: [
+                {
+                  text: "I'm ready! 🙌",
+                  type: 'primary',
+                  action: function() {
+                    safeStopAllAudio();
+                    try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+                    restartGame();
+                  }
+                }
+              ],
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('rounds_sound_effect', { sticker: STICKER_RESTART });
+                    try {
+                      if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                        await FeedbackManager.playDynamicFeedback({
+                          audio_content: 'Ready to give it another shot?',
+                          subtitle: 'Ready to improve your score?',
+                          sticker: STICKER_RESTART
+                        });
+                      }
+                    } catch (e) {}
+                  } catch (e) {}
+                })();
+              }
+            });
+          }
+        } catch (e) { /* noop */ }
+      })();
+    }
+
+    /* ============================================================
+       showStarsCollected
+       ============================================================ */
+    function showStarsCollected() {
+      safeStopAllAudio();
+      gameState.phase = 'results';
+      syncDOM();
+
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              title: 'Yay! 🎉\nStars collected!',
+              styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY });
+                  } catch (e) {}
+                })();
+              }
+            });
+          }
+        } catch (e) { /* noop */ }
+        setTimeout(function() {
+          safeStopAllAudio();
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          try { window.parent.postMessage({ type: 'game_exit' }, '*'); } catch (e) {}
+          endGame(gameState.stars > 0);
+        }, 2500);
+      })();
+    }
+
+    /* ============================================================
+       postGameComplete
+       ============================================================ */
+    function postGameComplete(won) {
+      try {
+        var completedAt = Date.now();
+        var avgMs = 0;
+        if (gameState.responseTimes.length > 0) {
+          var sum = 0;
+          for (var i = 0; i < gameState.responseTimes.length; i++) sum += gameState.responseTimes[i];
+          avgMs = sum / gameState.responseTimes.length;
+        }
+        var accuracy = Math.round((gameState.firstTryCorrect / gameState.totalRounds) * 100);
+        if (accuracy < 0) accuracy = 0;
+        if (accuracy > 100) accuracy = 100;
+
+        var sigEventCount = 0;
+        var sigMetadata = {};
+        try {
+          if (signalCollector) {
+            if (typeof signalCollector.getInputEvents === 'function') {
+              var inputEvents = signalCollector.getInputEvents() || [];
+              sigEventCount = inputEvents.length;
+            }
+            if (typeof signalCollector.getMetadata === 'function') {
+              sigMetadata = signalCollector.getMetadata() || {};
+            }
+          }
+        } catch (e) { /* noop */ }
+
+        var metrics = {
+          accuracy: accuracy,
+          time: gameState.startTime ? Math.round((completedAt - gameState.startTime) / 1000) : 0,
+          stars: gameState.stars,
+          attempts: gameState.attempts,
+          duration_data: gameState.duration_data,
+          totalLives: gameState.totalLives || 0,
+          firstTryCorrect: gameState.firstTryCorrect,
+          tries: computeTriesPerRound(),
+          avgResponseTime: avgMs,
+          livesRemaining: Math.max(0, gameState.lives),
+          signal_event_count: sigEventCount,
+          signal_metadata: sigMetadata
+        };
+
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: completedAt,
+            previewResult: gameState.previewResult || null
+          },
+          payload: {
+            score: gameState.firstTryCorrect,
+            totalQuestions: gameState.totalRounds,
+            stars: gameState.stars,
+            accuracy: accuracy,
+            timeSpent: gameState.startTime ? (completedAt - gameState.startTime) : 0,
+            avgResponseTime: avgMs,
+            livesRemaining: Math.max(0, gameState.lives)
+          }
+        }, '*');
+      } catch (e) { /* noop */ }
+    }
+
+    function computeTriesPerRound() {
+      var byRound = {};
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        var a = gameState.attempts[i];
+        var k = a.round_number;
+        if (!byRound[k]) byRound[k] = { round: k, correct: false };
+        if (a.correct) byRound[k].correct = true;
+      }
+      var out = [];
+      for (var j = 1; j <= gameState.totalRounds; j++) {
+        if (byRound[j]) out.push({ round: byRound[j].round, correct: !!byRound[j].correct });
+      }
+      return out;
+    }
+
+    /* ============================================================
+       endGame
+       ============================================================ */
+    function endGame(won) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      gameState.gameEnded = true;
+      trackEvent('game_end', { won: !!won, score: gameState.firstTryCorrect, stars: gameState.stars });
+      try {
+        if (previewScreen && previewScreen.destroy) previewScreen.destroy();
+      } catch (e) { /* noop */ }
+    }
+    window.endGame = endGame;
+
+    /* ============================================================
+       restartGame
+       ============================================================ */
+    function restartGame() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+
+      gameState.phase = 'start_screen';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.firstTryCorrect = 0;
+      gameState.roundsCompleted = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.responseTimes = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.roundStartTime = null;
+      gameState.currentRoundData = null;
+      gameState.duration_data = {
+        startTime: null,
+        preview: gameState.duration_data.preview || [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      };
+
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+
+      createProgressBar();
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true });
+      syncDOM();
+
+      injectGameHTML();
+      showRoundIntro(1);
+    }
+    window.restartGame = restartGame;
+
+    /* ============================================================
+       startGame — test-harness entry
+       ============================================================ */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = gameState.totalLives;
+      gameState.firstTryCorrect = 0;
+      gameState.roundsCompleted = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.phase = 'gameplay';
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      if (!document.getElementById('targetArea')) injectGameHTML();
+      showRoundIntro(1);
+    }
+    window.startGame = startGame;
+
+    /* ============================================================
+       nextRound — test-harness hook
+       ============================================================ */
+    function nextRound() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+      if (gameState.currentRound >= gameState.totalRounds) {
+        showVictory();
+        return;
+      }
+      gameState.currentRound += 1;
+      showRoundIntro(gameState.currentRound);
+    }
+    window.nextRound = nextRound;
+
+    /* ============================================================
+       startGameAfterPreview
+       ============================================================ */
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || null;
+      if (gameState.duration_data.preview == null) gameState.duration_data.preview = [];
+      if (previewData && typeof previewData.duration === 'number') {
+        gameState.duration_data.preview.push({ duration: previewData.duration });
+      }
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.lives = gameState.totalLives;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      try { if (signalCollector && signalCollector.recordViewEvent) signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+
+      showRoundIntro(1);
+    }
+
+    /* ============================================================
+       setupGame
+       ============================================================ */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      if (!gameState.content) gameState.content = fallbackContent;
+
+      injectGameHTML();
+      renderInitialState();
+
+      try {
+        if (previewScreen && previewScreen.show) {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function(previewData) {
+              startGameAfterPreview(previewData);
+            }
+          });
+        } else {
+          gameState.startTime = Date.now();
+          gameState.isActive = true;
+          gameState.lives = gameState.totalLives;
+          gameState.duration_data.startTime = new Date().toISOString();
+          trackEvent('game_start', { totalRounds: gameState.totalRounds });
+          showRoundIntro(1);
+        }
+      } catch (e) {
+        console.error('[setupGame] ' + e.message);
+      }
+    }
+
+    /* ============================================================
+       Debug helpers
+       ============================================================ */
+    window.debugGame = function() {
+      return {
+        phase: gameState.phase,
+        currentRound: gameState.currentRound,
+        lives: gameState.lives,
+        firstTryCorrect: gameState.firstTryCorrect,
+        roundsCompleted: gameState.roundsCompleted,
+        attempts: gameState.attempts.length,
+        gameEnded: gameState.gameEnded
+      };
+    };
+    window.loadRound = function(n) {
+      if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+        gameState.currentRound = n;
+        renderRound();
+      }
+    };
+    window.solveCurrentRound = function() {
+      var r = gameState.currentRoundData;
+      if (!r) return false;
+      var card = document.querySelector('.option-card[data-option-id="' + r.correctId + '"]');
+      if (card) handleAnswer(r.correctId, card);
+      return true;
+    };
+
+    /* ============================================================
+       DOMContentLoaded — init
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', function() {
+      (async function() {
+        try {
+          try {
+            await waitForPackages();
+          } catch (pkgErr) {
+            console.error('[init] ' + pkgErr.message);
+          }
+
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.init) {
+              await FeedbackManager.init();
+            }
+          } catch (e) { console.error('[init] FeedbackManager.init ' + e.message); }
+
+          try {
+            if (typeof SignalCollector !== 'undefined') {
+              signalCollector = new SignalCollector({
+                sessionId: null,
+                studentId: null,
+                gameId: gameState.gameId,
+                contentSetId: null
+              });
+              window.signalCollector = signalCollector;
+            }
+          } catch (e) { /* noop */ }
+
+          try {
+            if (typeof ScreenLayout !== 'undefined' && ScreenLayout.inject) {
+              ScreenLayout.inject('app', {
+                slots: {
+                  previewScreen: true,
+                  progressBar: true,
+                  transitionScreen: true
+                }
+              });
+            }
+          } catch (e) { console.error('[init] ScreenLayout.inject ' + e.message); }
+
+          try {
+            if (typeof VisibilityTracker !== 'undefined') {
+              visibilityTracker = new VisibilityTracker({
+                popupProps: {
+                  title: 'Paused',
+                  description: 'Tap Resume to continue.',
+                  primaryText: 'Resume'
+                },
+                onInactive: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.pause(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.pauseAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.pause) previewScreen.pause(); } catch (e) {}
+                },
+                onResume: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.resume(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.resumeAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.resume) previewScreen.resume(); } catch (e) {}
+                }
+              });
+            }
+          } catch (e) { console.error('[init] VisibilityTracker ' + e.message); }
+
+          createProgressBar();
+
+          try {
+            if (typeof TransitionScreenComponent !== 'undefined') {
+              transitionScreen = new TransitionScreenComponent({ autoInject: true });
+            }
+          } catch (e) { console.error('[init] TransitionScreen ' + e.message); }
+
+          try {
+            if (typeof PreviewScreenComponent !== 'undefined') {
+              previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+            }
+          } catch (e) { console.error('[init] PreviewScreen ' + e.message); }
+
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.sound && FeedbackManager.sound.preload) {
+              await preloadAllAudio();
+            }
+          } catch (e) { console.error('[init] preload ' + e.message); }
+
+          window.addEventListener('message', handlePostMessage);
+
+          try {
+            window.parent.postMessage({ type: 'game_ready' }, '*');
+          } catch (e) { /* noop */ }
+
+          setupGame();
+        } catch (e) {
+          console.error('[init] ' + e.message);
+        }
+      })();
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.nextRound = nextRound;
+      window.startGame = startGame;
+    });
+
+    /* ============================================================
+       Standalone fallback — runs independently of waitForPackages
+       ============================================================ */
+    setTimeout(function() {
+      try {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+        if (gameState.phase !== 'start_screen') return;
+
+        var gc = document.getElementById('gameContent');
+        if (!gc) {
+          var app = document.getElementById('app');
+          if (app && !document.getElementById('gameContent')) {
+            var fallbackDiv = document.createElement('div');
+            fallbackDiv.id = 'gameContent';
+            app.appendChild(fallbackDiv);
+          }
+        }
+
+        gameState.content = gameState.content || fallbackContent;
+        gameState.totalRounds = fallbackContent.rounds.length;
+
+        if (!gameState.isActive) {
+          startGame();
+        }
+      } catch (e) { /* noop */ }
+    }, 5000);
+  </script>
+</body>
+</html>

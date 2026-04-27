@@ -1,0 +1,166 @@
+{
+  "type": "object",
+  "properties": {
+    "previewInstruction": {
+      "type": "string"
+    },
+    "previewAudioText": {
+      "type": "string"
+    },
+    "previewAudio": {
+      "type": "null"
+    },
+    "showGameOnPreview": {
+      "type": "boolean"
+    },
+    "rounds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "round": {
+            "type": "number"
+          },
+          "stage": {
+            "type": "number"
+          },
+          "type": {
+            "type": "string"
+          },
+          "theme": {
+            "type": "string"
+          },
+          "subjects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attributeA": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "values": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "label",
+              "values"
+            ]
+          },
+          "attributeB": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "values": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "label",
+              "values"
+            ]
+          },
+          "clues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "solution": {
+            "type": "object",
+            "properties": {
+              "Maya": {
+                "type": "object",
+                "properties": {
+                  "Animal": {
+                    "type": "string"
+                  },
+                  "Country": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "Animal",
+                  "Country"
+                ]
+              },
+              "Arjun": {
+                "type": "object",
+                "properties": {
+                  "Animal": {
+                    "type": "string"
+                  },
+                  "Country": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "Animal",
+                  "Country"
+                ]
+              }
+            },
+            "required": [
+              "Maya",
+              "Arjun"
+            ]
+          },
+          "misconception_tags": {
+            "type": "object",
+            "properties": {
+              "Maya-Lion": {
+                "type": "string"
+              },
+              "Maya-Japan": {
+                "type": "string"
+              },
+              "Arjun-Elephant": {
+                "type": "string"
+              },
+              "Arjun-India": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "Maya-Lion",
+              "Maya-Japan",
+              "Arjun-Elephant",
+              "Arjun-India"
+            ]
+          }
+        },
+        "required": [
+          "round",
+          "stage",
+          "type",
+          "theme",
+          "subjects",
+          "attributeA",
+          "attributeB",
+          "clues",
+          "solution",
+          "misconception_tags"
+        ]
+      }
+    }
+  },
+  "required": [
+    "previewInstruction",
+    "previewAudioText",
+    "previewAudio",
+    "showGameOnPreview",
+    "rounds"
+  ]
+}

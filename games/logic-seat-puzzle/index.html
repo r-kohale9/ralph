@@ -1,0 +1,2537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Logic Seating Puzzle</title>
+
+  <!-- Sentry (error tracking) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      try {
+        Sentry.init(SentryConfig.getConfig({ release: 'logic-seat-puzzle@1.0.0' }));
+      } catch (e) { /* noop */ }
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- Game CDN packages (exact order) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility — .mathai-preview-body is the single scroll owner */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    button,
+    .seat,
+    .chip,
+    [role="button"],
+    input[type="submit"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    /* ============================================================
+       Gameplay layout
+       ============================================================ */
+    #gameContent {
+      padding: 12px 14px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    /* Clue panel */
+    .clue-panel {
+      background: var(--mathai-light-gray);
+      border: 1px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 10px 12px;
+      margin-bottom: 14px;
+    }
+    .clue-panel-title {
+      font-size: var(--mathai-font-size-small);
+      font-weight: 700;
+      color: var(--mathai-gray);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .clue-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .clue-list li {
+      font-size: 15px;
+      color: var(--mathai-primary);
+      line-height: 1.4;
+      padding: 4px 0;
+      position: relative;
+      padding-left: 20px;
+    }
+    .clue-list li::before {
+      content: counter(clue-item) '.';
+      counter-increment: clue-item;
+      position: absolute;
+      left: 0;
+      top: 4px;
+      font-weight: 700;
+      color: var(--mathai-purple);
+    }
+    .clue-list { counter-reset: clue-item; }
+
+    /* Table diagram container */
+    .table-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .table-board {
+      position: relative;
+      width: 100%;
+      max-width: 340px;
+    }
+
+    /* Top row / bottom row containers for seats */
+    .seat-row {
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+    }
+    .seat-row.top {
+      margin-bottom: 4px;
+    }
+    .seat-row.bottom {
+      margin-top: 4px;
+    }
+    .seat-row .seat {
+      margin: 0 4px;
+    }
+
+    /* The table surface between the two rows */
+    .table-surface {
+      background: linear-gradient(180deg, #F7ECD9 0%, #E9D4B0 100%);
+      border: 2px solid #B48A4A;
+      border-radius: 10px;
+      height: 40px;
+      margin: 0 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #7A5A2E;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* Head-of-table seat (single seat above the table) */
+    .head-row {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 4px;
+    }
+    .head-row .seat {
+      margin: 0 4px;
+    }
+    .head-label {
+      font-size: 10px;
+      color: var(--mathai-gray);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-align: center;
+      margin-bottom: 2px;
+    }
+
+    /* Seat */
+    .seat {
+      position: relative;
+      width: 68px;
+      height: 76px;
+      border: 2px dashed var(--mathai-border-gray);
+      border-radius: 10px;
+      background: var(--mathai-white);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+    }
+    .seat .seat-num {
+      position: absolute;
+      top: 3px;
+      left: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--mathai-gray);
+      background: var(--mathai-light-gray);
+      border-radius: 10px;
+      padding: 1px 6px;
+      line-height: 1.1;
+    }
+    .seat.seat-hover {
+      border-color: var(--mathai-purple);
+      background: #F3ECFB;
+    }
+    .seat.seat-success {
+      border-style: solid;
+      border-color: var(--mathai-cell-border-green);
+      background: var(--mathai-cell-bg-green);
+      animation: seatFlashGreen 400ms ease;
+    }
+    .seat.seat-conflict {
+      border-style: solid;
+      border-color: var(--mathai-cell-border-red);
+      background: var(--mathai-cell-bg-red);
+      animation: seatFlashRed 400ms ease 2;
+    }
+    .seat.seat-solution {
+      border-style: solid;
+      border-color: var(--mathai-blue);
+      background: #E8ECFB;
+    }
+
+    /* Chip (character) */
+    .chip {
+      width: 58px;
+      height: 62px;
+      border-radius: 10px;
+      background: var(--mathai-white);
+      border: 2px solid var(--mathai-border-gray);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mathai-font-family);
+      color: var(--mathai-primary);
+      font-weight: 700;
+      font-size: 12px;
+      padding: 4px;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: none;
+      cursor: grab;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      position: relative;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .chip .chip-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      color: var(--mathai-white);
+      font-weight: 800;
+      margin-bottom: 2px;
+    }
+    .chip .chip-name {
+      font-size: 11px;
+      line-height: 1.1;
+      text-align: center;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .chip.chip-lift {
+      transform: scale(1.06);
+      box-shadow: 0 6px 14px rgba(39,15,54,0.22);
+    }
+    .chip.chip-dragging {
+      z-index: 1000;
+      pointer-events: none;
+      cursor: grabbing;
+    }
+    .chip.in-seat {
+      width: 54px;
+      height: 58px;
+    }
+
+    /* Pool area */
+    .pool-label {
+      font-size: var(--mathai-font-size-small);
+      font-weight: 700;
+      color: var(--mathai-gray);
+      margin: 2px 0 6px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      text-align: center;
+    }
+    .pool-wrap {
+      background: var(--mathai-light-gray);
+      border: 1px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 10px 8px;
+      margin-bottom: 14px;
+      min-height: 82px;
+    }
+    .pool-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+    }
+    .pool-slot {
+      margin: 4px 5px;
+      width: 58px;
+      height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pool-slot.collapsed {
+      width: 0;
+      height: 0;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    /* CHECK / NEXT button */
+    .action-row {
+      display: flex;
+      justify-content: center;
+      margin-top: 4px;
+      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+    .action-btn {
+      background: var(--mathai-purple);
+      color: var(--mathai-white);
+      border: none;
+      border-radius: var(--mathai-border-radius-button);
+      font-family: var(--mathai-font-family);
+      font-size: var(--mathai-font-size-subtitle);
+      font-weight: 700;
+      padding: 14px 36px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      -webkit-appearance: none;
+      appearance: none;
+      min-height: 48px;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+    .action-btn:disabled,
+    .action-btn.disabled {
+      background: var(--mathai-disabled-gray);
+      color: var(--mathai-gray);
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .action-btn.next-mode {
+      background: var(--mathai-blue);
+    }
+
+    /* Drag layer — absolute placement for chips while dragging */
+    #drag-layer {
+      position: fixed;
+      inset: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* Animations */
+    @keyframes seatFlashGreen {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.07); background: var(--mathai-cell-bg-green); }
+      100% { transform: scale(1); }
+    }
+    @keyframes seatFlashRed {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-3px); }
+      60% { transform: translateX(3px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.35s ease; }
+
+    /* Disable interactions when processing */
+    .dnd-disabled .chip {
+      pointer-events: none !important;
+      cursor: not-allowed !important;
+    }
+
+    /* Landscape lock */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-round="0"></div>
+  <div id="drag-layer"></div>
+
+  <script>
+    /* ============================================================
+       Sticker URLs (standard set)
+       ============================================================ */
+    var STICKER_CORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_GAME_COMPLETE_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_GAME_COMPLETE_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    /* ============================================================
+       gameState (PART-007) — gameId MUST be first field
+       ============================================================ */
+    var gameState = {
+      gameId: 'logic-seat-puzzle',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 3,
+      score: 0,
+      correctAnswer: null,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      stars: 0,
+      firstCheckSolves: 0,
+      roundsCompleted: 0,
+      roundStartTime: null,
+      responseTimes: [],
+      previewResult: null,
+      seatMap: {},
+      chipLoc: {},   // chipId -> 'pool' | seatId
+      dropLog: [],
+      validationResult: null,
+      isBoardFull: false,
+      currentRoundData: null,
+      duration_data: {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      }
+    };
+    window.gameState = gameState;
+
+    /* ============================================================
+       fallbackContent — 3 rounds (simplified for fast iteration)
+       3 seats in a single row, 3 characters, 1-2 simple clues each.
+       ============================================================ */
+    var fallbackContent = {
+      previewInstruction: '<p><b>Seat everyone at the table!</b><br>Drag each character into a seat so every clue is true. Tap <b>CHECK</b> when you are done.</p>',
+      previewAudioText: 'Drag each character into a seat so every clue is true. Then tap CHECK.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      rounds: [
+        {
+          round: 1, stage: 1, type: 'A', layout: 'rect-3',
+          seats: [
+            { id: 1, side: 'row', col: 'left'   },
+            { id: 2, side: 'row', col: 'middle' },
+            { id: 3, side: 'row', col: 'right'  }
+          ],
+          pool: [
+            { id: 'alice', name: 'Alice', avatar: 'A' },
+            { id: 'bob',   name: 'Bob',   avatar: 'B' },
+            { id: 'cara',  name: 'Cara',  avatar: 'C' }
+          ],
+          clues: [
+            { id: 'c1', text: 'Alice sits on the left of Bob.', type: 'left_of', args: ['alice', 'bob'] },
+            { id: 'c2', text: 'Cara sits on the right end.',    type: 'at_seat', args: ['cara', 3] }
+          ],
+          solution: { 1: 'alice', 2: 'bob', 3: 'cara' },
+          misconception_tags: {
+            'mirror-left-right': "Reads 'left of' opposite to screen-left.",
+            'arbitrary-fill':    'Fills seats without reading clues.'
+          }
+        },
+        {
+          round: 2, stage: 1, type: 'A', layout: 'rect-3',
+          seats: [
+            { id: 1, side: 'row', col: 'left'   },
+            { id: 2, side: 'row', col: 'middle' },
+            { id: 3, side: 'row', col: 'right'  }
+          ],
+          pool: [
+            { id: 'kiran', name: 'Kiran', avatar: 'K' },
+            { id: 'neha',  name: 'Neha',  avatar: 'N' },
+            { id: 'dev',   name: 'Dev',   avatar: 'D' }
+          ],
+          clues: [
+            { id: 'c1', text: 'Kiran sits in the middle.',    type: 'at_seat', args: ['kiran', 2] },
+            { id: 'c2', text: 'Neha sits on the left of Dev.', type: 'left_of', args: ['neha', 'dev'] }
+          ],
+          solution: { 1: 'neha', 2: 'kiran', 3: 'dev' },
+          misconception_tags: {
+            'mirror-left-right': "Reads 'left of' opposite to screen-left.",
+            'middle-seat-skipped': "Misses the 'middle' positional clue."
+          }
+        },
+        {
+          round: 3, stage: 1, type: 'A', layout: 'rect-3',
+          seats: [
+            { id: 1, side: 'row', col: 'left'   },
+            { id: 2, side: 'row', col: 'middle' },
+            { id: 3, side: 'row', col: 'right'  }
+          ],
+          pool: [
+            { id: 'tara',  name: 'Tara',  avatar: 'T' },
+            { id: 'veer',  name: 'Veer',  avatar: 'V' },
+            { id: 'ishan', name: 'Ishan', avatar: 'I' }
+          ],
+          clues: [
+            { id: 'c1', text: 'Tara sits on the left end.',    type: 'at_seat', args: ['tara', 1] },
+            { id: 'c2', text: 'Veer sits next to Ishan.',      type: 'next_to', args: ['veer', 'ishan'] }
+          ],
+          solution: { 1: 'tara', 2: 'veer', 3: 'ishan' },
+          misconception_tags: {
+            'next-to-as-anywhere': "Treats 'next to' as anywhere on the row.",
+            'arbitrary-fill':      'Fills seats without reading clues.'
+          }
+        }
+      ]
+    };
+
+    /* ============================================================
+       Module-scope runtime references
+       ============================================================ */
+    var timer = null;
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var audioPermissionChecked = false;
+
+    // Drag state
+    var dragState = null; // { chipId, sourceType: 'pool'|'seat', sourceSeatId, chipEl, offsetX, offsetY, pointerId, originRect }
+    var isDraggingFlag = false;
+
+    // Avatar color palette — keyed by first character of chipId (stable per round)
+    var AVATAR_COLORS = [
+      '#E35757', '#F2994A', '#FFDE49', '#9B51E0', '#667eea',
+      '#219653', '#27AE60', '#2F80ED', '#BB6BD9', '#EB5757',
+      '#F2C94C', '#56CCF2', '#6FCF97', '#F2994A'
+    ];
+    function avatarColor(chipId) {
+      var hash = 0;
+      for (var i = 0; i < chipId.length; i++) {
+        hash = (hash * 31 + chipId.charCodeAt(i)) >>> 0;
+      }
+      return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+    }
+
+    /* ============================================================
+       Utility: shuffle array in place (Fisher-Yates)
+       ============================================================ */
+    function shuffleArray(arr) {
+      for (var i = arr.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+      }
+      return arr;
+    }
+
+    /* ============================================================
+       syncDOM — writes #app data-* attrs
+       ============================================================ */
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+    }
+
+    /* ============================================================
+       trackEvent
+       ============================================================ */
+    function trackEvent(type, data) {
+      try {
+        var evt = { event: type, timestamp: Date.now() };
+        if (data && typeof data === 'object') {
+          for (var k in data) { if (data.hasOwnProperty(k)) evt[k] = data[k]; }
+        }
+        gameState.events.push(evt);
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       recordAttempt (12 fields per PART-009 / data-contract)
+       ============================================================ */
+    function recordAttempt(params) {
+      try {
+        var now = Date.now();
+        var sinceStart = gameState.startTime ? (now - gameState.startTime) : 0;
+        var responseMs = gameState.roundStartTime ? (now - gameState.roundStartTime) : 0;
+        if (params && typeof params.response_time_ms === 'number') {
+          responseMs = params.response_time_ms;
+        }
+        var attempt = {
+          attempt_timestamp: now,
+          time_since_start_of_game: sinceStart,
+          input_of_user: params.input_of_user,
+          correct: !!params.correct,
+          round_number: params.round_number,
+          question_id: params.question_id,
+          correct_answer: params.correct_answer,
+          response_time_ms: responseMs,
+          misconception_tag: params.misconception_tag == null ? null : params.misconception_tag,
+          difficulty_level: params.difficulty_level || 1,
+          is_retry: !!params.is_retry,
+          metadata: params.metadata || {}
+        };
+        gameState.attempts.push(attempt);
+        gameState.duration_data.attempts.push({
+          round: params.round_number,
+          timestamp: now,
+          response_time_ms: responseMs
+        });
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       getRounds — with fallback
+       ============================================================ */
+    function getRounds() {
+      if (gameState.content && gameState.content.rounds &&
+          gameState.content.rounds.length >= gameState.totalRounds) {
+        return gameState.content.rounds;
+      }
+      return fallbackContent.rounds;
+    }
+
+    /* ============================================================
+       getStars — by firstCheckSolves
+       ============================================================ */
+    function getStars() {
+      var s = gameState.firstCheckSolves || 0;
+      if (s >= 6) return 3;
+      if (s >= 4) return 2;
+      if (s >= 1) return 1;
+      return 0;
+    }
+
+    /* ============================================================
+       waitForPackages (PART-003)
+       ============================================================ */
+    function waitForPackages() {
+      return new Promise(function(resolve, reject) {
+        var startT = Date.now();
+        var timeout = 120000;
+        var interval = setInterval(function() {
+          var ok = (typeof FeedbackManager !== 'undefined') &&
+                   (typeof VisibilityTracker !== 'undefined') &&
+                   (typeof ScreenLayout !== 'undefined') &&
+                   (typeof ProgressBarComponent !== 'undefined') &&
+                   (typeof TransitionScreenComponent !== 'undefined') &&
+                   (typeof PreviewScreenComponent !== 'undefined');
+          if (ok) { clearInterval(interval); resolve(true); return; }
+          if (Date.now() - startT > timeout) {
+            clearInterval(interval);
+            try {
+              throw new Error('Packages failed to load within ' + timeout + 'ms');
+            } catch (err) {
+              reject(err);
+            }
+          }
+        }, 50);
+      });
+    }
+
+    /* ============================================================
+       Audio readiness check
+       ============================================================ */
+    function waitForAudioPermission() {
+      return new Promise(function(resolve) {
+        if (audioPermissionChecked) return resolve();
+        if (typeof FeedbackManager === 'undefined' || !FeedbackManager.canPlayAudio) {
+          audioPermissionChecked = true;
+          return resolve();
+        }
+        try {
+          if (FeedbackManager.canPlayAudio()) {
+            audioPermissionChecked = true;
+            return resolve();
+          }
+        } catch (e) { /* noop */ }
+        var check = setInterval(function() {
+          try {
+            if (FeedbackManager.canPlayAudio && FeedbackManager.canPlayAudio()) {
+              clearInterval(check);
+              audioPermissionChecked = true;
+              resolve();
+            }
+          } catch (e) { /* noop */ }
+        }, 200);
+        setTimeout(function() { clearInterval(check); audioPermissionChecked = true; resolve(); }, 15000);
+      });
+    }
+
+    /* ============================================================
+       FeedbackManager preload
+       ============================================================ */
+    function preloadAllAudio() {
+      return FeedbackManager.sound.preload([
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'new_cards', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' }
+      ]);
+    }
+
+    /* ============================================================
+       Safe FM wrappers
+       ============================================================ */
+    function safePlaySound(id, opts) {
+      try {
+        return FeedbackManager.sound.play(id, opts || {});
+      } catch (e) {
+        return Promise.resolve();
+      }
+    }
+    function safeStopAllAudio() {
+      try { if (FeedbackManager && FeedbackManager.sound && FeedbackManager.sound.pause) FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager.stream && FeedbackManager.stream.pauseAll) FeedbackManager.stream.pauseAll(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+    }
+
+    /* ============================================================
+       createProgressBar helper (PART-023)
+       ============================================================ */
+    function createProgressBar() {
+      try { if (progressBar && progressBar.destroy) progressBar.destroy(); } catch (e) {}
+      try {
+        progressBar = new ProgressBarComponent({
+          slotId: 'mathai-progress-slot',
+          totalRounds: gameState.totalRounds,
+          totalLives: gameState.totalRounds // no-lives game: match totalRounds to avoid RangeError (GEN-PROGRESSBAR-LIVES)
+        });
+        progressBar.show();
+        progressBar.update(0, 0);
+      } catch (e) {
+        console.error('[progressBar] ' + e.message);
+      }
+    }
+
+    /* ============================================================
+       handlePostMessage (PART-008)
+       ============================================================ */
+    function handlePostMessage(event) {
+      try {
+        if (!event || !event.data || typeof event.data !== 'object') return;
+        var msg = event.data;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          var d = msg.data || msg;
+          if (d.content) gameState.content = d.content;
+          else if (msg.content) gameState.content = msg.content;
+
+          gameState.signalConfig = d.signalConfig || msg.signalConfig || {};
+          var sc = gameState.signalConfig;
+          if (signalCollector) {
+            try { signalCollector.flushUrl = sc.flushUrl; } catch (e) {}
+            try { signalCollector.playId = sc.playId; } catch (e) {}
+            try { signalCollector.gameId = sc.gameId || gameState.gameId; } catch (e) {}
+            try { signalCollector.sessionId = sc.sessionId; } catch (e) {}
+            try { signalCollector.contentSetId = sc.contentSetId; } catch (e) {}
+            try { signalCollector.studentId = sc.studentId; } catch (e) {}
+            try { if (signalCollector.startFlushing) signalCollector.startFlushing(); } catch (e) {}
+          }
+          syncDOM();
+          setupGame();
+        }
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       Game HTML injection (scaffold; rendered before preview)
+       ============================================================ */
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div id="cluePanel" class="clue-panel fade-in">' +
+          '<div class="clue-panel-title">Clues</div>' +
+          '<ol id="clueList" class="clue-list"></ol>' +
+        '</div>' +
+        '<div id="tableWrap" class="table-wrap fade-in">' +
+          '<div id="tableBoard" class="table-board"></div>' +
+        '</div>' +
+        '<div class="pool-label">Characters</div>' +
+        '<div id="poolWrap" class="pool-wrap fade-in">' +
+          '<div id="poolRow" class="pool-row"></div>' +
+        '</div>';
+    }
+
+    /* ============================================================
+       renderInitialState — paint Round 1 behind preview
+       ============================================================ */
+    function renderInitialState() {
+      // Pre-paint round 1 with no interactivity so preview overlay covers real content
+      var rounds = getRounds();
+      if (!rounds || !rounds[0]) return;
+      buildRoundDOM(rounds[0], /* interactive */ false);
+    }
+
+    /* ============================================================
+       buildRoundDOM — render clue panel, table, pool for a round
+       ============================================================ */
+    function buildRoundDOM(round, interactive) {
+      gameState.currentRoundData = round;
+      gameState.seatMap = {};
+      gameState.chipLoc = {};
+
+      // Populate clues
+      var clueList = document.getElementById('clueList');
+      if (clueList) {
+        var ch = '';
+        for (var ci = 0; ci < round.clues.length; ci++) {
+          var c = round.clues[ci];
+          ch += '<li data-testid="clue-' + c.id + '">' + escapeHTML(c.text) + '</li>';
+        }
+        clueList.innerHTML = ch;
+      }
+
+      // Build table diagram
+      var tableBoard = document.getElementById('tableBoard');
+      if (tableBoard) {
+        tableBoard.innerHTML = renderTableHTML(round);
+      }
+
+      // Build pool (shuffle order, keep chipId stable for tests)
+      var poolRow = document.getElementById('poolRow');
+      var poolOrder = round.pool.slice();
+      shuffleArray(poolOrder);
+      if (poolRow) {
+        var ph = '';
+        for (var p = 0; p < poolOrder.length; p++) {
+          var chip = poolOrder[p];
+          ph +=
+            '<div class="pool-slot" data-chip-slot="' + chip.id + '">' +
+              buildChipHTML(chip, /* inSeat */ false) +
+            '</div>';
+          gameState.chipLoc[chip.id] = 'pool';
+        }
+        poolRow.innerHTML = ph;
+      }
+
+      gameState.isBoardFull = false;
+      gameState.validationResult = null;
+
+      if (interactive) {
+        bindDragHandlers();
+      }
+
+      // Reset FloatingButton to predicate-driven hidden state for the new round.
+      try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode(null); } catch (e) {}
+    }
+
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, function(ch) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+      });
+    }
+
+    function buildChipHTML(chip, inSeat) {
+      var clr = avatarColor(chip.id);
+      var extra = inSeat ? ' in-seat' : '';
+      return (
+        '<div class="chip' + extra + '" data-testid="chip-' + chip.id + '" data-chip-id="' + chip.id + '">' +
+          '<div class="chip-avatar" style="background:' + clr + ';">' + escapeHTML(chip.avatar || chip.name.charAt(0)) + '</div>' +
+          '<div class="chip-name">' + escapeHTML(chip.name) + '</div>' +
+        '</div>'
+      );
+    }
+
+    /* ============================================================
+       renderTableHTML — builds layout-specific seat DOM
+       ============================================================ */
+    function renderTableHTML(round) {
+      var seats = round.seats;
+      var seatMap = {};
+      for (var i = 0; i < seats.length; i++) seatMap[seats[i].id] = seats[i];
+
+      function seatHTML(seatId) {
+        return (
+          '<div class="seat" data-testid="seat-' + seatId + '" data-seat-id="' + seatId + '">' +
+            '<div class="seat-num">' + seatId + '</div>' +
+          '</div>'
+        );
+      }
+
+      if (round.layout === 'rect-3') {
+        return (
+          '<div class="seat-row top">' + seatHTML(1) + seatHTML(2) + seatHTML(3) + '</div>' +
+          '<div class="table-surface">TABLE</div>'
+        );
+      }
+      if (round.layout === 'rect-4') {
+        return (
+          '<div class="seat-row top">' + seatHTML(1) + seatHTML(2) + '</div>' +
+          '<div class="table-surface">TABLE</div>' +
+          '<div class="seat-row bottom">' + seatHTML(3) + seatHTML(4) + '</div>'
+        );
+      }
+      if (round.layout === 'rect-5-head') {
+        return (
+          '<div class="head-label">HEAD</div>' +
+          '<div class="head-row">' + seatHTML(1) + '</div>' +
+          '<div class="seat-row top">' + seatHTML(2) + seatHTML(3) + '</div>' +
+          '<div class="table-surface">TABLE</div>' +
+          '<div class="seat-row bottom">' + seatHTML(4) + seatHTML(5) + '</div>'
+        );
+      }
+      if (round.layout === 'rect-6') {
+        return (
+          '<div class="seat-row top">' + seatHTML(1) + seatHTML(2) + seatHTML(3) + '</div>' +
+          '<div class="table-surface">TABLE</div>' +
+          '<div class="seat-row bottom">' + seatHTML(4) + seatHTML(5) + seatHTML(6) + '</div>'
+        );
+      }
+      // Fallback: one row
+      var out = '<div class="seat-row top">';
+      for (var j = 0; j < seats.length; j++) out += seatHTML(seats[j].id);
+      out += '</div>';
+      return out;
+    }
+
+    /* ============================================================
+       Render a round — called when entering gameplay
+       ============================================================ */
+    function renderRound() {
+      var rounds = getRounds();
+      var idx = gameState.currentRound - 1;
+      if (idx < 0) idx = 0;
+      if (idx >= rounds.length) idx = rounds.length - 1;
+      var r = rounds[idx];
+      if (!r) return;
+
+      gameState.correctAnswer = r.solution; // solution map
+      gameState.isActive = true;
+      gameState.isProcessing = false;
+      gameState.phase = 'gameplay';
+      gameState.roundStartTime = Date.now();
+      gameState.dropLog = [];
+
+      buildRoundDOM(r, /* interactive */ true);
+
+      // Remove dnd-disabled if present
+      var gc = document.getElementById('gameContent');
+      if (gc) gc.classList.remove('dnd-disabled');
+
+      syncDOM();
+
+      // FloatingButton is predicate-driven; evaluateBoardFull will call setSubmittable.
+      // Ensure it starts hidden at round entry.
+      try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode(null); } catch (e) {}
+
+      // Fire-and-forget "new cards"
+      safePlaySound('new_cards', {});
+
+      trackEvent('question_shown', { round: gameState.currentRound, clueCount: r.clues.length, stage: r.stage });
+    }
+
+    /* ============================================================
+       Drag-and-drop handlers (Pointer Events)
+       ============================================================ */
+    function bindDragHandlers() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+
+      // Attach pointerdown listeners to every chip (delegated)
+      var chips = gc.querySelectorAll('.chip');
+      for (var i = 0; i < chips.length; i++) {
+        chips[i].addEventListener('pointerdown', onChipPointerDown);
+      }
+    }
+
+    function onChipPointerDown(ev) {
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
+
+      var chipEl = ev.currentTarget;
+      if (!chipEl) return;
+      var chipId = chipEl.getAttribute('data-chip-id');
+      if (!chipId) return;
+
+      // Determine source
+      var sourceType = 'pool';
+      var sourceSeatId = null;
+      var parentSeat = chipEl.parentElement && chipEl.parentElement.closest('.seat');
+      if (parentSeat) {
+        sourceType = 'seat';
+        sourceSeatId = parseInt(parentSeat.getAttribute('data-seat-id'), 10);
+      }
+
+      // Capture original rect
+      var rect = chipEl.getBoundingClientRect();
+      var offsetX = ev.clientX - rect.left;
+      var offsetY = ev.clientY - rect.top;
+
+      dragState = {
+        chipId: chipId,
+        sourceType: sourceType,
+        sourceSeatId: sourceSeatId,
+        chipEl: chipEl,
+        originalParent: chipEl.parentElement,
+        originalNextSibling: chipEl.nextSibling,
+        pointerId: ev.pointerId,
+        offsetX: offsetX,
+        offsetY: offsetY,
+        startRect: rect
+      };
+
+      // Move chip to drag layer with absolute positioning
+      var dragLayer = document.getElementById('drag-layer');
+      chipEl.style.position = 'fixed';
+      chipEl.style.left = (rect.left) + 'px';
+      chipEl.style.top = (rect.top) + 'px';
+      chipEl.style.width = rect.width + 'px';
+      chipEl.style.height = rect.height + 'px';
+      chipEl.classList.add('chip-dragging', 'chip-lift');
+      dragLayer.appendChild(chipEl);
+
+      isDraggingFlag = true;
+
+      try { chipEl.setPointerCapture(ev.pointerId); } catch (e) {}
+
+      // Attach move/up listeners
+      window.addEventListener('pointermove', onChipPointerMove, { passive: false });
+      window.addEventListener('pointerup', onChipPointerUp, { passive: false });
+      window.addEventListener('pointercancel', onChipPointerCancel, { passive: false });
+
+      ev.preventDefault();
+    }
+
+    function onChipPointerMove(ev) {
+      if (!dragState) return;
+      if (ev.pointerId !== dragState.pointerId) return;
+
+      var x = ev.clientX - dragState.offsetX;
+      var y = ev.clientY - dragState.offsetY;
+      dragState.chipEl.style.left = x + 'px';
+      dragState.chipEl.style.top = y + 'px';
+
+      // Update seat-hover
+      clearSeatHover();
+      var seatEl = findSeatUnder(ev.clientX, ev.clientY);
+      if (seatEl) {
+        seatEl.classList.add('seat-hover');
+      }
+
+      ev.preventDefault();
+    }
+
+    function clearSeatHover() {
+      var hovered = document.querySelectorAll('.seat.seat-hover');
+      for (var i = 0; i < hovered.length; i++) hovered[i].classList.remove('seat-hover');
+    }
+
+    function findSeatUnder(x, y) {
+      // Temporarily hide the dragged chip to see what's under
+      var dc = dragState && dragState.chipEl;
+      var prevVis = null;
+      if (dc) { prevVis = dc.style.visibility; dc.style.visibility = 'hidden'; }
+      var el = document.elementFromPoint(x, y);
+      if (dc) { dc.style.visibility = prevVis || ''; }
+      if (!el) return null;
+      var seat = el.closest ? el.closest('.seat') : null;
+      return seat || null;
+    }
+
+    function findPoolUnder(x, y) {
+      var dc = dragState && dragState.chipEl;
+      var prevVis = null;
+      if (dc) { prevVis = dc.style.visibility; dc.style.visibility = 'hidden'; }
+      var el = document.elementFromPoint(x, y);
+      if (dc) { dc.style.visibility = prevVis || ''; }
+      if (!el) return null;
+      var pool = el.closest ? el.closest('#poolWrap') : null;
+      return pool || null;
+    }
+
+    function onChipPointerUp(ev) {
+      if (!dragState) { cleanupDragListeners(); return; }
+      if (ev.pointerId !== dragState.pointerId) return;
+
+      try {
+        var targetSeatEl = findSeatUnder(ev.clientX, ev.clientY);
+        var targetPoolEl = findPoolUnder(ev.clientX, ev.clientY);
+
+        clearSeatHover();
+
+        if (targetSeatEl) {
+          var targetSeatId = parseInt(targetSeatEl.getAttribute('data-seat-id'), 10);
+          handleDropOnSeat(targetSeatId, targetSeatEl);
+        } else if (targetPoolEl) {
+          if (dragState.sourceType === 'seat') {
+            handleDropOnPool();
+          } else {
+            // From pool back to pool — no-op
+            cancelDrag();
+          }
+        } else {
+          // Outside any valid target — cancel
+          cancelDrag();
+        }
+      } catch (e) {
+        cancelDrag();
+      }
+
+      cleanupDragListeners();
+      isDraggingFlag = false;
+      dragState = null;
+      evaluateBoardFull();
+    }
+
+    function onChipPointerCancel(ev) {
+      if (!dragState) { cleanupDragListeners(); return; }
+      if (ev.pointerId !== dragState.pointerId) return;
+      cancelDrag();
+      cleanupDragListeners();
+      isDraggingFlag = false;
+      dragState = null;
+      evaluateBoardFull();
+    }
+
+    function cleanupDragListeners() {
+      window.removeEventListener('pointermove', onChipPointerMove);
+      window.removeEventListener('pointerup', onChipPointerUp);
+      window.removeEventListener('pointercancel', onChipPointerCancel);
+    }
+
+    function cancelDrag() {
+      if (!dragState) return;
+      var chipEl = dragState.chipEl;
+      // Reset styling
+      chipEl.style.position = '';
+      chipEl.style.left = '';
+      chipEl.style.top = '';
+      chipEl.style.width = '';
+      chipEl.style.height = '';
+      chipEl.classList.remove('chip-dragging', 'chip-lift');
+
+      // Return to origin
+      if (dragState.sourceType === 'seat' && dragState.sourceSeatId != null) {
+        var seatEl = document.querySelector('.seat[data-seat-id="' + dragState.sourceSeatId + '"]');
+        if (seatEl) {
+          if (!chipEl.classList.contains('in-seat')) chipEl.classList.add('in-seat');
+          seatEl.appendChild(chipEl);
+          gameState.chipLoc[dragState.chipId] = dragState.sourceSeatId;
+          gameState.seatMap[dragState.sourceSeatId] = dragState.chipId;
+        }
+      } else {
+        returnChipToPoolSlot(dragState.chipId, chipEl);
+      }
+    }
+
+    function returnChipToPoolSlot(chipId, chipEl) {
+      var slot = document.querySelector('.pool-slot[data-chip-slot="' + chipId + '"]');
+      if (!slot) return;
+      // Reset drag styling so the chip is pickable again (invariant: every drop
+      // path that reparents the tag must clear the drag-state styling).
+      chipEl.style.position = '';
+      chipEl.style.left = '';
+      chipEl.style.top = '';
+      chipEl.style.width = '';
+      chipEl.style.height = '';
+      chipEl.classList.remove('chip-dragging', 'chip-lift');
+      slot.classList.remove('collapsed');
+      if (chipEl.classList.contains('in-seat')) chipEl.classList.remove('in-seat');
+      slot.appendChild(chipEl);
+      gameState.chipLoc[chipId] = 'pool';
+    }
+
+    function collapsePoolSlot(chipId) {
+      var slot = document.querySelector('.pool-slot[data-chip-slot="' + chipId + '"]');
+      if (slot) slot.classList.add('collapsed');
+    }
+
+    function restorePoolSlot(chipId) {
+      var slot = document.querySelector('.pool-slot[data-chip-slot="' + chipId + '"]');
+      if (slot) slot.classList.remove('collapsed');
+    }
+
+    function placeChipInSeat(chipId, chipEl, seatId) {
+      var seatEl = document.querySelector('.seat[data-seat-id="' + seatId + '"]');
+      if (!seatEl) return;
+      // Reset any drag style
+      chipEl.style.position = '';
+      chipEl.style.left = '';
+      chipEl.style.top = '';
+      chipEl.style.width = '';
+      chipEl.style.height = '';
+      chipEl.classList.remove('chip-dragging', 'chip-lift');
+      if (!chipEl.classList.contains('in-seat')) chipEl.classList.add('in-seat');
+      seatEl.appendChild(chipEl);
+      gameState.seatMap[seatId] = chipId;
+      gameState.chipLoc[chipId] = seatId;
+    }
+
+    function handleDropOnSeat(targetSeatId, targetSeatEl) {
+      if (!dragState) return;
+      var chipId = dragState.chipId;
+      var chipEl = dragState.chipEl;
+      var sourceType = dragState.sourceType;
+      var sourceSeatId = dragState.sourceSeatId;
+
+      // Case: same seat (drop on own seat) — snap back no-op
+      if (sourceType === 'seat' && sourceSeatId === targetSeatId) {
+        placeChipInSeat(chipId, chipEl, targetSeatId);
+        // leave seatMap/chipLoc as is (actually refreshed in placeChipInSeat)
+        pushDropLog(chipId, sourceType, targetSeatId, 'noop');
+        return;
+      }
+
+      // Check if target is occupied
+      var existingChipId = gameState.seatMap[targetSeatId] || null;
+
+      if (sourceType === 'pool') {
+        if (existingChipId) {
+          // Evict existing back to pool
+          var evictedEl = document.querySelector('[data-chip-id="' + existingChipId + '"]');
+          if (evictedEl) {
+            returnChipToPoolSlot(existingChipId, evictedEl);
+          }
+          delete gameState.seatMap[targetSeatId];
+          gameState.chipLoc[existingChipId] = 'pool';
+        }
+        // Collapse pool slot for new occupant
+        collapsePoolSlot(chipId);
+        placeChipInSeat(chipId, chipEl, targetSeatId);
+        safePlaySound('sound_bubble_select', {});
+        pushDropLog(chipId, sourceType, targetSeatId, existingChipId ? 'evict' : 'place');
+      } else {
+        // seat -> seat
+        if (existingChipId) {
+          // Swap: existing chip moves to sourceSeatId
+          var swapEl = document.querySelector('[data-chip-id="' + existingChipId + '"]');
+          var sourceSeatEl = document.querySelector('.seat[data-seat-id="' + sourceSeatId + '"]');
+          if (swapEl && sourceSeatEl) {
+            swapEl.style.position = '';
+            swapEl.style.left = '';
+            swapEl.style.top = '';
+            swapEl.style.width = '';
+            swapEl.style.height = '';
+            if (!swapEl.classList.contains('in-seat')) swapEl.classList.add('in-seat');
+            sourceSeatEl.appendChild(swapEl);
+            gameState.seatMap[sourceSeatId] = existingChipId;
+            gameState.chipLoc[existingChipId] = sourceSeatId;
+          }
+          // Place dragged chip in target seat
+          placeChipInSeat(chipId, chipEl, targetSeatId);
+          safePlaySound('sound_bubble_select', {});
+          pushDropLog(chipId, sourceType, targetSeatId, 'swap');
+        } else {
+          // Empty target — transfer
+          delete gameState.seatMap[sourceSeatId];
+          placeChipInSeat(chipId, chipEl, targetSeatId);
+          safePlaySound('sound_bubble_select', {});
+          pushDropLog(chipId, sourceType, targetSeatId, 'transfer');
+        }
+      }
+    }
+
+    function handleDropOnPool() {
+      if (!dragState) return;
+      var chipId = dragState.chipId;
+      var chipEl = dragState.chipEl;
+      var sourceSeatId = dragState.sourceSeatId;
+
+      if (sourceSeatId != null && gameState.seatMap[sourceSeatId] === chipId) {
+        delete gameState.seatMap[sourceSeatId];
+      }
+      returnChipToPoolSlot(chipId, chipEl);
+      safePlaySound('sound_bubble_deselect', {});
+      pushDropLog(chipId, 'seat', null, 'to_pool');
+    }
+
+    function pushDropLog(chipId, src, dst, action) {
+      try {
+        gameState.dropLog.push({
+          ts: Date.now(), chipId: chipId, src: src, dst: dst, action: action
+        });
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       isSubmittable — all seats filled (distractor characters may remain in pool)
+       ============================================================ */
+    function isSubmittable() {
+      var r = gameState.currentRoundData;
+      if (!r) return false;
+      var seats = r.seats;
+      for (var i = 0; i < seats.length; i++) {
+        if (!gameState.seatMap[seats[i].id]) return false;
+      }
+      return true;
+    }
+
+    /* ============================================================
+       Evaluate board-full → drive FloatingButton via setSubmittable
+       ============================================================ */
+    function evaluateBoardFull() {
+      var r = gameState.currentRoundData;
+      if (!r) return;
+      var full = isSubmittable();
+      gameState.isBoardFull = full;
+      // setSubmittable is a no-op while in 'retry' or 'next' modes — safe during feedback.
+      try { if (floatingBtn && floatingBtn.setSubmittable) floatingBtn.setSubmittable(full); } catch (e) {}
+    }
+
+    /* ============================================================
+       Validator — per clue type
+       ============================================================ */
+    function seatOfChip(chipId) {
+      for (var s in gameState.seatMap) {
+        if (gameState.seatMap.hasOwnProperty(s) && gameState.seatMap[s] === chipId) return parseInt(s, 10);
+      }
+      return null;
+    }
+
+    function getLayoutRelations(layout) {
+      if (layout === 'rect-3') {
+        return {
+          nextTo: [[1,2],[2,3]],
+          across: [],
+          sides: { row: [1,2,3] },
+          leftOf: [[1,2],[2,3]]
+        };
+      }
+      if (layout === 'rect-4') {
+        return {
+          nextTo: [[1,2],[3,4]],
+          across: [[1,3],[2,4]],
+          sides: { top: [1,2], bottom: [3,4] },
+          leftOf: [[1,2],[3,4]] // X left of Y: pairs where X is immediately left of Y
+        };
+      }
+      if (layout === 'rect-5-head') {
+        return {
+          nextTo: [[1,2],[1,4],[2,3],[4,5]],
+          across: [[2,4],[3,5]],
+          sides: { head: [1], top: [2,3], bottom: [4,5] },
+          leftOf: [[2,1],[2,3],[4,5]] // screen-left: head (1) is right of 2 (head row - single seat; seat 2 is top-near (near head) on the left → seat 2 is left of 1 on screen). Top: 2 left of 3. Bottom: 4 left of 5.
+        };
+      }
+      if (layout === 'rect-6') {
+        return {
+          nextTo: [[1,2],[2,3],[4,5],[5,6]],
+          across: [[1,4],[2,5],[3,6]],
+          sides: { top: [1,2,3], bottom: [4,5,6] },
+          leftOf: [[1,2],[2,3],[4,5],[5,6]]
+        };
+      }
+      return { nextTo: [], across: [], sides: {}, leftOf: [] };
+    }
+
+    function pairInList(list, a, b) {
+      for (var i = 0; i < list.length; i++) {
+        var p = list[i];
+        if ((p[0] === a && p[1] === b) || (p[0] === b && p[1] === a)) return true;
+      }
+      return false;
+    }
+    function orderedPairInList(list, a, b) {
+      for (var i = 0; i < list.length; i++) {
+        var p = list[i];
+        if (p[0] === a && p[1] === b) return true;
+      }
+      return false;
+    }
+
+    function sideOf(rels, seatId) {
+      for (var k in rels.sides) {
+        if (rels.sides.hasOwnProperty(k)) {
+          var arr = rels.sides[k];
+          for (var i = 0; i < arr.length; i++) if (arr[i] === seatId) return k;
+        }
+      }
+      return null;
+    }
+
+    function clueSatisfied(clue, rels) {
+      var t = clue.type;
+      var a = clue.args;
+      if (t === 'at_seat') {
+        var charId = a[0], seatId = a[1];
+        return gameState.seatMap[seatId] === charId;
+      }
+      if (t === 'next_to') {
+        var sa = seatOfChip(a[0]); var sb = seatOfChip(a[1]);
+        if (sa == null || sb == null) return false;
+        return pairInList(rels.nextTo, sa, sb);
+      }
+      if (t === 'not_next_to') {
+        var sa2 = seatOfChip(a[0]); var sb2 = seatOfChip(a[1]);
+        if (sa2 == null || sb2 == null) return false;
+        return !pairInList(rels.nextTo, sa2, sb2);
+      }
+      if (t === 'across_from') {
+        var sc1 = seatOfChip(a[0]); var sc2 = seatOfChip(a[1]);
+        if (sc1 == null || sc2 == null) return false;
+        return pairInList(rels.across, sc1, sc2);
+      }
+      if (t === 'same_side') {
+        var ss1 = seatOfChip(a[0]); var ss2 = seatOfChip(a[1]);
+        if (ss1 == null || ss2 == null) return false;
+        return sideOf(rels, ss1) === sideOf(rels, ss2);
+      }
+      if (t === 'left_of') {
+        var sl1 = seatOfChip(a[0]); var sl2 = seatOfChip(a[1]);
+        if (sl1 == null || sl2 == null) return false;
+        return orderedPairInList(rels.leftOf, sl1, sl2);
+      }
+      if (t === 'between') {
+        var sx = seatOfChip(a[0]); var sy = seatOfChip(a[1]); var sz = seatOfChip(a[2]);
+        if (sx == null || sy == null || sz == null) return false;
+        // X adjacent to BOTH Y and Z
+        return pairInList(rels.nextTo, sx, sy) && pairInList(rels.nextTo, sx, sz);
+      }
+      return false;
+    }
+
+    function validateArrangement(round) {
+      var rels = getLayoutRelations(round.layout);
+      var conflictSeats = {};
+      var violated = [];
+      for (var i = 0; i < round.clues.length; i++) {
+        var clue = round.clues[i];
+        if (!clueSatisfied(clue, rels)) {
+          violated.push(clue.id);
+          // Add seats of every character named in args (skip number seatId in at_seat)
+          for (var j = 0; j < clue.args.length; j++) {
+            var a = clue.args[j];
+            if (typeof a === 'string') {
+              var s = seatOfChip(a);
+              if (s != null) conflictSeats[s] = true;
+            } else if (typeof a === 'number') {
+              conflictSeats[a] = true;
+            }
+          }
+        }
+      }
+      // Distractor special-case
+      for (var s2 in gameState.seatMap) {
+        if (gameState.seatMap.hasOwnProperty(s2)) {
+          var ch = gameState.seatMap[s2];
+          var chipDef = null;
+          for (var p = 0; p < round.pool.length; p++) {
+            if (round.pool[p].id === ch) { chipDef = round.pool[p]; break; }
+          }
+          if (chipDef && chipDef.distractor) {
+            conflictSeats[s2] = true;
+          }
+        }
+      }
+      var conflictArr = [];
+      for (var key in conflictSeats) {
+        if (conflictSeats.hasOwnProperty(key)) conflictArr.push(parseInt(key, 10));
+      }
+      return { pass: violated.length === 0, violatedClueIds: violated, conflictSeats: conflictArr };
+    }
+
+    /* ============================================================
+       Derive misconception tag
+       ============================================================ */
+    function deriveMisconception(round, result) {
+      if (!result || result.pass) return null;
+      // Distractor seated?
+      for (var s in gameState.seatMap) {
+        if (gameState.seatMap.hasOwnProperty(s)) {
+          var ch = gameState.seatMap[s];
+          var chipDef = null;
+          for (var p = 0; p < round.pool.length; p++) {
+            if (round.pool[p].id === ch) { chipDef = round.pool[p]; break; }
+          }
+          if (chipDef && chipDef.distractor) return 'seat-every-pool-char';
+        }
+      }
+      // Analyze violated types
+      var types = {};
+      for (var i = 0; i < result.violatedClueIds.length; i++) {
+        var id = result.violatedClueIds[i];
+        for (var j = 0; j < round.clues.length; j++) {
+          if (round.clues[j].id === id) {
+            types[round.clues[j].type] = true; break;
+          }
+        }
+      }
+      if (types['not_next_to']) return 'negation-as-positive';
+      if (types['between'] && !types['across_from'] && !types['next_to']) return 'between-as-adjacent-to-one';
+      if (types['across_from'] && !types['next_to'] && !types['same_side']) return 'swap-across-for-next-to';
+      if (types['same_side']) return 'same-side-as-next-to';
+      if (types['left_of']) return 'mirror-left-right';
+      // Fallback: first violated clue's type -> generic
+      if (round.round === 1) return 'arbitrary-fill';
+      // Return first key from misconception_tags
+      if (round.misconception_tags) {
+        for (var k in round.misconception_tags) {
+          if (round.misconception_tags.hasOwnProperty(k)) return k;
+        }
+      }
+      return null;
+    }
+
+    /* ============================================================
+       handleCheck — invoked by floatingBtn.on('submit', ...)
+       FloatingButton auto-hides on submit click, so no manual hide needed.
+       ============================================================ */
+    function handleCheck() {
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
+      if (!isSubmittable()) return;
+
+      gameState.isProcessing = true;
+      // Disable drag affordance
+      var gc = document.getElementById('gameContent');
+      if (gc) gc.classList.add('dnd-disabled');
+
+      var round = gameState.currentRoundData;
+      var result = validateArrangement(round);
+      gameState.validationResult = result;
+
+      var responseMs = Date.now() - gameState.roundStartTime;
+      gameState.responseTimes.push(responseMs);
+
+      var snapshot = {};
+      for (var s in gameState.seatMap) {
+        if (gameState.seatMap.hasOwnProperty(s)) snapshot[s] = gameState.seatMap[s];
+      }
+
+      if (result.pass) {
+        handleCorrectOutcome(round, result, snapshot, responseMs);
+      } else {
+        handleWrongOutcome(round, result, snapshot, responseMs);
+      }
+    }
+
+    /* ============================================================
+       Correct outcome
+       ============================================================ */
+    function handleCorrectOutcome(round, result, snapshot, responseMs) {
+      // recordAttempt BEFORE audio
+      recordAttempt({
+        input_of_user: JSON.stringify(snapshot),
+        correct: true,
+        round_number: gameState.currentRound,
+        question_id: 'r' + gameState.currentRound + '_' + round.type + '_' + round.layout,
+        correct_answer: round.solution,
+        response_time_ms: responseMs,
+        misconception_tag: null,
+        difficulty_level: round.stage || 1,
+        is_retry: false,
+        metadata: {
+          stage: round.stage,
+          type: round.type,
+          layout: round.layout,
+          seats: snapshot,
+          clueCount: round.clues.length,
+          droppedCount: gameState.dropLog.length,
+          firstCheck: true
+        }
+      });
+      trackEvent('answer_submitted', { round: gameState.currentRound, correct: true });
+
+      gameState.score += 1;
+      gameState.firstCheckSolves += 1;
+      gameState.roundsCompleted += 1;
+      syncDOM();
+
+      // Flash green on all seats
+      var allSeats = document.querySelectorAll('.seat');
+      for (var i = 0; i < allSeats.length; i++) allSeats[i].classList.add('seat-success');
+
+      // PROGRESS BAR BUMPS FIRST — before any await
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await Promise.all([
+            safePlaySound('correct_sound_effect', { sticker: STICKER_CORRECT }),
+            new Promise(function(res) { setTimeout(res, 1500); })
+          ]);
+        } catch (e) { /* noop */ }
+
+        try {
+          if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+            await FeedbackManager.playDynamicFeedback({
+              audio_content: 'Great thinking! Every clue matches.',
+              subtitle: 'Great thinking! Every clue matches.',
+              sticker: STICKER_CORRECT
+            });
+          }
+        } catch (e) { /* noop */ }
+
+        trackEvent('round_complete', { round: gameState.currentRound, correct: true });
+
+        // Fire show_star per correct round-complete (firstCheckSolves++).
+        try {
+          window.postMessage({
+            type: 'show_star',
+            data: {
+              count: 1,
+              variant: 'yellow'
+            }
+          }, '*');
+        } catch (e) { /* noop */ }
+
+        // Final round → endGame (Victory transition); otherwise, brief delay then Next.
+        if (gameState.currentRound >= gameState.totalRounds) {
+          advanceAfterFeedback();
+          return;
+        }
+
+        // Brief delay so the green flash is absorbed, then reveal Next.
+        setTimeout(function() {
+          try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode('next'); } catch (e) {}
+        }, 400);
+      })();
+    }
+
+    /* ============================================================
+       Wrong outcome
+       ============================================================ */
+    function handleWrongOutcome(round, result, snapshot, responseMs) {
+      var misconceptionTag = deriveMisconception(round, result);
+      var distractorSeated = false;
+      for (var ss in gameState.seatMap) {
+        if (gameState.seatMap.hasOwnProperty(ss)) {
+          var ch = gameState.seatMap[ss];
+          for (var p = 0; p < round.pool.length; p++) {
+            if (round.pool[p].id === ch && round.pool[p].distractor) {
+              distractorSeated = true; break;
+            }
+          }
+        }
+      }
+
+      recordAttempt({
+        input_of_user: JSON.stringify(snapshot),
+        correct: false,
+        round_number: gameState.currentRound,
+        question_id: 'r' + gameState.currentRound + '_' + round.type + '_' + round.layout,
+        correct_answer: round.solution,
+        response_time_ms: responseMs,
+        misconception_tag: misconceptionTag,
+        difficulty_level: round.stage || 1,
+        is_retry: false,
+        metadata: {
+          stage: round.stage,
+          type: round.type,
+          layout: round.layout,
+          seats: snapshot,
+          violatedClueIds: result.violatedClueIds,
+          conflictSeats: result.conflictSeats,
+          distractorSeated: distractorSeated,
+          firstCheck: true
+        }
+      });
+      trackEvent('answer_submitted', { round: gameState.currentRound, correct: false });
+
+      gameState.roundsCompleted += 1;
+      syncDOM();
+
+      // Highlight conflict seats red
+      for (var i = 0; i < result.conflictSeats.length; i++) {
+        var seatEl = document.querySelector('.seat[data-seat-id="' + result.conflictSeats[i] + '"]');
+        if (seatEl) seatEl.classList.add('seat-conflict');
+      }
+
+      // PROGRESS BAR BUMPS FIRST
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      gameState.phase = 'feedback_wrong';
+      syncDOM();
+
+      (async function() {
+        try {
+          await Promise.all([
+            safePlaySound('incorrect_sound_effect', { sticker: STICKER_WRONG }),
+            new Promise(function(res) { setTimeout(res, 1500); })
+          ]);
+        } catch (e) { /* noop */ }
+
+        try {
+          if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+            await FeedbackManager.playDynamicFeedback({
+              audio_content: "Oh no! That's not right.",
+              subtitle: "Oh no! That's not right!",
+              sticker: STICKER_WRONG
+            });
+          }
+        } catch (e) { /* noop */ }
+
+        // Reveal the solution arrangement so the student learns from the miss.
+        revealSolution(round);
+
+        trackEvent('round_complete', { round: gameState.currentRound, correct: false });
+
+        // Final round → endGame (Victory transition); otherwise, reveal Next via FloatingButton.
+        if (gameState.currentRound >= gameState.totalRounds) {
+          advanceAfterFeedback();
+          return;
+        }
+
+        // Brief delay after solution reveal so the student absorbs it, then Next appears.
+        setTimeout(function() {
+          try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode('next'); } catch (e) {}
+        }, 600);
+      })();
+    }
+
+    function revealSolution(round) {
+      // Clear existing seat styling
+      var allSeats = document.querySelectorAll('.seat');
+      for (var i = 0; i < allSeats.length; i++) {
+        allSeats[i].classList.remove('seat-conflict', 'seat-success');
+        allSeats[i].classList.add('seat-solution');
+      }
+
+      // For each seatId in solution, place the correct chip there
+      var sol = round.solution;
+      // Build chipId → DOM element map (might be in pool or elsewhere)
+      function getChipElement(chipId) {
+        return document.querySelector('[data-chip-id="' + chipId + '"]');
+      }
+
+      // First remove all chips from seats/pool into a temporary holding
+      var chipMap = {};
+      for (var p = 0; p < round.pool.length; p++) {
+        var cid = round.pool[p].id;
+        var el = getChipElement(cid);
+        if (el) chipMap[cid] = el;
+      }
+
+      // Place solution chips in their correct seats
+      for (var seatIdStr in sol) {
+        if (sol.hasOwnProperty(seatIdStr)) {
+          var seatId = parseInt(seatIdStr, 10);
+          var chipId = sol[seatIdStr];
+          var seatEl = document.querySelector('.seat[data-seat-id="' + seatId + '"]');
+          var chipEl = chipMap[chipId];
+          if (seatEl && chipEl) {
+            if (!chipEl.classList.contains('in-seat')) chipEl.classList.add('in-seat');
+            seatEl.appendChild(chipEl);
+          }
+          restorePoolSlot(chipId); // ensure the pool slot is not collapsed if the chip leaves
+        }
+      }
+
+      // For any chip NOT in solution (distractor), return to pool slot
+      for (var pi = 0; pi < round.pool.length; pi++) {
+        var chipDef = round.pool[pi];
+        var inSol = false;
+        for (var k in sol) {
+          if (sol.hasOwnProperty(k) && sol[k] === chipDef.id) { inSol = true; break; }
+        }
+        if (!inSol) {
+          var chEl = chipMap[chipDef.id];
+          if (chEl) returnChipToPoolSlot(chipDef.id, chEl);
+        }
+      }
+    }
+
+    /* ============================================================
+       advanceAfterFeedback — unified progression
+       ============================================================ */
+    function advanceAfterFeedback() {
+      // Cleanup first — before gameState mutation
+      safeStopAllAudio();
+
+      if (gameState.gameEnded) return;
+      // Guard: if phase is already transitioning, skip
+      if (gameState.phase === 'round_intro' || gameState.phase === 'results') return;
+
+      if (gameState.currentRound >= gameState.totalRounds) {
+        showVictory();
+        return;
+      }
+      gameState.currentRound += 1;
+      showRoundIntro(gameState.currentRound);
+    }
+
+    /* ============================================================
+       showRoundIntro — auto-advance transition
+       ============================================================ */
+    function showRoundIntro(n) {
+      safeStopAllAudio();
+
+      gameState.phase = 'round_intro';
+      syncDOM();
+
+      // Show the "Round N" intro. Progress bar reflects current roundsCompleted.
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await waitForAudioPermission();
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              icons: ['🧠'],
+              title: 'Round ' + n,
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND });
+                  } catch (e) {}
+                  try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+                  enterGameplay(n);
+                })();
+              }
+            });
+          }
+        } catch (e) {
+          // Fallback — just enter gameplay
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          enterGameplay(n);
+        }
+      })();
+
+      // Hard fallback: if something stalls, enter gameplay after 3s
+      setTimeout(function() {
+        if (gameState.phase === 'round_intro' && gameState.currentRound === n && !gameState.gameEnded) {
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          enterGameplay(n);
+        }
+      }, 3500);
+    }
+
+    function enterGameplay(n) {
+      if (gameState.gameEnded) return;
+      if (gameState.phase === 'gameplay' && gameState.currentRound === n) return;
+      gameState.currentRound = n;
+      renderRound();
+    }
+
+    /* ============================================================
+       showVictory (CASE 11) — multi-round FloatingButton variant
+       buttons: [] + onDismiss → show_star → setMode('next')
+       ============================================================ */
+    function showVictory() {
+      if (gameState.gameEnded) return;
+
+      safeStopAllAudio();
+
+      gameState.phase = 'results';
+      gameState.isActive = false;
+      gameState.stars = getStars();
+
+      // PROGRESS BAR BUMPS FIRST — ensures 7/7 on victory render
+      try {
+        if (progressBar && progressBar.update) {
+          var _finalRoundIdx = gameState.totalRounds;
+          progressBar.update(_finalRoundIdx, 0);
+        }
+      } catch (e) {}
+
+      syncDOM();
+
+      // game_complete BEFORE audio
+      postGameComplete(true);
+
+      var stars = gameState.stars;
+      var fcs = gameState.firstCheckSolves;
+      var subtitle = 'You solved ' + fcs + ' of 7 on the first try!';
+
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            var victorySticker = (stars === 3) ? STICKER_VICTORY : (stars === 2 ? STICKER_GAME_COMPLETE_2 : STICKER_GAME_COMPLETE_1);
+            // Register dismiss handler BEFORE show so a fast tap is never missed.
+            if (transitionScreen.onDismiss) {
+              transitionScreen.onDismiss(function() {
+                safeStopAllAudio();
+                try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+                // Fire the end-of-game star celebration (intra-frame).
+                try {
+                  window.postMessage({
+                    type: 'show_star',
+                    data: {
+                      count: Math.max(1, Math.min(3, stars || 1)),
+                      variant: 'yellow',
+                      score: gameState.firstCheckSolves + '/' + gameState.totalRounds
+                    }
+                  }, '*');
+                } catch (e) {}
+                // Reveal Next AFTER the 1 s flying-star animation completes.
+                setTimeout(function() {
+                  try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode('next'); } catch (e) {}
+                }, 1100);
+              });
+            }
+            await transitionScreen.show({
+              stars: stars,
+              title: 'Victory 🎉',
+              subtitle: subtitle,
+              buttons: [],
+              onMounted: function() {
+                (async function() {
+                  try {
+                    var sfxId = (stars === 3) ? 'victory_sound_effect' : 'game_complete_sound_effect';
+                    await safePlaySound(sfxId, { sticker: victorySticker });
+                    try {
+                      if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                        var voText = stars === 3
+                          ? 'Amazing! Three stars! You solved every clue on the first try.'
+                          : (stars === 2
+                            ? 'Well done! You solved ' + fcs + ' of 7 on the first try.'
+                            : (stars === 1
+                              ? 'Good effort! You solved ' + fcs + ' of 7 on the first try.'
+                              : 'Nice try — every round completed!'));
+                        await FeedbackManager.playDynamicFeedback({
+                          audio_content: voText,
+                          subtitle: voText,
+                          sticker: victorySticker
+                        });
+                      }
+                    } catch (e) {}
+                  } catch (e) {}
+                })();
+              }
+            });
+          }
+        } catch (e) { /* noop */ }
+      })();
+    }
+
+    /* ============================================================
+       postGameComplete — fires BEFORE audio
+       ============================================================ */
+    function postGameComplete(won) {
+      try {
+        var completedAt = Date.now();
+        var avgMs = 0;
+        if (gameState.responseTimes.length > 0) {
+          var sum = 0;
+          for (var i = 0; i < gameState.responseTimes.length; i++) sum += gameState.responseTimes[i];
+          avgMs = sum / gameState.responseTimes.length;
+        }
+        var accuracy = Math.round((gameState.firstCheckSolves / gameState.totalRounds) * 100);
+        if (accuracy < 0) accuracy = 0;
+        if (accuracy > 100) accuracy = 100;
+
+        var sigEventCount = 0;
+        var sigMetadata = {};
+        try {
+          if (signalCollector) {
+            if (typeof signalCollector.getInputEvents === 'function') {
+              var inputEvents = signalCollector.getInputEvents() || [];
+              sigEventCount = inputEvents.length;
+            }
+            if (typeof signalCollector.getMetadata === 'function') {
+              sigMetadata = signalCollector.getMetadata() || {};
+            }
+          }
+        } catch (e) { /* noop */ }
+
+        var metrics = {
+          accuracy: accuracy,
+          time: gameState.startTime ? Math.round((completedAt - gameState.startTime) / 1000) : 0,
+          stars: gameState.stars,
+          attempts: gameState.attempts,
+          duration_data: gameState.duration_data,
+          totalLives: (gameState.totalLives || 0),
+          firstCheckSolves: gameState.firstCheckSolves,
+          tries: computeTriesPerRound(),
+          avgResponseTime: avgMs,
+          livesRemaining: 0,
+          signal_event_count: sigEventCount,
+          signal_metadata: sigMetadata
+        };
+
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: completedAt,
+            previewResult: gameState.previewResult || null
+          },
+          payload: {
+            score: gameState.firstCheckSolves,
+            totalQuestions: gameState.totalRounds,
+            stars: gameState.stars,
+            accuracy: accuracy,
+            timeSpent: gameState.startTime ? (completedAt - gameState.startTime) : 0,
+            avgResponseTime: avgMs,
+            livesRemaining: 0
+          }
+        }, '*');
+      } catch (e) { /* noop */ }
+    }
+
+    function computeTriesPerRound() {
+      var byRound = {};
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        var a = gameState.attempts[i];
+        var k = a.round_number;
+        if (!byRound[k]) byRound[k] = { round: k, correct: false };
+        if (a.correct) byRound[k].correct = true;
+      }
+      var out = [];
+      for (var j = 1; j <= gameState.totalRounds; j++) {
+        if (byRound[j]) out.push({ round: byRound[j].round, correct: !!byRound[j].correct });
+      }
+      return out;
+    }
+
+    /* ============================================================
+       endGame — destroy() exactly once
+       ============================================================ */
+    function endGame(won) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      gameState.gameEnded = true;
+      trackEvent('game_end', { won: !!won, score: gameState.firstCheckSolves, stars: gameState.stars });
+      try {
+        if (floatingBtn && floatingBtn.destroy) floatingBtn.destroy();
+      } catch (e) { /* noop */ }
+      try {
+        if (previewScreen && previewScreen.destroy) previewScreen.destroy();
+      } catch (e) { /* noop */ }
+    }
+    window.endGame = endGame;
+
+    /* ============================================================
+       restartGame — NO preview, NO welcome
+       ============================================================ */
+    function restartGame() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+
+      gameState.phase = 'start_screen';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = 0;
+      gameState.firstCheckSolves = 0;
+      gameState.roundsCompleted = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.responseTimes = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.roundStartTime = null;
+      gameState.seatMap = {};
+      gameState.chipLoc = {};
+      gameState.dropLog = [];
+      gameState.validationResult = null;
+      gameState.isBoardFull = false;
+      gameState.currentRoundData = null;
+      gameState.duration_data = {
+        startTime: null,
+        preview: gameState.duration_data.preview || [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      };
+
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+
+      // Reset progress bar
+      createProgressBar();
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true });
+      syncDOM();
+
+      // Re-inject scaffold for clean slate
+      injectGameHTML();
+
+      showRoundIntro(1);
+    }
+    window.restartGame = restartGame;
+
+    /* ============================================================
+       startGame — test-harness entry
+       ============================================================ */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.firstCheckSolves = 0;
+      gameState.roundsCompleted = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.phase = 'gameplay';
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      if (!document.getElementById('cluePanel')) injectGameHTML();
+      showRoundIntro(1);
+    }
+    window.startGame = startGame;
+
+    /* ============================================================
+       nextRound — test-harness hook
+       ============================================================ */
+    function nextRound() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+
+      if (gameState.currentRound >= gameState.totalRounds) {
+        showVictory();
+        return;
+      }
+      gameState.currentRound += 1;
+      showRoundIntro(gameState.currentRound);
+    }
+    window.nextRound = nextRound;
+
+    /* ============================================================
+       startGameAfterPreview — called by PreviewScreen onComplete
+       ============================================================ */
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || null;
+      if (gameState.duration_data.preview == null) gameState.duration_data.preview = [];
+      if (previewData && typeof previewData.duration === 'number') {
+        gameState.duration_data.preview.push({ duration: previewData.duration });
+      }
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      try { if (signalCollector && signalCollector.recordViewEvent) signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+
+      showRoundIntro(1);
+    }
+
+    /* ============================================================
+       setupGame — render content first, show preview LAST
+       ============================================================ */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      if (!gameState.content) gameState.content = fallbackContent;
+
+      // 1. Inject game HTML into #gameContent
+      injectGameHTML();
+      // 2. Paint Round 1 scaffold (non-interactive) behind preview
+      renderInitialState();
+
+      // 3. Show preview LAST
+      try {
+        if (previewScreen && previewScreen.show) {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function(previewData) {
+              startGameAfterPreview(previewData);
+            }
+          });
+        } else {
+          gameState.startTime = Date.now();
+          gameState.isActive = true;
+          gameState.duration_data.startTime = new Date().toISOString();
+          trackEvent('game_start', { totalRounds: gameState.totalRounds });
+          showRoundIntro(1);
+        }
+      } catch (e) {
+        console.error('[setupGame] ' + e.message);
+      }
+    }
+
+    /* ============================================================
+       Debug functions
+       ============================================================ */
+    window.debugGame = function() {
+      return {
+        phase: gameState.phase,
+        currentRound: gameState.currentRound,
+        firstCheckSolves: gameState.firstCheckSolves,
+        roundsCompleted: gameState.roundsCompleted,
+        seatMap: gameState.seatMap,
+        attempts: gameState.attempts.length,
+        gameEnded: gameState.gameEnded
+      };
+    };
+    window.loadRound = function(n) {
+      if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+        gameState.currentRound = n;
+        renderRound();
+      }
+    };
+    // Test helper: simulate CHECK with the correct solution placed
+    window.solveCurrentRound = function() {
+      var r = gameState.currentRoundData;
+      if (!r) return false;
+      // Move each chip in solution to its seat by DOM manipulation
+      gameState.seatMap = {};
+      for (var seatIdStr in r.solution) {
+        if (r.solution.hasOwnProperty(seatIdStr)) {
+          var seatId = parseInt(seatIdStr, 10);
+          var chipId = r.solution[seatIdStr];
+          var chipEl = document.querySelector('[data-chip-id="' + chipId + '"]');
+          var seatEl = document.querySelector('.seat[data-seat-id="' + seatId + '"]');
+          if (chipEl && seatEl) {
+            if (!chipEl.classList.contains('in-seat')) chipEl.classList.add('in-seat');
+            seatEl.appendChild(chipEl);
+            collapsePoolSlot(chipId);
+            gameState.seatMap[seatId] = chipId;
+            gameState.chipLoc[chipId] = seatId;
+          }
+        }
+      }
+      evaluateBoardFull();
+      return true;
+    };
+
+    /* ============================================================
+       Prevent default drag on touch during active drag
+       ============================================================ */
+    document.addEventListener('touchmove', function(ev) {
+      if (isDraggingFlag) {
+        try { ev.preventDefault(); } catch (e) {}
+      }
+    }, { passive: false });
+
+    /* ============================================================
+       DOMContentLoaded — init sequence
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', function() {
+      (async function() {
+        try {
+          // 1. Wait for CDN packages
+          try {
+            await waitForPackages();
+          } catch (pkgErr) {
+            console.error('[init] ' + pkgErr.message);
+          }
+
+          // 2. Initialize FeedbackManager
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.init) {
+              await FeedbackManager.init();
+            }
+          } catch (e) { console.error('[init] FeedbackManager.init ' + e.message); }
+
+          // 3. SignalCollector
+          try {
+            if (typeof SignalCollector !== 'undefined') {
+              signalCollector = new SignalCollector({
+                sessionId: null,
+                studentId: null,
+                gameId: gameState.gameId,
+                contentSetId: null
+              });
+              window.signalCollector = signalCollector;
+            }
+          } catch (e) { /* noop */ }
+
+          // 4. ScreenLayout.inject
+          try {
+            if (typeof ScreenLayout !== 'undefined' && ScreenLayout.inject) {
+              ScreenLayout.inject('app', {
+                slots: {
+                  previewScreen: true,
+                  progressBar: true,
+                  transitionScreen: true,
+                  floatingButton: true
+                }
+              });
+            }
+          } catch (e) { console.error('[init] ScreenLayout.inject ' + e.message); }
+
+          // 5. VisibilityTracker
+          try {
+            if (typeof VisibilityTracker !== 'undefined') {
+              visibilityTracker = new VisibilityTracker({
+                popupProps: {
+                  title: 'Paused',
+                  description: 'Tap Resume to continue.',
+                  primaryText: 'Resume'
+                },
+                onInactive: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.pause(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.pauseAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.pause) previewScreen.pause(); } catch (e) {}
+                },
+                onResume: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.resume(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.resumeAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.resume) previewScreen.resume(); } catch (e) {}
+                }
+              });
+            }
+          } catch (e) { console.error('[init] VisibilityTracker ' + e.message); }
+
+          // 6. createProgressBar
+          createProgressBar();
+
+          // 7. TransitionScreenComponent
+          try {
+            if (typeof TransitionScreenComponent !== 'undefined') {
+              transitionScreen = new TransitionScreenComponent({ autoInject: true });
+            }
+          } catch (e) { console.error('[init] TransitionScreen ' + e.message); }
+
+          // 8. PreviewScreenComponent
+          try {
+            if (typeof PreviewScreenComponent !== 'undefined') {
+              previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+            }
+          } catch (e) { console.error('[init] PreviewScreen ' + e.message); }
+
+          // 8b. FloatingButtonComponent (PART-050) — owns Submit / Next lifecycle
+          try {
+            if (typeof FloatingButtonComponent !== 'undefined') {
+              floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+
+              // Submit handler = handleCheck.
+              // FloatingButton auto-hides on submit click BEFORE this handler runs,
+              // so the student's focus shifts to the evaluation feedback.
+              floatingBtn.on('submit', function() {
+                try { handleCheck(); } catch (e) { /* noop */ }
+              });
+
+              // Next handler = advance to next round (mid-game) OR fire next_ended + destroy (end-of-game).
+              floatingBtn.on('next', function() {
+                if (gameState.gameEnded) return;
+                // End-of-game Next: host harness teardown signal.
+                if (gameState.phase === 'results') {
+                  try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                  endGame(gameState.stars > 0);
+                  return;
+                }
+                // Mid-game Next: student acknowledged round result (correct or wrong); advance.
+                try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode(null); } catch (e) {}
+                nextRound();
+              });
+            }
+          } catch (e) { console.error('[init] FloatingButton ' + e.message); }
+
+          // 9. Preload audio
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.sound && FeedbackManager.sound.preload) {
+              await preloadAllAudio();
+            }
+          } catch (e) { console.error('[init] preload ' + e.message); }
+
+          // 10. Register message listener BEFORE game_ready
+          window.addEventListener('message', handlePostMessage);
+
+          // 11. Send game_ready
+          try {
+            window.parent.postMessage({ type: 'game_ready' }, '*');
+          } catch (e) { /* noop */ }
+
+          // 12. setupGame — renders #gameContent then shows preview last
+          setupGame();
+
+        } catch (e) {
+          console.error('[init] ' + e.message);
+        }
+      })();
+
+      // Window exposures
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.nextRound = nextRound;
+      window.startGame = startGame;
+    });
+
+    /* ============================================================
+       Standalone fallback — runs independently of waitForPackages
+       ============================================================ */
+    setTimeout(function() {
+      try {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+        if (gameState.phase !== 'start_screen') return;
+
+        var gc = document.getElementById('gameContent');
+        if (!gc) {
+          var app = document.getElementById('app');
+          if (app && !document.getElementById('gameContent')) {
+            var fallbackDiv = document.createElement('div');
+            fallbackDiv.id = 'gameContent';
+            app.appendChild(fallbackDiv);
+          }
+        }
+
+        gameState.content = gameState.content || fallbackContent;
+        gameState.totalRounds = fallbackContent.rounds.length;
+
+        if (!gameState.isActive) {
+          startGame();
+        }
+      } catch (e) { /* noop */ }
+    }, 5000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,2296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>Kakuro — Number Sum Crossword</title>
+
+  <!-- Sentry (error tracking) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      try {
+        Sentry.init(SentryConfig.getConfig({ release: 'kakuro@1.0.0' }));
+      } catch (e) { /* noop */ }
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- Game CDN packages (exact order) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <!-- @dnd-kit/dom (vanilla JS DnD) — loaded via ESM, so async ready event -->
+  <script type="module">
+    import {
+      DragDropManager,
+      Draggable,
+      Droppable,
+      PointerSensor,
+      PointerActivationConstraints,
+      Feedback
+    } from 'https://esm.sh/@dnd-kit/dom@beta';
+    window.__DndKit = {
+      DragDropManager: DragDropManager,
+      Draggable: Draggable,
+      Droppable: Droppable,
+      PointerSensor: PointerSensor,
+      PointerActivationConstraints: PointerActivationConstraints,
+      Feedback: Feedback
+    };
+    window.dispatchEvent(new CustomEvent('dndkit:ready'));
+  </script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FFF3C1;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility — .mathai-preview-body is the single scroll owner */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    button,
+    .white-cell,
+    .digit-btn,
+    [role="button"],
+    input[type="submit"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    /* ============================================================
+       Gameplay layout
+       ============================================================ */
+    #gameContent {
+      padding: 10px 14px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    /* Rules panel */
+    .rules-panel {
+      background: var(--mathai-light-gray);
+      border: 1px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    .rules-panel-title {
+      font-size: var(--mathai-font-size-small);
+      font-weight: 700;
+      color: var(--mathai-gray);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .rules-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .rules-list li {
+      font-size: 14px;
+      color: var(--mathai-primary);
+      line-height: 1.4;
+      padding: 3px 0;
+    }
+    .rule-marker {
+      font-weight: 700;
+      color: var(--mathai-purple);
+      margin-right: 6px;
+    }
+
+    /* Compact grid (round-driven cols/rows via inline style) */
+    .grid-wrap {
+      display: flex;
+      justify-content: center;
+      margin: 8px 0 14px;
+    }
+    .kakuro-grid {
+      display: grid;
+      width: 100%;
+      max-width: 280px;
+      aspect-ratio: 1 / 1;
+      border: 2px solid #111;
+      background: #111;
+    }
+    .cell {
+      position: relative;
+      border: 1px solid #111;
+      background: var(--mathai-white);
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .cell.blocked {
+      background: #111;
+    }
+    .cell.clue {
+      background: #333;
+      color: var(--mathai-white);
+    }
+    .cell.clue .clue-line {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .cell.clue .clue-across {
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1;
+    }
+    .cell.clue .clue-down {
+      position: absolute;
+      bottom: 2px;
+      left: 4px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1;
+    }
+    .cell.white-cell {
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 150ms ease, border 120ms ease;
+    }
+    .cell.white-cell.cell-selected {
+      background: var(--mathai-cell-bg-yellow);
+      box-shadow: inset 0 0 0 3px var(--mathai-yellow);
+    }
+    .cell.white-cell.cell-drop-target {
+      background: var(--mathai-cell-bg-yellow);
+      box-shadow: inset 0 0 0 3px var(--mathai-purple);
+    }
+    .cell.white-cell.cell-success {
+      background: var(--mathai-cell-bg-green);
+      box-shadow: inset 0 0 0 3px var(--mathai-cell-border-green);
+    }
+    .cell.white-cell.cell-conflict {
+      background: var(--mathai-cell-bg-red);
+      box-shadow: inset 0 0 0 3px var(--mathai-cell-border-red);
+      animation: cell-shake 400ms ease-in-out 2;
+    }
+    .cell.white-cell .cell-value {
+      display: inline-block;
+    }
+    .cell.white-cell.cell-filled-pop .cell-value {
+      animation: cell-pop 180ms ease-out;
+    }
+    .cell.white-cell.cell-solution-fade .cell-value {
+      animation: cell-fade-in 600ms ease-out;
+    }
+
+    /* Digit chip pool — DnD bank with per-tag placeholder slots */
+    .chip-pool {
+      background: var(--mathai-light-gray);
+      border: 1px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 10px 8px;
+      margin: 2px 0 14px;
+    }
+    .chip-pool-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--mathai-gray);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      min-height: 48px;
+    }
+    /* Bank slot — one per chip, collapses when chip is placed in a zone */
+    .bank-slot {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+    }
+    .bank-slot.slot-collapsed { display: none; }
+
+    /* Draggable digit chip — touch-action: none ONLY here (not on body/containers) */
+    .dnd-tag {
+      background: var(--mathai-white);
+      border: 1px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-button);
+      color: var(--mathai-primary);
+      font-size: 20px;
+      font-weight: 700;
+      width: 48px;
+      height: 48px;
+      min-width: 44px;
+      min-height: 44px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+      cursor: grab;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: transform 100ms ease, background 120ms ease, box-shadow 120ms ease;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .dnd-tag:active { cursor: grabbing; }
+
+    /* Drop-zone visual when a draggable is over it */
+    .cell.white-cell.dnd-over {
+      background: var(--mathai-cell-bg-yellow);
+      box-shadow: inset 0 0 0 3px var(--mathai-purple);
+    }
+    .cell.white-cell.has-tag {
+      background: var(--mathai-white);
+    }
+    .cell.white-cell .dnd-tag {
+      width: 100%;
+      height: 100%;
+      box-shadow: none;
+      border: none;
+      background: transparent;
+    }
+
+    /* Input-blocked board (during awaited feedback) */
+    .dnd-disabled .dnd-tag {
+      pointer-events: none;
+      cursor: default;
+    }
+
+    /* Floating button slot — PART-050 owns the Submit / Next CTA */
+
+    /* Animations */
+    @keyframes cell-pop {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.18); }
+      100% { transform: scale(1); }
+    }
+    @keyframes cell-shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-3px); }
+      75% { transform: translateX(3px); }
+    }
+    @keyframes cell-fade-in {
+      0%   { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    @keyframes fade-in {
+      0%   { opacity: 0; transform: translateY(4px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fade-in 350ms ease-out; }
+
+    /* Landscape overlay */
+    .landscape-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--mathai-primary);
+      color: var(--mathai-white);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      font-size: 18px;
+    }
+    @media (max-height: 500px) and (orientation: landscape) {
+      .landscape-overlay { display: flex; }
+    }
+
+    /* Results screen (required even when board-puzzle uses TransitionScreen) */
+    #results-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 100;
+    }
+
+    /* Layout root constraints (ScreenLayout inject) */
+    .mathai-layout-root {
+      max-width: var(--mathai-game-max-width);
+      margin: 0 auto;
+    }
+
+    /* Suppress text selection on interactive surfaces */
+    .cell, .digit-btn, .rules-list li {
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Defensive: fallback for .hidden */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="landscape-overlay">Please rotate your device to portrait mode to play.</div>
+  <div id="app" data-phase="start_screen" data-score="0"></div>
+
+  <script>
+    /* ============================================================
+       gameState (PART-007)
+       ============================================================ */
+    var gameState = {
+      gameId: 'kakuro',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 3,
+      score: 0,
+      lives: 0,
+      totalLives: 3,
+      stars: 0,
+      firstCheckSolves: 0,
+      roundsCompleted: 0,
+      attempts: [],
+      events: [],
+      responseTimes: [],
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      correctAnswer: null,
+      roundStartTime: null,
+      startTime: null,
+      cellValues: {},       // { W1: 5, W2: null, ... }
+      selectedCellId: null, // string or null (legacy, unused with DnD)
+      selectedDigit: null,  // number 1-9 or null (mobile tap fallback)
+      isBoardFull: false,
+      validationResult: null,
+      currentRoundData: null,
+      previewResult: null,
+      content: null,
+      signalConfig: {},
+      duration_data: {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      }
+    };
+    window.gameState = gameState;
+
+    /* ============================================================
+       fallbackContent — 3 hand-validated Kakuro puzzles (B1, B2, B3)
+       ============================================================ */
+    var fallbackContent = {
+      previewInstruction: '<p><b>Number Sum Crossword!</b><br>Drag a digit chip onto a white square. Make each row and column add to its clue, with no repeats. Tap <b>CHECK</b> when done.</p>',
+      previewAudioText: 'Drag a digit chip onto a white square. Each row and column must add up to its clue, with no repeats. Then tap CHECK.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      rounds: [
+        {
+          round: 1, stage: 1, type: 'A', variant: 'B1', rulesFormat: 'emoji',
+          cols: 3, rows: 3,
+          grid: [
+            { r:0, c:0, kind:'blocked' },
+            { r:0, c:1, kind:'clue', down:3 },
+            { r:0, c:2, kind:'clue', down:12 },
+
+            { r:1, c:0, kind:'clue', across:7 },
+            { r:1, c:1, kind:'white', id:'W1', solution:2 },
+            { r:1, c:2, kind:'white', id:'W2', solution:5 },
+
+            { r:2, c:0, kind:'clue', across:8 },
+            { r:2, c:1, kind:'white', id:'W3', solution:1 },
+            { r:2, c:2, kind:'white', id:'W4', solution:7 }
+          ],
+          runs: [
+            { id:'row1', kind:'row', sum:7,  cells:['W1','W2'] },
+            { id:'row2', kind:'row', sum:8,  cells:['W3','W4'] },
+            { id:'col1', kind:'col', sum:3,  cells:['W1','W3'] },
+            { id:'col2', kind:'col', sum:12, cells:['W2','W4'] }
+          ],
+          misconception_tags: {
+            'sum-wrong':         'Cells do not sum to the clue in at least one run.',
+            'repeat-in-run':     'A digit is repeated inside a single run.',
+            'ignore-column-run': 'Rows are solved independently and columns are ignored.',
+            'out-of-range-digit':'A digit outside 1-9 is attempted.'
+          }
+        },
+        {
+          round: 2, stage: 2, type: 'A', variant: 'B2', rulesFormat: 'numeric',
+          cols: 3, rows: 3,
+          grid: [
+            { r:0, c:0, kind:'blocked' },
+            { r:0, c:1, kind:'clue', down:4 },
+            { r:0, c:2, kind:'clue', down:11 },
+
+            { r:1, c:0, kind:'clue', across:6 },
+            { r:1, c:1, kind:'white', id:'W1', solution:1 },
+            { r:1, c:2, kind:'white', id:'W2', solution:5 },
+
+            { r:2, c:0, kind:'clue', across:9 },
+            { r:2, c:1, kind:'white', id:'W3', solution:3 },
+            { r:2, c:2, kind:'white', id:'W4', solution:6 }
+          ],
+          runs: [
+            { id:'row1', kind:'row', sum:6,  cells:['W1','W2'] },
+            { id:'row2', kind:'row', sum:9,  cells:['W3','W4'] },
+            { id:'col1', kind:'col', sum:4,  cells:['W1','W3'] },
+            { id:'col2', kind:'col', sum:11, cells:['W2','W4'] }
+          ],
+          misconception_tags: {
+            'sum-wrong':         'Cells do not sum to the clue in at least one run.',
+            'repeat-in-run':     'A digit is repeated inside a single run.',
+            'ignore-column-run': 'Rows are solved independently and columns are ignored.',
+            'out-of-range-digit':'A digit outside 1-9 is attempted.'
+          }
+        },
+        {
+          round: 3, stage: 3, type: 'A', variant: 'B3', rulesFormat: 'numeric',
+          cols: 3, rows: 3,
+          grid: [
+            { r:0, c:0, kind:'blocked' },
+            { r:0, c:1, kind:'clue', down:8 },
+            { r:0, c:2, kind:'clue', down:9 },
+
+            { r:1, c:0, kind:'clue', across:10 },
+            { r:1, c:1, kind:'white', id:'W1', solution:6 },
+            { r:1, c:2, kind:'white', id:'W2', solution:4 },
+
+            { r:2, c:0, kind:'clue', across:7 },
+            { r:2, c:1, kind:'white', id:'W3', solution:2 },
+            { r:2, c:2, kind:'white', id:'W4', solution:5 }
+          ],
+          runs: [
+            { id:'row1', kind:'row', sum:10, cells:['W1','W2'] },
+            { id:'row2', kind:'row', sum:7,  cells:['W3','W4'] },
+            { id:'col1', kind:'col', sum:8,  cells:['W1','W3'] },
+            { id:'col2', kind:'col', sum:9,  cells:['W2','W4'] }
+          ],
+          misconception_tags: {
+            'sum-wrong':         'Cells do not sum to the clue in at least one run.',
+            'repeat-in-run':     'A digit is repeated inside a single run.',
+            'ignore-column-run': 'Rows are solved independently and columns are ignored.'
+          }
+        }
+      ]
+    };
+
+    /* ============================================================
+       Module-scope runtime references
+       ============================================================ */
+    var timer = null;
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var audioPermissionChecked = false;
+
+    // Sticker URLs (per feedback/reference/feedbackmanager-api.md)
+    // Use the working figma CDN sticker set (the home-explore/document/*.gif
+    // URLs return HTTP 404 and surface as broken-image text in TransitionScreen).
+    var STICKER_CORRECT   = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD       = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUNDS    = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_MOTIVATE  = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+
+    /* ============================================================
+       syncDOM — writes #app data-* attrs
+       ============================================================ */
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+      app.setAttribute('data-stars', gameState.stars);
+    }
+
+    /* ============================================================
+       trackEvent
+       ============================================================ */
+    function trackEvent(type, data) {
+      try {
+        var evt = { event: type, timestamp: Date.now() };
+        if (data && typeof data === 'object') {
+          for (var k in data) { if (data.hasOwnProperty(k)) evt[k] = data[k]; }
+        }
+        gameState.events.push(evt);
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       recordAttempt
+       ============================================================ */
+    function recordAttempt(params) {
+      try {
+        var now = Date.now();
+        var sinceStart = gameState.startTime ? (now - gameState.startTime) : 0;
+        var responseMs = gameState.roundStartTime ? (now - gameState.roundStartTime) : 0;
+        if (params && typeof params.response_time_ms === 'number') {
+          responseMs = params.response_time_ms;
+        }
+        var attempt = {
+          attempt_timestamp: now,
+          time_since_start_of_game: sinceStart,
+          input_of_user: params.input_of_user,
+          correct: !!params.correct,
+          round_number: params.round_number,
+          question_id: params.question_id,
+          correct_answer: params.correct_answer,
+          response_time_ms: responseMs,
+          misconception_tag: params.misconception_tag == null ? null : params.misconception_tag,
+          difficulty_level: params.difficulty_level || 1,
+          is_retry: !!params.is_retry,
+          metadata: params.metadata || {}
+        };
+        gameState.attempts.push(attempt);
+        gameState.duration_data.attempts.push({
+          round: params.round_number,
+          timestamp: now,
+          response_time_ms: responseMs
+        });
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       getRounds — with fallback
+       ============================================================ */
+    function getRounds() {
+      if (gameState.content && gameState.content.rounds &&
+          gameState.content.rounds.length >= gameState.totalRounds) {
+        return gameState.content.rounds;
+      }
+      return fallbackContent.rounds;
+    }
+
+    /* ============================================================
+       getStars — by firstCheckSolves
+       ============================================================ */
+    function getStars() {
+      var s = gameState.firstCheckSolves || 0;
+      if (s >= 3) return 3;
+      if (s === 2) return 2;
+      if (s === 1) return 1;
+      return 0;
+    }
+
+    /* ============================================================
+       waitForPackages
+       ============================================================ */
+    function waitForPackages() {
+      return new Promise(function(resolve, reject) {
+        var startT = Date.now();
+        var timeout = 120000;
+        var interval = setInterval(function() {
+          var ok = (typeof FeedbackManager !== 'undefined') &&
+                   (typeof VisibilityTracker !== 'undefined') &&
+                   (typeof ScreenLayout !== 'undefined') &&
+                   (typeof ProgressBarComponent !== 'undefined') &&
+                   (typeof TransitionScreenComponent !== 'undefined') &&
+                   (typeof PreviewScreenComponent !== 'undefined');
+          if (ok) { clearInterval(interval); resolve(true); return; }
+          if (Date.now() - startT > timeout) {
+            clearInterval(interval);
+            try { throw new Error('Packages failed to load within ' + timeout + 'ms'); }
+            catch (err) { reject(err); }
+          }
+        }, 50);
+      });
+    }
+
+    /* ============================================================
+       Audio readiness check
+       ============================================================ */
+    function waitForAudioPermission() {
+      return new Promise(function(resolve) {
+        if (audioPermissionChecked) return resolve();
+        if (typeof FeedbackManager === 'undefined' || !FeedbackManager.canPlayAudio) {
+          audioPermissionChecked = true; return resolve();
+        }
+        try {
+          if (FeedbackManager.canPlayAudio()) { audioPermissionChecked = true; return resolve(); }
+        } catch (e) { /* noop */ }
+        var check = setInterval(function() {
+          try {
+            if (FeedbackManager.canPlayAudio && FeedbackManager.canPlayAudio()) {
+              clearInterval(check); audioPermissionChecked = true; resolve();
+            }
+          } catch (e) { /* noop */ }
+        }, 200);
+        setTimeout(function() { clearInterval(check); audioPermissionChecked = true; resolve(); }, 15000);
+      });
+    }
+
+    /* ============================================================
+       FeedbackManager preload
+       ============================================================ */
+    function preloadAllAudio() {
+      return FeedbackManager.sound.preload([
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'sound_game_victory', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'sound_stars_collected', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'sound_motivation', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+      ]);
+    }
+
+    /* ============================================================
+       Safe FM wrappers
+       ============================================================ */
+    function safePlaySound(id, opts) {
+      try { return FeedbackManager.sound.play(id, opts || {}); }
+      catch (e) { return Promise.resolve(); }
+    }
+    function safeStopAllAudio() {
+      try { if (FeedbackManager && FeedbackManager.sound && FeedbackManager.sound.pause) FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager.stream && FeedbackManager.stream.pauseAll) FeedbackManager.stream.pauseAll(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+    }
+
+    /* ============================================================
+       createProgressBar helper
+       ============================================================ */
+    function createProgressBar() {
+      try { if (progressBar && progressBar.destroy) progressBar.destroy(); } catch (e) {}
+      try {
+        progressBar = new ProgressBarComponent({
+          slotId: 'mathai-progress-slot',
+          totalRounds: gameState.totalRounds,
+          totalLives: gameState.totalRounds  // no-lives game
+        });
+        progressBar.show();
+        progressBar.update(0, 0);
+      } catch (e) {
+        console.error('[progressBar] ' + e.message);
+      }
+    }
+
+    /* ============================================================
+       handlePostMessage
+       ============================================================ */
+    function handlePostMessage(event) {
+      try {
+        if (!event || !event.data || typeof event.data !== 'object') return;
+        var msg = event.data;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          var d = msg.data || msg;
+          if (d.content) gameState.content = d.content;
+          else if (msg.content) gameState.content = msg.content;
+
+          gameState.signalConfig = d.signalConfig || msg.signalConfig || {};
+          var sc = gameState.signalConfig;
+          if (signalCollector) {
+            try { signalCollector.flushUrl = sc.flushUrl; } catch (e) {}
+            try { signalCollector.playId = sc.playId; } catch (e) {}
+            try { signalCollector.gameId = sc.gameId || gameState.gameId; } catch (e) {}
+            try { signalCollector.sessionId = sc.sessionId; } catch (e) {}
+            try { signalCollector.contentSetId = sc.contentSetId; } catch (e) {}
+            try { signalCollector.studentId = sc.studentId; } catch (e) {}
+            try { if (signalCollector.startFlushing) signalCollector.startFlushing(); } catch (e) {}
+          }
+          syncDOM();
+          setupGame();
+        }
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       Helpers
+       ============================================================ */
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function renderRulesHTML(round) {
+      var m = (round.rulesFormat === 'emoji')
+        ? ['1⃣', '2⃣', '3⃣']
+        : ['1.', '2.', '3.'];
+      return '' +
+        '<li><span class="rule-marker">' + m[0] + '</span>Drag a digit chip onto a white square.</li>' +
+        '<li><span class="rule-marker">' + m[1] + '</span>Each row and column must add to the clue, with no digit repeated.</li>' +
+        '<li><span class="rule-marker">' + m[2] + '</span>When all squares are filled, tap CHECK.</li>';
+    }
+
+    function renderClueCellSVG() {
+      // Returns an inline SVG for the diagonal line
+      return '<svg class="clue-line" viewBox="0 0 64 64" preserveAspectRatio="none" aria-hidden="true">' +
+        '<line x1="0" y1="64" x2="64" y2="0" stroke="#fff" stroke-width="1.5" />' +
+        '</svg>';
+    }
+
+    function renderGridHTML(round) {
+      var html = '';
+      for (var i = 0; i < round.grid.length; i++) {
+        var cell = round.grid[i];
+        if (cell.kind === 'blocked') {
+          html += '<div class="cell blocked" data-r="' + cell.r + '" data-c="' + cell.c + '"></div>';
+        } else if (cell.kind === 'clue') {
+          var acrossHTML = (typeof cell.across === 'number') ? ('<span class="clue-across">' + cell.across + '</span>') : '';
+          var downHTML   = (typeof cell.down   === 'number') ? ('<span class="clue-down">'   + cell.down   + '</span>') : '';
+          html += '<div class="cell clue" data-r="' + cell.r + '" data-c="' + cell.c + '">' +
+                    renderClueCellSVG() + acrossHTML + downHTML +
+                  '</div>';
+        } else if (cell.kind === 'white') {
+          // Drop zone — id 'cell-<WN>' so the dnd-kit Droppable id matches data-testid
+          html += '<div class="cell white-cell drop-zone" data-r="' + cell.r + '" data-c="' + cell.c +
+                  '" data-cell-id="' + cell.id + '" id="cell-' + cell.id + '" data-drop="1" data-testid="cell-' + cell.id + '">' +
+                  '</div>';
+        }
+      }
+      return html;
+    }
+
+    function renderDigitPadHTML() {
+      // Bank: digits 1-9, each chip wrapped in its own data-slot-for placeholder.
+      // Chips themselves are .dnd-tag (the only element with touch-action: none).
+      var html = '<div class="chip-pool-label">Digits</div><div class="chip-row" id="bank-row">';
+      for (var d = 1; d <= 9; d++) {
+        var tagId = 'tag-' + d;
+        html += '<div class="bank-slot" data-slot-for="' + tagId + '">' +
+                  '<div class="dnd-tag" id="' + tagId + '" data-digit="' + d + '" ' +
+                  'role="button" aria-label="digit ' + d + '" tabindex="0" ' +
+                  'data-testid="digit-' + d + '">' + d + '</div>' +
+                '</div>';
+      }
+      html += '</div>';
+      return html;
+    }
+
+    /* ============================================================
+       Game HTML injection — scaffold inside #gameContent
+       ============================================================ */
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) {
+        var app = document.getElementById('app');
+        if (app && !document.getElementById('gameContent')) {
+          gc = document.createElement('div');
+          gc.id = 'gameContent';
+          app.appendChild(gc);
+        }
+      }
+      if (!gc) return;
+      gc.innerHTML =
+        '<div id="rulesPanel" class="rules-panel fade-in">' +
+          '<div class="rules-panel-title">Rules</div>' +
+          '<ol id="rulesList" class="rules-list"></ol>' +
+        '</div>' +
+        '<div id="gridWrap" class="grid-wrap fade-in">' +
+          '<div id="kakuroGrid" class="kakuro-grid"></div>' +
+        '</div>' +
+        '<div id="bank" class="chip-pool fade-in" data-bank="1"></div>' +
+        // Hidden mirror so V13/V14 verification can read submit-enabled state
+        // even though the visible CTA is owned by FloatingButtonComponent.
+        '<button id="btn-check" data-testid="btn-check" type="button" disabled ' +
+        'style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">CHECK</button>';
+    }
+
+    /* ============================================================
+       renderInitialState — paint Round 1 scaffold behind preview
+       ============================================================ */
+    function renderInitialState() {
+      var rounds = getRounds();
+      if (!rounds || !rounds[0]) return;
+      buildRoundDOM(rounds[0], /* interactive */ false);
+    }
+
+    /* ============================================================
+       buildRoundDOM — populate rules/grid/pad/button for a round
+       ============================================================ */
+    function buildRoundDOM(round, interactive) {
+      gameState.currentRoundData = round;
+      gameState.cellValues = {};
+      gameState.selectedCellId = null;
+      gameState.selectedDigit = null;
+      gameState.isBoardFull = false;
+      gameState.validationResult = null;
+
+      // Rules
+      var rulesList = document.getElementById('rulesList');
+      if (rulesList) rulesList.innerHTML = renderRulesHTML(round);
+
+      // Grid (dynamic cols/rows per round, default 5x5 for back-compat)
+      var gridEl = document.getElementById('kakuroGrid');
+      if (gridEl) {
+        var cols = round.cols || 5;
+        var rows = round.rows || 5;
+        gridEl.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+        gridEl.style.gridTemplateRows = 'repeat(' + rows + ', 1fr)';
+        gridEl.innerHTML = renderGridHTML(round);
+      }
+
+      // Digit chip pool (bank)
+      var pad = document.getElementById('bank');
+      if (pad) pad.innerHTML = renderDigitPadHTML();
+
+      // Init cellValues for every white cell
+      for (var i = 0; i < round.grid.length; i++) {
+        if (round.grid[i].kind === 'white') {
+          gameState.cellValues[round.grid[i].id] = null;
+        }
+      }
+
+      // FloatingButton starts hidden for the new round — predicate re-drives as the student fills.
+      try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode(null); } catch (e) {}
+
+      // Wire interactions (always wire; interactivity is gated by isProcessing/isActive)
+      wireInteractions();
+
+      // correctAnswer exposure (for test harness)
+      var solutionMap = {};
+      for (var j = 0; j < round.grid.length; j++) {
+        if (round.grid[j].kind === 'white') solutionMap[round.grid[j].id] = round.grid[j].solution;
+      }
+      gameState.correctAnswer = solutionMap;
+    }
+
+    /* ============================================================
+       @dnd-kit/dom — async ESM ready helpers (R1)
+       ============================================================ */
+    var __dndReady = !!window.__DndKit;
+    window.addEventListener('dndkit:ready', function() { __dndReady = true; });
+    function waitForDndKit(timeout) {
+      timeout = timeout || 10000;
+      return new Promise(function(resolve, reject) {
+        if (__dndReady && window.__DndKit) return resolve(window.__DndKit);
+        var start = Date.now();
+        var iv = setInterval(function() {
+          if (window.__DndKit) {
+            clearInterval(iv); __dndReady = true; resolve(window.__DndKit);
+          } else if (Date.now() - start > timeout) {
+            clearInterval(iv); reject(new Error('dnd-kit failed to load within ' + timeout + 'ms'));
+          }
+        }, 50);
+      });
+    }
+
+    /* ============================================================
+       DnD round lifecycle (R2 + R3)
+       locations:  Map<tagId, 'bank' | 'cell-W#'>
+       zoneValues: Map<cellId ('cell-W#'), tagId | null>
+       ============================================================ */
+    var dndManager = null;
+    var dndDraggables = [];
+    var dndDroppables = [];
+    var locations = new Map();
+    var zoneValues = new Map();
+    var dndIsDragging = false;
+    var dndTouchMoveHandler = null;
+    window.locations = locations;
+    window.zoneValues = zoneValues;
+
+    function destroyDndRound() {
+      try {
+        for (var i = 0; i < dndDraggables.length; i++) {
+          try { dndDraggables[i] && dndDraggables[i].destroy && dndDraggables[i].destroy(); } catch (e) {}
+        }
+        for (var j = 0; j < dndDroppables.length; j++) {
+          try { dndDroppables[j] && dndDroppables[j].destroy && dndDroppables[j].destroy(); } catch (e) {}
+        }
+        if (dndManager && dndManager.destroy) {
+          try { dndManager.destroy(); } catch (e) {}
+        }
+      } catch (e) {}
+      dndDraggables = [];
+      dndDroppables = [];
+      dndManager = null;
+      locations.clear();
+      zoneValues.clear();
+      dndIsDragging = false;
+      if (dndTouchMoveHandler) {
+        try { document.removeEventListener('touchmove', dndTouchMoveHandler, { passive: false }); } catch (e) {}
+        dndTouchMoveHandler = null;
+      }
+    }
+    window.destroyDndRound = destroyDndRound;
+
+    /* ============================================================
+       wireInteractions — sets up @dnd-kit Draggable/Droppable for the
+       current round. Each digit chip is a Draggable; each white cell
+       (id 'cell-W#') is a Droppable; the bank itself is a Droppable
+       to catch returns/cancels.
+       ============================================================ */
+    function wireInteractions() {
+      var bank = document.getElementById('bank');
+      var gridEl = document.getElementById('kakuroGrid');
+      if (!bank || !gridEl) return;
+      // Defer DnD setup until the ESM module loads (R1 — async, do not block render).
+      (async function() {
+        var DK;
+        try { DK = await waitForDndKit(10000); }
+        catch (e) { console.error('[dnd-kit] ' + e.message); return; }
+        try { setupDnd(DK); }
+        catch (e) { console.error('[setupDnd] ' + e.message); }
+      })();
+    }
+
+    function setupDnd(DK) {
+      // R3 — destroy any prior round before wiring this one.
+      destroyDndRound();
+
+      var DragDropManager = DK.DragDropManager;
+      var Draggable       = DK.Draggable;
+      var Droppable       = DK.Droppable;
+      var PointerSensor   = DK.PointerSensor;
+      var PointerActivationConstraints = DK.PointerActivationConstraints;
+      var Feedback        = DK.Feedback;
+
+      var round = gameState.currentRoundData;
+      if (!round) return;
+
+      var tagEls = document.querySelectorAll('.dnd-tag');
+      var zoneEls = document.querySelectorAll('.drop-zone');
+      if (tagEls.length === 0 || zoneEls.length === 0) return;
+
+      // Manager — PointerSensor + Distance(5) only (no delay), per behaviour 8.
+      // Disable Feedback drop-animation — its post-drop transition leaves
+      // residual position:fixed + pointer-events:none on the chip, which
+      // blocks the next pointerdown from activating the draggable
+      // (V5b re-pickup, V13 fill-all-zones).
+      try {
+        var managerOpts = {
+          sensors: [
+            PointerSensor.configure({
+              activationConstraints: [
+                new PointerActivationConstraints.Distance({ value: 5 })
+              ]
+            })
+          ]
+        };
+        if (Feedback && Feedback.configure) {
+          managerOpts.plugins = function(defaults) {
+            return defaults.concat([Feedback.configure({ dropAnimation: null })]);
+          };
+        }
+        dndManager = new DragDropManager(managerOpts);
+      } catch (e) {
+        // Fallback for API variants — construct without sensor config
+        try { dndManager = new DragDropManager(); } catch (e2) {
+          console.error('[dnd-kit] DragDropManager init failed: ' + e2.message); return;
+        }
+      }
+
+      // Init tracking (R2)
+      for (var i = 0; i < tagEls.length; i++) {
+        locations.set(tagEls[i].id, 'bank');
+      }
+      for (var z = 0; z < zoneEls.length; z++) {
+        zoneValues.set(zoneEls[z].id, null);
+      }
+
+      // One Draggable per chip — attached regardless of current location (behaviour 1)
+      for (var k = 0; k < tagEls.length; k++) {
+        try {
+          dndDraggables.push(new Draggable({ id: tagEls[k].id, element: tagEls[k] }, dndManager));
+        } catch (e) { console.error('[dnd-kit] Draggable failed: ' + e.message); }
+      }
+
+      // One Droppable per zone with hover effect
+      for (var d = 0; d < zoneEls.length; d++) {
+        (function(zEl) {
+          try {
+            dndDroppables.push(new Droppable({
+              id: zEl.id,
+              element: zEl,
+              effects: function() {
+                return [function() {
+                  var droppable = dndDroppables.find(function(dr) { return dr && dr.id === zEl.id; });
+                  if (droppable && droppable.isDropTarget) zEl.classList.add('dnd-over');
+                  else zEl.classList.remove('dnd-over');
+                }];
+              }
+            }, dndManager));
+          } catch (e) { console.error('[dnd-kit] Droppable failed: ' + e.message); }
+        })(zoneEls[d]);
+      }
+
+      // Bank Droppable — catches returns / drops outside any zone
+      try {
+        var bankEl = document.getElementById('bank');
+        dndDroppables.push(new Droppable({ id: 'bank', element: bankEl }, dndManager));
+      } catch (e) {}
+
+      // Behaviour 9 — input blocking (universal guard on dragstart).
+      try {
+        dndManager.monitor.addEventListener('beforedragstart', function(event) {
+          if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) {
+            try { event.preventDefault(); } catch (e) {}
+          }
+        });
+      } catch (e) {}
+
+      // Track drag flag for touchmove preventDefault (behaviour 8).
+      try {
+        dndManager.monitor.addEventListener('dragstart', function() { dndIsDragging = true; });
+        dndManager.monitor.addEventListener('dragend',   function() { dndIsDragging = false; });
+      } catch (e) {}
+
+      dndTouchMoveHandler = function(ev) { if (dndIsDragging) ev.preventDefault(); };
+      try { document.addEventListener('touchmove', dndTouchMoveHandler, { passive: false }); } catch (e) {}
+
+      // Drop handling — evict vs swap per R2 / behaviour 4
+      try {
+        dndManager.monitor.addEventListener('dragend', function(event) {
+          var op = event.operation || {};
+          var canceled = !!event.canceled || !!op.canceled;
+          var source = op.source;
+          var target = op.target;
+          var sourceId = source && source.id;
+          if (!sourceId) return;
+
+          var sourceLoc = locations.get(sourceId); // 'bank' | 'cell-W#'
+
+          if (canceled || !target) { returnToBank(sourceId); return; }
+          var targetId = target.id;
+          if (targetId === 'bank') { returnToBank(sourceId); return; }
+          if (sourceLoc === targetId) { return; } // V7 — same zone no-op
+
+          var occupantId = zoneValues.get(targetId); // tag id or null
+
+          if (!occupantId) {
+            // Empty target — place; if source came from a zone, clear it (V4)
+            moveTagToZone(sourceId, targetId);
+            if (sourceLoc && sourceLoc !== 'bank') clearZone(sourceLoc);
+            try { safePlaySound('sound_bubble_select', {}); } catch (e) {}
+            return;
+          }
+          // Occupied target
+          if (sourceLoc === 'bank') {
+            // V2 — evict occupant to its bank slot, place source
+            returnToBank(occupantId);
+            moveTagToZone(sourceId, targetId);
+          } else {
+            // V3 — swap
+            moveTagToZone(occupantId, sourceLoc);
+            moveTagToZone(sourceId, targetId);
+          }
+          try { safePlaySound('sound_bubble_select', {}); } catch (e) {}
+        });
+      } catch (e) { console.error('[dnd-kit] dragend wire failed: ' + e.message); }
+
+      // Prime submit predicate
+      try { evaluateBoardFull(); } catch (e) {}
+    }
+
+    /* ============================================================
+       moveTagToZone / clearZone / returnToBank / writeCellValue
+       — single source of truth for chip placement.
+       ============================================================ */
+    // R4 — strip residual dnd-kit positioning vars + inline drag styles so the
+    // chip lands cleanly at its new flex-centered location with no off-screen
+    // animation flash. Mirrors hexa-numbers' resetDragStyling pattern.
+    // Call from EVERY drop path (moveTagToZone + returnToBank).
+    function resetDragStyling(el) {
+      if (!el) return;
+      try {
+        el.style.removeProperty('--dnd-top');
+        el.style.removeProperty('--dnd-left');
+        el.style.removeProperty('--dnd-translate');
+        el.style.removeProperty('--dnd-translate-x');
+        el.style.removeProperty('--dnd-translate-y');
+        el.style.removeProperty('--dnd-transform');
+        el.style.removeProperty('--dnd-transition');
+        el.style.removeProperty('--dnd-transform-origin');
+        el.style.removeProperty('--dnd-width');
+        el.style.removeProperty('--dnd-height');
+        el.style.position = '';
+        el.style.left = '';
+        el.style.top = '';
+        el.style.transform = '';
+        el.style.transition = '';
+        el.style.pointerEvents = '';
+        el.style.zIndex = '';
+      } catch (e) {}
+    }
+
+    function moveTagToZone(tagId, zoneId) {
+      var tagEl  = document.getElementById(tagId);
+      var zoneEl = document.getElementById(zoneId);
+      if (!tagEl || !zoneEl) return;
+      resetDragStyling(tagEl);
+      zoneEl.appendChild(tagEl);
+      zoneEl.classList.add('has-tag');
+      zoneValues.set(zoneId, tagId);
+      locations.set(tagId, zoneId);
+      var slot = document.querySelector('[data-slot-for="' + tagId + '"]');
+      if (slot) slot.classList.add('slot-collapsed');
+      // Sync gameState.cellValues for validator
+      var cellId = zoneIdToCellId(zoneId);
+      var digit  = parseInt(tagEl.getAttribute('data-digit'), 10);
+      if (cellId && digit >= 1 && digit <= 9) writeCellValue(cellId, digit);
+      evaluateBoardFull();
+    }
+
+    function clearZone(zoneId) {
+      var zoneEl = document.getElementById(zoneId);
+      if (zoneEl) zoneEl.classList.remove('has-tag');
+      zoneValues.set(zoneId, null);
+      var cellId = zoneIdToCellId(zoneId);
+      if (cellId) writeCellValue(cellId, null);
+      evaluateBoardFull();
+    }
+
+    function returnToBank(tagId) {
+      var tagEl = document.getElementById(tagId);
+      var slot  = document.querySelector('[data-slot-for="' + tagId + '"]');
+      resetDragStyling(tagEl);
+      if (tagEl && slot) slot.appendChild(tagEl);
+      if (slot) slot.classList.remove('slot-collapsed');
+      var oldZone = locations.get(tagId);
+      if (oldZone && oldZone !== 'bank') clearZone(oldZone);
+      locations.set(tagId, 'bank');
+      evaluateBoardFull();
+    }
+
+    // 'cell-W1' -> 'W1'
+    function zoneIdToCellId(zoneId) {
+      if (!zoneId || zoneId.indexOf('cell-') !== 0) return null;
+      return zoneId.slice(5);
+    }
+
+    function writeCellValue(cellId, value) {
+      gameState.cellValues[cellId] = value;
+      // No separate value span any more — the chip itself sits in the zone.
+      // Animation hook for filled-pop is on the zone element.
+      var cellEl = document.querySelector('.white-cell[data-cell-id="' + cellId + '"]');
+      if (cellEl && value != null) {
+        cellEl.classList.remove('cell-filled-pop');
+        void cellEl.offsetWidth; // reflow
+        cellEl.classList.add('cell-filled-pop');
+      }
+    }
+
+    /* ============================================================
+       isSubmittable — predicate over gameState for FloatingButton
+       ============================================================ */
+    function isSubmittable() {
+      var r = gameState.currentRoundData;
+      if (!r) return false;
+      if (!gameState.isActive) return false;
+      if (gameState.isProcessing || gameState.gameEnded) return false;
+      for (var i = 0; i < r.grid.length; i++) {
+        var c = r.grid[i];
+        if (c.kind === 'white') {
+          var v = gameState.cellValues[c.id];
+          if (v == null || isNaN(v)) return false;
+        }
+      }
+      return true;
+    }
+
+    /* ============================================================
+       Evaluate board-full → drive FloatingButton visibility
+       ============================================================ */
+    function evaluateBoardFull() {
+      var r = gameState.currentRoundData;
+      if (!r) return;
+      var full = true;
+      for (var i = 0; i < r.grid.length; i++) {
+        var c = r.grid[i];
+        if (c.kind === 'white') {
+          var v = gameState.cellValues[c.id];
+          if (v == null || isNaN(v)) { full = false; break; }
+        }
+      }
+      gameState.isBoardFull = full;
+      try {
+        if (floatingBtn && floatingBtn.setSubmittable) {
+          floatingBtn.setSubmittable(isSubmittable());
+        }
+      } catch (e) {}
+      // V13/V14 — mirror submit-enabled state on the hidden #btn-check so
+      // verification harnesses can read it via [data-testid="btn-check"].
+      try {
+        var mirror = document.getElementById('btn-check');
+        if (mirror) mirror.disabled = !full;
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       Validator — per run (sum + no-repeat)
+       ============================================================ */
+    function hasDuplicate(arr) {
+      var seen = {};
+      for (var i = 0; i < arr.length; i++) {
+        var v = arr[i];
+        if (seen[v]) return true;
+        seen[v] = true;
+      }
+      return false;
+    }
+
+    function validateGrid(round) {
+      var runs = round.runs;
+      var conflictSet = {};
+      var violated = [];
+      for (var i = 0; i < runs.length; i++) {
+        var run = runs[i];
+        var values = [];
+        for (var j = 0; j < run.cells.length; j++) {
+          var v = gameState.cellValues[run.cells[j]];
+          values.push(v);
+        }
+        // Sum check
+        var sum = 0;
+        var hasNull = false;
+        for (var k = 0; k < values.length; k++) {
+          if (values[k] == null || isNaN(values[k])) { hasNull = true; break; }
+          sum += values[k];
+        }
+        var sumFail = hasNull || (sum !== run.sum);
+        var repeatFail = !hasNull && hasDuplicate(values);
+        if (sumFail || repeatFail) {
+          if (sumFail) violated.push(run.id + ':sum');
+          if (repeatFail) violated.push(run.id + ':repeat');
+          for (var m = 0; m < run.cells.length; m++) conflictSet[run.cells[m]] = true;
+        }
+      }
+      var conflictCells = [];
+      for (var key in conflictSet) if (conflictSet.hasOwnProperty(key)) conflictCells.push(key);
+      return { pass: violated.length === 0, violated: violated, conflictCells: conflictCells };
+    }
+
+    /* ============================================================
+       Derive misconception tag
+       ============================================================ */
+    function deriveMisconception(round, result) {
+      if (!result || result.pass) return null;
+      var hasRepeat = false;
+      var hasRowSum = false;
+      var hasColSum = false;
+      for (var i = 0; i < result.violated.length; i++) {
+        var v = result.violated[i];
+        if (v.indexOf(':repeat') !== -1) hasRepeat = true;
+        if (v.indexOf(':sum') !== -1) {
+          if (v.indexOf('row') === 0) hasRowSum = true;
+          if (v.indexOf('col') === 0) hasColSum = true;
+        }
+      }
+      if (hasRepeat) return 'repeat-in-run';
+      if (round.variant === 'B3' && hasColSum) {
+        // If col1 (29) is violated, it's the forced-9 lesson
+        for (var j = 0; j < result.violated.length; j++) {
+          if (result.violated[j].indexOf('col1:sum') === 0) return 'miss-forced-9';
+        }
+      }
+      if (hasColSum && !hasRowSum) return 'ignore-column-run';
+      return 'sum-wrong';
+    }
+
+    /* ============================================================
+       handleCheck — invoked by FloatingButton's submit handler
+       ============================================================ */
+    function handleCheck() {
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
+      if (!gameState.isBoardFull) return;
+      // Behaviour 9 — set isProcessing BEFORE any await; .dnd-disabled is the
+      // visual + pointer-events affordance. Cleared by next renderRound().
+      gameState.isProcessing = true;
+      try {
+        var board = document.getElementById('gameContent');
+        if (board) board.classList.add('dnd-disabled');
+      } catch (e) {}
+
+      var round = gameState.currentRoundData;
+      var result = validateGrid(round);
+      gameState.validationResult = result;
+
+      var responseMs = gameState.roundStartTime ? (Date.now() - gameState.roundStartTime) : 0;
+      gameState.responseTimes.push(responseMs);
+
+      var snapshot = {};
+      for (var id in gameState.cellValues) {
+        if (gameState.cellValues.hasOwnProperty(id)) snapshot[id] = gameState.cellValues[id];
+      }
+
+      if (result.pass) {
+        handleCorrectOutcome(round, result, snapshot, responseMs);
+      } else {
+        handleWrongOutcome(round, result, snapshot, responseMs);
+      }
+    }
+
+    /* ============================================================
+       Correct outcome
+       ============================================================ */
+    function handleCorrectOutcome(round, result, snapshot, responseMs) {
+      recordAttempt({
+        input_of_user: JSON.stringify(snapshot),
+        correct: true,
+        round_number: gameState.currentRound,
+        question_id: 'r' + gameState.currentRound + '_' + round.variant,
+        correct_answer: gameState.correctAnswer,
+        response_time_ms: responseMs,
+        misconception_tag: null,
+        difficulty_level: round.stage || 1,
+        is_retry: false,
+        metadata: {
+          stage: round.stage,
+          variant: round.variant,
+          type: round.type,
+          cellValues: snapshot,
+          runCount: round.runs.length,
+          firstCheck: true
+        }
+      });
+      trackEvent('answer_submitted', { round: gameState.currentRound, correct: true });
+
+      gameState.score += 1;
+      gameState.firstCheckSolves += 1;
+      gameState.roundsCompleted += 1;
+      syncDOM();
+
+      // ActionBar header score bump (per-round, no animation — show_star is end-of-game only)
+      try {
+        if (previewScreen && previewScreen.setScore) {
+          previewScreen.setScore(gameState.firstCheckSolves + '/' + gameState.totalRounds);
+        }
+      } catch (e) {}
+
+      // Flash green on all white cells
+      var allWhite = document.querySelectorAll('.white-cell');
+      for (var i = 0; i < allWhite.length; i++) allWhite[i].classList.add('cell-success');
+
+      // PROGRESS BAR BUMPS FIRST — before any await
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await Promise.all([
+            safePlaySound('correct_sound_effect', { sticker: STICKER_CORRECT }),
+            new Promise(function(res) { setTimeout(res, 1500); })
+          ]);
+        } catch (e) {}
+
+        // Await dynamic feedback so the explanatory line finishes before nextRound.
+        try {
+          if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+            var line = (round.variant === 'B3')
+              ? 'Nice — spotting the forced 9 paid off!'
+              : 'Great addition! Every run sums right.';
+            await FeedbackManager.playDynamicFeedback({
+              audio_content: line, subtitle: line, sticker: STICKER_CORRECT
+            });
+          }
+        } catch (e) {}
+
+        // Clear success flash before advancing
+        for (var k = 0; k < allWhite.length; k++) allWhite[k].classList.remove('cell-success');
+
+        gameState.isProcessing = false;
+        advanceAfterFeedback();
+      })();
+    }
+
+    /* ============================================================
+       Wrong outcome
+       ============================================================ */
+    function handleWrongOutcome(round, result, snapshot, responseMs) {
+      var tag = deriveMisconception(round, result);
+      recordAttempt({
+        input_of_user: JSON.stringify(snapshot),
+        correct: false,
+        round_number: gameState.currentRound,
+        question_id: 'r' + gameState.currentRound + '_' + round.variant,
+        correct_answer: gameState.correctAnswer,
+        response_time_ms: responseMs,
+        misconception_tag: tag,
+        difficulty_level: round.stage || 1,
+        is_retry: false,
+        metadata: {
+          stage: round.stage,
+          variant: round.variant,
+          type: round.type,
+          cellValues: snapshot,
+          violated: result.violated,
+          conflictCells: result.conflictCells,
+          firstCheck: true
+        }
+      });
+      trackEvent('answer_submitted', { round: gameState.currentRound, correct: false, misconception: tag });
+
+      gameState.roundsCompleted += 1;
+      syncDOM();
+
+      // Red flash on conflict cells
+      for (var i = 0; i < result.conflictCells.length; i++) {
+        var el = document.querySelector('.white-cell[data-cell-id="' + result.conflictCells[i] + '"]');
+        if (el) el.classList.add('cell-conflict');
+      }
+
+      // PROGRESS BAR BUMPS FIRST
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await Promise.all([
+            safePlaySound('incorrect_sound_effect', { sticker: STICKER_SAD }),
+            new Promise(function(res) { setTimeout(res, 1500); })
+          ]);
+        } catch (e) {}
+
+        // Await dynamic feedback so the explanatory line finishes before nextRound.
+        try {
+          if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+            var line = (round.variant === 'B3')
+              ? 'Not quite — look for where 9 must go.'
+              : 'Not quite — check the sums and repeats.';
+            await FeedbackManager.playDynamicFeedback({
+              audio_content: line, subtitle: line, sticker: STICKER_SAD
+            });
+          }
+        } catch (e) {}
+
+        // Reveal solution (fade-in) after the feedback SFX completes
+        revealSolution(round);
+
+        // Auto-advance after ~2000ms so student can absorb the reveal.
+        setTimeout(function() {
+          if (!gameState.gameEnded) {
+            gameState.isProcessing = false;
+            advanceAfterFeedback();
+          }
+        }, 2000);
+      })();
+    }
+
+    /* ============================================================
+       Reveal solution (after wrong CHECK) — fade solution digits in
+       ============================================================ */
+    function revealSolution(round) {
+      for (var i = 0; i < round.grid.length; i++) {
+        var c = round.grid[i];
+        if (c.kind !== 'white') continue;
+        var el = document.querySelector('.white-cell[data-cell-id="' + c.id + '"]');
+        if (!el) continue;
+        var userVal = gameState.cellValues[c.id];
+        if (userVal === c.solution) continue;
+        // Visually override with the canonical solution. The chip (if any)
+        // gets hidden so the overlay is the only digit shown; we don't move
+        // chips around because dnd is in shutdown for this round.
+        var existingChip = el.querySelector('.dnd-tag');
+        if (existingChip) existingChip.style.display = 'none';
+        var span = el.querySelector('.cell-solution');
+        if (!span) {
+          span = document.createElement('span');
+          span.className = 'cell-solution cell-value';
+          el.appendChild(span);
+        }
+        span.textContent = String(c.solution);
+        el.classList.remove('cell-solution-fade');
+        void el.offsetWidth;
+        el.classList.add('cell-solution-fade');
+      }
+    }
+
+    /* ============================================================
+       Advance after feedback (correct or wrong+next)
+       ============================================================ */
+    function advanceAfterFeedback() {
+      safeStopAllAudio();
+      gameState.isProcessing = false;
+      gameState.phase = 'round_complete';
+      syncDOM();
+      if (gameState.currentRound >= gameState.totalRounds) {
+        showVictory();
+      } else {
+        gameState.currentRound += 1;
+        showRoundIntro(gameState.currentRound);
+      }
+    }
+
+    /* ============================================================
+       showRoundIntro — TransitionScreen "Round N"
+       ============================================================ */
+    async function showRoundIntro(n) {
+      gameState.phase = 'round_intro';
+      syncDOM();
+      if (!transitionScreen || !transitionScreen.show) {
+        // Fallback: directly render round
+        renderRound();
+        return;
+      }
+      try {
+        await transitionScreen.show({
+          title: 'Round ' + n,
+          icons: ['🧮'], // TransitionScreen renders icons[] as text, not <img>; URLs leak as giant text. Use emoji like the other games.
+          buttons: [],
+          persist: false,
+          onMounted: function() {
+            try {
+              safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUNDS });
+            } catch (e) {}
+            setTimeout(function() {
+              try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+              renderRound();
+            }, 1400);
+          }
+        });
+      } catch (e) {
+        renderRound();
+      }
+    }
+
+    /* ============================================================
+       renderRound — load current round into the play area
+       ============================================================ */
+    function renderRound() {
+      gameState.phase = 'gameplay';
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      // Source-of-truth re-enable for DnD input (Behaviour 9 invariant).
+      try {
+        var board = document.getElementById('gameContent');
+        if (board) board.classList.remove('dnd-disabled');
+      } catch (e) {}
+      syncDOM();
+
+      var rounds = getRounds();
+      var idx = Math.max(0, Math.min(gameState.currentRound - 1, rounds.length - 1));
+      var round = rounds[idx];
+      if (!round) return;
+
+      buildRoundDOM(round, /* interactive */ true);
+      gameState.roundStartTime = Date.now();
+      trackEvent('round_start', { round: gameState.currentRound, variant: round.variant });
+
+      // ActionBar header question label refresh
+      try {
+        if (previewScreen && previewScreen.setQuestionLabel) {
+          previewScreen.setQuestionLabel('Q' + gameState.currentRound);
+        }
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       showVictory — TransitionScreen with stars; tap-dismiss owns the
+       handoff to FloatingButton Next (PART-050 multi-round flow).
+       ============================================================ */
+    async function showVictory() {
+      gameState.phase = 'results';
+      gameState.stars = getStars();
+      syncDOM();
+      endGameBeforeAudio();
+
+      if (!transitionScreen || !transitionScreen.show) {
+        // Fallback: no TransitionScreen — fire show_star + reveal Next directly.
+        fireShowStarAndRevealNext();
+        return;
+      }
+
+      var stars = gameState.stars;
+      var subtitle = 'You solved ' + gameState.firstCheckSolves + ' of ' + gameState.totalRounds + ' on the first try!';
+
+      // Register the dismiss handler BEFORE show() — fire show_star then reveal Next AFTER the 1 s animation.
+      try {
+        if (transitionScreen.onDismiss) {
+          transitionScreen.onDismiss(function() {
+            try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+            fireShowStarAndRevealNext();
+          });
+        }
+      } catch (e) {}
+
+      // Tap-dismissible victory card. Next CTA is owned by FloatingButton (see onDismiss above).
+      try {
+        await transitionScreen.show({
+          title: 'Victory 🎉',
+          subtitle: subtitle,
+          stars: stars,
+          buttons: [],
+          persist: true,
+          onMounted: function() {
+            try { safePlaySound('sound_game_victory', { sticker: STICKER_CELEBRATE }); } catch (e) {}
+          }
+        });
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       fireShowStarAndRevealNext — end-of-game star animation then Next.
+       ============================================================ */
+    function fireShowStarAndRevealNext() {
+      try {
+        if (gameState.firstCheckSolves > 0) {
+          window.postMessage({
+            type: 'show_star',
+            data: {
+              count: gameState.stars || 1,
+              variant: 'yellow',
+              score: gameState.firstCheckSolves + '/' + gameState.totalRounds
+            }
+          }, '*');
+        }
+      } catch (e) {}
+      // Reveal Next AFTER the 1 s flying-star animation. (Shorten to 300 ms if no star.)
+      var delay = (gameState.firstCheckSolves > 0) ? 1100 : 300;
+      setTimeout(function() {
+        try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode('next'); } catch (e) {}
+      }, delay);
+    }
+
+    /* ============================================================
+       endGameBeforeAudio — fire game_complete postMessage BEFORE audio
+       ============================================================ */
+    function endGameBeforeAudio() {
+      if (gameState.gameEnded) return;
+      gameState.gameEnded = true;
+
+      var completedAt = Date.now();
+      var accuracy = gameState.totalRounds > 0
+        ? Math.round((gameState.firstCheckSolves / gameState.totalRounds) * 100) : 0;
+      var avgMs = 0;
+      if (gameState.responseTimes.length > 0) {
+        var total = 0;
+        for (var i = 0; i < gameState.responseTimes.length; i++) total += gameState.responseTimes[i];
+        avgMs = Math.round(total / gameState.responseTimes.length);
+      }
+
+      var sigEventCount = 0, sigMetadata = {};
+      try {
+        if (signalCollector) {
+          if (typeof signalCollector.getEventCount === 'function') sigEventCount = signalCollector.getEventCount();
+          if (typeof signalCollector.getMetadata === 'function') sigMetadata = signalCollector.getMetadata();
+        }
+      } catch (e) {}
+
+      var metrics = {
+        accuracy: accuracy,
+        time: gameState.startTime ? Math.round((completedAt - gameState.startTime) / 1000) : 0,
+        stars: gameState.stars,
+        attempts: gameState.attempts,
+        duration_data: gameState.duration_data,
+        totalLives: gameState.totalLives,
+        firstCheckSolves: gameState.firstCheckSolves,
+        tries: computeTriesPerRound(),
+        avgResponseTime: avgMs,
+        livesRemaining: 0,
+        signal_event_count: sigEventCount,
+        signal_metadata: sigMetadata
+      };
+
+      try {
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: completedAt,
+            previewResult: gameState.previewResult || null
+          },
+          payload: {
+            score: gameState.firstCheckSolves,
+            totalQuestions: gameState.totalRounds,
+            stars: gameState.stars,
+            accuracy: accuracy,
+            timeSpent: gameState.startTime ? (completedAt - gameState.startTime) : 0,
+            avgResponseTime: avgMs,
+            livesRemaining: 0
+          }
+        }, '*');
+      } catch (e) {}
+    }
+
+    function computeTriesPerRound() {
+      var byRound = {};
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        var a = gameState.attempts[i];
+        var k = a.round_number;
+        if (!byRound[k]) byRound[k] = { round: k, correct: false };
+        if (a.correct) byRound[k].correct = true;
+      }
+      var out = [];
+      for (var j = 1; j <= gameState.totalRounds; j++) {
+        if (byRound[j]) out.push({ round: byRound[j].round, correct: !!byRound[j].correct });
+      }
+      return out;
+    }
+
+    /* ============================================================
+       showMotivation — "Ready to improve your score?"
+       ============================================================ */
+    async function showMotivation() {
+      safeStopAllAudio();
+      if (!transitionScreen || !transitionScreen.show) return;
+      try {
+        await transitionScreen.show({
+          title: 'Ready to improve your score? ⚡',
+          buttons: [{ text: "I'm ready! 🙌", type: 'primary', action: restartGame, testid: 'im-ready' }],
+          persist: true,
+          onMounted: function() {
+            try { safePlaySound('sound_motivation', { sticker: STICKER_MOTIVATE }); } catch (e) {}
+          }
+        });
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       showStarsCollected — "Yay! Stars collected!" → exit
+       ============================================================ */
+    async function showStarsCollected() {
+      safeStopAllAudio();
+      if (!transitionScreen || !transitionScreen.show) {
+        try { window.parent.postMessage({ type: 'game_exit' }, '*'); } catch (e) {}
+        return;
+      }
+      try {
+        await transitionScreen.show({
+          title: 'Yay! 🎉\nStars collected!',
+          duration: 2500,
+          styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+          onMounted: function() {
+            try { safePlaySound('sound_stars_collected', { sticker: STICKER_CELEBRATE }); } catch (e) {}
+          },
+          onHide: function() {
+            try { window.parent.postMessage({ type: 'game_exit' }, '*'); } catch (e) {}
+          }
+        });
+        // Defensive fallback in case onHide doesn't fire
+        setTimeout(function() {
+          try { window.parent.postMessage({ type: 'game_exit' }, '*'); } catch (e) {}
+        }, 3200);
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       endGame — PART-050: destroys happen in the floating Next handler,
+       NOT here. previewScreen stays mounted so the star-award animation
+       has a live DOM target.
+       ============================================================ */
+    function endGame(won) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      gameState.gameEnded = true;
+      trackEvent('game_end', { won: !!won, score: gameState.firstCheckSolves, stars: gameState.stars });
+      // R3 — destroy DnD instances so leftovers don't fire on the dead DOM.
+      try { destroyDndRound(); } catch (e) {}
+      // NOTE: previewScreen.destroy() / floatingBtn.destroy() intentionally omitted —
+      // they run inside the Next-click handler after next_ended is posted.
+    }
+    window.endGame = endGame;
+
+    /* ============================================================
+       restartGame — NO preview, NO welcome
+       ============================================================ */
+    function restartGame() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+
+      gameState.phase = 'start_screen';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.lives = 0;
+      gameState.firstCheckSolves = 0;
+      gameState.roundsCompleted = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.responseTimes = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.roundStartTime = null;
+      gameState.cellValues = {};
+      gameState.selectedCellId = null;
+      gameState.selectedDigit = null;
+      gameState.isBoardFull = false;
+      gameState.validationResult = null;
+      gameState.currentRoundData = null;
+      gameState.duration_data = {
+        startTime: null,
+        preview: gameState.duration_data.preview || [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      };
+
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+
+      createProgressBar();
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 1;
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true });
+      syncDOM();
+
+      injectGameHTML();
+      showRoundIntro(1);
+    }
+    window.restartGame = restartGame;
+
+    /* ============================================================
+       startGame — test-harness entry
+       ============================================================ */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.firstCheckSolves = 0;
+      gameState.roundsCompleted = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.phase = 'gameplay';
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      if (!document.getElementById('kakuroGrid')) injectGameHTML();
+      showRoundIntro(1);
+    }
+    window.startGame = startGame;
+
+    /* ============================================================
+       nextRound — test-harness hook
+       ============================================================ */
+    function nextRound() {
+      // Cleanup any lingering feedback audio/stream BEFORE state mutation (5e0-CLEANUP-BETWEEN-ROUNDS)
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+      if (gameState.currentRound >= gameState.totalRounds) {
+        showVictory();
+        return;
+      }
+      gameState.currentRound += 1;
+      showRoundIntro(gameState.currentRound);
+    }
+    window.nextRound = nextRound;
+
+    /* ============================================================
+       startGameAfterPreview
+       ============================================================ */
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || null;
+      if (gameState.duration_data.preview == null) gameState.duration_data.preview = [];
+      if (previewData && typeof previewData.duration === 'number') {
+        gameState.duration_data.preview.push({ duration: previewData.duration });
+      }
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 1;
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      try { if (signalCollector && signalCollector.recordViewEvent) signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+
+      // Seed ActionBar header (PART-040 direct methods, no game_init re-post)
+      try {
+        if (previewScreen && previewScreen.setQuestionLabel) previewScreen.setQuestionLabel('Q1');
+        if (previewScreen && previewScreen.setScore) previewScreen.setScore('0/' + gameState.totalRounds);
+      } catch (e) {}
+
+      showRoundIntro(1);
+    }
+
+    /* ============================================================
+       setupGame — render content FIRST, show preview LAST
+       ============================================================ */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      if (!gameState.content) gameState.content = fallbackContent;
+
+      injectGameHTML();
+      renderInitialState();
+
+      try {
+        if (previewScreen && previewScreen.show) {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function(previewData) {
+              startGameAfterPreview(previewData);
+            }
+          });
+        } else {
+          gameState.startTime = Date.now();
+          gameState.isActive = true;
+          gameState.duration_data.startTime = new Date().toISOString();
+          gameState.currentRound = 1;
+          trackEvent('game_start', { totalRounds: gameState.totalRounds });
+          showRoundIntro(1);
+        }
+      } catch (e) {
+        console.error('[setupGame] ' + e.message);
+      }
+    }
+
+    /* ============================================================
+       Debug / test helpers
+       ============================================================ */
+    window.debugGame = function() {
+      return {
+        phase: gameState.phase,
+        currentRound: gameState.currentRound,
+        firstCheckSolves: gameState.firstCheckSolves,
+        roundsCompleted: gameState.roundsCompleted,
+        cellValues: gameState.cellValues,
+        attempts: gameState.attempts.length,
+        gameEnded: gameState.gameEnded
+      };
+    };
+    window.loadRound = function(n) {
+      if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+        gameState.currentRound = n;
+        renderRound();
+      }
+    };
+    // Test helper: solve the current round by moving real chips into cells.
+    // Each digit can only sit in ONE cell (we have one chip per digit), so if
+    // the puzzle requires the same digit twice we fall back to a text-only
+    // visual write for the second occurrence.
+    window.solveCurrentRound = function() {
+      var r = gameState.currentRoundData;
+      if (!r) return false;
+      var usedDigits = {};
+      for (var i = 0; i < r.grid.length; i++) {
+        var c = r.grid[i];
+        if (c.kind !== 'white') continue;
+        var d = c.solution;
+        var tagId = 'tag-' + d;
+        var zoneId = 'cell-' + c.id;
+        if (!usedDigits[d]) {
+          // Move actual chip — exercises the real DnD pipeline state.
+          try { moveTagToZone(tagId, zoneId); } catch (e) {}
+          usedDigits[d] = true;
+        } else {
+          // Same digit appears twice in solution — text-only fallback.
+          gameState.cellValues[c.id] = d;
+          var el = document.querySelector('.white-cell[data-cell-id="' + c.id + '"]');
+          if (el && !el.querySelector('.dnd-tag')) {
+            var span = el.querySelector('.cell-value');
+            if (!span) {
+              span = document.createElement('span');
+              span.className = 'cell-value';
+              el.appendChild(span);
+            }
+            span.textContent = String(d);
+          }
+        }
+      }
+      evaluateBoardFull();
+      return true;
+    };
+
+    /* ============================================================
+       DOMContentLoaded — init sequence
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', function() {
+      // Defensive: hide any broken <img> so its src/alt text never surfaces
+      // in the UI (e.g. as fallback in TransitionScreen icon slots).
+      document.addEventListener('error', function(ev) {
+        var t = ev && ev.target;
+        if (t && t.tagName === 'IMG') {
+          try { t.style.display = 'none'; t.alt = ''; t.removeAttribute('alt'); } catch (e) {}
+        }
+      }, /* useCapture */ true);
+
+      (async function() {
+        try {
+          // 1. Wait for CDN packages
+          try { await waitForPackages(); }
+          catch (pkgErr) { console.error('[init] ' + pkgErr.message); }
+
+          // 2. Initialize FeedbackManager
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.init) {
+              await FeedbackManager.init();
+            }
+          } catch (e) { console.error('[init] FeedbackManager.init ' + e.message); }
+
+          // 3. SignalCollector
+          try {
+            if (typeof SignalCollector !== 'undefined') {
+              signalCollector = new SignalCollector({
+                sessionId: null, studentId: null,
+                gameId: gameState.gameId, contentSetId: null
+              });
+              window.signalCollector = signalCollector;
+            }
+          } catch (e) {}
+
+          // 4. ScreenLayout.inject
+          try {
+            if (typeof ScreenLayout !== 'undefined' && ScreenLayout.inject) {
+              ScreenLayout.inject('app', {
+                slots: {
+                  previewScreen: true,
+                  progressBar: true,
+                  transitionScreen: true,
+                  floatingButton: true
+                }
+              });
+            }
+          } catch (e) { console.error('[init] ScreenLayout.inject ' + e.message); }
+
+          // 5. VisibilityTracker
+          try {
+            if (typeof VisibilityTracker !== 'undefined') {
+              visibilityTracker = new VisibilityTracker({
+                popupProps: {
+                  title: 'Paused',
+                  description: 'Tap Resume to continue.',
+                  primaryText: 'Resume'
+                },
+                onInactive: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.pause(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.pauseAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.pause) previewScreen.pause(); } catch (e) {}
+                },
+                onResume: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.resume(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.resumeAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.resume) previewScreen.resume(); } catch (e) {}
+                }
+              });
+            }
+          } catch (e) { console.error('[init] VisibilityTracker ' + e.message); }
+
+          // 6. createProgressBar
+          createProgressBar();
+
+          // 7. TransitionScreenComponent
+          try {
+            if (typeof TransitionScreenComponent !== 'undefined') {
+              transitionScreen = new TransitionScreenComponent({ autoInject: true });
+            }
+          } catch (e) { console.error('[init] TransitionScreen ' + e.message); }
+
+          // 8. PreviewScreenComponent
+          try {
+            if (typeof PreviewScreenComponent !== 'undefined') {
+              previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+            }
+          } catch (e) { console.error('[init] PreviewScreen ' + e.message); }
+
+          // 8b. FloatingButtonComponent (PART-050 — Submit / Next owner)
+          try {
+            if (typeof FloatingButtonComponent !== 'undefined') {
+              floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+              try { floatingBtn.setLabels({ submit: 'CHECK', next: 'Next' }); } catch (e) {}
+              // Submit: invoked when the student taps CHECK — the component auto-hides on click.
+              floatingBtn.on('submit', function() {
+                try { handleCheck(); } catch (err) { console.error('[floatingBtn.submit] ' + err.message); }
+              });
+              // Next: owned end-of-game navigation signal. Fires after Victory TransitionScreen dismiss.
+              floatingBtn.on('next', function() {
+                try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                try { if (previewScreen && previewScreen.destroy) previewScreen.destroy(); } catch (e) {}
+                try { if (floatingBtn && floatingBtn.destroy) floatingBtn.destroy(); } catch (e) {}
+              });
+              window.floatingBtn = floatingBtn;
+            }
+          } catch (e) { console.error('[init] FloatingButton ' + e.message); }
+
+          // 9. Preload audio
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.sound && FeedbackManager.sound.preload) {
+              await preloadAllAudio();
+            }
+          } catch (e) { console.error('[init] preload ' + e.message); }
+
+          // 10. Register message listener BEFORE game_ready
+          window.addEventListener('message', handlePostMessage);
+
+          // 11. Send game_ready
+          try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) {}
+
+          // 12. setupGame — render content then preview last
+          setupGame();
+
+        } catch (e) {
+          console.error('[init] ' + e.message);
+        }
+      })();
+
+      // Window exposures
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.nextRound = nextRound;
+      window.startGame = startGame;
+    });
+
+    /* ============================================================
+       Standalone fallback — runs after CDN load timeout
+       ============================================================ */
+    setTimeout(function() {
+      try {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+        if (gameState.phase !== 'start_screen') return;
+
+        var gc = document.getElementById('gameContent');
+        if (!gc) {
+          var app = document.getElementById('app');
+          if (app && !document.getElementById('gameContent')) {
+            var fallbackDiv = document.createElement('div');
+            fallbackDiv.id = 'gameContent';
+            app.appendChild(fallbackDiv);
+          }
+        }
+
+        gameState.content = gameState.content || fallbackContent;
+        gameState.totalRounds = fallbackContent.rounds.length;
+
+        if (!gameState.isActive) {
+          startGame();
+        }
+      } catch (e) {}
+    }, 5000);
+  </script>
+</body>
+</html>

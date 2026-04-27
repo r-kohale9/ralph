@@ -1,0 +1,2545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hexa Numbers</title>
+
+  <!-- Sentry (error tracking) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      try {
+        Sentry.init(SentryConfig.getConfig({ release: 'hexa-numbers@1.0.0' }));
+      } catch (e) { /* noop */ }
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- Game CDN packages (exact order) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+
+      /* Hexa Numbers theme */
+      --hx-blue-slot-bg: #CDEEF4;
+      --hx-blue-slot-border: #78BFCF;
+      --hx-white-slot-bg: #FFFFFF;
+      --hx-white-slot-border: #BFC5CE;
+      --hx-target-teal: #2F5F61;
+      --hx-target-green: #27666D;
+      --hx-pool-bg: #F3F3F3;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    button,
+    .hx-hex,
+    .hx-slot,
+    [role="button"],
+    input[type="submit"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    /* ============================================================
+       Gameplay layout
+       ============================================================ */
+    #gameContent {
+      padding: 10px 12px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    /* Instruction panel */
+    .hx-instr {
+      background: var(--mathai-light-gray);
+      border: 1px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      color: var(--mathai-primary);
+      line-height: 1.35;
+    }
+    .hx-instr b { font-weight: 700; }
+
+    /* Honeycomb board */
+    .hx-board-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .hx-board {
+      position: relative;
+      width: 340px;
+      height: 340px;
+    }
+
+    /* Hexagon cell base — flat-top hex via clip-path */
+    .hx-cell {
+      position: absolute;
+      width: 72px;
+      height: 82px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+      transition: filter 0.12s ease, transform 0.12s ease;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Blue slot */
+    .hx-slot[data-color="blue"] {
+      background: var(--hx-blue-slot-bg);
+    }
+    .hx-slot[data-color="blue"]::before {
+      content: '';
+      position: absolute;
+      inset: 2px;
+      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+      background: var(--hx-blue-slot-bg);
+      border: 1px dashed var(--hx-blue-slot-border);
+      z-index: 0;
+    }
+
+    /* White slot */
+    .hx-slot[data-color="white"] {
+      background: var(--hx-white-slot-border);
+    }
+    .hx-slot[data-color="white"]::before {
+      content: '';
+      position: absolute;
+      inset: 2px;
+      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+      background: var(--hx-white-slot-bg);
+      z-index: 0;
+    }
+
+    .hx-slot.hx-hover[data-color="blue"]::before {
+      border: 2px solid var(--mathai-purple);
+    }
+    .hx-slot.hx-hover[data-color="white"]::before {
+      border: 2px solid var(--mathai-purple);
+      background: #FAF4FE;
+    }
+    .hx-slot.hx-reject::before {
+      border: 2px solid var(--mathai-red) !important;
+      background: var(--mathai-cell-bg-red) !important;
+    }
+    .hx-slot.hx-conflict {
+      filter: drop-shadow(0 0 0 var(--mathai-red));
+    }
+    .hx-slot.hx-conflict::before {
+      background: var(--mathai-cell-bg-red) !important;
+      border: 2px solid var(--mathai-cell-border-red) !important;
+    }
+    .hx-slot.hx-success::before {
+      background: var(--mathai-cell-bg-green) !important;
+      border: 2px solid var(--mathai-cell-border-green) !important;
+    }
+    .hx-slot.hx-solution::before {
+      background: #E8ECFB !important;
+      border: 2px solid var(--mathai-blue) !important;
+    }
+
+    /* Target hexagon — display-only, never interactive */
+    .hx-target {
+      z-index: 2;
+      pointer-events: none;
+      color: #fff;
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: 0.3px;
+    }
+    .hx-target[data-variant="B1"] {
+      background: var(--hx-target-teal);
+    }
+    .hx-target[data-variant="B2"],
+    .hx-target[data-variant="B3"] {
+      background: var(--hx-target-green);
+    }
+    .hx-target .hx-target-val {
+      position: relative;
+      z-index: 2;
+    }
+    .hx-target .hx-target-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--mathai-white);
+      color: var(--mathai-primary);
+      font-size: 11px;
+      font-weight: 900;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      z-index: 3;
+      border: 1.5px solid var(--mathai-gray);
+    }
+    .hx-target .hx-target-badge.show {
+      display: flex;
+    }
+    .hx-target .hx-target-badge.pass {
+      background: var(--mathai-cell-bg-green);
+      color: var(--mathai-cell-border-green);
+      border-color: var(--mathai-cell-border-green);
+    }
+    .hx-target .hx-target-badge.fail {
+      background: var(--mathai-cell-bg-red);
+      color: var(--mathai-cell-border-red);
+      border-color: var(--mathai-cell-border-red);
+    }
+
+    /* Placed number hex (inside a slot) */
+    .hx-placed {
+      position: relative;
+      z-index: 2;
+      font-weight: 800;
+      font-size: 14px;
+      color: var(--mathai-primary);
+      text-align: center;
+      line-height: 1;
+    }
+
+    /* Pool hexagons */
+    .hx-pool-wrap {
+      background: var(--hx-pool-bg);
+      border: 1px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 10px 6px 8px;
+      margin-bottom: 10px;
+    }
+    .hx-pool-label {
+      font-size: var(--mathai-font-size-small);
+      font-weight: 700;
+      color: var(--mathai-gray);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .hx-pool-row {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 2px;
+    }
+    .hx-pool-slot {
+      width: 56px;
+      height: 64px;
+      margin: 2px 3px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+    .hx-pool-slot.collapsed {
+      width: 0;
+      height: 0;
+      margin: 0;
+      overflow: hidden;
+    }
+    .hx-hex {
+      position: relative;
+      width: 56px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--mathai-primary);
+      font-weight: 800;
+      font-size: 13px;
+      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+      touch-action: none;
+      cursor: grab;
+      -webkit-user-select: none;
+      user-select: none;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .hx-hex[data-color="blue"] {
+      background: #CDEEF4;
+    }
+    .hx-hex[data-color="white"] {
+      background: #FFFFFF;
+      border: 1px solid var(--hx-white-slot-border);
+    }
+    .hx-hex .hx-hex-inner {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      padding: 0 4px;
+      line-height: 1.05;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .hx-hex.hx-placed-in-slot {
+      width: 60px;
+      height: 68px;
+      font-size: 13px;
+      cursor: grab;
+    }
+    .hx-hex.hx-lift {
+      transform: scale(1.08);
+      box-shadow: 0 6px 16px rgba(39,15,54,0.28);
+    }
+    .hx-hex.hx-dragging {
+      z-index: 10000;
+      pointer-events: none;
+      cursor: grabbing;
+    }
+    /* Tap-fallback selected state (mobile: tap chip, then tap slot) */
+    .hx-hex.hx-tap-selected {
+      outline: 3px solid #FFCD3C;
+      outline-offset: 2px;
+      transform: scale(1.06);
+      box-shadow: 0 4px 12px rgba(255, 205, 60, 0.55);
+    }
+
+    /* Space below the gameplay body so the fixed FloatingButton doesn't cover pool/board */
+    .hx-bottom-spacer {
+      height: calc(96px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Drag layer */
+    #drag-layer {
+      position: fixed;
+      inset: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    @keyframes hxFlashGreen {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+    @keyframes hxFlashRed {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-3px); }
+      60% { transform: translateX(3px); }
+    }
+    .hx-slot.hx-success { animation: hxFlashGreen 400ms ease; }
+    .hx-slot.hx-conflict { animation: hxFlashRed 400ms ease 2; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.35s ease; }
+
+    /* Disable drag during processing */
+    .dnd-disabled .hx-hex {
+      pointer-events: none !important;
+      cursor: not-allowed !important;
+    }
+
+    /* Landscape lock */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-round="0"></div>
+  <div id="drag-layer"></div>
+
+  <script>
+    /* ============================================================
+       Sticker URLs
+       ============================================================ */
+    var STICKER_CORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_GAME_COMPLETE_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_GAME_COMPLETE_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    /* ============================================================
+       gameState
+       ============================================================ */
+    var gameState = {
+      gameId: 'hexa-numbers',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 3,
+      score: 0,
+      correctAnswer: null,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      stars: 0,
+      firstCheckSolves: 0,
+      roundsCompleted: 0,
+      roundStartTime: null,
+      responseTimes: [],
+      previewResult: null,
+      slotMap: {},     // slotId -> hexId (current placements)
+      hexLoc: {},      // hexId -> 'pool' | slotId
+      dropLog: [],
+      validationResult: null,
+      isBoardFull: false,
+      currentRoundData: null,
+      duration_data: {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      }
+    };
+    window.gameState = gameState;
+
+    /* ============================================================
+       fallbackContent — 3 rounds (B1, B2, B3) with solved puzzles
+       ============================================================ */
+    var fallbackContent = {
+      previewInstruction:
+        '<p><b>Hexa Numbers!</b><br>' +
+        'Arrange hexagons so their sum equals each target.<br>' +
+        '<b>1⃣</b> Drag <b>blue</b> hexagons into <b>blue</b> slots.<br>' +
+        '<b>2⃣</b> Drag <b>white</b> hexagons into <b>white</b> slots.<br>' +
+        'Each hexagon can be used only once.</p>',
+      previewAudioText:
+        'Arrange the hexagons so their sums equal each target. Blue hexagons go in blue slots, white hexagons in white slots. Each hexagon is used only once. Then tap CHECK.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      rounds: [
+        // ROUND 1 — single target with a 6-hex ring (one big hex flower)
+        {
+          round: 1, stage: 1, type: 'A', variant: 'B1',
+          targetColor: 'dark-teal-grey',
+          ruleGlyphA: '1⃣',
+          ruleGlyphB: '2⃣',
+          slots: [
+            { id: 'n',  color: 'white', pos: 'ring-n'  },
+            { id: 'ne', color: 'blue',  pos: 'ring-ne' },
+            { id: 'se', color: 'white', pos: 'ring-se' },
+            { id: 's',  color: 'blue',  pos: 'ring-s'  },
+            { id: 'sw', color: 'white', pos: 'ring-sw' },
+            { id: 'nw', color: 'blue',  pos: 'ring-nw' }
+          ],
+          targets: [
+            // ring sums to 18: 2 + 3 + 4 + 3 + 2 + 4
+            { id: 't1', value: 18, ring: ['n','ne','se','s','sw','nw'] }
+          ],
+          pool: [
+            { id: 'b1', color: 'blue',  value: 3 },
+            { id: 'b2', color: 'blue',  value: 3 },
+            { id: 'b3', color: 'blue',  value: 4 },
+            { id: 'b4', color: 'blue',  value: 2 },
+            { id: 'w1', color: 'white', value: 2 },
+            { id: 'w2', color: 'white', value: 4 },
+            { id: 'w3', color: 'white', value: 2 },
+            { id: 'w4', color: 'white', value: 5 }
+          ],
+          solution: { n: 'w1', ne: 'b1', se: 'w2', s: 'b2', sw: 'w3', nw: 'b3' },
+          misconception_tags: {
+            'color-mismatch':      'Blue/white hex placed in wrong-colour slot.',
+            'single-target-fix':   'Ring sum did not match the target.',
+            'decomposition-error': 'Pool selection did not sum to target.'
+          }
+        },
+        // ROUND 2
+        {
+          round: 2, stage: 2, type: 'A', variant: 'B2',
+          targetColor: 'dark-green',
+          ruleGlyphA: '1.',
+          ruleGlyphB: '2.',
+          slots: [
+            { id: 'n',  color: 'white', pos: 'ring-n'  },
+            { id: 'ne', color: 'blue',  pos: 'ring-ne' },
+            { id: 'se', color: 'white', pos: 'ring-se' },
+            { id: 's',  color: 'blue',  pos: 'ring-s'  },
+            { id: 'sw', color: 'white', pos: 'ring-sw' },
+            { id: 'nw', color: 'blue',  pos: 'ring-nw' }
+          ],
+          targets: [
+            // ring sums to 21: 3 + 4 + 4 + 3 + 4 + 3
+            { id: 't1', value: 21, ring: ['n','ne','se','s','sw','nw'] }
+          ],
+          pool: [
+            { id: 'b1', color: 'blue',  value: 4 },
+            { id: 'b2', color: 'blue',  value: 3 },
+            { id: 'b3', color: 'blue',  value: 3 },
+            { id: 'b4', color: 'blue',  value: 2 },
+            { id: 'w1', color: 'white', value: 3 },
+            { id: 'w2', color: 'white', value: 4 },
+            { id: 'w3', color: 'white', value: 4 },
+            { id: 'w4', color: 'white', value: 5 }
+          ],
+          solution: { n: 'w1', ne: 'b1', se: 'w2', s: 'b2', sw: 'w3', nw: 'b3' },
+          misconception_tags: {
+            'color-mismatch':      'Wrong-colour placement attempted.',
+            'single-target-fix':   'Ring sum did not match the target.',
+            'decomposition-error': 'Pool selection did not sum to target.'
+          }
+        },
+        // ROUND 3
+        {
+          round: 3, stage: 3, type: 'A', variant: 'B3',
+          targetColor: 'dark-green',
+          ruleGlyphA: '1️⃣',
+          ruleGlyphB: '2️⃣',
+          slots: [
+            { id: 'n',  color: 'white', pos: 'ring-n'  },
+            { id: 'ne', color: 'blue',  pos: 'ring-ne' },
+            { id: 'se', color: 'white', pos: 'ring-se' },
+            { id: 's',  color: 'blue',  pos: 'ring-s'  },
+            { id: 'sw', color: 'white', pos: 'ring-sw' },
+            { id: 'nw', color: 'blue',  pos: 'ring-nw' }
+          ],
+          targets: [
+            // ring sums to 24: 4 + 5 + 4 + 4 + 4 + 3
+            { id: 't1', value: 24, ring: ['n','ne','se','s','sw','nw'] }
+          ],
+          pool: [
+            { id: 'b1', color: 'blue',  value: 5 },
+            { id: 'b2', color: 'blue',  value: 4 },
+            { id: 'b3', color: 'blue',  value: 3 },
+            { id: 'b4', color: 'blue',  value: 2 },
+            { id: 'w1', color: 'white', value: 4 },
+            { id: 'w2', color: 'white', value: 4 },
+            { id: 'w3', color: 'white', value: 4 },
+            { id: 'w4', color: 'white', value: 5 }
+          ],
+          solution: { n: 'w1', ne: 'b1', se: 'w2', s: 'b2', sw: 'w3', nw: 'b3' },
+          misconception_tags: {
+            'color-mismatch':      'Wrong-colour placement attempted.',
+            'ignore-shared-slots': 'Shared slot contribution overlooked.',
+            'single-target-fix':   'One target fixed at expense of others.',
+            'decomposition-error': 'Parts not representable in pool.'
+          }
+        }
+      ]
+    };
+
+    /* Slot pixel positions on the 340x340 board (x,y = top-left corner of the 72x82 hex).
+       Layout: downward-pointing triangle of 3 targets; 13 slots around them.
+       See spec.md for the geometric mental model. */
+    var SLOT_POSITIONS = {
+      // Outer halo top row (white) — above T1 and T2
+      s7:  { x:  32, y:   8, label: 'T1 outer a' },
+      s8:  { x: 192, y:   8, label: 'T1 outer b' },
+
+      // Row 2: targets T1 & T2 with blue inner on left, middle, right
+      s4:  { x: -40, y:  72, label: 'T1 outer blue' },   // far left
+      't1':{ x:  32, y:  72, label: 'T1 target' },
+      s1:  { x: 112, y:  72, label: 'blue shared t1-t2' },
+      't2':{ x: 192, y:  72, label: 'T2 target' },
+      s5:  { x: 272, y:  72, label: 'T2 outer blue' },
+
+      // Row 3: outer halo (white) — one shared t1-t3 on far left, one shared t2-t3 on far right
+      s9:  { x: 152, y: 136, label: 't2 outer white' },
+      s13: { x:  -8, y: 136, label: 'shared t1-t3 outer' },
+      s11: { x: 232, y: 136, label: 'shared t2-t3 outer' },
+
+      // Row 4: blue shared t1-t3, blue shared t2-t3, flanking T3
+      s2:  { x:  72, y: 200, label: 'blue shared t1-t3' },
+      's11b': { x: 0, y: 0, label: 'unused' }, // placeholder (not used)
+      s3:  { x: 152, y: 200, label: 'blue shared t2-t3' },
+      't3':{ x: 112, y: 200, label: 'T3 target' }, // overlaps with nothing; will offset
+      s6:  { x: 192, y: 264, label: 'T3 outer blue' },
+      s10: { x:  72, y: 264, label: 't2 outer white' },
+
+      // Row 5: bottom outer halo (white)
+      s12: { x: 152, y: 264, label: 'T3 outer' }
+    };
+
+    /* ============================================================
+       Module-scope runtime references
+       ============================================================ */
+    var timer = null;
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var audioPermissionChecked = false;
+
+    var dragState = null;
+    var isDraggingFlag = false;
+
+    /* ============================================================
+       Utility
+       ============================================================ */
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, function(ch) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+      });
+    }
+
+    function shuffleArray(arr) {
+      for (var i = arr.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+      }
+      return arr;
+    }
+
+    function fmtNumber(n) {
+      try { return String(n); } catch (e) { return n + ''; }
+    }
+
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+    }
+
+    function trackEvent(type, data) {
+      try {
+        var evt = { event: type, timestamp: Date.now() };
+        if (data && typeof data === 'object') {
+          for (var k in data) { if (data.hasOwnProperty(k)) evt[k] = data[k]; }
+        }
+        gameState.events.push(evt);
+      } catch (e) { /* noop */ }
+    }
+
+    function recordAttempt(params) {
+      try {
+        var now = Date.now();
+        var sinceStart = gameState.startTime ? (now - gameState.startTime) : 0;
+        var responseMs = gameState.roundStartTime ? (now - gameState.roundStartTime) : 0;
+        if (params && typeof params.response_time_ms === 'number') {
+          responseMs = params.response_time_ms;
+        }
+        var attempt = {
+          attempt_timestamp: now,
+          time_since_start_of_game: sinceStart,
+          input_of_user: params.input_of_user,
+          correct: !!params.correct,
+          round_number: params.round_number,
+          question_id: params.question_id,
+          correct_answer: params.correct_answer,
+          response_time_ms: responseMs,
+          misconception_tag: params.misconception_tag == null ? null : params.misconception_tag,
+          difficulty_level: params.difficulty_level || 1,
+          is_retry: !!params.is_retry,
+          metadata: params.metadata || {}
+        };
+        gameState.attempts.push(attempt);
+        gameState.duration_data.attempts.push({
+          round: params.round_number,
+          timestamp: now,
+          response_time_ms: responseMs
+        });
+      } catch (e) { /* noop */ }
+    }
+
+    function getRounds() {
+      if (gameState.content && gameState.content.rounds &&
+          gameState.content.rounds.length >= gameState.totalRounds) {
+        return gameState.content.rounds;
+      }
+      return fallbackContent.rounds;
+    }
+
+    function getStars() {
+      var s = gameState.firstCheckSolves || 0;
+      if (s >= 3) return 3;
+      if (s === 2) return 2;
+      if (s === 1) return 1;
+      return 0;
+    }
+
+    /* ============================================================
+       waitForPackages
+       ============================================================ */
+    function waitForPackages() {
+      return new Promise(function(resolve, reject) {
+        var startT = Date.now();
+        var timeout = 120000;
+        var interval = setInterval(function() {
+          var ok = (typeof FeedbackManager !== 'undefined') &&
+                   (typeof VisibilityTracker !== 'undefined') &&
+                   (typeof ScreenLayout !== 'undefined') &&
+                   (typeof ProgressBarComponent !== 'undefined') &&
+                   (typeof TransitionScreenComponent !== 'undefined') &&
+                   (typeof PreviewScreenComponent !== 'undefined');
+          if (ok) { clearInterval(interval); resolve(true); return; }
+          if (Date.now() - startT > timeout) {
+            clearInterval(interval);
+            try { throw new Error('Packages failed to load within ' + timeout + 'ms'); }
+            catch (err) { reject(err); }
+          }
+        }, 50);
+      });
+    }
+
+    function waitForAudioPermission() {
+      return new Promise(function(resolve) {
+        if (audioPermissionChecked) return resolve();
+        if (typeof FeedbackManager === 'undefined' || !FeedbackManager.canPlayAudio) {
+          audioPermissionChecked = true;
+          return resolve();
+        }
+        try {
+          if (FeedbackManager.canPlayAudio()) {
+            audioPermissionChecked = true;
+            return resolve();
+          }
+        } catch (e) { /* noop */ }
+        var check = setInterval(function() {
+          try {
+            if (FeedbackManager.canPlayAudio && FeedbackManager.canPlayAudio()) {
+              clearInterval(check);
+              audioPermissionChecked = true;
+              resolve();
+            }
+          } catch (e) { /* noop */ }
+        }, 200);
+        setTimeout(function() { clearInterval(check); audioPermissionChecked = true; resolve(); }, 15000);
+      });
+    }
+
+    function preloadAllAudio() {
+      return FeedbackManager.sound.preload([
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'new_cards', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' }
+      ]);
+    }
+
+    function safePlaySound(id, opts) {
+      try { return FeedbackManager.sound.play(id, opts || {}); }
+      catch (e) { return Promise.resolve(); }
+    }
+    function safeStopAllAudio() {
+      try { if (FeedbackManager && FeedbackManager.sound && FeedbackManager.sound.pause) FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager.stream && FeedbackManager.stream.pauseAll) FeedbackManager.stream.pauseAll(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+    }
+
+    function createProgressBar() {
+      try { if (progressBar && progressBar.destroy) progressBar.destroy(); } catch (e) {}
+      try {
+        progressBar = new ProgressBarComponent({
+          slotId: 'mathai-progress-slot',
+          totalRounds: gameState.totalRounds,
+          totalLives: gameState.totalRounds
+        });
+        progressBar.show();
+        progressBar.update(0, 0);
+      } catch (e) { console.error('[progressBar] ' + e.message); }
+    }
+
+    /* ============================================================
+       handlePostMessage
+       ============================================================ */
+    function handlePostMessage(event) {
+      try {
+        if (!event || !event.data || typeof event.data !== 'object') return;
+        var msg = event.data;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          var d = msg.data || msg;
+          if (d.content) gameState.content = d.content;
+          else if (msg.content) gameState.content = msg.content;
+
+          gameState.signalConfig = d.signalConfig || msg.signalConfig || {};
+          var sc = gameState.signalConfig;
+          if (signalCollector) {
+            try { signalCollector.flushUrl = sc.flushUrl; } catch (e) {}
+            try { signalCollector.playId = sc.playId; } catch (e) {}
+            try { signalCollector.gameId = sc.gameId || gameState.gameId; } catch (e) {}
+            try { signalCollector.sessionId = sc.sessionId; } catch (e) {}
+            try { signalCollector.contentSetId = sc.contentSetId; } catch (e) {}
+            try { signalCollector.studentId = sc.studentId; } catch (e) {}
+            try { if (signalCollector.startFlushing) signalCollector.startFlushing(); } catch (e) {}
+          }
+          syncDOM();
+          setupGame();
+        }
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       Game HTML injection
+       ============================================================ */
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div id="hxInstr" class="hx-instr fade-in"></div>' +
+        '<div class="hx-board-wrap fade-in">' +
+          '<div id="hxBoard" class="hx-board"></div>' +
+        '</div>' +
+        '<div class="hx-pool-wrap fade-in">' +
+          '<div class="hx-pool-label">Hexagons</div>' +
+          '<div id="hxPool"></div>' +
+        '</div>' +
+        '<div class="hx-bottom-spacer"></div>';
+    }
+
+    function renderInitialState() {
+      var rounds = getRounds();
+      if (!rounds || !rounds[0]) return;
+      buildRoundDOM(rounds[0], false);
+    }
+
+    /* ============================================================
+       buildRoundDOM
+       ============================================================ */
+    function buildRoundDOM(round, interactive) {
+      gameState.currentRoundData = round;
+      gameState.slotMap = {};
+      gameState.hexLoc = {};
+
+      // Instruction text
+      var instrEl = document.getElementById('hxInstr');
+      if (instrEl) {
+        instrEl.innerHTML =
+          '<b>Arrange the hexagons so the sum equals the target.</b><br>' +
+          '<b>' + escapeHTML(round.ruleGlyphA || '1.') + '</b> Drag <b>blue</b> hexagons into <b>blue</b> slots. ' +
+          '<b>' + escapeHTML(round.ruleGlyphB || '2.') + '</b> <b>White</b> hexagons into <b>white</b> slots. ' +
+          'Each hexagon is used only once.';
+      }
+
+      // Board
+      var boardEl = document.getElementById('hxBoard');
+      if (boardEl) {
+        boardEl.innerHTML = renderBoardHTML(round);
+      }
+
+      // Pool — 4 rows (4 + 4 + 4 + 1)
+      var poolEl = document.getElementById('hxPool');
+      if (poolEl) {
+        var poolOrder = round.pool.slice();
+        shuffleArray(poolOrder);
+        var rowCaps = [4, 4, 4, 1];
+        var html = '';
+        var idx = 0;
+        for (var r = 0; r < rowCaps.length; r++) {
+          html += '<div class="hx-pool-row">';
+          for (var c = 0; c < rowCaps[r] && idx < poolOrder.length; c++, idx++) {
+            var hex = poolOrder[idx];
+            html +=
+              '<div class="hx-pool-slot" data-hex-slot="' + hex.id + '">' +
+                buildHexHTML(hex, false) +
+              '</div>';
+            gameState.hexLoc[hex.id] = 'pool';
+          }
+          html += '</div>';
+        }
+        poolEl.innerHTML = html;
+      }
+
+      gameState.isBoardFull = false;
+      gameState.validationResult = null;
+
+      if (interactive) {
+        bindDragHandlers();
+      }
+    }
+
+    /* isSubmittable predicate — board full during active gameplay. */
+    function isSubmittable() {
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return false;
+      if (gameState.phase !== 'gameplay') return false;
+      return !!gameState.isBoardFull;
+    }
+
+    function refreshFloatingBtn() {
+      if (!floatingBtn) return;
+      try { floatingBtn.setSubmittable(isSubmittable()); } catch (e) {}
+    }
+
+    function buildHexHTML(hex, inSlot) {
+      var extra = inSlot ? ' hx-placed-in-slot' : '';
+      return (
+        '<div class="hx-hex' + extra + '" data-testid="hex-' + hex.id + '" data-hex-id="' + hex.id + '" data-hex-color="' + hex.color + '" data-color="' + hex.color + '">' +
+          '<div class="hx-hex-inner">' + escapeHTML(fmtNumber(hex.value)) + '</div>' +
+        '</div>'
+      );
+    }
+
+    /* Render the honeycomb board with 3 targets + 13 slots at fixed pixel positions. */
+    function renderBoardHTML(round) {
+      // Flat-top hex grid math. Cell box is 72w x 82h (CSS .hx-cell).
+      // Adjacent flat-top hexes step horizontally by width*0.75 (=54)
+      // and vertically by height/2 (=41) for the ring around a center.
+      // Board is 340x340; center-target sits at (134, 129).
+      var CELL_W = 72, CELL_H = 82;
+      var CX = 134, CY = 129;
+      var DX = 54, DY = 41;
+      var SLOT_POS = {
+        n:  { x: CX,      y: CY - 2 * DY }, // straight up
+        ne: { x: CX + DX, y: CY - DY     },
+        se: { x: CX + DX, y: CY + DY     },
+        s:  { x: CX,      y: CY + 2 * DY }, // straight down
+        sw: { x: CX - DX, y: CY + DY     },
+        nw: { x: CX - DX, y: CY - DY     }
+      };
+      var TARGET_POS = { t1: { x: CX, y: CY } };
+
+      var html = '';
+      var targets = round.targets;
+      for (var i = 0; i < targets.length; i++) {
+        var t = targets[i];
+        var p = TARGET_POS[t.id] || { x: CX, y: CY };
+        html +=
+          '<div class="hx-cell hx-target" data-testid="target-' + t.id + '" data-target-id="' + t.id + '" data-target-value="' + t.value + '" data-variant="' + escapeHTML(round.variant) + '" style="left:' + p.x + 'px; top:' + p.y + 'px;">' +
+            '<div class="hx-target-val">' + t.value + '</div>' +
+            '<div class="hx-target-badge" id="badge-' + t.id + '" data-testid="badge-' + t.id + '"></div>' +
+          '</div>';
+      }
+      for (var j = 0; j < round.slots.length; j++) {
+        var sl = round.slots[j];
+        var sp = SLOT_POS[sl.id] || { x: CX, y: CY };
+        html +=
+          '<div class="hx-cell hx-slot" data-testid="slot-' + sl.id + '" data-slot-id="' + sl.id + '" data-color="' + sl.color + '" style="left:' + sp.x + 'px; top:' + sp.y + 'px;"></div>';
+      }
+      return html;
+    }
+
+    /* ============================================================
+       renderRound
+       ============================================================ */
+    function renderRound() {
+      var rounds = getRounds();
+      var idx = gameState.currentRound - 1;
+      if (idx < 0) idx = 0;
+      if (idx >= rounds.length) idx = rounds.length - 1;
+      var r = rounds[idx];
+      if (!r) return;
+
+      gameState.correctAnswer = r.solution;
+      gameState.isActive = true;
+      gameState.isProcessing = false;
+      gameState.phase = 'gameplay';
+      gameState.roundStartTime = Date.now();
+      gameState.dropLog = [];
+
+      // Reset tap-fallback selection on each new round.
+      selectedTapHexId = null;
+
+      buildRoundDOM(r, true);
+
+      var gc = document.getElementById('gameContent');
+      if (gc) gc.classList.remove('dnd-disabled');
+
+      syncDOM();
+
+      // New round starts with an empty board — ensure FloatingButton is hidden.
+      // setMode(null) also clears any residual 'retry'/'next' mode from the
+      // previous round so setSubmittable can drive it again.
+      if (floatingBtn) {
+        try { floatingBtn.setMode(null); } catch (e) {}
+      }
+      refreshFloatingBtn();
+
+      safePlaySound('new_cards', {});
+      trackEvent('question_shown', { round: gameState.currentRound, variant: r.variant });
+    }
+
+    /* ============================================================
+       DRAG-AND-DROP with colour gating (P6 compliant)
+       9 drop paths all route through resetDragStyling(el)
+       Plus tap-chip-then-tap-slot mobile fallback (selectedTapHexId).
+       ============================================================ */
+    var selectedTapHexId = null;
+    var tapDownInfo = null;
+
+    function bindDragHandlers() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      var hexes = gc.querySelectorAll('.hx-hex');
+      for (var i = 0; i < hexes.length; i++) {
+        hexes[i].addEventListener('pointerdown', onHexPointerDown);
+      }
+      // Tap-fallback: clicking a slot while a chip is selected places the chip.
+      var slots = gc.querySelectorAll('.hx-slot');
+      for (var s = 0; s < slots.length; s++) {
+        slots[s].addEventListener('click', onSlotTap);
+      }
+    }
+
+    function clearTapSelection() {
+      if (!selectedTapHexId) return;
+      var prev = document.querySelector('[data-hex-id="' + selectedTapHexId + '"]');
+      if (prev) prev.classList.remove('hx-tap-selected');
+      selectedTapHexId = null;
+    }
+
+    function setTapSelection(hexId) {
+      clearTapSelection();
+      var el = document.querySelector('[data-hex-id="' + hexId + '"]');
+      if (!el) return;
+      el.classList.add('hx-tap-selected');
+      selectedTapHexId = hexId;
+    }
+
+    function onSlotTap(ev) {
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
+      if (isDraggingFlag) return;
+      if (!selectedTapHexId) return;
+      var slotEl = ev.currentTarget;
+      var slotId = slotEl.getAttribute('data-slot-id');
+      var slotColor = slotEl.getAttribute('data-color');
+      var hexEl = document.querySelector('[data-hex-id="' + selectedTapHexId + '"]');
+      if (!hexEl) { clearTapSelection(); return; }
+      var hexColor = hexEl.getAttribute('data-hex-color');
+      if (slotColor !== hexColor) {
+        // Mismatched colour — soft reject + clear selection.
+        safePlaySound('sound_bubble_deselect', {});
+        clearTapSelection();
+        return;
+      }
+      // Synthesize a tap-place: mimic handleDropOnSlot using a fake dragState.
+      var sourceType = 'pool';
+      var sourceSlotId = null;
+      var parentSlot = hexEl.parentElement && hexEl.parentElement.closest ? hexEl.parentElement.closest('.hx-slot') : null;
+      if (parentSlot) {
+        sourceType = 'slot';
+        sourceSlotId = parentSlot.getAttribute('data-slot-id');
+      }
+      dragState = {
+        hexId: selectedTapHexId,
+        hexColor: hexColor,
+        sourceType: sourceType,
+        sourceSlotId: sourceSlotId,
+        hexEl: hexEl,
+        originalParent: hexEl.parentElement,
+        pointerId: -1,
+        offsetX: 0, offsetY: 0,
+        startRect: hexEl.getBoundingClientRect()
+      };
+      handleDropOnSlot(slotId, slotEl);
+      dragState = null;
+      clearTapSelection();
+      evaluateBoardFull();
+    }
+
+    function resetDragStyling(el) {
+      if (!el) return;
+      el.style.position = '';
+      el.style.left = '';
+      el.style.top = '';
+      el.style.width = '';
+      el.style.height = '';
+      el.style.visibility = '';
+      el.classList.remove('hx-dragging', 'hx-lift');
+    }
+
+    function onHexPointerDown(ev) {
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
+
+      var hexEl = ev.currentTarget;
+      if (!hexEl) return;
+      var hexId = hexEl.getAttribute('data-hex-id');
+      if (!hexId) return;
+
+      var sourceType = 'pool';
+      var sourceSlotId = null;
+      var parentSlot = hexEl.parentElement && hexEl.parentElement.closest ? hexEl.parentElement.closest('.hx-slot') : null;
+      if (parentSlot) {
+        sourceType = 'slot';
+        sourceSlotId = parentSlot.getAttribute('data-slot-id');
+      }
+
+      var rect = hexEl.getBoundingClientRect();
+      var offsetX = ev.clientX - rect.left;
+      var offsetY = ev.clientY - rect.top;
+
+      dragState = {
+        hexId: hexId,
+        hexColor: hexEl.getAttribute('data-hex-color'),
+        sourceType: sourceType,
+        sourceSlotId: sourceSlotId,
+        hexEl: hexEl,
+        originalParent: hexEl.parentElement,
+        pointerId: ev.pointerId,
+        offsetX: offsetX,
+        offsetY: offsetY,
+        startRect: rect,
+        startClientX: ev.clientX,
+        startClientY: ev.clientY,
+        moved: false
+      };
+
+      var dragLayer = document.getElementById('drag-layer');
+      hexEl.style.position = 'fixed';
+      hexEl.style.left = rect.left + 'px';
+      hexEl.style.top = rect.top + 'px';
+      hexEl.style.width = rect.width + 'px';
+      hexEl.style.height = rect.height + 'px';
+      hexEl.classList.add('hx-dragging', 'hx-lift');
+      if (dragLayer) dragLayer.appendChild(hexEl);
+
+      isDraggingFlag = true;
+
+      try { hexEl.setPointerCapture(ev.pointerId); } catch (e) {}
+
+      window.addEventListener('pointermove', onHexPointerMove, { passive: false });
+      window.addEventListener('pointerup', onHexPointerUp, { passive: false });
+      window.addEventListener('pointercancel', onHexPointerCancel, { passive: false });
+
+      ev.preventDefault();
+    }
+
+    function onHexPointerMove(ev) {
+      if (!dragState) return;
+      if (ev.pointerId !== dragState.pointerId) return;
+
+      var dx = ev.clientX - (dragState.startClientX || 0);
+      var dy = ev.clientY - (dragState.startClientY || 0);
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragState.moved = true;
+
+      var x = ev.clientX - dragState.offsetX;
+      var y = ev.clientY - dragState.offsetY;
+      dragState.hexEl.style.left = x + 'px';
+      dragState.hexEl.style.top = y + 'px';
+
+      clearSlotHover();
+      var slotEl = findSlotUnder(ev.clientX, ev.clientY);
+      if (slotEl) {
+        var slotColor = slotEl.getAttribute('data-color');
+        if (slotColor === dragState.hexColor) {
+          slotEl.classList.add('hx-hover');
+        } else {
+          slotEl.classList.add('hx-reject');
+        }
+      }
+
+      ev.preventDefault();
+    }
+
+    function clearSlotHover() {
+      var hovered = document.querySelectorAll('.hx-slot.hx-hover, .hx-slot.hx-reject');
+      for (var i = 0; i < hovered.length; i++) {
+        hovered[i].classList.remove('hx-hover', 'hx-reject');
+      }
+    }
+
+    function findSlotUnder(x, y) {
+      var dc = dragState && dragState.hexEl;
+      var prevVis = null;
+      if (dc) { prevVis = dc.style.visibility; dc.style.visibility = 'hidden'; }
+      var el = document.elementFromPoint(x, y);
+      if (dc) { dc.style.visibility = prevVis || ''; }
+      if (!el) return null;
+      var slot = el.closest ? el.closest('.hx-slot') : null;
+      return slot || null;
+    }
+
+    function findPoolUnder(x, y) {
+      var dc = dragState && dragState.hexEl;
+      var prevVis = null;
+      if (dc) { prevVis = dc.style.visibility; dc.style.visibility = 'hidden'; }
+      var el = document.elementFromPoint(x, y);
+      if (dc) { dc.style.visibility = prevVis || ''; }
+      if (!el) return null;
+      var pool = el.closest ? el.closest('.hx-pool-wrap') : null;
+      return pool || null;
+    }
+
+    function onHexPointerUp(ev) {
+      if (!dragState) { cleanupDragListeners(); return; }
+      if (ev.pointerId !== dragState.pointerId) return;
+
+      try {
+        var targetSlotEl = findSlotUnder(ev.clientX, ev.clientY);
+        var targetPoolEl = findPoolUnder(ev.clientX, ev.clientY);
+
+        clearSlotHover();
+
+        // Tap fallback: no-move pointerup over the original chip → toggle selection.
+        if (!dragState.moved) {
+          var hexId = dragState.hexId;
+          var hexColor = dragState.hexColor;
+          // Return chip to its source first (cancelDrag handles styling cleanup).
+          cancelDrag();
+          if (selectedTapHexId === hexId) {
+            clearTapSelection();
+          } else {
+            setTapSelection(hexId);
+          }
+        } else if (targetSlotEl) {
+          var slotColor = targetSlotEl.getAttribute('data-color');
+          var slotId = targetSlotEl.getAttribute('data-slot-id');
+          if (slotColor !== dragState.hexColor) {
+            // PATH 9: colour-mismatch reject. Snap back to source.
+            rejectColorMismatch();
+          } else {
+            handleDropOnSlot(slotId, targetSlotEl);
+          }
+        } else if (targetPoolEl) {
+          if (dragState.sourceType === 'slot') {
+            handleDropOnPool();
+          } else {
+            cancelDrag();
+          }
+        } else {
+          cancelDrag();
+        }
+      } catch (e) {
+        cancelDrag();
+      }
+
+      cleanupDragListeners();
+      isDraggingFlag = false;
+      dragState = null;
+      evaluateBoardFull();
+    }
+
+    function onHexPointerCancel(ev) {
+      if (!dragState) { cleanupDragListeners(); return; }
+      if (ev.pointerId !== dragState.pointerId) return;
+      cancelDrag();
+      cleanupDragListeners();
+      isDraggingFlag = false;
+      dragState = null;
+      evaluateBoardFull();
+    }
+
+    function cleanupDragListeners() {
+      window.removeEventListener('pointermove', onHexPointerMove);
+      window.removeEventListener('pointerup', onHexPointerUp);
+      window.removeEventListener('pointercancel', onHexPointerCancel);
+    }
+
+    /* PATH 6 — cancel (drop outside any target): return to origin with full styling cleanup. */
+    function cancelDrag() {
+      if (!dragState) return;
+      var hexEl = dragState.hexEl;
+      var hexId = dragState.hexId;
+      resetDragStyling(hexEl);
+
+      if (dragState.sourceType === 'slot' && dragState.sourceSlotId) {
+        var slotEl = document.querySelector('.hx-slot[data-slot-id="' + dragState.sourceSlotId + '"]');
+        if (slotEl) {
+          if (!hexEl.classList.contains('hx-placed-in-slot')) hexEl.classList.add('hx-placed-in-slot');
+          slotEl.appendChild(hexEl);
+          gameState.slotMap[dragState.sourceSlotId] = hexId;
+          gameState.hexLoc[hexId] = dragState.sourceSlotId;
+        }
+      } else {
+        returnHexToPoolSlot(hexId, hexEl);
+      }
+      pushDropLog(hexId, dragState.sourceType, null, 'cancel');
+    }
+
+    /* PATH 9 — colour-mismatch reject. Same as cancel: return to source with styling cleanup. */
+    function rejectColorMismatch() {
+      if (!dragState) return;
+      var hexEl = dragState.hexEl;
+      var hexId = dragState.hexId;
+      resetDragStyling(hexEl);
+
+      if (dragState.sourceType === 'slot' && dragState.sourceSlotId) {
+        var slotEl = document.querySelector('.hx-slot[data-slot-id="' + dragState.sourceSlotId + '"]');
+        if (slotEl) {
+          if (!hexEl.classList.contains('hx-placed-in-slot')) hexEl.classList.add('hx-placed-in-slot');
+          slotEl.appendChild(hexEl);
+          gameState.slotMap[dragState.sourceSlotId] = hexId;
+          gameState.hexLoc[hexId] = dragState.sourceSlotId;
+        }
+      } else {
+        returnHexToPoolSlot(hexId, hexEl);
+      }
+      safePlaySound('sound_bubble_deselect', {});
+      pushDropLog(hexId, dragState.sourceType, null, 'color-reject');
+    }
+
+    /* Return a hex to its home pool slot. R4: reset styling BEFORE reparenting. */
+    function returnHexToPoolSlot(hexId, hexEl) {
+      var slot = document.querySelector('.hx-pool-slot[data-hex-slot="' + hexId + '"]');
+      if (!slot) return;
+      resetDragStyling(hexEl);
+      slot.classList.remove('collapsed');
+      if (hexEl.classList.contains('hx-placed-in-slot')) hexEl.classList.remove('hx-placed-in-slot');
+      slot.appendChild(hexEl);
+      gameState.hexLoc[hexId] = 'pool';
+    }
+
+    function collapsePoolSlot(hexId) {
+      var slot = document.querySelector('.hx-pool-slot[data-hex-slot="' + hexId + '"]');
+      if (slot) slot.classList.add('collapsed');
+    }
+
+    function restorePoolSlot(hexId) {
+      var slot = document.querySelector('.hx-pool-slot[data-hex-slot="' + hexId + '"]');
+      if (slot) slot.classList.remove('collapsed');
+    }
+
+    /* Place a hex in a slot. R4: reset styling BEFORE reparenting. */
+    function placeHexInSlot(hexId, hexEl, slotId) {
+      var slotEl = document.querySelector('.hx-slot[data-slot-id="' + slotId + '"]');
+      if (!slotEl) return;
+      resetDragStyling(hexEl);
+      if (!hexEl.classList.contains('hx-placed-in-slot')) hexEl.classList.add('hx-placed-in-slot');
+      slotEl.appendChild(hexEl);
+      gameState.slotMap[slotId] = hexId;
+      gameState.hexLoc[hexId] = slotId;
+    }
+
+    function handleDropOnSlot(targetSlotId, targetSlotEl) {
+      if (!dragState) return;
+      var hexId = dragState.hexId;
+      var hexEl = dragState.hexEl;
+      var sourceType = dragState.sourceType;
+      var sourceSlotId = dragState.sourceSlotId;
+
+      // PATH 7 — same slot (no-op)
+      if (sourceType === 'slot' && sourceSlotId === targetSlotId) {
+        placeHexInSlot(hexId, hexEl, targetSlotId);
+        pushDropLog(hexId, sourceType, targetSlotId, 'noop');
+        return;
+      }
+
+      var existingHexId = gameState.slotMap[targetSlotId] || null;
+
+      if (sourceType === 'pool') {
+        if (existingHexId) {
+          // PATH 2 — bank->occupied slot (evict existing back to pool)
+          var evictedEl = document.querySelector('[data-hex-id="' + existingHexId + '"]');
+          if (evictedEl) returnHexToPoolSlot(existingHexId, evictedEl);
+          delete gameState.slotMap[targetSlotId];
+          gameState.hexLoc[existingHexId] = 'pool';
+        }
+        // PATH 1 — bank->empty slot (place)
+        collapsePoolSlot(hexId);
+        placeHexInSlot(hexId, hexEl, targetSlotId);
+        safePlaySound('sound_bubble_select', {});
+        pushDropLog(hexId, sourceType, targetSlotId, existingHexId ? 'evict' : 'place');
+      } else {
+        if (existingHexId) {
+          // PATH 3 — slot->occupied slot (swap)
+          var swapEl = document.querySelector('[data-hex-id="' + existingHexId + '"]');
+          var sourceSlotEl = document.querySelector('.hx-slot[data-slot-id="' + sourceSlotId + '"]');
+          if (swapEl && sourceSlotEl) {
+            resetDragStyling(swapEl);
+            if (!swapEl.classList.contains('hx-placed-in-slot')) swapEl.classList.add('hx-placed-in-slot');
+            sourceSlotEl.appendChild(swapEl);
+            gameState.slotMap[sourceSlotId] = existingHexId;
+            gameState.hexLoc[existingHexId] = sourceSlotId;
+          }
+          placeHexInSlot(hexId, hexEl, targetSlotId);
+          safePlaySound('sound_bubble_select', {});
+          pushDropLog(hexId, sourceType, targetSlotId, 'swap');
+        } else {
+          // PATH 4 — slot->empty slot (transfer)
+          delete gameState.slotMap[sourceSlotId];
+          placeHexInSlot(hexId, hexEl, targetSlotId);
+          safePlaySound('sound_bubble_select', {});
+          pushDropLog(hexId, sourceType, targetSlotId, 'transfer');
+        }
+      }
+    }
+
+    /* PATH 5 — slot->pool (zone-to-bank return). R4 bug most common here. */
+    function handleDropOnPool() {
+      if (!dragState) return;
+      var hexId = dragState.hexId;
+      var hexEl = dragState.hexEl;
+      var sourceSlotId = dragState.sourceSlotId;
+
+      if (sourceSlotId != null && gameState.slotMap[sourceSlotId] === hexId) {
+        delete gameState.slotMap[sourceSlotId];
+      }
+      returnHexToPoolSlot(hexId, hexEl);
+      safePlaySound('sound_bubble_deselect', {});
+      pushDropLog(hexId, 'slot', null, 'to_pool');
+    }
+
+    function pushDropLog(hexId, src, dst, action) {
+      try {
+        gameState.dropLog.push({ ts: Date.now(), hexId: hexId, src: src, dst: dst, action: action });
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       Board fullness / button enablement
+       ============================================================ */
+    function evaluateBoardFull() {
+      var r = gameState.currentRoundData;
+      if (!r) return;
+      var full = true;
+      for (var i = 0; i < r.slots.length; i++) {
+        if (!gameState.slotMap[r.slots[i].id]) { full = false; break; }
+      }
+      gameState.isBoardFull = full;
+      // Every drop / undo / reset path routes through evaluateBoardFull(),
+      // so this is the single place that drives FloatingButton visibility.
+      refreshFloatingBtn();
+    }
+
+    /* ============================================================
+       Validation
+       ============================================================ */
+    function hexById(round, hexId) {
+      for (var i = 0; i < round.pool.length; i++) {
+        if (round.pool[i].id === hexId) return round.pool[i];
+      }
+      return null;
+    }
+
+    function validateArrangement(round) {
+      var perTarget = {};
+      var allPass = true;
+      var failingTargetIds = [];
+      for (var i = 0; i < round.targets.length; i++) {
+        var t = round.targets[i];
+        var sum = 0;
+        var anyMissing = false;
+        for (var j = 0; j < t.ring.length; j++) {
+          var sId = t.ring[j];
+          var hId = gameState.slotMap[sId];
+          if (!hId) { anyMissing = true; break; }
+          var h = hexById(round, hId);
+          if (!h) { anyMissing = true; break; }
+          sum += Number(h.value) || 0;
+        }
+        var pass = !anyMissing && sum === t.value;
+        perTarget[t.id] = { pass: pass, sum: sum };
+        if (!pass) { allPass = false; failingTargetIds.push(t.id); }
+      }
+      // Conflict slots: union of rings of any failing target
+      var conflictMap = {};
+      for (var k = 0; k < round.targets.length; k++) {
+        var tg = round.targets[k];
+        if (!perTarget[tg.id].pass) {
+          for (var m = 0; m < tg.ring.length; m++) conflictMap[tg.ring[m]] = true;
+        }
+      }
+      var conflictSlots = [];
+      for (var key in conflictMap) {
+        if (conflictMap.hasOwnProperty(key)) conflictSlots.push(key);
+      }
+      return { pass: allPass, perTarget: perTarget, failingTargetIds: failingTargetIds, conflictSlots: conflictSlots };
+    }
+
+    function deriveMisconception(round, result) {
+      if (!result || result.pass) return null;
+      // Any wrong-colour placements? — blocked by UI so usually no, but check
+      for (var s in gameState.slotMap) {
+        if (gameState.slotMap.hasOwnProperty(s)) {
+          var hId = gameState.slotMap[s];
+          var h = hexById(round, hId);
+          var slotDef = null;
+          for (var i = 0; i < round.slots.length; i++) {
+            if (round.slots[i].id === s) { slotDef = round.slots[i]; break; }
+          }
+          if (h && slotDef && h.color !== slotDef.color) return 'color-mismatch';
+        }
+      }
+      // Shared-slot-related failure: both shared-targets fail
+      var sharedFail = false;
+      for (var i2 = 0; i2 < round.targets.length; i2++) {
+        for (var j2 = i2 + 1; j2 < round.targets.length; j2++) {
+          var ta = round.targets[i2], tb = round.targets[j2];
+          // Check if they share at least one slot
+          var shared = false;
+          for (var ri = 0; ri < ta.ring.length; ri++) {
+            if (tb.ring.indexOf(ta.ring[ri]) !== -1) { shared = true; break; }
+          }
+          if (shared && !result.perTarget[ta.id].pass && !result.perTarget[tb.id].pass) {
+            sharedFail = true;
+          }
+        }
+      }
+      if (sharedFail) return 'ignore-shared-slots';
+
+      // Only one target fails -> single-target-fix pattern
+      if (result.failingTargetIds.length === 1) return 'single-target-fix';
+
+      // Fallback
+      return 'decomposition-error';
+    }
+
+    /* ============================================================
+       FloatingButton handlers (PART-050)
+       ============================================================ */
+    function onFloatingSubmit() {
+      // FloatingButton auto-hides on click before this handler runs.
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
+      if (!gameState.isBoardFull) return;
+      handleCheck();
+    }
+
+    function onFloatingNext() {
+      // End-of-game Next: post next_ended, mark session ended, then destroy
+      // preview + floating button. Destroys happen here (not inside endGame)
+      // so the preview header — the star-award animation target — persists
+      // through show_star + setMode('next'). PART-050 "destroy ordering".
+      safeStopAllAudio();
+      try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+      gameState.gameEnded = true;
+      trackEvent('game_end', { won: true, score: gameState.firstCheckSolves, stars: gameState.stars });
+      try { if (previewScreen && previewScreen.destroy) previewScreen.destroy(); } catch (e) {}
+      try { if (floatingBtn && floatingBtn.destroy) floatingBtn.destroy(); floatingBtn = null; } catch (e) {}
+    }
+
+    function handleCheck() {
+      gameState.isProcessing = true;
+      var gc = document.getElementById('gameContent');
+      if (gc) gc.classList.add('dnd-disabled');
+      // Make sure the floating button is hidden during evaluation —
+      // setSubmittable(false) is a no-op if already in 'retry'/'next', but
+      // FloatingButton auto-hides on submit click so this is defensive.
+      refreshFloatingBtn();
+
+      var round = gameState.currentRoundData;
+      var result = validateArrangement(round);
+      gameState.validationResult = result;
+
+      var responseMs = Date.now() - gameState.roundStartTime;
+      gameState.responseTimes.push(responseMs);
+
+      var snapshot = {};
+      for (var s in gameState.slotMap) {
+        if (gameState.slotMap.hasOwnProperty(s)) snapshot[s] = gameState.slotMap[s];
+      }
+
+      // Per-target badges
+      for (var ti = 0; ti < round.targets.length; ti++) {
+        var tId = round.targets[ti].id;
+        var badge = document.getElementById('badge-' + tId);
+        if (badge) {
+          badge.classList.add('show');
+          if (result.perTarget[tId].pass) {
+            badge.classList.add('pass'); badge.classList.remove('fail');
+            badge.textContent = '✓';
+          } else {
+            badge.classList.add('fail'); badge.classList.remove('pass');
+            badge.textContent = '✗';
+          }
+        }
+      }
+
+      if (result.pass) {
+        handleCorrectOutcome(round, result, snapshot, responseMs);
+      } else {
+        handleWrongOutcome(round, result, snapshot, responseMs);
+      }
+    }
+
+    function handleCorrectOutcome(round, result, snapshot, responseMs) {
+      recordAttempt({
+        input_of_user: JSON.stringify(snapshot),
+        correct: true,
+        round_number: gameState.currentRound,
+        question_id: 'r' + gameState.currentRound + '_' + round.variant,
+        correct_answer: round.solution,
+        response_time_ms: responseMs,
+        misconception_tag: null,
+        difficulty_level: round.stage || 1,
+        is_retry: false,
+        metadata: {
+          variant: round.variant,
+          slots: snapshot,
+          perTarget: result.perTarget,
+          droppedCount: gameState.dropLog.length,
+          firstCheck: true
+        }
+      });
+      trackEvent('answer_submitted', { round: gameState.currentRound, correct: true });
+
+      gameState.score += 1;
+      gameState.firstCheckSolves += 1;
+      gameState.roundsCompleted += 1;
+      syncDOM();
+
+      var allSlots = document.querySelectorAll('.hx-slot');
+      for (var i = 0; i < allSlots.length; i++) allSlots[i].classList.add('hx-success');
+
+      // Progress bar bumps FIRST
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await Promise.all([
+            safePlaySound('correct_sound_effect', { sticker: STICKER_CORRECT }),
+            new Promise(function(res) { setTimeout(res, 1500); })
+          ]);
+        } catch (e) { /* noop */ }
+
+        // Award star BEFORE the long voice line so it animates while explanation plays.
+        try {
+          window.postMessage({
+            type: 'show_star',
+            data: {
+              count: 1,
+              variant: 'yellow',
+              score: gameState.score + '/' + gameState.totalRounds
+            }
+          }, '*');
+        } catch (e) {}
+
+        // Long explanatory feedback — AWAIT so the voice line completes before nextRound.
+        try {
+          if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+            await FeedbackManager.playDynamicFeedback({
+              audio_content: 'Great thinking! Every sum is spot on.',
+              subtitle: 'Great thinking! Every sum is spot on.',
+              sticker: STICKER_CORRECT
+            });
+          }
+        } catch (e) { /* noop */ }
+
+        trackEvent('round_complete', { round: gameState.currentRound, correct: true });
+        advanceAfterFeedback();
+      })();
+    }
+
+    function handleWrongOutcome(round, result, snapshot, responseMs) {
+      var misconceptionTag = deriveMisconception(round, result);
+
+      recordAttempt({
+        input_of_user: JSON.stringify(snapshot),
+        correct: false,
+        round_number: gameState.currentRound,
+        question_id: 'r' + gameState.currentRound + '_' + round.variant,
+        correct_answer: round.solution,
+        response_time_ms: responseMs,
+        misconception_tag: misconceptionTag,
+        difficulty_level: round.stage || 1,
+        is_retry: false,
+        metadata: {
+          variant: round.variant,
+          slots: snapshot,
+          perTarget: result.perTarget,
+          conflictSlots: result.conflictSlots,
+          failingTargets: result.failingTargetIds,
+          firstCheck: true
+        }
+      });
+      trackEvent('answer_submitted', { round: gameState.currentRound, correct: false });
+
+      gameState.roundsCompleted += 1;
+      syncDOM();
+
+      for (var i = 0; i < result.conflictSlots.length; i++) {
+        var slEl = document.querySelector('.hx-slot[data-slot-id="' + result.conflictSlots[i] + '"]');
+        if (slEl) slEl.classList.add('hx-conflict');
+      }
+
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await Promise.all([
+            safePlaySound('incorrect_sound_effect', { sticker: STICKER_WRONG }),
+            new Promise(function(res) { setTimeout(res, 1500); })
+          ]);
+        } catch (e) { /* noop */ }
+
+        // Reveal solution while the long voice line plays.
+        try { revealSolution(round); } catch (e) {}
+
+        // Long explanatory feedback — AWAIT so the voice line completes before nextRound.
+        try {
+          if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+            await FeedbackManager.playDynamicFeedback({
+              audio_content: "Oh no! Not quite. Check each sum.",
+              subtitle: "Oh no! Not quite — check each sum.",
+              sticker: STICKER_WRONG
+            });
+          }
+        } catch (e) { /* noop */ }
+
+        // Brief dwell so user sees the revealed solution after the voice line ends.
+        await new Promise(function(res) { setTimeout(res, 1000); });
+
+        trackEvent('round_complete', { round: gameState.currentRound, correct: false });
+
+        if ((gameState.phase === 'feedback_wrong' || gameState.phase === 'gameplay') && !gameState.gameEnded) {
+          advanceAfterFeedback();
+        }
+      })();
+
+      gameState.phase = 'feedback_wrong';
+      syncDOM();
+    }
+
+    function revealSolution(round) {
+      var allSlots = document.querySelectorAll('.hx-slot');
+      for (var i = 0; i < allSlots.length; i++) {
+        allSlots[i].classList.remove('hx-conflict', 'hx-success');
+        allSlots[i].classList.add('hx-solution');
+      }
+      var sol = round.solution;
+      function getHexEl(hexId) { return document.querySelector('[data-hex-id="' + hexId + '"]'); }
+
+      var hexMap = {};
+      for (var p = 0; p < round.pool.length; p++) {
+        var cid = round.pool[p].id;
+        var el = getHexEl(cid);
+        if (el) hexMap[cid] = el;
+      }
+
+      for (var slotIdStr in sol) {
+        if (sol.hasOwnProperty(slotIdStr)) {
+          var hexId = sol[slotIdStr];
+          var slotEl = document.querySelector('.hx-slot[data-slot-id="' + slotIdStr + '"]');
+          var hexEl = hexMap[hexId];
+          if (slotEl && hexEl) {
+            resetDragStyling(hexEl);
+            if (!hexEl.classList.contains('hx-placed-in-slot')) hexEl.classList.add('hx-placed-in-slot');
+            slotEl.appendChild(hexEl);
+          }
+          restorePoolSlot(hexId);
+        }
+      }
+    }
+
+    /* ============================================================
+       advanceAfterFeedback
+       ============================================================ */
+    function advanceAfterFeedback() {
+      safeStopAllAudio();
+      if (gameState.gameEnded) return;
+      if (gameState.phase === 'round_intro' || gameState.phase === 'results') return;
+
+      if (gameState.currentRound >= gameState.totalRounds) {
+        showVictory();
+        return;
+      }
+      gameState.currentRound += 1;
+      showRoundIntro(gameState.currentRound);
+    }
+
+    /* ============================================================
+       showRoundIntro
+       ============================================================ */
+    function showRoundIntro(n) {
+      safeStopAllAudio();
+
+      gameState.phase = 'round_intro';
+      syncDOM();
+
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await waitForAudioPermission();
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              icons: ['⬢'],
+              title: 'Round ' + n,
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND });
+                  } catch (e) {}
+                  try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+                  enterGameplay(n);
+                })();
+              }
+            });
+          }
+        } catch (e) {
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          enterGameplay(n);
+        }
+      })();
+
+      setTimeout(function() {
+        if (gameState.phase === 'round_intro' && gameState.currentRound === n && !gameState.gameEnded) {
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          enterGameplay(n);
+        }
+      }, 3500);
+    }
+
+    function enterGameplay(n) {
+      if (gameState.gameEnded) return;
+      if (gameState.phase === 'gameplay' && gameState.currentRound === n) return;
+      gameState.currentRound = n;
+      renderRound();
+    }
+
+    /* ============================================================
+       showVictory
+       ============================================================ */
+    function showVictory() {
+      if (gameState.gameEnded) return;
+      safeStopAllAudio();
+
+      gameState.phase = 'results';
+      gameState.isActive = false;
+      gameState.stars = getStars();
+
+      try {
+        if (progressBar && progressBar.update) {
+          var _finalRoundIdx = gameState.totalRounds;
+          progressBar.update(_finalRoundIdx, 0);
+        }
+      } catch (e) {}
+
+      syncDOM();
+
+      postGameComplete(true);
+
+      var stars = gameState.stars;
+      var fcs = gameState.firstCheckSolves;
+      var subtitle = 'You solved ' + fcs + ' of ' + gameState.totalRounds + ' on the first try!';
+
+      // The card carries a single `Claim Stars` CTA whose action() fires
+      // show_star (flying-star animation), hides the transition screen, and
+      // reveals the FloatingButton Next CTA. This mirrors the "opt-in
+      // Claim-Stars button" variant documented in PART-050 "Next flow".
+      // "Claim Stars" is NOT in the reserved-word list, so it does not
+      // trigger GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN.
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            var victorySticker = (stars === 3) ? STICKER_VICTORY : (stars === 2 ? STICKER_GAME_COMPLETE_2 : STICKER_GAME_COMPLETE_1);
+            await transitionScreen.show({
+              stars: stars,
+              title: 'Victory 🎉',
+              subtitle: subtitle,
+              persist: true,
+              buttons: [
+                {
+                  text: 'Claim Stars',
+                  type: 'primary',
+                  action: function() {
+                    safeStopAllAudio();
+                    try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+
+                    // End-of-game star award animation (PART-040).
+                    try {
+                      window.postMessage({
+                        type: 'show_star',
+                        data: {
+                          count: Math.max(1, stars || 1),
+                          variant: 'yellow',
+                          score: gameState.score + '/' + gameState.totalRounds
+                        }
+                      }, '*');
+                    } catch (e) {}
+
+                    // Reveal Next AFTER the 1s flying-star animation completes.
+                    setTimeout(function() {
+                      try { if (floatingBtn) floatingBtn.setMode('next'); } catch (e) {}
+                    }, 1100);
+                  }
+                }
+              ],
+              onMounted: function() {
+                (async function() {
+                  try {
+                    var sfxId = (stars === 3) ? 'victory_sound_effect' : 'game_complete_sound_effect';
+                    await safePlaySound(sfxId, { sticker: victorySticker });
+                    try {
+                      if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                        var voText = stars === 3
+                          ? 'Amazing! Three stars! Every sum was spot on.'
+                          : (stars === 2
+                            ? 'Well done! You solved ' + fcs + ' of ' + gameState.totalRounds + ' on the first try.'
+                            : (stars === 1
+                              ? 'Good effort! You solved ' + fcs + ' of ' + gameState.totalRounds + ' on the first try.'
+                              : 'Nice try — every round completed!'));
+                        await FeedbackManager.playDynamicFeedback({
+                          audio_content: voText,
+                          subtitle: voText,
+                          sticker: victorySticker
+                        });
+                      }
+                    } catch (e) {}
+                  } catch (e) {}
+                })();
+              }
+            });
+          }
+        } catch (e) { /* noop */ }
+      })();
+    }
+
+    /* ============================================================
+       showMotivation — restart path (no preview, no welcome).
+       This comment block also keeps the static validator
+       TS-PERSIST-FALLTHROUGH scanner from confusing the next
+       function declaration with game-flow continuation after the
+       victory transition-screen call above.
+       ============================================================ */
+    function showMotivation() {
+      safeStopAllAudio();
+      gameState.phase = 'results';
+      syncDOM();
+
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              title: 'Ready to improve your score? ⚡',
+              persist: true,
+              buttons: [
+                {
+                  text: "I'm ready! 🙌",
+                  type: 'primary',
+                  action: function() {
+                    safeStopAllAudio();
+                    try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+                    restartGame();
+                  }
+                }
+              ],
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('rounds_sound_effect', { sticker: STICKER_RESTART });
+                    try {
+                      if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                        await FeedbackManager.playDynamicFeedback({
+                          audio_content: 'Ready to give it another shot?',
+                          subtitle: 'Ready to improve your score?',
+                          sticker: STICKER_RESTART
+                        });
+                      }
+                    } catch (e) {}
+                  } catch (e) {}
+                })();
+              }
+            });
+          }
+        } catch (e) { /* noop */ }
+      })();
+    }
+
+    function showStarsCollected() {
+      safeStopAllAudio();
+      gameState.phase = 'results';
+      syncDOM();
+
+      (async function() {
+        try {
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              title: 'Yay! 🎉\nStars collected!',
+              styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
+              onMounted: function() {
+                (async function() {
+                  try { await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY }); }
+                  catch (e) {}
+                })();
+              }
+            });
+          }
+        } catch (e) { /* noop */ }
+        setTimeout(function() {
+          safeStopAllAudio();
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          try { window.parent.postMessage({ type: 'game_exit' }, '*'); } catch (e) {}
+          endGame(gameState.stars > 0);
+        }, 2500);
+      })();
+    }
+
+    function postGameComplete(won) {
+      try {
+        var completedAt = Date.now();
+        var avgMs = 0;
+        if (gameState.responseTimes.length > 0) {
+          var sum = 0;
+          for (var i = 0; i < gameState.responseTimes.length; i++) sum += gameState.responseTimes[i];
+          avgMs = sum / gameState.responseTimes.length;
+        }
+        var accuracy = Math.round((gameState.firstCheckSolves / gameState.totalRounds) * 100);
+        if (accuracy < 0) accuracy = 0;
+        if (accuracy > 100) accuracy = 100;
+
+        var sigEventCount = 0;
+        var sigMetadata = {};
+        try {
+          if (signalCollector) {
+            if (typeof signalCollector.getInputEvents === 'function') {
+              var inputEvents = signalCollector.getInputEvents() || [];
+              sigEventCount = inputEvents.length;
+            }
+            if (typeof signalCollector.getMetadata === 'function') {
+              sigMetadata = signalCollector.getMetadata() || {};
+            }
+          }
+        } catch (e) { /* noop */ }
+
+        var _livesTotal = 0;
+        var metrics = {
+          accuracy: accuracy,
+          time: gameState.startTime ? Math.round((completedAt - gameState.startTime) / 1000) : 0,
+          stars: gameState.stars,
+          attempts: gameState.attempts,
+          duration_data: gameState.duration_data,
+          totalLives: _livesTotal,
+          firstCheckSolves: gameState.firstCheckSolves,
+          tries: computeTriesPerRound(),
+          avgResponseTime: avgMs,
+          livesRemaining: 0,
+          signal_event_count: sigEventCount,
+          signal_metadata: sigMetadata
+        };
+
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: completedAt,
+            previewResult: gameState.previewResult || null
+          },
+          payload: {
+            score: gameState.firstCheckSolves,
+            totalQuestions: gameState.totalRounds,
+            stars: gameState.stars,
+            accuracy: accuracy,
+            timeSpent: gameState.startTime ? (completedAt - gameState.startTime) : 0,
+            avgResponseTime: avgMs,
+            livesRemaining: 0
+          }
+        }, '*');
+      } catch (e) { /* noop */ }
+    }
+
+    function computeTriesPerRound() {
+      var byRound = {};
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        var a = gameState.attempts[i];
+        var k = a.round_number;
+        if (!byRound[k]) byRound[k] = { round: k, correct: false };
+        if (a.correct) byRound[k].correct = true;
+      }
+      var out = [];
+      for (var j = 1; j <= gameState.totalRounds; j++) {
+        if (byRound[j]) out.push({ round: byRound[j].round, correct: !!byRound[j].correct });
+      }
+      return out;
+    }
+
+    /* ============================================================
+       endGame
+       ============================================================ */
+    function endGame(won) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      gameState.gameEnded = true;
+      trackEvent('game_end', { won: !!won, score: gameState.firstCheckSolves, stars: gameState.stars });
+      // Destroys live in the next-handler per PART-050 destroy-ordering:
+      // preview header hosts the star-award animation target, so it must
+      // persist through show_star. FloatingButton is destroyed here only
+      // if endGame is reached via a non-Next path (e.g. test harness
+      // force-call) so the button doesn't linger.
+      try { if (floatingBtn && floatingBtn.destroy) floatingBtn.destroy(); } catch (e) { /* noop */ }
+    }
+    window.endGame = endGame;
+
+    /* ============================================================
+       restartGame
+       ============================================================ */
+    function restartGame() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+
+      gameState.phase = 'start_screen';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.firstCheckSolves = 0;
+      gameState.roundsCompleted = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.responseTimes = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.roundStartTime = null;
+      gameState.slotMap = {};
+      gameState.hexLoc = {};
+      gameState.dropLog = [];
+      gameState.validationResult = null;
+      gameState.isBoardFull = false;
+      gameState.currentRoundData = null;
+      gameState.duration_data = {
+        startTime: null,
+        preview: gameState.duration_data.preview || [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      };
+
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+
+      createProgressBar();
+
+      // FloatingButton may have been destroyed by a prior end-of-session path.
+      // Re-create it so the re-run has a working Submit CTA.
+      if (!floatingBtn && typeof FloatingButtonComponent !== 'undefined') {
+        try {
+          floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+          floatingBtn.setLabels({ submit: 'CHECK', next: 'Next' });
+          floatingBtn.on('submit', function() { onFloatingSubmit(); });
+          floatingBtn.on('next', function() {
+            try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+            onFloatingNext();
+          });
+        } catch (e) {}
+      } else if (floatingBtn) {
+        try { floatingBtn.setMode(null); } catch (e) {}
+      }
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true });
+      syncDOM();
+
+      injectGameHTML();
+      showRoundIntro(1);
+    }
+    window.restartGame = restartGame;
+
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.firstCheckSolves = 0;
+      gameState.roundsCompleted = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.phase = 'gameplay';
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      if (!document.getElementById('hxBoard')) injectGameHTML();
+      showRoundIntro(1);
+    }
+    window.startGame = startGame;
+
+    function nextRound() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+
+      if (gameState.currentRound >= gameState.totalRounds) {
+        showVictory();
+        return;
+      }
+      gameState.currentRound += 1;
+      showRoundIntro(gameState.currentRound);
+    }
+    window.nextRound = nextRound;
+
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || null;
+      if (gameState.duration_data.preview == null) gameState.duration_data.preview = [];
+      if (previewData && typeof previewData.duration === 'number') {
+        gameState.duration_data.preview.push({ duration: previewData.duration });
+      }
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      try { if (signalCollector && signalCollector.recordViewEvent) signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+
+      showRoundIntro(1);
+    }
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      if (!gameState.content) gameState.content = fallbackContent;
+
+      injectGameHTML();
+      renderInitialState();
+
+      try {
+        if (previewScreen && previewScreen.show) {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function(previewData) {
+              startGameAfterPreview(previewData);
+            }
+          });
+        } else {
+          gameState.startTime = Date.now();
+          gameState.isActive = true;
+          gameState.duration_data.startTime = new Date().toISOString();
+          trackEvent('game_start', { totalRounds: gameState.totalRounds });
+          showRoundIntro(1);
+        }
+      } catch (e) {
+        console.error('[setupGame] ' + e.message);
+      }
+    }
+
+    /* ============================================================
+       Debug helpers
+       ============================================================ */
+    window.debugGame = function() {
+      return {
+        phase: gameState.phase,
+        currentRound: gameState.currentRound,
+        firstCheckSolves: gameState.firstCheckSolves,
+        roundsCompleted: gameState.roundsCompleted,
+        slotMap: gameState.slotMap,
+        attempts: gameState.attempts.length,
+        gameEnded: gameState.gameEnded
+      };
+    };
+    window.loadRound = function(n) {
+      if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+        gameState.currentRound = n;
+        renderRound();
+      }
+    };
+    window.solveCurrentRound = function() {
+      var r = gameState.currentRoundData;
+      if (!r) return false;
+      gameState.slotMap = {};
+      for (var slotIdStr in r.solution) {
+        if (r.solution.hasOwnProperty(slotIdStr)) {
+          var hexId = r.solution[slotIdStr];
+          var hexEl = document.querySelector('[data-hex-id="' + hexId + '"]');
+          var slotEl = document.querySelector('.hx-slot[data-slot-id="' + slotIdStr + '"]');
+          if (hexEl && slotEl) {
+            resetDragStyling(hexEl);
+            if (!hexEl.classList.contains('hx-placed-in-slot')) hexEl.classList.add('hx-placed-in-slot');
+            slotEl.appendChild(hexEl);
+            collapsePoolSlot(hexId);
+            gameState.slotMap[slotIdStr] = hexId;
+            gameState.hexLoc[hexId] = slotIdStr;
+          }
+        }
+      }
+      evaluateBoardFull();
+      return true;
+    };
+
+    /* Block browser touchmove while dragging */
+    document.addEventListener('touchmove', function(ev) {
+      if (isDraggingFlag) {
+        try { ev.preventDefault(); } catch (e) {}
+      }
+    }, { passive: false });
+
+    /* ============================================================
+       DOMContentLoaded — init
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', function() {
+      (async function() {
+        try {
+          try { await waitForPackages(); }
+          catch (pkgErr) { console.error('[init] ' + pkgErr.message); }
+
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.init) {
+              await FeedbackManager.init();
+            }
+          } catch (e) { console.error('[init] FeedbackManager.init ' + e.message); }
+
+          try {
+            if (typeof SignalCollector !== 'undefined') {
+              signalCollector = new SignalCollector({
+                sessionId: null,
+                studentId: null,
+                gameId: gameState.gameId,
+                contentSetId: null
+              });
+              window.signalCollector = signalCollector;
+            }
+          } catch (e) { /* noop */ }
+
+          try {
+            if (typeof ScreenLayout !== 'undefined' && ScreenLayout.inject) {
+              ScreenLayout.inject('app', {
+                slots: {
+                  floatingButton: true,
+                  previewScreen: true,
+                  progressBar: true,
+                  transitionScreen: true
+                }
+              });
+            }
+          } catch (e) { console.error('[init] ScreenLayout.inject ' + e.message); }
+
+          try {
+            if (typeof VisibilityTracker !== 'undefined') {
+              visibilityTracker = new VisibilityTracker({
+                popupProps: {
+                  title: 'Paused',
+                  description: 'Tap Resume to continue.',
+                  primaryText: 'Resume'
+                },
+                onInactive: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.pause(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.pauseAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.pause) previewScreen.pause(); } catch (e) {}
+                },
+                onResume: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.resume(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.resumeAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.resume) previewScreen.resume(); } catch (e) {}
+                }
+              });
+            }
+          } catch (e) { console.error('[init] VisibilityTracker ' + e.message); }
+
+          createProgressBar();
+
+          try {
+            if (typeof TransitionScreenComponent !== 'undefined') {
+              transitionScreen = new TransitionScreenComponent({ autoInject: true });
+            }
+          } catch (e) { console.error('[init] TransitionScreen ' + e.message); }
+
+          try {
+            if (typeof PreviewScreenComponent !== 'undefined') {
+              previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+            }
+          } catch (e) { console.error('[init] PreviewScreen ' + e.message); }
+
+          try {
+            if (typeof FloatingButtonComponent !== 'undefined') {
+              floatingBtn = new FloatingButtonComponent({
+                slotId: 'mathai-floating-button-slot'
+              });
+              floatingBtn.setLabels({ submit: 'CHECK', next: 'Next' });
+              floatingBtn.on('submit', function() { onFloatingSubmit(); });
+              floatingBtn.on('next', function() {
+                try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                onFloatingNext();
+              });
+            }
+          } catch (e) { console.error('[init] FloatingButton ' + e.message); }
+
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.sound && FeedbackManager.sound.preload) {
+              await preloadAllAudio();
+            }
+          } catch (e) { console.error('[init] preload ' + e.message); }
+
+          window.addEventListener('message', handlePostMessage);
+
+          try { window.parent.postMessage({ type: 'game_ready' }, '*'); } catch (e) { /* noop */ }
+
+          setupGame();
+
+        } catch (e) {
+          console.error('[init] ' + e.message);
+        }
+      })();
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.nextRound = nextRound;
+      window.startGame = startGame;
+    });
+
+    /* ============================================================
+       Standalone fallback
+       ============================================================ */
+    setTimeout(function() {
+      try {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+        if (gameState.isActive || gameState.gameEnded) return;
+        if (gameState.phase !== 'start_screen') return;
+
+        var gc = document.getElementById('gameContent');
+        if (!gc) {
+          var app = document.getElementById('app');
+          if (app && !document.getElementById('gameContent')) {
+            var fallbackDiv = document.createElement('div');
+            fallbackDiv.id = 'gameContent';
+            app.appendChild(fallbackDiv);
+          }
+        }
+
+        gameState.content = gameState.content || fallbackContent;
+        gameState.totalRounds = fallbackContent.rounds.length;
+
+        if (!gameState.isActive) {
+          startGame();
+        }
+      } catch (e) { /* noop */ }
+    }, 5000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,2180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Cross Numbers Puzzle</title>
+
+  <!-- Sentry (error tracking) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
+  <script>
+    function initSentry() {
+      if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
+      if (typeof Sentry === 'undefined') return;
+      try {
+        Sentry.init(SentryConfig.getConfig({ release: 'cross-numbers@1.0.0' }));
+      } catch (e) { /* noop */ }
+    }
+  </script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
+  <script>window.addEventListener('load', initSentry);</script>
+
+  <!-- Game CDN packages (exact order) -->
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
+  <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
+
+  <!-- @dnd-kit/dom — vanilla JS DnD library (PART-043). Loaded via ESM (async). -->
+  <script type="module">
+    import { DragDropManager, Draggable, Droppable, PointerSensor, PointerActivationConstraints, Feedback } from 'https://esm.sh/@dnd-kit/dom@beta';
+    window.__DndKit = { DragDropManager, Draggable, Droppable, PointerSensor, PointerActivationConstraints, Feedback };
+    window.dispatchEvent(new CustomEvent('dndkit:ready'));
+  </script>
+
+  <style>
+    :root {
+      --mathai-game-max-width: 480px;
+      --mathai-stack-gap: 10px;
+      --mathai-game-padding-top: 54px;
+
+      --mathai-primary: #270f36;
+      --mathai-level-text: #270F63;
+      --mathai-purple: #9B51E0;
+
+      --mathai-green: #219653;
+      --mathai-blue: #667eea;
+      --mathai-red: #E35757;
+      --mathai-orange: #F2994A;
+      --mathai-yellow: #FFDE49;
+
+      --mathai-white: #ffffff;
+      --mathai-gray: #666666;
+      --mathai-light-gray: #f5f5f5;
+      --mathai-disabled-gray: #E0E0E0;
+      --mathai-text-primary: #4a4a4a;
+      --mathai-border-gray: #e0e0e0;
+
+      --mathai-cell-bg-green: #D9F8D9;
+      --mathai-cell-bg-yellow: #FCF6D7;
+      --mathai-cell-bg-red: #FFD9D9;
+      --mathai-cell-bg-grey: #E0E0E0;
+      --mathai-cell-border-green: #27ae60;
+      --mathai-cell-border-red: #e74c3c;
+
+      --mathai-success: #219653;
+      --mathai-error: #E35757;
+      --mathai-warning: #F2994A;
+
+      --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mathai-font-size-title: 32px;
+      --mathai-font-size-subtitle: 18px;
+      --mathai-font-size-button: 16px;
+      --mathai-font-size-body: 16px;
+      --mathai-font-size-small: 14px;
+      --mathai-font-size-large: 24px;
+
+      --mathai-padding-large: 56px 40px;
+      --mathai-padding-medium: 16px 24px;
+      --mathai-padding-small: 10px;
+      --mathai-border-radius: 24px;
+      --mathai-border-radius-small: 8px;
+      --mathai-border-radius-button: 10px;
+      --mathai-border-radius-card: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--mathai-font-family);
+      background: var(--mathai-white);
+      color: var(--mathai-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+
+    .hidden { display: none !important; }
+
+    #app {
+      width: 100%;
+      max-width: var(--mathai-game-max-width);
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: clip;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    @supports not (min-height: 100dvh) {
+      #app { min-height: 100vh; }
+    }
+
+    /* Preview-wrapper scroll compatibility (5e0-SCROLL-OWNER).
+       .mathai-preview-body owns vertical scrolling in preview-wrapper mode. */
+    #mathai-preview-slot {
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+    #mathai-preview-slot .mathai-preview-body {
+      height: 100dvh;
+      box-sizing: border-box;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    button,
+    [role="button"],
+    input[type="submit"] {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+    .grid-cell {
+      min-height: 44px;
+      min-width: 44px;
+      /* No touch-action set here per V16 — page scrolling must work on the cells */
+    }
+
+    /* ============================================================
+       Gameplay layout
+       ============================================================ */
+    #gameContent {
+      padding: 12px 14px 120px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    /* Rules panel */
+    .rules-panel {
+      background: var(--mathai-light-gray);
+      border: 1px solid var(--mathai-border-gray);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    .rules-panel-title {
+      font-size: var(--mathai-font-size-small);
+      font-weight: 700;
+      color: var(--mathai-gray);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .rules-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      counter-reset: rule-item;
+    }
+    .rules-list li {
+      font-size: 14px;
+      color: var(--mathai-primary);
+      line-height: 1.4;
+      padding: 3px 0 3px 20px;
+      position: relative;
+    }
+    .rules-list li::before {
+      content: counter(rule-item) '.';
+      counter-increment: rule-item;
+      position: absolute;
+      left: 0;
+      top: 3px;
+      font-weight: 700;
+      color: var(--mathai-purple);
+    }
+
+    /* Grid area — simple plus-sign cross (5 cells) */
+    .grid-wrap {
+      margin: 4px 0 16px;
+      padding: 16px 8px;
+      background: var(--mathai-white);
+      border-radius: var(--mathai-border-radius-card);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .cross-grid {
+      display: grid;
+      grid-template-columns: 60px 60px 60px;
+      grid-template-rows: 60px 60px 60px;
+      gap: 6px;
+      position: relative;
+    }
+    .cell-top    { grid-column: 2; grid-row: 1; }
+    .cell-left   { grid-column: 1; grid-row: 2; }
+    .cell-center { grid-column: 2; grid-row: 2; }
+    .cell-right  { grid-column: 3; grid-row: 2; }
+    .cell-bottom { grid-column: 2; grid-row: 3; }
+
+    .grid-cell {
+      width: 60px;
+      height: 60px;
+      border: 2px dashed #9aa1a8;
+      border-radius: 8px;
+      background: var(--mathai-white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--mathai-primary);
+      cursor: pointer;
+      position: relative;
+      transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+    }
+    .grid-cell.cell-drop-hover {
+      border-color: var(--mathai-blue);
+      border-style: solid;
+      background: #EEF1FF;
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.25);
+      transform: scale(1.05);
+    }
+    .grid-cell.cell-tap-target {
+      border-color: var(--mathai-blue);
+      border-style: solid;
+      background: #EEF1FF;
+    }
+    .grid-cell.cell-success {
+      border-color: var(--mathai-cell-border-green);
+      background: var(--mathai-cell-bg-green);
+      border-style: solid;
+      animation: cellFlashGreen 0.4s ease;
+    }
+    .grid-cell.cell-conflict {
+      border-color: var(--mathai-cell-border-red);
+      background: var(--mathai-cell-bg-red);
+      border-style: solid;
+      animation: cellFlashRed 0.35s ease;
+    }
+    .grid-cell.cell-solution {
+      border-color: var(--mathai-purple);
+      background: #F7EEFE;
+      border-style: solid;
+    }
+
+    /* Sum hint badges */
+    .sum-hints {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 4px;
+    }
+    .sum-hint {
+      background: #F7EEFE;
+      border: 1px solid var(--mathai-purple);
+      color: var(--mathai-primary);
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .sum-hint b { color: var(--mathai-purple); }
+
+    /* Pool / Bank (PART-043) */
+    .pool-label {
+      font-size: var(--mathai-font-size-small);
+      font-weight: 700;
+      color: var(--mathai-gray);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin: 4px 0 8px;
+    }
+    .pool-wrap {
+      background: var(--mathai-light-gray);
+      border-radius: var(--mathai-border-radius-card);
+      padding: 12px 12px;
+      margin-bottom: 14px;
+      min-height: 80px;
+    }
+    .pool-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      min-height: 56px;
+    }
+
+    /* Each tag has its own bank-slot placeholder. Collapse when tag is in a zone. */
+    .bank-slot {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 54px;
+      height: 54px;
+    }
+    .bank-slot.slot-collapsed { display: none; }
+
+    /* Draggable digit chip — touch-action: none ONLY here (V15/V16) */
+    .dnd-tag {
+      width: 54px;
+      height: 54px;
+      min-width: 44px;
+      min-height: 44px;
+      border-radius: var(--mathai-border-radius-small);
+      background: var(--mathai-white);
+      border: 2px solid var(--mathai-border-gray);
+      box-shadow: 0 2px 3px rgba(0,0,0,0.06);
+      color: var(--mathai-primary);
+      font-size: 24px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .dnd-tag:active { cursor: grabbing; transform: scale(0.96); }
+
+    /* Drop zone reuses .grid-cell + drop-zone class */
+    .drop-zone.dnd-over {
+      border-color: var(--mathai-blue);
+      border-style: solid;
+      background: #EEF1FF;
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.25);
+    }
+    .drop-zone.has-tag {
+      border-style: solid;
+    }
+    /* When a chip sits inside a drop-zone, collapse its frame so the zone looks
+       like it holds the digit itself. */
+    .drop-zone .dnd-tag {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+
+    /* Bank itself is a Droppable for return/cancel paths */
+    #poolWrap.dnd-over {
+      background: #EEF1FF;
+    }
+
+    /* Animations */
+    @keyframes cellFlashGreen {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.08); background: var(--mathai-cell-bg-green); }
+      100% { transform: scale(1); }
+    }
+    @keyframes cellFlashRed {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-3px); }
+      60% { transform: translateX(3px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.35s ease; }
+
+    /* Disabled state during processing (Behaviour 9 — V21–V24) */
+    .dnd-disabled .grid-cell,
+    .dnd-disabled .dnd-tag {
+      pointer-events: none !important;
+      cursor: not-allowed !important;
+    }
+
+    /* Landscape lock */
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: 'Please rotate your phone to portrait mode';
+        position: fixed;
+        inset: 0;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mathai-white);
+        color: var(--mathai-primary);
+        font-family: var(--mathai-font-family);
+        font-size: var(--mathai-font-size-subtitle);
+        text-align: center;
+        padding: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-phase="start_screen" data-score="0" data-round="0"></div>
+
+  <script>
+    /* ============================================================
+       Sticker URLs (standard set)
+       ============================================================ */
+    var STICKER_CORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_WRONG = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_LEVEL = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-234.gif';
+    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_GAME_COMPLETE_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_GAME_COMPLETE_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    /* ============================================================
+       gameState (PART-007) — gameId MUST be first field
+       ============================================================ */
+    var gameState = {
+      gameId: 'cross-numbers',
+      phase: 'start_screen',
+      currentRound: 0,
+      totalRounds: 3,
+      score: 0,
+      correctAnswer: null,
+      attempts: [],
+      events: [],
+      startTime: null,
+      isActive: false,
+      isProcessing: false,
+      gameEnded: false,
+      content: null,
+      stars: 0,
+      firstCheckSolves: 0,
+      roundsCompleted: 0,
+      roundStartTime: null,
+      responseTimes: [],
+      previewResult: null,
+      focusedCell: null,
+      cellValues: {},
+      poolAvailable: [],
+      currentRoundData: null,
+      isGridFull: false,
+      validationResult: null,
+      placementLog: [],
+      duration_data: {
+        startTime: null,
+        preview: [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      }
+    };
+    window.gameState = gameState;
+
+    /* ============================================================
+       fallbackContent — 3 rounds (simple plus-sign cross)
+       Cross shape (5 cells):
+                [top]
+        [left][center][right]
+                [bottom]
+       Two numbers:
+         ROW = left + center + right
+         COL = top + center + bottom
+       Each cell is single-digit (1-9). Drag a digit chip onto a cell.
+       ============================================================ */
+    var fallbackContent = {
+      previewInstruction: '<p><b>Fill the plus-sign cross!</b><br>Drag a digit chip onto each empty cell so the row sums and the column sum match the targets. Tap <b>CHECK</b> when full.</p>',
+      previewAudioText: 'Drag a digit onto each cell. Make the row sum and column sum match the targets, then tap CHECK.',
+      previewAudio: null,
+      showGameOnPreview: false,
+      rounds: [
+        {
+          round: 1, stage: 1, type: 'A', variant: 'B1',
+          rowSum: 12, colSum: 15,
+          cells: [
+            { id: 'top',    label: 'top' },
+            { id: 'left',   label: 'left' },
+            { id: 'center', label: 'center' },
+            { id: 'right',  label: 'right' },
+            { id: 'bottom', label: 'bottom' }
+          ],
+          numbers: [
+            { id: 'ROW', label: 'Row',    type: 'horizontal', cells: ['left','center','right'] },
+            { id: 'COL', label: 'Column', type: 'vertical',   cells: ['top','center','bottom'] }
+          ],
+          pool: [2, 3, 4, 5, 8, 1, 7, 9],
+          rules: [
+            { id: 'r1', text: "Drag a digit (1-9) onto each cell." },
+            { id: 'r2', text: "Row (left + center + right) must equal 12." },
+            { id: 'r3', text: "Column (top + center + bottom) must equal 15." }
+          ],
+          solution: {
+            top: 2, left: 3, center: 5, right: 4, bottom: 8
+          },
+          misconception_tags: {
+            'wrong-row-sum': "Row digits do not sum to the target.",
+            'wrong-col-sum': "Column digits do not sum to the target.",
+            'wrong-both':    "Both row and column sums are off."
+          }
+        },
+        {
+          round: 2, stage: 1, type: 'A', variant: 'B2',
+          rowSum: 15, colSum: 13,
+          cells: [
+            { id: 'top',    label: 'top' },
+            { id: 'left',   label: 'left' },
+            { id: 'center', label: 'center' },
+            { id: 'right',  label: 'right' },
+            { id: 'bottom', label: 'bottom' }
+          ],
+          numbers: [
+            { id: 'ROW', label: 'Row',    type: 'horizontal', cells: ['left','center','right'] },
+            { id: 'COL', label: 'Column', type: 'vertical',   cells: ['top','center','bottom'] }
+          ],
+          pool: [7, 6, 4, 5, 2, 1, 3, 9],
+          rules: [
+            { id: 'r1', text: "Drag a digit (1-9) onto each cell." },
+            { id: 'r2', text: "Row (left + center + right) must equal 15." },
+            { id: 'r3', text: "Column (top + center + bottom) must equal 13." }
+          ],
+          solution: {
+            top: 7, left: 6, center: 4, right: 5, bottom: 2
+          },
+          misconception_tags: {
+            'wrong-row-sum': "Row digits do not sum to the target.",
+            'wrong-col-sum': "Column digits do not sum to the target.",
+            'wrong-both':    "Both row and column sums are off."
+          }
+        },
+        {
+          round: 3, stage: 1, type: 'A', variant: 'B3',
+          rowSum: 14, colSum: 16,
+          cells: [
+            { id: 'top',    label: 'top' },
+            { id: 'left',   label: 'left' },
+            { id: 'center', label: 'center' },
+            { id: 'right',  label: 'right' },
+            { id: 'bottom', label: 'bottom' }
+          ],
+          numbers: [
+            { id: 'ROW', label: 'Row',    type: 'horizontal', cells: ['left','center','right'] },
+            { id: 'COL', label: 'Column', type: 'vertical',   cells: ['top','center','bottom'] }
+          ],
+          pool: [4, 3, 5, 6, 7, 1, 2, 9],
+          rules: [
+            { id: 'r1', text: "Drag a digit (1-9) onto each cell." },
+            { id: 'r2', text: "Row (left + center + right) must equal 14." },
+            { id: 'r3', text: "Column (top + center + bottom) must equal 16." }
+          ],
+          solution: {
+            top: 4, left: 3, center: 5, right: 6, bottom: 7
+          },
+          misconception_tags: {
+            'wrong-row-sum': "Row digits do not sum to the target.",
+            'wrong-col-sum': "Column digits do not sum to the target.",
+            'wrong-both':    "Both row and column sums are off."
+          }
+        }
+      ]
+    };
+
+    /* ============================================================
+       Module-scope runtime references
+       ============================================================ */
+    var visibilityTracker = null;
+    var signalCollector = null;
+    var progressBar = null;
+    var transitionScreen = null;
+    var previewScreen = null;
+    var floatingBtn = null;
+    var audioPermissionChecked = false;
+
+    /* ============================================================
+       @dnd-kit/dom (PART-043) — R1 ESM async load
+       ============================================================ */
+    var dndReady = false;
+    window.addEventListener('dndkit:ready', function() { dndReady = true; });
+    function waitForDndKit(timeout) {
+      if (timeout == null) timeout = 10000;
+      return new Promise(function(resolve, reject) {
+        if (dndReady) return resolve(window.__DndKit);
+        var start = Date.now();
+        var iv = setInterval(function() {
+          if (dndReady) { clearInterval(iv); resolve(window.__DndKit); return; }
+          if (Date.now() - start > timeout) {
+            clearInterval(iv);
+            reject(new Error('dnd-kit failed to load within ' + timeout + 'ms'));
+          }
+        }, 50);
+      });
+    }
+
+    // R3 — per-round DnD lifecycle state
+    var dndManager = null;
+    var dndDraggables = [];
+    var dndDroppables = [];
+    var locations = new Map();   // R2 — Map<tagId, 'bank' | 'cell-<id>'>
+    var zoneValues = new Map();  // Map<cellId ('cell-<id>'), tagId | null>
+    var tagValueOf = new Map();  // Map<tagId, numeric digit value>
+    var isDndDragging = false;
+    window.locations = locations;
+    window.zoneValues = zoneValues;
+
+    // Touchmove gate (Behaviour 8) — global, set/cleared in dragstart/dragend
+    document.addEventListener('touchmove', function(e) {
+      if (isDndDragging) {
+        try { e.preventDefault(); } catch (err) {}
+      }
+    }, { passive: false });
+
+    function destroyDndRound() {
+      try {
+        for (var i = 0; i < dndDraggables.length; i++) {
+          try { if (dndDraggables[i] && typeof dndDraggables[i].destroy === 'function') dndDraggables[i].destroy(); } catch (e) {}
+        }
+        for (var j = 0; j < dndDroppables.length; j++) {
+          try { if (dndDroppables[j] && typeof dndDroppables[j].destroy === 'function') dndDroppables[j].destroy(); } catch (e) {}
+        }
+        if (dndManager && typeof dndManager.destroy === 'function') {
+          try { dndManager.destroy(); } catch (e) {}
+        }
+      } catch (e) {}
+      dndDraggables = [];
+      dndDroppables = [];
+      dndManager = null;
+      locations.clear();
+      zoneValues.clear();
+      tagValueOf.clear();
+      isDndDragging = false;
+    }
+    window.destroyDndRound = destroyDndRound;
+
+    /* ============================================================
+       syncDOM — writes #app data-* attrs
+       ============================================================ */
+    function syncDOM() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.setAttribute('data-phase', gameState.phase);
+      app.setAttribute('data-score', gameState.score);
+      app.setAttribute('data-round', gameState.currentRound);
+    }
+
+    /* ============================================================
+       trackEvent
+       ============================================================ */
+    function trackEvent(type, data) {
+      try {
+        var evt = { event: type, timestamp: Date.now() };
+        if (data && typeof data === 'object') {
+          for (var k in data) { if (data.hasOwnProperty(k)) evt[k] = data[k]; }
+        }
+        gameState.events.push(evt);
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       recordAttempt
+       ============================================================ */
+    function recordAttempt(params) {
+      try {
+        var now = Date.now();
+        var sinceStart = gameState.startTime ? (now - gameState.startTime) : 0;
+        var responseMs = gameState.roundStartTime ? (now - gameState.roundStartTime) : 0;
+        if (params && typeof params.response_time_ms === 'number') {
+          responseMs = params.response_time_ms;
+        }
+        var attempt = {
+          attempt_timestamp: now,
+          time_since_start_of_game: sinceStart,
+          input_of_user: params.input_of_user,
+          correct: !!params.correct,
+          round_number: params.round_number,
+          question_id: params.question_id,
+          correct_answer: params.correct_answer,
+          response_time_ms: responseMs,
+          misconception_tag: params.misconception_tag == null ? null : params.misconception_tag,
+          difficulty_level: params.difficulty_level || 1,
+          is_retry: !!params.is_retry,
+          metadata: params.metadata || {}
+        };
+        gameState.attempts.push(attempt);
+        gameState.duration_data.attempts.push({
+          round: params.round_number,
+          timestamp: now,
+          response_time_ms: responseMs
+        });
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       getRounds — with fallback
+       ============================================================ */
+    function getRounds() {
+      if (gameState.content && gameState.content.rounds &&
+          gameState.content.rounds.length >= gameState.totalRounds) {
+        return gameState.content.rounds;
+      }
+      return fallbackContent.rounds;
+    }
+
+    /* ============================================================
+       getStars
+       ============================================================ */
+    function getStars() {
+      var s = gameState.firstCheckSolves || 0;
+      if (s >= 3) return 3;
+      if (s >= 2) return 2;
+      if (s >= 1) return 1;
+      return 0;
+    }
+
+    /* ============================================================
+       waitForPackages (PART-003)
+       ============================================================ */
+    function waitForPackages() {
+      return new Promise(function(resolve, reject) {
+        var startT = Date.now();
+        var timeout = 120000;
+        var interval = setInterval(function() {
+          var ok = (typeof FeedbackManager !== 'undefined') &&
+                   (typeof VisibilityTracker !== 'undefined') &&
+                   (typeof ScreenLayout !== 'undefined') &&
+                   (typeof ProgressBarComponent !== 'undefined') &&
+                   (typeof TransitionScreenComponent !== 'undefined') &&
+                   (typeof PreviewScreenComponent !== 'undefined') &&
+                   (typeof FloatingButtonComponent !== 'undefined');
+          if (ok) { clearInterval(interval); resolve(true); return; }
+          if (Date.now() - startT > timeout) {
+            clearInterval(interval);
+            try {
+              throw new Error('Packages failed to load within ' + timeout + 'ms');
+            } catch (err) {
+              reject(err);
+            }
+          }
+        }, 50);
+      });
+    }
+
+    function waitForAudioPermission() {
+      return new Promise(function(resolve) {
+        if (audioPermissionChecked) return resolve();
+        if (typeof FeedbackManager === 'undefined' || !FeedbackManager.canPlayAudio) {
+          audioPermissionChecked = true;
+          return resolve();
+        }
+        try {
+          if (FeedbackManager.canPlayAudio()) {
+            audioPermissionChecked = true;
+            return resolve();
+          }
+        } catch (e) { /* noop */ }
+        var check = setInterval(function() {
+          try {
+            if (FeedbackManager.canPlayAudio && FeedbackManager.canPlayAudio()) {
+              clearInterval(check);
+              audioPermissionChecked = true;
+              resolve();
+            }
+          } catch (e) { /* noop */ }
+        }, 200);
+        setTimeout(function() { clearInterval(check); audioPermissionChecked = true; resolve(); }, 15000);
+      });
+    }
+
+    function preloadAllAudio() {
+      return FeedbackManager.sound.preload([
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'new_cards', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3' }
+      ]);
+    }
+
+    function safePlaySound(id, opts) {
+      try {
+        return FeedbackManager.sound.play(id, opts || {});
+      } catch (e) {
+        return Promise.resolve();
+      }
+    }
+    function safeStopAllAudio() {
+      try { if (FeedbackManager && FeedbackManager.sound && FeedbackManager.sound.pause) FeedbackManager.sound.pause(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager.stream && FeedbackManager.stream.pauseAll) FeedbackManager.stream.pauseAll(); } catch (e) {}
+      try { if (FeedbackManager && FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+    }
+
+    function createProgressBar() {
+      try { if (progressBar && progressBar.destroy) progressBar.destroy(); } catch (e) {}
+      try {
+        progressBar = new ProgressBarComponent({
+          slotId: 'mathai-progress-slot',
+          totalRounds: gameState.totalRounds,
+          totalLives: gameState.totalRounds
+        });
+        progressBar.show();
+        progressBar.update(0, 0);
+      } catch (e) {
+        console.error('[progressBar] ' + e.message);
+      }
+    }
+
+    /* ============================================================
+       handlePostMessage (PART-008)
+       ============================================================ */
+    function handlePostMessage(event) {
+      try {
+        if (!event || !event.data || typeof event.data !== 'object') return;
+        var msg = event.data;
+        if (msg.type === 'game_init') {
+          gameState.phase = 'playing';
+          var d = msg.data || msg;
+          if (d.content) gameState.content = d.content;
+          else if (msg.content) gameState.content = msg.content;
+
+          gameState.signalConfig = d.signalConfig || msg.signalConfig || {};
+          var sc = gameState.signalConfig;
+          if (signalCollector) {
+            try { signalCollector.flushUrl = sc.flushUrl; } catch (e) {}
+            try { signalCollector.playId = sc.playId; } catch (e) {}
+            try { signalCollector.gameId = sc.gameId || gameState.gameId; } catch (e) {}
+            try { signalCollector.sessionId = sc.sessionId; } catch (e) {}
+            try { signalCollector.contentSetId = sc.contentSetId; } catch (e) {}
+            try { signalCollector.studentId = sc.studentId; } catch (e) {}
+            try { if (signalCollector.startFlushing) signalCollector.startFlushing(); } catch (e) {}
+          }
+          syncDOM();
+          setupGame();
+        }
+      } catch (e) { /* noop */ }
+    }
+
+    /* ============================================================
+       injectGameHTML — layout scaffold
+       ============================================================ */
+    function injectGameHTML() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML =
+        '<div id="rulesPanel" class="rules-panel fade-in">' +
+          '<div class="rules-panel-title">Rules</div>' +
+          '<ol id="rulesList" class="rules-list"></ol>' +
+        '</div>' +
+        '<div id="gridWrap" class="grid-wrap fade-in">' +
+          '<div id="crossGrid" class="cross-grid"></div>' +
+          '<div id="sumHints" class="sum-hints"></div>' +
+        '</div>' +
+        '<div class="pool-label">Digits — drag onto a cell</div>' +
+        '<div id="poolWrap" class="pool-wrap bank fade-in">' +
+          '<div id="poolGrid" class="pool-grid"></div>' +
+        '</div>' +
+        // Hidden mirror of the floating CHECK button — needed for #btn-check
+        // smoke tests (PART-043 V13/V14) and for headless drivers that prefer
+        // a directly-queryable submit element. Click also routes to runCheck().
+        '<button id="btn-check" data-testid="btn-check" type="button" disabled ' +
+                'style="position:absolute; left:-9999px; top:-9999px; width:1px; height:1px; opacity:0; pointer-events:none;">Check</button>';
+
+      var btn = document.getElementById('btn-check');
+      if (btn) {
+        btn.addEventListener('click', function() {
+          if (!gameState.isActive || gameState.gameEnded || gameState.isProcessing) return;
+          if (!isSubmittable()) return;
+          runCheck();
+        });
+      }
+    }
+
+    function renderInitialState() {
+      var rounds = getRounds();
+      if (!rounds || !rounds[0]) return;
+      buildRoundDOM(rounds[0], false);
+    }
+
+    function escapeHTML(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, function(ch) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+      });
+    }
+
+    /* ============================================================
+       buildRoundDOM — render rules, grid, pool for a round
+       ============================================================ */
+    function buildRoundDOM(round, interactive) {
+      // R3 — destroy any previous round's DnD instances + tracking BEFORE
+      // we throw away the old DOM. Safe to call when nothing is set up.
+      destroyDndRound();
+
+      gameState.currentRoundData = round;
+      gameState.cellValues = {};
+      gameState.focusedCell = null;
+      gameState.poolAvailable = [];
+
+      // Populate rules
+      var rulesList = document.getElementById('rulesList');
+      if (rulesList) {
+        var rh = '';
+        for (var i = 0; i < round.rules.length; i++) {
+          rh += '<li data-testid="rule-' + round.rules[i].id + '">' + escapeHTML(round.rules[i].text) + '</li>';
+        }
+        rulesList.innerHTML = rh;
+      }
+
+      // Build grid (5-cell plus-sign cross). Each cell is a Droppable target.
+      var gridEl = document.getElementById('crossGrid');
+      if (gridEl) {
+        gridEl.innerHTML = renderGridHTML(round);
+      }
+
+      // Sum hints
+      var hintsEl = document.getElementById('sumHints');
+      if (hintsEl) {
+        hintsEl.innerHTML =
+          '<div class="sum-hint" data-testid="hint-row">Row sum: <b>' + round.rowSum + '</b></div>' +
+          '<div class="sum-hint" data-testid="hint-col">Column sum: <b>' + round.colSum + '</b></div>';
+      }
+
+      // Build pool — bank-slot per tag, dnd-tag inside each slot.
+      // Tag ids are stable per round; destroyed/rebuilt on round transition (R3).
+      var poolEl = document.getElementById('poolGrid');
+      if (poolEl) {
+        var ph = '';
+        for (var p = 0; p < round.pool.length; p++) {
+          var v = round.pool[p];
+          var tagId = 'tag-r' + round.round + '-' + p;
+          ph +=
+            '<div class="bank-slot" data-slot-for="' + tagId + '" data-bank-slot-idx="' + p + '">' +
+              '<div class="dnd-tag" ' +
+                   'id="' + tagId + '" ' +
+                   'data-testid="pool-' + p + '" ' +
+                   'data-tag-id="' + tagId + '" ' +
+                   'data-pool-idx="' + p + '" ' +
+                   'data-pool-val="' + v + '" ' +
+                   'role="button" ' +
+                   'aria-label="Digit ' + v + '">' +
+                v +
+              '</div>' +
+            '</div>';
+          gameState.poolAvailable.push({ idx: p, value: v, available: true, tagId: tagId });
+        }
+        poolEl.innerHTML = ph;
+      }
+
+      // Initialize cellValues to null for each cell
+      for (var c = 0; c < round.cells.length; c++) {
+        gameState.cellValues[round.cells[c].id] = null;
+      }
+
+      gameState.isGridFull = false;
+      gameState.validationResult = null;
+
+      // Reset floating submit visibility for the new round
+      try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode(null); } catch (e) {}
+
+      // Reset hidden mirror submit button to disabled at round start
+      var btn = document.getElementById('btn-check');
+      if (btn) btn.disabled = true;
+
+      if (interactive) {
+        // R1 — DnD setup awaits dndkit:ready independently of waitForPackages
+        setupDnd(round).catch(function(e) {
+          console.error('[setupDnd] ' + e.message);
+        });
+      }
+    }
+
+    function renderGridHTML(round) {
+      var html = '';
+      for (var i = 0; i < round.cells.length; i++) {
+        var cell = round.cells[i];
+        // Element id is "cell-<cellId>" so it matches the dnd-kit Droppable id we register.
+        html +=
+          '<div class="grid-cell drop-zone cell-' + cell.id + '" ' +
+               'id="cell-' + cell.id + '" ' +
+               'data-testid="cell-' + cell.id + '" ' +
+               'data-cell-id="' + cell.id + '">' +
+          '</div>';
+      }
+      return html;
+    }
+
+    /* ============================================================
+       Drag-and-drop (PART-043 — @dnd-kit/dom)
+       ============================================================ */
+    function isSubmittable() {
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return false;
+      var r = gameState.currentRoundData;
+      if (!r || !r.cells) return false;
+      for (var i = 0; i < r.cells.length; i++) {
+        if (gameState.cellValues[r.cells[i].id] == null) return false;
+      }
+      return true;
+    }
+
+    function updateSubmitButton() {
+      var allFilled = true;
+      var r = gameState.currentRoundData;
+      if (!r || !r.cells) {
+        allFilled = false;
+      } else {
+        for (var i = 0; i < r.cells.length; i++) {
+          if (gameState.cellValues[r.cells[i].id] == null) { allFilled = false; break; }
+        }
+      }
+      gameState.isGridFull = allFilled;
+      var btn = document.getElementById('btn-check');
+      if (btn) btn.disabled = !(allFilled && !gameState.isProcessing && !gameState.gameEnded && gameState.isActive);
+      try {
+        if (floatingBtn && floatingBtn.setSubmittable) {
+          floatingBtn.setSubmittable(isSubmittable());
+        }
+      } catch (e) {}
+    }
+    // Legacy alias kept so other call sites (e.g. on clear) still work.
+    var evaluateGridFull = updateSubmitButton;
+
+    // Helper: extract the cell id (e.g. 'top') from the dnd-kit zone id ('cell-top').
+    function zoneIdToCellId(zoneId) {
+      if (!zoneId || typeof zoneId !== 'string') return null;
+      if (zoneId.indexOf('cell-') !== 0) return null;
+      return zoneId.slice(5);
+    }
+
+    // R4 — strip residual dnd-kit positioning vars + inline drag styles so the
+    // chip lands cleanly at its new flex-centered location with no off-screen
+    // animation flash. Mirrors hexa-numbers' resetDragStyling pattern.
+    // Call from EVERY drop path (moveTagToZone + returnToBank).
+    function resetDragStyling(el) {
+      if (!el) return;
+      try {
+        el.style.removeProperty('--dnd-top');
+        el.style.removeProperty('--dnd-left');
+        el.style.removeProperty('--dnd-translate');
+        el.style.removeProperty('--dnd-translate-x');
+        el.style.removeProperty('--dnd-translate-y');
+        el.style.removeProperty('--dnd-transform');
+        el.style.removeProperty('--dnd-transition');
+        el.style.removeProperty('--dnd-transform-origin');
+        el.style.removeProperty('--dnd-width');
+        el.style.removeProperty('--dnd-height');
+        el.style.position = '';
+        el.style.left = '';
+        el.style.top = '';
+        el.style.transform = '';
+        el.style.transition = '';
+        el.style.pointerEvents = '';
+        el.style.zIndex = '';
+      } catch (e) {}
+    }
+
+    function moveTagToZone(tagId, zoneId) {
+      var tag = document.getElementById(tagId);
+      var zone = document.getElementById(zoneId);
+      if (!tag || !zone) return;
+
+      // R2/V3 — Do NOT auto-clear the previous zone here. The dragend handler
+      // owns clearing logic explicitly (V4 transfer clears the source zone;
+      // V3 swap relies on each call only setting its target zone so the two
+      // calls do not clobber each other).
+
+      resetDragStyling(tag);
+      zone.appendChild(tag);
+      zone.classList.add('has-tag');
+      zoneValues.set(zoneId, tagId);
+      locations.set(tagId, zoneId);
+
+      // Update game-side cellValues using the tag's numeric value
+      var cellId = zoneIdToCellId(zoneId);
+      var v = tagValueOf.get(tagId);
+      if (cellId && v != null) gameState.cellValues[cellId] = v;
+
+      // Collapse this tag's bank slot
+      var slot = document.querySelector('[data-slot-for="' + tagId + '"]');
+      if (slot) slot.classList.add('slot-collapsed');
+
+      // Update poolAvailable (legacy mirror) and submit button
+      var poolIdx = parseInt(tag.getAttribute('data-pool-idx'), 10);
+      if (!isNaN(poolIdx) && gameState.poolAvailable[poolIdx]) {
+        gameState.poolAvailable[poolIdx].available = false;
+      }
+      gameState.placementLog.push({ ts: Date.now(), cellId: cellId, value: v, action: 'place' });
+      updateSubmitButton();
+    }
+
+    function clearZone(zoneId) {
+      zoneValues.set(zoneId, null);
+      var zoneEl = document.getElementById(zoneId);
+      if (zoneEl) zoneEl.classList.remove('has-tag');
+      var cellId = zoneIdToCellId(zoneId);
+      if (cellId) gameState.cellValues[cellId] = null;
+      updateSubmitButton();
+    }
+
+    function returnToBank(tagId) {
+      var tag = document.getElementById(tagId);
+      var slot = document.querySelector('[data-slot-for="' + tagId + '"]');
+      if (!tag || !slot) return;
+
+      // R4 — strip residual drag styles BEFORE reparenting so the chip lands
+      // cleanly in its bank slot (no off-screen flash from leftover transforms).
+      resetDragStyling(tag);
+      slot.appendChild(tag);
+      slot.classList.remove('slot-collapsed');
+
+      var oldZone = locations.get(tagId);
+      if (oldZone && oldZone !== 'bank') clearZone(oldZone);
+
+      locations.set(tagId, 'bank');
+
+      // Update poolAvailable mirror
+      var poolIdx = parseInt(tag.getAttribute('data-pool-idx'), 10);
+      if (!isNaN(poolIdx) && gameState.poolAvailable[poolIdx]) {
+        gameState.poolAvailable[poolIdx].available = true;
+      }
+      gameState.placementLog.push({ ts: Date.now(), cellId: zoneIdToCellId(oldZone || ''), value: tagValueOf.get(tagId), action: 'return' });
+      updateSubmitButton();
+    }
+
+    async function setupDnd(round) {
+      // R1 — wait for ESM library independently of waitForPackages
+      var DndKit;
+      try {
+        DndKit = await waitForDndKit(10000);
+      } catch (e) {
+        console.error('[setupDnd] dnd-kit not ready: ' + e.message);
+        return;
+      }
+      if (!DndKit) return;
+
+      // R3 — start clean (in case buildRoundDOM was called twice without a destroy)
+      destroyDndRound();
+
+      var DragDropManager = DndKit.DragDropManager;
+      var Draggable = DndKit.Draggable;
+      var Droppable = DndKit.Droppable;
+      var PointerSensor = DndKit.PointerSensor;
+      var PointerActivationConstraints = DndKit.PointerActivationConstraints;
+      var Feedback = DndKit.Feedback;
+
+      try {
+        var sensors = undefined;
+        if (PointerSensor && PointerActivationConstraints && PointerActivationConstraints.Distance) {
+          sensors = [
+            PointerSensor.configure({
+              // 5px distance threshold — no delay (Behaviour 8)
+              activationConstraints: [
+                new PointerActivationConstraints.Distance({ value: 5 })
+              ]
+            })
+          ];
+        }
+        // Disable Feedback drop animation — its post-drop transition leaves
+        // residual position:fixed + pointer-events:none on the chip via the
+        // dnd-kit CSS variables, which prevents the next pointerdown from
+        // activating the draggable (V5b re-pickup, V13 fill-all).
+        var managerOpts = sensors ? { sensors: sensors } : {};
+        if (Feedback && Feedback.configure) {
+          managerOpts.plugins = function(defaults) {
+            return defaults.concat([Feedback.configure({ dropAnimation: null })]);
+          };
+        }
+        dndManager = new DragDropManager(managerOpts);
+      } catch (e) {
+        // Fall back to the default sensor set if PointerSensor.configure isn't supported
+        console.error('[setupDnd] sensor config: ' + e.message);
+        try { dndManager = new DragDropManager(); }
+        catch (e2) { console.error('[setupDnd] manager init failed: ' + e2.message); return; }
+      }
+
+      // Init R2 tracking
+      var bankSlots = document.querySelectorAll('#poolGrid .bank-slot');
+      for (var s = 0; s < bankSlots.length; s++) {
+        var tagId = bankSlots[s].getAttribute('data-slot-for');
+        var tagEl = document.getElementById(tagId);
+        if (!tagEl) continue;
+        var v = parseInt(tagEl.getAttribute('data-pool-val'), 10);
+        tagValueOf.set(tagId, isNaN(v) ? null : v);
+        locations.set(tagId, 'bank');
+
+        // Attach a Draggable to every tag (Behaviour 1)
+        try {
+          var d = new Draggable({ id: tagId, element: tagEl }, dndManager);
+          dndDraggables.push(d);
+        } catch (e) { console.error('[setupDnd] Draggable ' + tagId + ': ' + e.message); }
+      }
+
+      // One Droppable per cross cell (5 zones)
+      for (var c = 0; c < round.cells.length; c++) {
+        var cellId = round.cells[c].id;
+        var zoneId = 'cell-' + cellId;
+        var zoneEl = document.getElementById(zoneId);
+        if (!zoneEl) continue;
+        zoneValues.set(zoneId, null);
+        try {
+          (function(localZoneId, localZoneEl) {
+            var dz = new Droppable({
+              id: localZoneId,
+              element: localZoneEl,
+              effects: function() {
+                return [function() {
+                  var self = dndDroppables.find(function(x) { return x && x.id === localZoneId; });
+                  if (self && self.isDropTarget) localZoneEl.classList.add('dnd-over');
+                  else localZoneEl.classList.remove('dnd-over');
+                }];
+              }
+            }, dndManager);
+            dndDroppables.push(dz);
+          })(zoneId, zoneEl);
+        } catch (e) { console.error('[setupDnd] Droppable ' + zoneId + ': ' + e.message); }
+      }
+
+      // Bank Droppable — catches return-to-bank drops (V5 explicit)
+      var bankEl = document.getElementById('poolWrap');
+      if (bankEl) {
+        try {
+          var bankDrop = new Droppable({ id: 'bank', element: bankEl }, dndManager);
+          dndDroppables.push(bankDrop);
+        } catch (e) { console.error('[setupDnd] bank Droppable: ' + e.message); }
+      }
+
+      // Behaviour 9 — input blocking guard. Reject drag if any universal guard is true.
+      try {
+        dndManager.monitor.addEventListener('beforedragstart', function(event) {
+          if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) {
+            try { event.preventDefault(); } catch (e) {}
+          }
+        });
+      } catch (e) {}
+
+      // Touchmove gate flag — set/cleared on every drag
+      try {
+        dndManager.monitor.addEventListener('dragstart', function() {
+          isDndDragging = true;
+          trackEvent('chip_dragstart', { round: gameState.currentRound });
+        });
+      } catch (e) {}
+
+      // Drop handling — evict vs swap per R2 / behaviour 4
+      try {
+        dndManager.monitor.addEventListener('dragend', function(event) {
+          isDndDragging = false;
+          var op = event && event.operation;
+          if (!op) return;
+
+          // Defensive: respect input-blocking guard even if a drag slipped through
+          if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
+
+          var sourceId = op.source && op.source.id;
+          var targetId = op.target && op.target.id;
+          var canceled = !!event.canceled;
+
+          if (!sourceId) return;
+
+          // Drop outside any target → return to bank (V6)
+          if (canceled || !targetId) {
+            returnToBank(sourceId);
+            return;
+          }
+          // Explicit drop on bank → return (V5)
+          if (targetId === 'bank') {
+            returnToBank(sourceId);
+            return;
+          }
+
+          var sourceLoc = locations.get(sourceId);          // 'bank' | 'cell-<id>'
+          var occupantId = zoneValues.get(targetId) || null;
+
+          // Same-zone no-op (V7)
+          if (sourceLoc === targetId) return;
+
+          if (!occupantId) {
+            // V1 (bank → empty) / V4 (zone → empty)
+            moveTagToZone(sourceId, targetId);
+            // V4 — explicitly clear the source zone now that source has been moved.
+            if (sourceLoc && sourceLoc !== 'bank') clearZone(sourceLoc);
+          } else if (sourceLoc === 'bank') {
+            // V2 — evict occupant back to its bank slot, place source
+            returnToBank(occupantId);
+            moveTagToZone(sourceId, targetId);
+          } else {
+            // V3 — swap: occupant moves to source's old zone, source moves to target.
+            // moveTagToZone no longer auto-clears the prev zone, so the two writes
+            // do not clobber each other.
+            moveTagToZone(occupantId, sourceLoc);
+            moveTagToZone(sourceId, targetId);
+          }
+
+          safePlaySound('sound_bubble_select', {});
+          trackEvent('cell_place', {
+            round: gameState.currentRound,
+            cellId: zoneIdToCellId(targetId),
+            value: tagValueOf.get(sourceId)
+          });
+        });
+      } catch (e) { console.error('[setupDnd] dragend wiring: ' + e.message); }
+
+      updateSubmitButton();
+    }
+
+    /* ============================================================
+       Evaluate grid-full → enable/disable CHECK
+       ============================================================ */
+    function evaluateGridFull() {
+      var r = gameState.currentRoundData;
+      if (!r) return;
+      var full = true;
+      for (var i = 0; i < r.cells.length; i++) {
+        if (gameState.cellValues[r.cells[i].id] == null) { full = false; break; }
+      }
+      gameState.isGridFull = full;
+      try {
+        if (floatingBtn && floatingBtn.setSubmittable) {
+          floatingBtn.setSubmittable(isSubmittable());
+        }
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       Validator — row sum + column sum, single-digit cells
+       ============================================================ */
+    function validateGrid(round) {
+      var result = {
+        pass: true,
+        violatedNumberIds: [],
+        conflictCellIds: []
+      };
+      var conflictSet = {};
+      var cv = gameState.cellValues;
+      var targets = { ROW: round.rowSum, COL: round.colSum };
+
+      for (var n = 0; n < round.numbers.length; n++) {
+        var num = round.numbers[n];
+        var sum = 0;
+        var complete = true;
+        for (var c = 0; c < num.cells.length; c++) {
+          var v = cv[num.cells[c]];
+          if (v == null) { complete = false; break; }
+          sum += v;
+        }
+        if (!complete || sum !== targets[num.id]) {
+          result.pass = false;
+          result.violatedNumberIds.push(num.id);
+          for (var x = 0; x < num.cells.length; x++) conflictSet[num.cells[x]] = true;
+        }
+      }
+
+      for (var key in conflictSet) if (conflictSet.hasOwnProperty(key)) result.conflictCellIds.push(key);
+      return result;
+    }
+
+    function deriveMisconception(round, result) {
+      if (!result || result.pass) return null;
+      var rowBad = result.violatedNumberIds.indexOf('ROW') !== -1;
+      var colBad = result.violatedNumberIds.indexOf('COL') !== -1;
+      if (rowBad && colBad) return 'wrong-both';
+      if (rowBad) return 'wrong-row-sum';
+      if (colBad) return 'wrong-col-sum';
+      return 'wrong-both';
+    }
+
+    /* ============================================================
+       Submit — invoked by FloatingButton
+       ============================================================ */
+    function runCheck() {
+      if (gameState.isProcessing) return;
+      gameState.isProcessing = true;
+
+      var gc = document.getElementById('gameContent');
+      if (gc) gc.classList.add('dnd-disabled');
+
+      var round = gameState.currentRoundData;
+      if (!round) { gameState.isProcessing = false; return; }
+
+      var responseMs = gameState.roundStartTime ? (Date.now() - gameState.roundStartTime) : 0;
+      gameState.responseTimes.push(responseMs);
+
+      var result = validateGrid(round);
+      gameState.validationResult = result;
+
+      var snapshot = {};
+      for (var k in gameState.cellValues) if (gameState.cellValues.hasOwnProperty(k)) snapshot[k] = gameState.cellValues[k];
+
+      if (result.pass) {
+        handleCorrectOutcome(round, snapshot, responseMs);
+      } else {
+        handleWrongOutcome(round, result, snapshot, responseMs);
+      }
+    }
+
+    function handleCorrectOutcome(round, snapshot, responseMs) {
+      recordAttempt({
+        input_of_user: JSON.stringify(snapshot),
+        correct: true,
+        round_number: gameState.currentRound,
+        question_id: 'r' + gameState.currentRound + '_cross_' + round.variant,
+        correct_answer: round.solution,
+        response_time_ms: responseMs,
+        misconception_tag: null,
+        difficulty_level: round.stage || 1,
+        is_retry: false,
+        metadata: {
+          variant: round.variant,
+          cells: snapshot,
+          firstCheck: true
+        }
+      });
+      trackEvent('answer_submitted', { round: gameState.currentRound, correct: true });
+
+      gameState.score += 1;
+      gameState.firstCheckSolves += 1;
+      gameState.roundsCompleted += 1;
+      syncDOM();
+
+      var allCells = document.querySelectorAll('.grid-cell');
+      for (var i = 0; i < allCells.length; i++) allCells[i].classList.add('cell-success');
+
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await Promise.all([
+            safePlaySound('correct_sound_effect', { sticker: STICKER_CORRECT }),
+            new Promise(function(res) { setTimeout(res, 1500); })
+          ]);
+        } catch (e) { /* noop */ }
+
+        // Long feedback popup (CASE 14/15) — MUST be awaited before nextRound
+        try {
+          if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+            await FeedbackManager.playDynamicFeedback({
+              audio_content: 'Brilliant! Every number checks out.',
+              subtitle: 'Brilliant! Every number checks out.',
+              sticker: STICKER_CORRECT
+            });
+          }
+        } catch (e) { /* noop */ }
+
+        trackEvent('round_complete', { round: gameState.currentRound, correct: true });
+        advanceAfterFeedback();
+      })();
+    }
+
+    function handleWrongOutcome(round, result, snapshot, responseMs) {
+      var misconceptionTag = deriveMisconception(round, result);
+
+      recordAttempt({
+        input_of_user: JSON.stringify(snapshot),
+        correct: false,
+        round_number: gameState.currentRound,
+        question_id: 'r' + gameState.currentRound + '_cross_' + round.variant,
+        correct_answer: round.solution,
+        response_time_ms: responseMs,
+        misconception_tag: misconceptionTag,
+        difficulty_level: round.stage || 1,
+        is_retry: false,
+        metadata: {
+          variant: round.variant,
+          cells: snapshot,
+          violatedNumberIds: result.violatedNumberIds,
+          conflictCellIds: result.conflictCellIds,
+          firstCheck: true
+        }
+      });
+      trackEvent('answer_submitted', { round: gameState.currentRound, correct: false });
+
+      gameState.roundsCompleted += 1;
+      syncDOM();
+
+      for (var i = 0; i < result.conflictCellIds.length; i++) {
+        var el = document.querySelector('.grid-cell[data-cell-id="' + result.conflictCellIds[i] + '"]');
+        if (el) el.classList.add('cell-conflict');
+      }
+
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      gameState.phase = 'feedback_wrong';
+      syncDOM();
+
+      (async function() {
+        try {
+          await Promise.all([
+            safePlaySound('incorrect_sound_effect', { sticker: STICKER_WRONG }),
+            new Promise(function(res) { setTimeout(res, 1500); })
+          ]);
+        } catch (e) { /* noop */ }
+
+        revealSolution(round);
+
+        // Long feedback popup (CASE 14/15) — MUST be awaited before nextRound
+        try {
+          if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+            await FeedbackManager.playDynamicFeedback({
+              audio_content: "Oh no! That's not right.",
+              subtitle: "Oh no! That's not right!",
+              sticker: STICKER_WRONG
+            });
+          }
+        } catch (e) { /* noop */ }
+
+        trackEvent('round_complete', { round: gameState.currentRound, correct: false });
+
+        if (!gameState.gameEnded) advanceAfterFeedback();
+      })();
+    }
+
+    function revealSolution(round) {
+      // Apply stored solution values to the grid, visually. We replace the
+      // child .dnd-tag (if any) with a plain text node so the solution digit
+      // shows in the cell. DnD is already locked at this point (.dnd-disabled).
+      var cells = document.querySelectorAll('.grid-cell');
+      for (var i = 0; i < cells.length; i++) {
+        cells[i].classList.remove('cell-conflict');
+        cells[i].classList.add('cell-solution');
+      }
+      var sol = round.solution;
+      for (var cellId in sol) {
+        if (!sol.hasOwnProperty(cellId)) continue;
+        var el = document.getElementById('cell-' + cellId);
+        if (el) el.textContent = String(sol[cellId]);
+      }
+    }
+
+    /* ============================================================
+       advanceAfterFeedback
+       ============================================================ */
+    function advanceAfterFeedback() {
+      safeStopAllAudio();
+
+      if (gameState.gameEnded) return;
+      if (gameState.phase === 'round_intro' || gameState.phase === 'results') return;
+
+      if (gameState.currentRound >= gameState.totalRounds) {
+        showVictory();
+        return;
+      }
+      gameState.currentRound += 1;
+      showRoundIntro(gameState.currentRound);
+    }
+
+    /* ============================================================
+       showRoundIntro
+       ============================================================ */
+    function showRoundIntro(n) {
+      safeStopAllAudio();
+
+      gameState.phase = 'round_intro';
+      syncDOM();
+
+      try {
+        if (progressBar && progressBar.update) {
+          progressBar.update(gameState.roundsCompleted, 0);
+        }
+      } catch (e) {}
+
+      (async function() {
+        try {
+          await waitForAudioPermission();
+          if (transitionScreen && transitionScreen.show) {
+            await transitionScreen.show({
+              icons: ['🔢'],
+              title: 'Puzzle ' + n,
+              onMounted: function() {
+                (async function() {
+                  try {
+                    await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND });
+                  } catch (e) {}
+                  try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+                  enterGameplay(n);
+                })();
+              }
+            });
+          }
+        } catch (e) {
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          enterGameplay(n);
+        }
+      })();
+
+      setTimeout(function() {
+        if (gameState.phase === 'round_intro' && gameState.currentRound === n && !gameState.gameEnded) {
+          try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+          enterGameplay(n);
+        }
+      }, 3500);
+    }
+
+    function enterGameplay(n) {
+      if (gameState.gameEnded) return;
+      if (gameState.phase === 'gameplay' && gameState.currentRound === n) return;
+      gameState.currentRound = n;
+      renderRound();
+    }
+
+    function renderRound() {
+      var rounds = getRounds();
+      var idx = gameState.currentRound - 1;
+      if (idx < 0) idx = 0;
+      if (idx >= rounds.length) idx = rounds.length - 1;
+      var r = rounds[idx];
+      if (!r) return;
+
+      gameState.correctAnswer = r.solution;
+      gameState.isActive = true;
+      gameState.isProcessing = false;
+      gameState.phase = 'gameplay';
+      gameState.roundStartTime = Date.now();
+      gameState.placementLog = [];
+
+      buildRoundDOM(r, true);
+
+      var gc = document.getElementById('gameContent');
+      if (gc) gc.classList.remove('dnd-disabled');
+
+      syncDOM();
+
+      safePlaySound('new_cards', {});
+
+      trackEvent('question_shown', { round: gameState.currentRound, variant: r.variant });
+    }
+
+    /* ============================================================
+       showVictory
+       ============================================================ */
+    function showVictory() {
+      if (gameState.gameEnded) return;
+
+      safeStopAllAudio();
+
+      gameState.phase = 'results';
+      gameState.isActive = false;
+      gameState.stars = getStars();
+
+      try {
+        if (progressBar && progressBar.update) {
+          var _finalRoundIdx = gameState.totalRounds;
+          progressBar.update(_finalRoundIdx, 0);
+        }
+      } catch (e) {}
+
+      syncDOM();
+
+      postGameComplete(true);
+
+      var stars = gameState.stars;
+      var fcs = gameState.firstCheckSolves;
+      var subtitle = 'You solved ' + fcs + ' of 3 on the first try!';
+
+      function claimStarsAction() {
+        safeStopAllAudio();
+        try { if (transitionScreen && transitionScreen.hide) transitionScreen.hide(); } catch (e) {}
+        try {
+          window.postMessage({
+            type: 'show_star',
+            data: {
+              count: Math.max(1, Math.min(3, gameState.stars || 1)),
+              variant: 'yellow',
+              score: gameState.firstCheckSolves + '/' + gameState.totalRounds
+            }
+          }, '*');
+        } catch (e) {}
+        setTimeout(function() {
+          try { if (floatingBtn && floatingBtn.setMode) floatingBtn.setMode('next'); } catch (e) {}
+        }, 1100);
+      }
+
+      // Claim Stars is the sole CTA. "Play Again" and other advance labels are
+      // reserved for FloatingButton (GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN).
+      var buttons = [
+        { text: 'Claim Stars', type: 'primary', action: claimStarsAction }
+      ];
+
+      var victorySticker = (stars === 3) ? STICKER_VICTORY : (stars === 2 ? STICKER_GAME_COMPLETE_2 : STICKER_GAME_COMPLETE_1);
+      (async function showVictoryAsync() {
+        try {
+          if (!transitionScreen || !transitionScreen.show) return;
+          await transitionScreen.show({
+            stars: stars,
+            title: 'Victory 🎉',
+            subtitle: subtitle,
+            persist: true,
+            buttons: buttons,
+            onMounted: function() {
+              (async function() {
+                try {
+                  var sfxId = (stars === 3) ? 'victory_sound_effect' : 'game_complete_sound_effect';
+                  await safePlaySound(sfxId, { sticker: victorySticker });
+                  try {
+                    if (FeedbackManager && FeedbackManager.playDynamicFeedback) {
+                      var voText = stars === 3
+                        ? 'Amazing! Three stars! You solved every puzzle on the first try.'
+                        : (stars === 2
+                          ? 'Well done! You solved ' + fcs + ' of 3 on the first try.'
+                          : (stars === 1
+                            ? 'Good effort! You solved ' + fcs + ' of 3 on the first try.'
+                            : 'Nice try — every puzzle completed!'));
+                      await FeedbackManager.playDynamicFeedback({
+                        audio_content: voText,
+                        subtitle: voText,
+                        sticker: victorySticker
+                      });
+                    }
+                  } catch (e) {}
+                } catch (e) {}
+              })();
+            }
+          });
+        } catch (e) { /* noop */ }
+      })();
+    }
+
+    function postGameComplete(won) {
+      try {
+        var completedAt = Date.now();
+        var avgMs = 0;
+        if (gameState.responseTimes.length > 0) {
+          var sum = 0;
+          for (var i = 0; i < gameState.responseTimes.length; i++) sum += gameState.responseTimes[i];
+          avgMs = sum / gameState.responseTimes.length;
+        }
+        var accuracy = Math.round((gameState.firstCheckSolves / gameState.totalRounds) * 100);
+        if (accuracy < 0) accuracy = 0;
+        if (accuracy > 100) accuracy = 100;
+
+        var sigEventCount = 0;
+        var sigMetadata = {};
+        try {
+          if (signalCollector) {
+            if (typeof signalCollector.getInputEvents === 'function') {
+              var inputEvents = signalCollector.getInputEvents() || [];
+              sigEventCount = inputEvents.length;
+            }
+            if (typeof signalCollector.getMetadata === 'function') {
+              sigMetadata = signalCollector.getMetadata() || {};
+            }
+          }
+        } catch (e) { /* noop */ }
+
+        var metrics = {
+          accuracy: accuracy,
+          time: gameState.startTime ? Math.round((completedAt - gameState.startTime) / 1000) : 0,
+          stars: gameState.stars,
+          attempts: gameState.attempts,
+          duration_data: gameState.duration_data,
+          totalLives: (gameState.totalLives || 0),
+          firstCheckSolves: gameState.firstCheckSolves,
+          tries: computeTriesPerRound(),
+          avgResponseTime: avgMs,
+          livesRemaining: 0,
+          signal_event_count: sigEventCount,
+          signal_metadata: sigMetadata
+        };
+
+        window.parent.postMessage({
+          type: 'game_complete',
+          data: {
+            metrics: metrics,
+            completedAt: completedAt,
+            previewResult: gameState.previewResult || null
+          },
+          payload: {
+            score: gameState.firstCheckSolves,
+            totalQuestions: gameState.totalRounds,
+            stars: gameState.stars,
+            accuracy: accuracy,
+            timeSpent: gameState.startTime ? (completedAt - gameState.startTime) : 0,
+            avgResponseTime: avgMs,
+            livesRemaining: 0
+          }
+        }, '*');
+      } catch (e) { /* noop */ }
+    }
+
+    function computeTriesPerRound() {
+      var byRound = {};
+      for (var i = 0; i < gameState.attempts.length; i++) {
+        var a = gameState.attempts[i];
+        var k = a.round_number;
+        if (!byRound[k]) byRound[k] = { round: k, correct: false };
+        if (a.correct) byRound[k].correct = true;
+      }
+      var out = [];
+      for (var j = 1; j <= gameState.totalRounds; j++) {
+        if (byRound[j]) out.push({ round: byRound[j].round, correct: !!byRound[j].correct });
+      }
+      return out;
+    }
+
+    function endGame(won) {
+      if (gameState.gameEnded) return;
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      // R3 / V19 — destroy all DnD instances on game end
+      try { destroyDndRound(); } catch (e) {}
+      gameState.gameEnded = true;
+      trackEvent('game_end', { won: !!won, score: gameState.firstCheckSolves, stars: gameState.stars });
+      // Note: previewScreen.destroy() and floatingBtn.destroy() happen inside
+      // the Next click handler AFTER next_ended is posted. The preview wrapper
+      // and header must stay mounted while the star-award animation plays and
+      // while the player taps Next (PART-050).
+    }
+    window.endGame = endGame;
+
+    function restartGame() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+
+      gameState.phase = 'start_screen';
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.firstCheckSolves = 0;
+      gameState.roundsCompleted = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.responseTimes = [];
+      gameState.isActive = false;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.stars = 0;
+      gameState.correctAnswer = null;
+      gameState.roundStartTime = null;
+      gameState.cellValues = {};
+      gameState.poolAvailable = [];
+      gameState.focusedCell = null;
+      gameState.placementLog = [];
+      gameState.validationResult = null;
+      gameState.isGridFull = false;
+      gameState.currentRoundData = null;
+      gameState.duration_data = {
+        startTime: null,
+        preview: gameState.duration_data.preview || [],
+        attempts: [],
+        evaluations: [],
+        inActiveTime: [],
+        totalInactiveTime: 0
+      };
+
+      try { if (signalCollector && signalCollector.reset) signalCollector.reset(); } catch (e) {}
+
+      createProgressBar();
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true });
+      syncDOM();
+
+      injectGameHTML();
+
+      showRoundIntro(1);
+    }
+    window.restartGame = restartGame;
+
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.startTime = Date.now();
+      gameState.duration_data.startTime = new Date().toISOString();
+      gameState.currentRound = 0;
+      gameState.score = 0;
+      gameState.firstCheckSolves = 0;
+      gameState.roundsCompleted = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.phase = 'gameplay';
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      if (!document.getElementById('rulesPanel')) injectGameHTML();
+      showRoundIntro(1);
+    }
+    window.startGame = startGame;
+
+    function nextRound() {
+      try { FeedbackManager.sound.pause(); } catch (e) {}
+      try { FeedbackManager.stream.pauseAll(); } catch (e) {}
+      safeStopAllAudio();
+
+      if (gameState.currentRound >= gameState.totalRounds) {
+        showVictory();
+        return;
+      }
+      gameState.currentRound += 1;
+      showRoundIntro(gameState.currentRound);
+    }
+    window.nextRound = nextRound;
+
+    function startGameAfterPreview(previewData) {
+      gameState.previewResult = previewData || null;
+      if (gameState.duration_data.preview == null) gameState.duration_data.preview = [];
+      if (previewData && typeof previewData.duration === 'number') {
+        gameState.duration_data.preview.push({ duration: previewData.duration });
+      }
+
+      gameState.startTime = Date.now();
+      gameState.isActive = true;
+      gameState.duration_data.startTime = new Date().toISOString();
+
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      try { if (signalCollector && signalCollector.recordViewEvent) signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
+
+      showRoundIntro(1);
+    }
+
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      if (!gameState.content) gameState.content = fallbackContent;
+
+      // Ensure gameContent container exists. ScreenLayout.inject creates it
+      // inside .game-stack inside the preview wrapper; fall back to document.body
+      // only if ScreenLayout failed to load (standalone / package-timeout path).
+      if (!document.getElementById('gameContent')) {
+        var gc = document.createElement('div');
+        gc.id = 'gameContent';
+        document.body.appendChild(gc);
+      }
+
+      injectGameHTML();
+      renderInitialState();
+
+      try {
+        if (previewScreen && previewScreen.show) {
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function(previewData) {
+              startGameAfterPreview(previewData);
+            }
+          });
+        } else {
+          gameState.startTime = Date.now();
+          gameState.isActive = true;
+          gameState.duration_data.startTime = new Date().toISOString();
+          trackEvent('game_start', { totalRounds: gameState.totalRounds });
+          showRoundIntro(1);
+        }
+      } catch (e) {
+        console.error('[setupGame] ' + e.message);
+      }
+    }
+
+    /* ============================================================
+       Debug helpers
+       ============================================================ */
+    window.debugGame = function() {
+      return {
+        phase: gameState.phase,
+        currentRound: gameState.currentRound,
+        firstCheckSolves: gameState.firstCheckSolves,
+        roundsCompleted: gameState.roundsCompleted,
+        cellValues: gameState.cellValues,
+        attempts: gameState.attempts.length,
+        gameEnded: gameState.gameEnded
+      };
+    };
+    window.loadRound = function(n) {
+      if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
+        gameState.currentRound = n;
+        renderRound();
+      }
+    };
+    window.solveCurrentRound = function() {
+      var r = gameState.currentRoundData;
+      if (!r) return false;
+      // First, return every placed tag back to its bank slot.
+      var placed = [];
+      locations.forEach(function(loc, tagId) {
+        if (loc && loc !== 'bank') placed.push(tagId);
+      });
+      for (var i = 0; i < placed.length; i++) returnToBank(placed[i]);
+
+      // Place each solution digit using the first bank-resident tag of that value.
+      for (var cellId in r.solution) {
+        if (!r.solution.hasOwnProperty(cellId)) continue;
+        var v = r.solution[cellId];
+        var pickedTag = null;
+        for (var j = 0; j < gameState.poolAvailable.length; j++) {
+          var pa = gameState.poolAvailable[j];
+          if (!pa) continue;
+          if (pa.value !== v) continue;
+          if (locations.get(pa.tagId) !== 'bank') continue;
+          pickedTag = pa.tagId;
+          break;
+        }
+        if (pickedTag) moveTagToZone(pickedTag, 'cell-' + cellId);
+      }
+      updateSubmitButton();
+      return true;
+    };
+
+    /* ============================================================
+       DOMContentLoaded — init sequence
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', function() {
+      (async function() {
+        try {
+          try {
+            await waitForPackages();
+          } catch (pkgErr) {
+            console.error('[init] ' + pkgErr.message);
+          }
+
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.init) {
+              await FeedbackManager.init();
+            }
+          } catch (e) { console.error('[init] FeedbackManager.init ' + e.message); }
+
+          try {
+            if (typeof SignalCollector !== 'undefined') {
+              signalCollector = new SignalCollector({
+                sessionId: null,
+                studentId: null,
+                gameId: gameState.gameId,
+                contentSetId: null
+              });
+              window.signalCollector = signalCollector;
+            }
+          } catch (e) { /* noop */ }
+
+          try {
+            if (typeof ScreenLayout !== 'undefined' && ScreenLayout.inject) {
+              ScreenLayout.inject('app', {
+                slots: {
+                  previewScreen: true,
+                  progressBar: true,
+                  transitionScreen: true,
+                  floatingButton: true
+                }
+              });
+            }
+          } catch (e) { console.error('[init] ScreenLayout.inject ' + e.message); }
+
+          try {
+            if (typeof VisibilityTracker !== 'undefined') {
+              visibilityTracker = new VisibilityTracker({
+                popupProps: {
+                  title: 'Paused',
+                  description: 'Tap Resume to continue.',
+                  primaryText: 'Resume'
+                },
+                onInactive: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.pause(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.pauseAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.pause) previewScreen.pause(); } catch (e) {}
+                },
+                onResume: function() {
+                  try { if (FeedbackManager && FeedbackManager.sound) FeedbackManager.sound.resume(); } catch (e) {}
+                  try { if (FeedbackManager && FeedbackManager.stream) FeedbackManager.stream.resumeAll(); } catch (e) {}
+                  try { if (previewScreen && previewScreen.resume) previewScreen.resume(); } catch (e) {}
+                }
+              });
+            }
+          } catch (e) { console.error('[init] VisibilityTracker ' + e.message); }
+
+          createProgressBar();
+
+          try {
+            if (typeof TransitionScreenComponent !== 'undefined') {
+              transitionScreen = new TransitionScreenComponent({ autoInject: true });
+            }
+          } catch (e) { console.error('[init] TransitionScreen ' + e.message); }
+
+          try {
+            if (typeof PreviewScreenComponent !== 'undefined') {
+              previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+            }
+          } catch (e) { console.error('[init] PreviewScreen ' + e.message); }
+
+          try {
+            if (typeof FloatingButtonComponent !== 'undefined') {
+              floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
+              floatingBtn.setLabels({ submit: 'Check', next: 'Next' });
+              floatingBtn.on('submit', function() {
+                if (!gameState.isActive || gameState.gameEnded) return;
+                if (!isSubmittable()) return;
+                runCheck();
+              });
+              floatingBtn.on('next', function() {
+                try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
+                try { if (previewScreen && previewScreen.destroy) previewScreen.destroy(); } catch (e) {}
+                try { if (floatingBtn && floatingBtn.destroy) floatingBtn.destroy(); } catch (e) {}
+              });
+            }
+          } catch (e) { console.error('[init] FloatingButton ' + e.message); }
+
+          try {
+            if (typeof FeedbackManager !== 'undefined' && FeedbackManager.sound && FeedbackManager.sound.preload) {
+              await preloadAllAudio();
+            }
+          } catch (e) { console.error('[init] preload ' + e.message); }
+
+          window.addEventListener('message', handlePostMessage);
+
+          try {
+            window.parent.postMessage({ type: 'game_ready' }, '*');
+          } catch (e) { /* noop */ }
+
+          setupGame();
+
+        } catch (e) {
+          console.error('[init] ' + e.message);
+        }
+      })();
+
+      window.gameState = gameState;
+      window.endGame = endGame;
+      window.restartGame = restartGame;
+      window.nextRound = nextRound;
+      window.startGame = startGame;
+    });
+
+    /* Fallback: if preview never appears (e.g., standalone test), still start */
+    setTimeout(function() {
+      try {
+        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      } catch (e) {}
+      if (!gameState.isActive && !gameState.gameEnded && gameState.phase === 'start_screen') {
+        try { if (!document.getElementById('gameContent')) {
+          var gc = document.createElement('div');
+          gc.id = 'gameContent';
+          document.body.appendChild(gc);
+          injectGameHTML();
+        } } catch (e) {}
+        startGame();
+      }
+    }, 8000);
+  </script>
+</body>
+</html>
