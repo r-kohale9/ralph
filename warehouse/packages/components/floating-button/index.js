@@ -29,7 +29,7 @@
   var STYLE_ID = "mathai-floating-button-styles";
 
   var DEFAULT_LABELS = {
-    submit: "Submit",
+    submit: "Submit and check",
     retry: "Try again",
     next: "Next",
     submitting: "Submitting…"
@@ -205,15 +205,15 @@
       "  flex: 1 1 auto;" +
       "  height: 68px;" +
       "  padding: 20px 53px;" +
-      "  font-size: 16px;" + /* text-base */
-      "  line-height: 24px;" +
+      "  font-size: 1.125rem;" + /* text-base */
+      "  line-height: 1.75rem;" +
       "  font-family: inherit;" +
-      "  font-weight: 400;" + /* font-normal */
-      "  color: #333333;" + /* text-dark-charcoal */
+      "  font-weight: 600;" + /* font-normal */
+      "  color: rgb(51, 51, 51);" + /* text-dark-charcoal */
       "  background: #FFDE49;" + /* gargoyle-gas (primary) */
-      "  border: 1px solid #ECECEC;" +
+      "  border: none;" +
       "  border-radius: 8px;" + /* rounded-lg */
-      "  box-shadow: 0 2px 1px rgba(0, 0, 0, 0.1);" +
+      "  box-shadow: rgba(0, 0, 0, 0.16) 2px 2px 16px;" +
       "  cursor: pointer;" +
       "  transition: opacity 150ms ease, border-color 150ms ease;" +
       "  -webkit-tap-highlight-color: transparent;" +

@@ -17,6 +17,7 @@
  * - StoriesComponent: Sequential story navigation with duration tracking
  * - VoiceInput: Voice/keyboard input with mic recording, transcription, and visual feedback
  * - FloatingButtonComponent: Fixed-bottom Submit/Retry/Next action button (PART-050)
+ * - AnswerComponentComponent: Post-feedback "Correct Answers!" carousel (PART-051)
  */
 
 (function (window) {
@@ -40,7 +41,8 @@
     actionBar: "https://storage.googleapis.com/test-dynamic-assets/packages/components/action-bar/index.js",
     previewScreen: "https://storage.googleapis.com/test-dynamic-assets/packages/components/preview-screen/index.js",
     voiceInput: "https://storage.googleapis.com/test-dynamic-assets/packages/components/voice-input/index.js",
-    floatingButton: "https://storage.googleapis.com/test-dynamic-assets/packages/components/floating-button/index.js"
+    floatingButton: "https://storage.googleapis.com/test-dynamic-assets/packages/components/floating-button/index.js",
+    answerComponent: "https://storage.googleapis.com/test-dynamic-assets/packages/components/answer-component/index.js"
   };
 
   // Load CSS file
@@ -107,6 +109,10 @@
         // `new FloatingButtonComponent(...)` was silently skipped because the
         // class hadn't loaded yet by the time game init ran.
         .then(() => loadScript(COMPONENT_URLS.floatingButton, "FloatingButton"))
+        // AnswerComponent — same SERIAL-load reasoning as FloatingButton.
+        // Games construct it at DOMContentLoaded alongside the other slot
+        // components, so the class must be defined by then.
+        .then(() => loadScript(COMPONENT_URLS.answerComponent, "AnswerComponent"))
         // 3. Load dependencies
         .then(() => loadScript(COMPONENT_URLS.lottiePlayer, "LottiePlayer"))
         .then(() => loadScript(COMPONENT_URLS.popupLayout, "PopupComponent"))
@@ -148,7 +154,9 @@
         VoiceInput: window.VoiceInput,
         FloatingButtonComponent: window.FloatingButtonComponent,
         FloatingButton: window.FloatingButton,
-        version: "1.5.1"
+        AnswerComponentComponent: window.AnswerComponentComponent,
+        AnswerComponent: window.AnswerComponent,
+        version: "1.6.0"
       };
     })
     .catch(function (error) {
