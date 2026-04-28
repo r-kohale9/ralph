@@ -25,11 +25,11 @@
     return;
   }
 
-  var VERSION = "1.2.0";
+  var VERSION = "1.2.1";
   var STYLE_ID = "mathai-floating-button-styles";
 
   var DEFAULT_LABELS = {
-    submit: "Submit",
+    submit: "Submit and check",
     retry: "Try again",
     next: "Next",
     submitting: "Submitting…"
@@ -191,8 +191,10 @@
       "  animation: mathai-fb-spring-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;" +
       "}" +
       ".mathai-fb-error {" +
-      "  padding: 0 16px 8px 16px; text-align: center;" +
-      "  font-size: 14px; color: #FB7D7D;" + /* text-sm text-congo-pink */
+      "  padding: 0 0 8px 0;" + /* pb-2, no horizontal padding — match React */
+      "  text-align: center;" +
+      "  font-size: 14px; line-height: 20px;" + /* text-sm → 0.875rem / 1.25rem */
+      "  color: #FB7D7D;" + /* text-congo-pink */
       "  font-weight: 400;" +
       "}" +
       ".mathai-fb-btn-row {" +
@@ -203,15 +205,15 @@
       "  flex: 1 1 auto;" +
       "  height: 68px;" +
       "  padding: 20px 53px;" +
-      "  font-size: 16px;" + /* text-base */
-      "  line-height: 24px;" +
+      "  font-size: 1.125rem;" + /* text-base */
+      "  line-height: 1.75rem;" +
       "  font-family: inherit;" +
-      "  font-weight: 400;" + /* font-normal */
-      "  color: #333333;" + /* text-dark-charcoal */
+      "  font-weight: 600;" + /* font-normal */
+      "  color: rgb(51, 51, 51);" + /* text-dark-charcoal */
       "  background: #FFDE49;" + /* gargoyle-gas (primary) */
-      "  border: 1px solid #ECECEC;" +
+      "  border: none;" +
       "  border-radius: 8px;" + /* rounded-lg */
-      "  box-shadow: 0 2px 1px rgba(0, 0, 0, 0.1);" +
+      "  box-shadow: rgba(0, 0, 0, 0.16) 2px 2px 16px;" +
       "  cursor: pointer;" +
       "  transition: opacity 150ms ease, border-color 150ms ease;" +
       "  -webkit-tap-highlight-color: transparent;" +
@@ -226,9 +228,16 @@
       "  cursor: not-allowed;" +
       "  box-shadow: none;" +
       "}" +
-      /* Dual-button variant: the secondary button is white. Both still use
-       * dark-charcoal text + the same border treatment. */
+      /* Dual-button variant: match React reference. When the component is in
+       * single-button mode (secondary hidden), the primary is yellow — the
+       * canonical "Submit" CTA. When dual mode is active (secondary shown,
+       * indicated by the `data-mathai-fb-dual="true"` attribute on the root),
+       * BOTH buttons are white with dark text — matching how ContentBlock.tsx
+       * in mathai-client renders option A / option B (no isPrimary on either).
+       * Keeping one yellow in dual mode would imply one is "primary" when
+       * both are equal parallel choices. */
       ".mathai-fb-btn-secondary { background: #FFFFFF; }" +
+      ".mathai-fb-root[data-mathai-fb-dual='true'] .mathai-fb-btn-primary { background: #FFFFFF; }" +
       /* Narrow-viewport fallback: the 20px 53px padding overflows below ~340px.
        * Drop horizontal padding to keep the button inside the viewport. */
       "@media (max-width: 360px) {" +
@@ -271,12 +280,18 @@
 
     // Secondary button is only visible in 'submit' mode AND when a secondary
     // label has been explicitly set via setLabels({ secondary: '...' }).
+    // When the dual-button variant is active, set `data-mathai-fb-dual="true"`
+    // on the root so the stylesheet can flip the primary button to white —
+    // matching ContentBlock.tsx in mathai-client (parallel options = both
+    // white, no "primary" yellow among equal choices).
     if (mode === "submit" && this._secondaryLabel) {
       this._btn2.textContent = this._isSubmitting ? this._labels.submitting : this._secondaryLabel;
       this._btn2.style.display = "";
       this._btn2.disabled = this._disabled || this._isSubmitting;
+      this._root.setAttribute("data-mathai-fb-dual", "true");
     } else {
       this._btn2.style.display = "none";
+      this._root.setAttribute("data-mathai-fb-dual", "false");
     }
 
     // Reveal + animate when transitioning from hidden.
@@ -346,7 +361,11 @@
 
   FloatingButtonComponent.prototype.setError = function (text) {
     if (text) {
-      this._errorEl.textContent = text;
+      // Match React reference: `*{errorText}` — the component prefixes with
+      // an asterisk so callers don't need to include it. If the caller has
+      // already passed a leading `*`, don't double it up.
+      this._errorEl.textContent =
+        text.charAt(0) === "*" ? text : ("*" + text);
       this._errorEl.style.display = "";
     } else {
       this._errorEl.textContent = "";

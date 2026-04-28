@@ -48,11 +48,15 @@ When gameState.lives > 0, the game MUST implement a `game_over` or `gameover` ph
 
 **gameState required:** `gameId`, `phase`, `currentRound`, `totalRounds`, `score`, `attempts`, `events`, `startTime`, `isActive`, `content`, `duration_data`, `isProcessing`, `gameEnded`
 
-**gameState conditional:** `lives`, `totalLives`, `correctAnswer`
+**gameState conditional:** `lives`, `totalLives`, `correctAnswer`, `setIndex`
+
+`setIndex` — multi-set games only. Integer ≥ 0. Rotates on each `restartGame()` call (modulo the number of available sets in `fallbackContent.rounds`). Session-scoped: initialized to 0 on every page load; NOT reset by `resetGameState()` (rotates independently).
 
 **recordAttempt (12 fields):** `attempt_timestamp`, `time_since_start_of_game`, `input_of_user`, `correct`, `round_number`, `question_id`, `correct_answer`, `response_time_ms`, `misconception_tag`, `difficulty_level`, `is_retry`, `metadata`
 
 **game_complete metrics:** `accuracy`, `time`, `stars`, `attempts`, `duration_data`, `totalLives`, `tries`
+
+**Per-round optional `answer` field (PART-051):** every round in `content.rounds[i]` MAY carry a game-specific `answer` payload that the AnswerComponent renders into its slide. Standalone games with N evaluated answers use an `answers: [...]` array on the single round. Shape is per-spec — document it in `spec.md`'s content-schema section. Skipped when the spec declares `answerComponent: false` (creator-only opt-out — no LLM step may auto-default this flag; see PART-051 § Opt-out). See [postmessage-schema.md](schemas/postmessage-schema.md) § "Per-round answer field".
 
 **syncDOM attributes:** `data-phase` (required), `data-score` (required), `data-lives` (conditional), `data-round` (recommended)
 

@@ -39,6 +39,10 @@ Shown after `Try Again` on Game Over, and after `Play Again` on a < 3★ Victory
 
 Spec may override: the word `"score"` in the title (e.g. `"speed"`, `"accuracy"`, `"time"`) when the game has a non-accuracy primary metric. Default is `"score"`.
 
+**Progress bar on this screen — reset to initial state.** When the default flow is used (Motivation exists), the restart-path reset is placed here: on entering Motivation (from Game Over `Try Again` or from <3★ Victory `Play Again`), call `progressBar.update(0, totalLives)` inside the `onMounted` callback alongside the motivation VO, so the bar paints `0/N` with full hearts the instant the screen mounts. This is what visually signals "game is ready to start fresh — are you ready?" before the student taps "I'm ready!".
+
+If a spec overrides the default flow and omits Motivation, the reset moves to `restartGame()` instead — the rule is tied to the restart action, not to this screen specifically. `restartGame()` always calls `update(0, totalLives)` as a safety net, so the invariant holds either way. See `alfred/skills/game-building/reference/flow-implementation.md` § "Restart-path reset — placement by flow shape".
+
 ## 3. Victory
 
 Shown when the last round is cleared with `lives >= 1`.
@@ -57,7 +61,7 @@ Spec may override: subtitle (always game-specific), onMounted sound id.
 
 ## 4. Stars Collected
 
-Shown after tapping `Claim Stars` on Victory. Short celebration, auto-dismisses, emits exit signal to host.
+Shown after tapping `Claim Stars` on Victory. Short celebration. Persists until the student taps the FloatingButton `Next` — see Exception note below.
 
 | Field | Default |
 |---|---|
@@ -67,11 +71,12 @@ Shown after tapping `Claim Stars` on Victory. Short celebration, auto-dismisses,
 | `stars` | — (none) |
 | `buttons` | — (none — auto-dismisses) |
 | `styles` | `{ title: { whiteSpace: 'pre-line', lineHeight: '1.3' } }` — required so the `\n` in the title renders as a line break. |
-| `duration` | `2500` (ms) — auto-hide |
 | `onMounted` | `FeedbackManager.sound.play('sound_stars_collected', { sticker: STICKER_CELEBRATE })` |
-| After hide | `window.parent.postMessage({ type: 'game_exit' }, '*')` |
+| After Next tap | transitionScreen.hide() + previewScreen.destroy() + window.parent.postMessage({ type: 'game_exit' }, '*') |
 
-Spec may override: duration, onMounted sound id. Title is FIXED.
+**Exception to the no-button auto-dismiss rule.** Generated games normally emit `await FeedbackManager.sound.play(...); transitionScreen.hide();` inside `onMounted` for no-button transition screens (per PART-024). Stars Collected is the terminal end-of-game surface and must opt out: the screen must stay visible after audio ends, so the star animation (fired via `show_star` postMessage) and the FloatingButton "Next" mode appear over the celebration screen instead of against an empty background. Do NOT call `transitionScreen.hide()` in the Stars Collected `onMounted`. Sequence: `await sound.play(...)` → fire `show_star` → `setTimeout(1100) → floatingBtn.setMode('next')`. The FloatingButton's `on('next', ...)` handler owns the eventual `transitionScreen.hide()` + `previewScreen.destroy()` + `game_exit`.
+
+Spec may override: onMounted sound id. Title is FIXED.
 
 ## Screens.md Elements table (copy-paste template)
 
@@ -96,7 +101,7 @@ The strings in quotes must match the default templates verbatim unless the spec 
 ## Conflicts and constraints
 
 - `stars` and `icons` share the same DOM slot (see PART-024). Victory uses `stars`; Game Over / Motivation / Stars Collected use `icons` or neither.
-- `duration` and `buttons` are mutually exclusive on the same screen. Stars Collected uses `duration`; the others use `buttons`.
+- `duration` is documented on TransitionScreenComponent but unimplemented (PART-024) — never rely on it. Stars Collected persists until the FloatingButton `Next` tap; all other screens use `buttons` for dismiss.
 - Inline emoji (🎉 in "Victory 🎉", ⚡ in the motivation title, 🙌 in "I'm ready! 🙌") live INSIDE the `title` / button `text` string — NOT in a separate `icons: [...]` array.
 
 ## Enforcement

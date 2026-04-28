@@ -194,7 +194,7 @@ await transitionScreen.show({
 // Nothing after await — button action drives the flow
 ```
 
-For auto-dismiss screens (round intro, stars collected) that have no buttons: fire audio + `hide()` + continuation inside the `onMounted` IIFE (as an async function). Code after `await show()` can also call `hide()` since it runs immediately — either approach works.
+For auto-dismiss screens with no buttons: fire audio + `hide()` + continuation inside the `onMounted` IIFE (as an async function). Code after `await show()` can also call `hide()` since it runs immediately — either approach works. **Exception: Stars Collected.** The "Yay, stars collected!" end-of-game screen opts out of auto-hide on audio end. Its `onMounted` awaits the sound, fires `show_star`, schedules `floatingBtn.setMode('next')`, and does NOT call `transitionScreen.hide()`. The screen persists until the student taps Next; the FloatingButton `next` handler owns the hide + destroy + `game_exit`. This exception applies only to Stars Collected — all other no-button transition screens (roundIntro, etc.) still follow the auto-hide pattern. See `alfred/skills/game-planning/reference/default-transition-screens.md` § 4 for the canonical Stars Collected flow.
 
 Validator rule: `5e2-TS-PERSIST-FALLTHROUGH`.
 

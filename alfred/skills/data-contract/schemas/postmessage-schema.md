@@ -51,6 +51,48 @@ window.parent.postMessage({ type: 'next_ended' }, '*');
 
 Validator rules: `GEN-FLOATING-BUTTON-NEXT-MISSING`, `GEN-FLOATING-BUTTON-NEXT-POSTMESSAGE` — both fire when a FloatingButton-using game reaches end-game without the Next + `next_ended` wiring.
 
+### Per-round `answer` field (PART-051) — answer-component payload
+
+Each entry in `content.rounds[i]` MAY carry an `answer` field that the AnswerComponent uses to render its slide for that round. The harness does not validate the inner shape — it is **game-specific** and follows the same per-game contract as the question payload. The shape MUST be documented in `spec.md`'s content-schema section, and added to `inputSchema.json` during deployment for content-set validation.
+
+```javascript
+// example — grid game with a solved-cell map
+{
+  type: 'game_init',
+  data: {
+    content: {
+      rounds: [
+        {
+          round: 1,
+          // ... existing question fields ...
+          answer: {
+            queens: [{ r: 0, c: 2 }, { r: 1, c: 0 }, { r: 2, c: 3 }, { r: 3, c: 1 }]
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+For a **standalone game with N evaluated answers** (`totalRounds: 1`, multiple answers shown as separate carousel slides), use an `answers: [...]` array on the single round:
+
+```javascript
+{
+  rounds: [{
+    round: 1,
+    // ... question fields ...
+    answers: [
+      { /* slide 1 payload */ },
+      { /* slide 2 payload */ },
+      { /* slide 3 payload */ }
+    ]
+  }]
+}
+```
+
+When the spec declares `answerComponent: false`, the field is unused (and may be omitted) — validator rules in the `GEN-ANSWER-COMPONENT-*` group auto-skip. **`answerComponent: false` is a CREATOR-ONLY opt-out per PART-051; no LLM step may auto-default it.** Spec-creation MUST default `answerComponent` to `true` silently; spec-review FAILs any spec setting `false` without quoted creator opt-out (check H5); build MUST NOT mutate spec.md to silence the validator.
+
 ### show_star (PART-040) — intra-frame star-award animation
 
 A game-triggered postMessage consumed by the ActionBar in the **same window** (not the host). Fires the flying-star animation, plays the award chime, and upgrades the static `#previewStar` image to the awarded tier.

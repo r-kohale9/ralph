@@ -77,7 +77,7 @@ const floatingBtn = new FloatingButtonComponent({
 | `on(event, handler)` | `event ∈ {submit, retry, next, secondary}`. Handler may be async. |
 | `show()` | `setMode('submit')`. |
 | `hide()` | `setMode(null)`. |
-| `destroy()` | Removes DOM, clears listeners. Call from `endGame()`. |
+| `destroy()` | Removes DOM, clears listeners. Call from the FloatingButton `on('next', ...)` handler AFTER `next_ended` is posted (alongside `previewScreen.destroy()` and `answerComponent.destroy()` if applicable). NOT from `endGame()`. |
 
 ---
 
@@ -123,7 +123,7 @@ const floatingBtn = new FloatingButtonComponent({
 3. **On submit click:** `on('submit')` handler runs. If it returns a Promise, the button auto-shows `Submitting…` and ignores clicks until resolved. Handler dispatches to `setMode('retry')` or `setMode('next')` based on result.
 4. **On retry click:** clear feedback, reset input, set mode to `null` (back to predicate-driven).
 5. **On next click:** advance round, set mode to `null` until the player re-enters a submittable state.
-6. **`endGame()`:** call `floatingBtn.destroy()`.
+6. **End-of-game teardown (Next-tap, NOT `endGame()`):** the `on('next', ...)` handler posts `next_ended`, then calls `previewScreen.destroy()` and `answerComponent.destroy()` (if present), then `floatingBtn.destroy()` last. `endGame()` MUST NOT call any `.destroy()` — destroys move into the Next handler so the header survives the end-screen view + `show_star` animation.
 
 ## Lifecycle diagram
 

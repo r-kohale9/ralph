@@ -484,16 +484,19 @@ await audioRace(FeedbackManager.sound.play('correct_sound_effect', { sticker }))
 
 Symptom: rounds advance before feedback / VO finishes. Validator rule: `5e0-FEEDBACK-RACE-FORBIDDEN`.
 
-**Correct:** For awaited calls, plain `await` inside `try/catch`. For fire-and-forget, `.catch()` on the unawaited Promise. Any template-level race is either redundant or bug-inducing. FeedbackManager already bounds resolution internally (see PART-017) — `sound.play` resolves within audio-duration + 1.5s, `playDynamicFeedback` within 60s.
+**Correct:** For awaited calls (submit-handler SFX, submit-handler TTS, round-complete SFX/TTS, transition-screen SFX/VO), plain `await` inside `try/catch`. For fire-and-forget calls (round-start TTS, chain-progress SFX, ambient SFX), `.catch()` on the unawaited Promise. Any template-level race is either redundant or bug-inducing. FeedbackManager already bounds resolution internally (see PART-017) — `sound.play` resolves within audio-duration + 1.5s, `playDynamicFeedback` within 60s.
 
 ```javascript
-// RIGHT — submit-handler pattern: SFX awaited, TTS fire-and-forget
+// RIGHT — submit-handler pattern: SFX awaited, TTS awaited (validator: GEN-FEEDBACK-TTS-AWAIT)
 try {
   await FeedbackManager.sound.play('correct_sound_effect', { sticker });
 } catch (e) { /* non-blocking per feedback SKILL Rule 8 */ }
-// Dynamic TTS is fire-and-forget — next-round transition MUST NOT block on TTS.
-FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker })
-  .catch(function(e) { /* non-blocking */ });
+// Dynamic TTS is AWAITED — explanation must finish before round advance, else
+// the subtitle/audio paints over the next round (equivalent-ratios regression).
+// Package bounds at 3 s API / 60 s streaming; try/catch swallows rejection.
+try {
+  await FeedbackManager.playDynamicFeedback({ audio_content, subtitle, sticker });
+} catch (e) { /* non-blocking */ }
 // Do NOT re-enable inputs here. renderRound() / loadRound() is the single source of truth.
 ```
 
@@ -615,7 +618,7 @@ function restartGame() {
 }
 ```
 
-If you need to fully remove the preview at end-of-game, call `previewScreen.destroy()` inside `endGame()` cleanup — never reach into its DOM directly.
+If you need to fully remove the preview at end-of-game, call `previewScreen.destroy()` inside the FloatingButton `on('next', ...)` handler AFTER `next_ended` is posted — NOT in `endGame()`, because the header must stay mounted while the end-screen `show_star` animation plays. Never reach into preview DOM directly.
 
 **Why the instruction is intentionally persistent (read this before "fixing" the layout):** `switchToGame()` deliberately does NOT clear or hide `#previewInstruction`. After the transition, the instruction HTML remains above `#gameContent` in the same scroll container. This is a product requirement — students must be able to scroll up and re-read the instruction at any point during gameplay. The stacked `instruction + game UI` layout is the expected end state, not a bug.
 
@@ -636,6 +639,64 @@ If the stacked layout feels too tall in your specific game, solve it INSIDE `#ga
 - `match-up-ratios` (2026-04) — bypassed the ID-based ban with a compound selector `querySelectorAll('#mathai-preview-slot .mathai-preview-header')` and a classList toggle on `#mathai-preview-slot` that a game-defined CSS rule used to hide `.mathai-preview-*` descendants. Validator regex was subsequently tightened to catch compound selectors containing `.mathai-preview-*` anywhere in the string.
 
 Cross-reference: validator rule `5e0-DOM-BOUNDARY`, PART-039 component boundary invariant.
+
+## Anti-Pattern 36: Fire-and-forget `playDynamicFeedback` in submit / round-complete handlers
+
+```javascript
+// WRONG — TTS is fire-and-forget; it streams in 200–800 ms after this line,
+// by which time showRoundIntro(N+1) has already painted. The explanation's
+// subtitle/audio bleed into the next round's transition and gameplay.
+function finishRoundCorrect(round) {
+  Promise.all([
+    FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_HAPPY }),
+    new Promise(function (r) { setTimeout(r, 1500); })
+  ]).then(function () {
+    FeedbackManager.playDynamicFeedback({
+      audio_content: 'Yes! Both ratios scale by ×3.',
+      subtitle: 'Yes! Both ratios scale by ×3.',
+      sticker: STICKER_HAPPY
+    }).catch(function () {});                     // ← banned
+    showRoundIntro(round.round + 1);              // paints next round before TTS lands
+  });
+}
+```
+
+Symptom: in multi-round games, the player hears the previous round's explanation playing on top of the current round's `sound_round_n` and gameplay. Subtitle + sticker overlay also paint over the wrong screen. SFX feedback appears to "play in the next round."
+
+**Why it happens:** `playDynamicFeedback` is async — it has to hit the streaming TTS endpoint, decode, mount the subtitle/sticker overlay, and start audio. That's 200–800 ms of network + decode latency. Fire-and-forget gives it zero time to render before the next-round transition replaces the UI. Older docs (pre-2026-04) said "NEVER await dynamic TTS in a submit handler" because of a stalled-network worry, but the package already bounds resolution at 3 s (TTS API) / 60 s (streaming), so the network can't actually freeze the game indefinitely.
+
+**Fix — wrap each `playDynamicFeedback` call in `try { await ... } catch(e){}`:**
+
+```javascript
+// RIGHT — TTS awaited; explanation finishes BEFORE round advance.
+async function finishRoundCorrect(round) {
+  try {
+    await Promise.all([
+      FeedbackManager.sound.play('correct_sound_effect', { sticker: STICKER_HAPPY }),
+      new Promise(function (r) { setTimeout(r, 1500); })
+    ]);
+  } catch (e) {}
+  try {
+    await FeedbackManager.playDynamicFeedback({
+      audio_content: 'Yes! Both ratios scale by ×3.',
+      subtitle: 'Yes! Both ratios scale by ×3.',
+      sticker: STICKER_HAPPY
+    });
+  } catch (e) {}                                  // try/catch swallows rejection
+  if (round.round >= gameState.totalRounds) endGame(true);
+  else showRoundIntro(round.round + 1);
+}
+```
+
+**Scope.** Applies to: single-step correct/wrong submit handlers; multi-step round-complete handlers; any explanatory TTS (Bloom L2+) where `audio_content` carries a *why*, not just an ack. **Carve-outs that may stay fire-and-forget:** round-start TTS (inside `showRoundIntro` / `onMounted` — student should interact immediately), chain-progress / partial-match audio (don't pause mid-chain), tile-select / ambient SFX.
+
+Validator: `GEN-FEEDBACK-TTS-AWAIT` ([lib/validate-static.js](../../lib/validate-static.js)) flags any `FeedbackManager.playDynamicFeedback(...)` call that is not preceded by `await`, when the enclosing function name (or surrounding scope) signals submit / finish-round / round-complete context.
+
+**Source incidents:**
+- `equivalent-ratios` (2026-04) — `finishRoundCorrect` / `finishRoundWrong` / `finishRoundWrongTypeB` all fire-and-forget; round 1's "Yes! Both ratios scale by ×3" plays on top of round 2's `sound_round_n`.
+- `queens` (2026-04) — `handleAttackingPlacement` (wrong-answer terminal) + `handlePuzzleSolved` (round-complete) both fire-and-forget.
+
+Cross-reference: validator rule `GEN-FEEDBACK-TTS-AWAIT`, feedback/SKILL.md "Default Feedback by Game Type", timing-and-blocking.md submit-handler pattern, code-patterns.md "Dynamic VO".
 
 ## Verification
 

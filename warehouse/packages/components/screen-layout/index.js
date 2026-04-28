@@ -33,6 +33,7 @@
     progressBar: 'mathai-progress-slot',
     playArea: 'gameContent',
     transitionSlot: 'mathai-transition-slot',
+    answerSlot: 'mathai-answer-slot',
     previewSlot: 'mathai-preview-slot',
     floatingButtonSlot: 'mathai-floating-button-slot'
   };
@@ -143,6 +144,7 @@
      * @param {boolean|string} config.sections.progressBar    - Progress bar slot
      * @param {boolean|string} config.sections.playArea       - Play area / game content (always created)
      * @param {boolean|string} config.sections.transitionScreen - Transition screen slot (inside play area)
+     * @param {boolean|string} config.sections.answerComponent - Answer-component slot (inside play area, after transitionScreen)
      * @param {boolean|string} config.sections.previewScreen  - Preview screen slot (sibling outside game layout)
      * @param {object} config.styles - Custom CSS per section (merged onto the element)
      *
@@ -153,6 +155,7 @@
      * @param {object} config.slots
      * @param {boolean|string} config.slots.previewScreen  - Create preview screen wrapper
      * @param {boolean|string} config.slots.transitionScreen - Create transition screen slot
+     * @param {boolean|string} config.slots.answerComponent - Create answer-component slot at end of .game-stack (after gameContent + transitionScreen). Required when AnswerComponent is mounted.
      * @param {boolean|string} config.slots.progressBar - Create progress bar slot at top of .game-stack (inside preview wrapper when previewScreen:true, inside .game-wrapper otherwise)
      *
      * @returns {object} Created slot IDs
@@ -191,6 +194,7 @@
         progressSlot: resolveSlotId(slots.progressBar, DEFAULT_IDS.progressBar),
         previewSlot: resolveSlotId(slots.previewScreen, DEFAULT_IDS.previewSlot),
         transitionSlot: resolveSlotId(slots.transitionScreen, DEFAULT_IDS.transitionSlot),
+        answerSlot: resolveSlotId(slots.answerComponent, DEFAULT_IDS.answerSlot),
         floatingButtonSlot: resolveSlotId(slots.floatingButton, DEFAULT_IDS.floatingButtonSlot),
         gameContent: DEFAULT_IDS.playArea
       };
@@ -249,6 +253,12 @@
         if (slotIds.transitionSlot) {
           html +=     '<div id="' + slotIds.transitionSlot + '" class="game-block" style="display:none;"></div>';
         }
+        if (slotIds.answerSlot) {
+          // AnswerComponent slot — sits last in .game-stack so the answer card
+          // appears below the play area (instructions → play area → answer
+          // component). Component starts hidden via display:none on its root.
+          html +=     '<div id="' + slotIds.answerSlot + '" class="game-block mathai-answer-slot"></div>';
+        }
         html +=     '</div>';
 
         html +=   '</div>'; // game-container
@@ -267,6 +277,9 @@
         html += '<div id="gameContent" class="game-block"></div>';
         if (slotIds.transitionSlot) {
           html += '<div id="' + slotIds.transitionSlot + '" class="game-block" style="display:none;"></div>';
+        }
+        if (slotIds.answerSlot) {
+          html += '<div id="' + slotIds.answerSlot + '" class="game-block mathai-answer-slot"></div>';
         }
         html += '</div></section>';
       }
@@ -310,6 +323,7 @@
         progressBar: resolveSlotId(sec.progressBar, DEFAULT_IDS.progressBar),
         playArea: resolveSlotId(sec.playArea !== undefined ? sec.playArea : true, DEFAULT_IDS.playArea),
         transitionSlot: resolveSlotId(sec.transitionScreen, DEFAULT_IDS.transitionSlot),
+        answerSlot: resolveSlotId(sec.answerComponent, DEFAULT_IDS.answerSlot),
         previewSlot: resolveSlotId(sec.previewScreen, DEFAULT_IDS.previewSlot),
         floatingButtonSlot: resolveSlotId(sec.floatingButton, DEFAULT_IDS.floatingButtonSlot)
       };
@@ -377,6 +391,14 @@
         bodyEl.appendChild(transEl);
       }
 
+      // --- Answer slot (sibling of play area, last in body) ---
+      if (ids.answerSlot) {
+        var answerEl = document.createElement('div');
+        answerEl.id = ids.answerSlot;
+        answerEl.className = 'game-block mathai-answer-slot';
+        bodyEl.appendChild(answerEl);
+      }
+
       root.appendChild(bodyEl);
       container.appendChild(root);
 
@@ -396,6 +418,7 @@
         progressBar: ids.progressBar,
         playArea: ids.playArea || DEFAULT_IDS.playArea,
         transitionSlot: ids.transitionSlot,
+        answerSlot: ids.answerSlot,
         previewSlot: ids.previewSlot,
         floatingButtonSlot: ids.floatingButtonSlot,
         // compat aliases

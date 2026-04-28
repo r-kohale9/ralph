@@ -17,6 +17,7 @@ After spec is approved, before game-building. Produces the 5 plan docs the build
 
 - `skills/game-archetypes.md` -- archetype profile determines the structural skeleton (incl. constraint #8 which mandates PART-050 whenever the flow has a Submit CTA) -- **ALWAYS**
 - `alfred/parts/PART-050.md` -- FloatingButton planning requirements: slot wiring, visibility predicate, submit handler shape, opt-out policy -- **WHEN the spec describes a Submit / Check / Done CTA**
+- `alfred/parts/PART-051.md` -- AnswerComponent planning: end-game stack ordering (Stars Collected celebration plays first, hands off to AnswerComponent via `onMounted` setTimeout; single-stage Next exit), per-round answer payload shape, CREATOR-ONLY opt-out policy -- **UNLESS spec declares `answerComponent: false` (creator-only flag — no LLM step may auto-default; planning treats `answerComponent: true` as non-negotiable when the flag is absent)**
 - `skills/feedback/SKILL.md` -- 17 behavioral cases, await/fire-and-forget rules, priority table, FeedbackManager API -- **ALWAYS**
 - `skills/pedagogy.md` -- Bloom level determines feedback depth and scaffolding -- **ALWAYS**
 - `skills/mobile.md` -- viewport constraints for screen layouts -- **ON-DEMAND** (only for screens.md wireframes)
@@ -120,7 +121,9 @@ The plan for standalone MUST:
 
 Multi-round games use TransitionScreen for the victory / game_over screen because the per-round feedback has already been cleared when the final round ends.
 
-Five-step sequence:
+> **AnswerComponent override (PART-051) — applies UNLESS spec declares `answerComponent: false`.** When AnswerComponent is in use (default), the legacy 5-step chain below DOES NOT APPLY. Use the chain in Step 2e instead. The legacy chain remains authoritative ONLY for games that opt out of AnswerComponent.
+
+Legacy 5-step sequence (`answerComponent: false` only):
 
 1. `await FeedbackManager.play(...)` — full feedback audio sequence, awaited.
 2. Post `game_complete` with metrics.
@@ -165,6 +168,48 @@ If applicable, the plan MUST describe:
 4. **Reset state:** `gameState.isProcessing = false`; input value (unless `retryPreservesInput: true`); any inline wrong-answer feedback UI.
 
 The round-flow.md must document the `retryCount` mechanic and the `is_retry` attempt flag. The scoring.md must confirm that retries do not multiply score (each attempt counts independently in the `attempts` array).
+
+### Step 2e: CRITICAL — AnswerComponent planning (PART-051)
+
+**Applies to every game UNLESS the spec declares `answerComponent: false`.** The AnswerComponent renders a `Correct Answers!` carousel after the player has finished playing. One slide per evaluated answer (one per round in multi-round, N slides for a standalone question with N answers, 1 slide with disabled nav for a standalone with one answer). It is the last in-game card before the terminal yay / star-collected TransitionScreen.
+
+The plan MUST resolve four design decisions and document them in `pre-generation/`:
+
+1. **Per-round answer payload shape.** What does each round carry to render the answer view? Examples: a grid game stores the solved cell-state (`answer: [[0,0,1,0],...]`); a drag-drop game stores the correct mapping (`answer: { 'zone-A': 'tile-3', 'zone-B': 'tile-1' }`); an MCQ game with a worked-example slide stores `answer: { correct: 2, explanation: '...' }`. Document the exact JSON shape in spec.md's content-schema section AND under round-flow.md's "answer slide" entry.
+2. **Render-only-the-evaluated-elements rule.** Decide what part of the play-area DOM the slide reproduces. Drag-drop → drop-zones in solved state, NOT the draggable bank. Grid → the solved grid. MCQ → the question text + the correct option highlighted (no other options as tap-targets). Document this in screens.md as the "Answer Panel" wireframe — one ASCII sketch per round type.
+3. **Slide builder placement.** Plan a `buildAnswerSlidesForAllRounds()` (multi-round) or `buildAnswerSlides()` (standalone) function in round-flow.md that returns `[{ render(container) { ... } }, ...]`. Each `render` must be self-contained and use only `gameState` / round data — no DOM references that may have been destroyed by feedback rendering.
+4. **End-game chain (REQUIRED — supersedes Step 2c's multi-round 5-step chain).**
+
+**New end-game chain (multi-round, with Victory + Stars Collected):**
+
+The celebration beat plays FIRST. AnswerComponent appears AFTER. Single-stage Next exits.
+
+1. `await FeedbackManager.play(...)` — final-round feedback, awaited.
+2. Post `game_complete` with metrics.
+3. `endGame()` routes to `showVictory()` (when intermediate Victory transition exists) OR `showStarsCollected()` (when no intermediate Victory).
+4. **Victory transition (optional):** `transitionScreen.show({ title: 'Victory', stars, buttons: [{ text: 'Claim Stars', action: showStarsCollected }], persist: true })`. The Claim Stars button's action calls `showStarsCollected()` directly. **NEVER call `answerComponent.show(...)` from this action — it skips the celebration.**
+5. **Stars Collected transition (celebration backdrop):** `transitionScreen.show({ title: 'Yay! Stars collected!', stars, buttons: [], persist: true, onMounted })`. The `onMounted` callback plays the yay sound, fires the `show_star` animation, and via `setTimeout` (typically ~1500 ms) calls `showAnswerCarousel()`. **The Stars Collected TS does NOT call `transitionScreen.hide()` in `onMounted`** — per [default-transition-screens.md](reference/default-transition-screens.md), it is the terminal celebration surface and stays mounted as the backdrop while AnswerComponent + Next appear over it. Both tear down together on the single-stage Next click.
+6. **Answer carousel reveal:** `showAnswerCarousel()` calls `answerComponent.show({ slides })` then `floatingBtn.setMode('next')`. This is the **only place** `answerComponent.show(...)` is called in a multi-round game.
+7. **Single-stage Next exit:** `floatingBtn.on('next', () => { answerComponent.destroy(); postMessage({ type: 'next_ended' }); previewScreen.destroy(); floatingBtn.destroy(); })`.
+
+**New 5-step end-game chain (standalone, no TransitionScreen):**
+
+1. `await FeedbackManager.play(correct ? 'correct' : 'incorrect')`.
+2. Render the inline feedback panel in `#gameContent` (worked-example, stars, final message).
+3. Post `game_complete`.
+4. `answerComponent.show({ slides: buildAnswerSlides() })` — 1 slide if single answer (nav auto-disabled), N slides if multiple.
+5. `floatingBtn.setMode('next')` → user taps Next → `on('next')` handler calls `answerComponent.destroy()`, posts `next_ended`, destroys the floating button.
+
+**FAILED REASONING PATTERNS — banned (do NOT write any of these in the plan):**
+
+- ❌ *"Show the AnswerComponent inside `endGame()` for multi-round games so it lines up with the result."* WRONG. The Stars Collected celebration plays FIRST. Calling `answerComponent.show(...)` from `endGame()` (or from a Victory `Claim Stars` action that skips Stars Collected) steals the celebration moment AND forces a two-stage Next handler. Validator `GEN-ANSWER-COMPONENT-AFTER-CELEBRATION` rejects this.
+- ❌ *"Use a two-stage Next handler — first tap dismisses the answer card and shows Stars Collected, second tap exits."* WRONG. By the time Next is visible the player has already seen Victory + Stars Collected + AnswerComponent. The Next handler must be a single-stage exit (destroy + post `next_ended` + destroy preview + destroy floating). Validator `GEN-ANSWER-COMPONENT-NEXT-SINGLE-STAGE` rejects two-stage handlers (anything that branches on a `gameState.starsCollectedShown`-style flag and calls a celebration screen on the first click).
+- ❌ *"Reveal the AnswerComponent during the round so players can compare their answer with the correct one immediately."* WRONG. The component is end-of-game only. Per-round feedback uses the existing PART-017 inline patterns. Validator `GEN-ANSWER-COMPONENT-NOT-IN-PREVIEW` + the `.show-after-feedback` rule reject mid-round reveals.
+- ❌ *"Encode each slide as an HTML string (`{ html: '<div>...</div>' }`) so the spec can ship the rendered card directly."* WRONG. Slides MUST be `{ render(container) {...} }` callbacks. Validator `GEN-ANSWER-COMPONENT-SLIDE-SHAPE` rejects `html` and `element` keys. The component intentionally has one shape so behaviour is predictable across games.
+- ❌ *"Skip AnswerComponent for this game — it's an exploration game with no correct answer."* This is a valid reason to opt out, but the spec MUST declare `answerComponent: false` AND that opt-out must come from the human creator's explicit prompt (quoted in the spec) — NOT from any LLM step's judgment. **Spec-creation (step 1) MUST NOT auto-default `false`** (see spec-creation/SKILL.md "answerComponent exception"). **Spec-review (step 2) FAILs any spec with `answerComponent: false` lacking quoted creator opt-out** (see spec-review/SKILL.md H5). **Build (step 4) MUST NOT mutate spec.md** to silence the validator. The spec is the human creator's contract; no LLM at any step gets to opt out on their behalf.
+- ❌ *"Put the Victory transition's `Claim Stars` action straight to `showAnswerCarousel()` to skip the redundant Stars Collected screen."* WRONG. Stars Collected is the celebration beat that owns the yay sound + `show_star` animation. Skipping it loses the reward feedback. Victory's Claim Stars action MUST call `showStarsCollected()`, not the answer-reveal function.
+
+**screens.md MUST include the Answer Panel wireframe** (one per round type) showing only the evaluated elements. **round-flow.md MUST include the end-game step that calls `answerComponent.show(...)`** with the slide-builder function name and the slide payload shape.
 
 **FAILED REASONING PATTERNS — banned:**
 

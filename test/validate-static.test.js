@@ -4638,3 +4638,114 @@ describe('5e0-DOM-BOUNDARY: preview private DOM boundary', () => {
     );
   });
 });
+
+describe('GEN-ROUNDSETS-MIN-3 — fallbackContent.rounds must contain ≥ 3 distinct set values', () => {
+  // Builds a minimal HTML shell with a fallbackContent literal inline.
+  function buildFallbackHtml(fallbackLiteralJs) {
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>T</title></head><body>
+<div id="app"></div>
+<script>
+  const fallbackContent = ${fallbackLiteralJs};
+  window.gameState = { phase: 'start', score: 0, totalRounds: 2 };
+  function initGame() { window.gameState.content = fallbackContent; }
+  initGame();
+</script></body></html>`;
+  }
+
+  it('passes when fallbackContent.rounds is legacy untagged (no set keys)', () => {
+    const literal = `{
+      totalRounds: 2,
+      rounds: [
+        { id: 'r1', question: 'Q1', answer: 1 },
+        { id: 'r2', question: 'Q2', answer: 2 },
+      ],
+    }`;
+    const { output } = runValidator(buildFallbackHtml(literal));
+    assert.ok(
+      !output.includes('GEN-ROUNDSETS-MIN-3'),
+      `Unexpected GEN-ROUNDSETS-MIN-3 on legacy untagged rounds. Got: ${output}`,
+    );
+  });
+
+  it('passes when tagged with exactly 3 sets × totalRounds rounds each', () => {
+    const literal = `{
+      totalRounds: 2,
+      rounds: [
+        { id: 'A_r1', set: 'A', question: 'Q1', answer: 1 },
+        { id: 'A_r2', set: 'A', question: 'Q2', answer: 2 },
+        { id: 'B_r1', set: 'B', question: 'Q1', answer: 1 },
+        { id: 'B_r2', set: 'B', question: 'Q2', answer: 2 },
+        { id: 'C_r1', set: 'C', question: 'Q1', answer: 1 },
+        { id: 'C_r2', set: 'C', question: 'Q2', answer: 2 },
+      ],
+    }`;
+    const { output } = runValidator(buildFallbackHtml(literal));
+    assert.ok(
+      !output.includes('GEN-ROUNDSETS-MIN-3'),
+      `Unexpected GEN-ROUNDSETS-MIN-3 on valid 3-set fallback. Got: ${output}`,
+    );
+  });
+
+  it('fails when only 2 distinct set values are present', () => {
+    const literal = `{
+      totalRounds: 2,
+      rounds: [
+        { id: 'A_r1', set: 'A', question: 'Q1', answer: 1 },
+        { id: 'A_r2', set: 'A', question: 'Q2', answer: 2 },
+        { id: 'B_r1', set: 'B', question: 'Q1', answer: 1 },
+        { id: 'B_r2', set: 'B', question: 'Q2', answer: 2 },
+      ],
+    }`;
+    const { exitCode, output } = runValidator(buildFallbackHtml(literal));
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-ROUNDSETS-MIN-3'),
+      `Expected GEN-ROUNDSETS-MIN-3 error. Output: ${output}`,
+    );
+  });
+
+  it('fails when rounds mix tagged and untagged entries', () => {
+    const literal = `{
+      totalRounds: 2,
+      rounds: [
+        { id: 'A_r1', set: 'A', question: 'Q1', answer: 1 },
+        { id: 'A_r2', set: 'A', question: 'Q2', answer: 2 },
+        { id: 'r3', question: 'Q3', answer: 3 },
+      ],
+    }`;
+    const { exitCode, output } = runValidator(buildFallbackHtml(literal));
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-ROUNDSETS-MIN-3'),
+      `Expected GEN-ROUNDSETS-MIN-3 error. Output: ${output}`,
+    );
+    assert.ok(
+      /mixed mode/i.test(output),
+      `Expected 'mixed mode' in error. Output: ${output}`,
+    );
+  });
+
+  it('fails when an id is duplicated across sets', () => {
+    const literal = `{
+      totalRounds: 2,
+      rounds: [
+        { id: 'dup_r1', set: 'A', question: 'Q1', answer: 1 },
+        { id: 'A_r2', set: 'A', question: 'Q2', answer: 2 },
+        { id: 'B_r1', set: 'B', question: 'Q1', answer: 1 },
+        { id: 'B_r2', set: 'B', question: 'Q2', answer: 2 },
+        { id: 'dup_r1', set: 'C', question: 'Q1', answer: 1 },
+        { id: 'C_r2', set: 'C', question: 'Q2', answer: 2 },
+      ],
+    }`;
+    const { exitCode, output } = runValidator(buildFallbackHtml(literal));
+    assert.equal(exitCode, 1, `Expected fail but got exit ${exitCode}: ${output}`);
+    assert.ok(
+      output.includes('GEN-ROUNDSETS-MIN-3'),
+      `Expected GEN-ROUNDSETS-MIN-3 error. Output: ${output}`,
+    );
+    assert.ok(
+      /duplicate.*id/i.test(output),
+      `Expected duplicate id message. Output: ${output}`,
+    );
+  });
+});

@@ -96,6 +96,8 @@ ORDER BY a.round_number;
 
 **Key signal:** Compare the lowest-accuracy round to the rounds before and after it. A sudden drop (e.g., round 4 at 35% when rounds 3 and 5 are at 75%) indicates a difficulty spike -- the round is too hard for its position in the sequence, not necessarily too hard overall.
 
+**Set-aware analytics:** When a game uses round-set cycling (see code-patterns.md `getRounds` + `restartGame`), round `id` values are prefixed by set letter (`A_r1_…`, `B_r1_…`, `C_r1_…`). To segment per-round accuracy by set, group attempts on the prefix of `question_id`. No query changes are required for existing analytics — segmentation is an optional refinement. A student who played Set A on their first attempt and Set B on retry will have attempts for both sets in the same session; `setIndex` is not in the attempt payload, so the prefix is the only signal.
+
 ---
 
 ### Question 2: Which misconception is most common?

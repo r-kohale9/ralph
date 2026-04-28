@@ -165,6 +165,12 @@ Generate varied content sets beyond the default. Each must conform to the inputS
 6. Difficulty must increase across rounds within a set (easy rounds first, hard rounds last).
 7. Each set must be meaningfully different -- not just one number changed.
 
+**Round sets within each content set**
+
+Each uploaded content set must ALSO provide rounds for at least 3 `set` values matching the game's rotation expectation. Content sets and round sets are orthogonal: a host picks a content set (Easy/Hard/Themed) via URL; the runtime cycles through THAT content set's internal round sets on retry. Example: the "Cooking Theme" content set has its own Sets A/B/C (cooking-themed), and a student retrying inside that content set cycles A→B→C→A within cooking.
+
+Step 1's `inputSchema` derivation needs NO change — the schema is inferred directly from `fallbackContent`, so the new per-round `set` field is auto-included without any manual schema edits.
+
 **Validation:** For each content set, validate it against the inputSchema before uploading. If it fails schema validation, fix it before calling the API.
 
 **Recommended set distribution:**

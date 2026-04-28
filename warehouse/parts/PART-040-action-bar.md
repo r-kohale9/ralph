@@ -86,7 +86,13 @@ ActionBar ALSO listens to `window.message` events for `{ type: 'game_init', data
 
 ## show_star payload contract
 
-The same `window.message` listener also handles `{ type: 'show_star', data?: { count?, variant?, silent? } }` — an **intra-frame** message dispatched by the game via `window.postMessage(...)` (NOT `window.parent.postMessage(...)`). It triggers the same star-award animation used in mathai-client: the star renders at the viewport top-left at its intrinsic image size and collapses toward the header's `#previewStar` via animated `transform-origin` + `scale` + `opacity` over 1 s, while an award chime plays. The static `#previewStar` itself is not modified — its `src` and visibility are untouched by the animation.
+`show_star` is an **intra-frame** message dispatched by the game via `window.postMessage(...)` (NOT `window.parent.postMessage(...)`). It triggers a 1 s flying-star animation that lands on the header star, upgrades `#previewStar` to the awarded tier, and — when a `score` is included — updates `#previewScore` at animation end.
+
+**Scope — ONCE per game, at the end-of-game celebration only.** Do NOT fire `show_star` on every correct answer. It is the single-shot big-celebration beat, not a per-round effect. Per-round score bumps and question-label updates use `previewScreen.setScore(...)` / `previewScreen.setQuestionLabel(...)` directly (no animation). Firing `show_star` N times in a multi-round game plays N stacked animations and spams the player — regression caught twice in QA (equivalent-ratio-quest, equivalent-ratios).
+
+Fire locations:
+- **Standalone** (`totalRounds: 1`): inside `endGame` after all feedback audio completes, before setTimeout reveals Next.
+- **Multi-round** (`totalRounds > 1`): inside the victory / stars-collected TransitionScreen's `onMounted` (or `onDismiss`), after celebration audio completes. NOT inside the per-round correct handler.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|

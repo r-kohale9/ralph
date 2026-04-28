@@ -28,8 +28,8 @@ What plays depends on the **game type** and the **moment**.
 
 | Game type       | How to identify                                                   | Correct/Wrong feedback                                                     |
 | --------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| **Single-step** | 1 interaction completes the round (MCQ, type answer, select one)  | SFX awaited (~1s) → dynamic TTS **fire-and-forget** (`.catch()`, NEVER awaited) with subtitle + sticker — next-round transition MUST NOT block on TTS |
-| **Multi-step**  | Multiple interactions per round (match pairs, sort, drag, chains) | SFX + sticker only — **fire-and-forget, no TTS, no subtitle**              |
+| **Single-step** | 1 interaction completes the round (MCQ, type answer, select one)  | **All rounds (1..N), all shapes:** SFX awaited (~1.5s floor) → dynamic TTS **awaited** (`try { await playDynamicFeedback(...); } catch(e){}`) with subtitle + sticker — explanation finishes BEFORE round advance, else it bleeds into next round (equivalent-ratios regression). Package bounds at 3 s API / 60 s streaming + try/catch prevents freezes. Validator: `GEN-FEEDBACK-TTS-AWAIT`. Standalone end-of-game (`totalRounds: 1`) uses the same awaited TTS as part of `endGame()`'s 5-beat orchestrator (PART-050). |
+| **Multi-step**  | Multiple interactions per round (match pairs, sort, drag, chains) | Mid-round partial-match SFX + sticker only — **fire-and-forget, no TTS**. Round-complete: SFX awaited → TTS awaited (Case 6 in SKILL.md). |
 
 ### By Moment
 
@@ -97,7 +97,7 @@ Screen renders → await SFX (with sticker) → await dynamic VO (with sticker) 
 
 ```
 Visual feedback (green) → isProcessing=true (disable inputs BEFORE any await) → recordAttempt → progressBar.update
-→ await correct SFX (with sticker) → fire-and-forget dynamic TTS (with sticker, .catch only, NEVER awaited)
+→ await correct SFX (with sticker) → await dynamic TTS (with sticker, try/catch, AWAITED)
 → advance to next round (renderRound / loadRound re-enables inputs — single source of truth)
 ```
 
@@ -105,7 +105,7 @@ Visual feedback (green) → isProcessing=true (disable inputs BEFORE any await) 
 
 ```
 Visual feedback (red flash) → isProcessing=true (disable inputs BEFORE any await) → recordAttempt → life-- → progressBar.update
-→ await wrong SFX (with sticker) → fire-and-forget dynamic TTS (with sticker, .catch only, NEVER awaited)
+→ await wrong SFX (with sticker) → await dynamic TTS (with sticker, try/catch, AWAITED)
 → stay on same round (renderRound / loadRound re-enables inputs for retry — single source of truth)
 ```
 
@@ -134,7 +134,7 @@ Screen renders FIRST → game_complete postMessage → await SFX (with sticker)
 5. recordAttempt({...})           — log attempt BEFORE audio
 6. signalCollector.recordViewEvent() — record event
 7a. await SFX (with sticker)      — play SFX (awaited; short ~1s predictable)
-7b. [single-step only] FIRE-AND-FORGET dynamic TTS (.catch only, NEVER awaited) — play explanation
+7b. [single-step + round-complete] AWAIT dynamic TTS (try/catch around await) — explanation must finish before round advance (validator: GEN-FEEDBACK-TTS-AWAIT)
 8. Advance (renderRound / loadRound / endGame)
    — renderRound / loadRound is the single source of truth for re-enabling inputs
    (sets isProcessing = false, voiceInput.enable(), btn.disabled = false).
@@ -185,14 +185,15 @@ try {
 | Level transition SFX → VO       | Audio IS the pacing; CTA can interrupt                         |
 | Round transition SFX → VO       | Audio IS the pacing (auto-advance or CTA interrupts)           |
 | Correct/Wrong SFX (single-step) | Short ~1s audio; visual flash needs time to land before advance |
+| Correct/Wrong TTS (single-step) | Explanation must finish BEFORE round advance, else bleeds into next round (GEN-FEEDBACK-TTS-AWAIT) |
 | Round complete SFX              | Gate before advancing to next round                            |
+| Round complete TTS              | Same as Correct/Wrong TTS — finishes before advance            |
 | End-game SFX → VO               | Terminal moment; CTA already visible for interrupt             |
 
 ### No Wait (Fire-and-Forget) — does NOT block game flow
 
 | Moment                                | Why no await                                                                                   |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Correct/Wrong TTS (single-step)       | MUST be fire-and-forget in submit handler — next-round advance MUST NOT block on TTS completion |
 | Correct SFX (multi-step mid-round)    | Don't interrupt flow — student continues matching                                              |
 | Wrong SFX (multi-step mid-round)      | Don't interrupt flow                                                                           |
 | Round start TTS                       | Student should interact immediately                                                            |
@@ -202,7 +203,7 @@ try {
 
 ### Code Patterns
 
-**Submit handler (single-step) — SFX awaited, TTS fire-and-forget:**
+**Submit handler (single-step) — SFX awaited, TTS awaited:**
 
 ```javascript
 // BEFORE any await: lock input
@@ -211,12 +212,17 @@ gameState.isProcessing = true;
 try {
   await FeedbackManager.sound.play('correct_sound_effect', { sticker: CORRECT_STICKER });
 } catch (e) {}
-// Dynamic TTS is fire-and-forget — game flow MUST NOT depend on TTS completion.
-FeedbackManager.playDynamicFeedback({
-  audio_content: 'Great!',
-  subtitle: 'Great!',
-  sticker: CORRECT_STICKER
-}).catch(function(e) { console.error('TTS error:', e.message); });
+// Dynamic TTS is AWAITED — explanation must finish before round advance, else
+// the subtitle/audio paints over the next round's transition. Package bounds
+// at 3 s API / 60 s streaming; try/catch swallows rejection so a network failure
+// still advances. Validator: GEN-FEEDBACK-TTS-AWAIT.
+try {
+  await FeedbackManager.playDynamicFeedback({
+    audio_content: 'Great!',
+    subtitle: 'Great!',
+    sticker: CORRECT_STICKER
+  });
+} catch (e) { console.error('TTS error:', e.message); }
 // Do NOT re-enable here. renderRound() / loadRound() re-enables inputs for the next round.
 // advance to next round
 ```
@@ -290,7 +296,7 @@ When two feedback moments conflict, one wins and one is skipped or stopped:
 
 ## 9. Interaction Patterns — Complete Reference
 
-All worksheet questions use one of 16 base interaction patterns (or a compound combination). The pattern determines whether feedback is **single-step** (awaited SFX → TTS) or **multi-step** (fire-and-forget SFX only).
+All worksheet questions use one of 16 base interaction patterns (or a compound combination). The pattern determines whether feedback is **single-step** (awaited SFX → awaited TTS) or **multi-step** (fire-and-forget partial-match SFX only mid-round; awaited SFX → awaited TTS at round-complete).
 
 **252 worksheets · 4,026 total questions**
 
@@ -364,8 +370,8 @@ All worksheet questions use one of 16 base interaction patterns (or a compound c
 
 | Step Type | Patterns | Feedback Rule |
 |-----------|----------|---------------|
-| **Single-step** | P1, P7, P1+P7 | SFX awaited (~1s) → dynamic TTS **fire-and-forget** (`.catch()`, NEVER awaited) with subtitle + sticker — next-round transition MUST NOT block on TTS |
-| **Multi-step** | P2, P3, P5, P6, P8, P9, P10, P11, P12, P13, P14, P15, P16, P6+P7, P8+P7, P9+P7, P8+P1, P10+P7, P6+P10 | SFX + sticker only — fire-and-forget, no TTS, no subtitle |
+| **Single-step** | P1, P7, P1+P7 | **All rounds (1..N), all shapes:** SFX awaited (~1.5s floor) → dynamic TTS **awaited** with subtitle + sticker (`try { await playDynamicFeedback(...); } catch(e){}`). Validator: `GEN-FEEDBACK-TTS-AWAIT`. Standalone end-of-game (`totalRounds: 1`) uses the same awaited TTS as part of `endGame()`'s 5-beat orchestrator (PART-050). |
+| **Multi-step** | P2, P3, P5, P6, P8, P9, P10, P11, P12, P13, P14, P15, P16, P6+P7, P8+P7, P9+P7, P8+P1, P10+P7, P6+P10 | Mid-round partial-match SFX + sticker only — fire-and-forget. Round-complete: SFX awaited → TTS awaited. |
 
 **Note:** P14 (Edge/Segment Toggle) and P16 (Sequence Replay) are defined but have zero occurrences across all 252 current worksheets.
 

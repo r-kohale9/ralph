@@ -12,19 +12,21 @@ Production games do NOT use fixed setTimeout delays. They `await` the `FeedbackM
 | Round transition (auto-advance, no CTA) | **Yes** (sequential) | SFX awaited, then VO awaited; audio IS the pacing |
 | Round transition (with CTA) | **Yes** (sequential, CTA interrupts) | SFX awaited, then VO awaited; CTA stops all mid-sequence |
 | Round start dynamic TTS | No | Student should interact immediately |
-| Correct SFX (single-step) | **Yes** | SFX awaited (~1s, predictable); block input; then fire-and-forget TTS |
-| Correct TTS (single-step) | **No — fire-and-forget** | NEVER await dynamic TTS in a submit handler; next-round advance must not depend on TTS completion |
+| Correct SFX (single-step) | **Yes** | SFX awaited (~1s, predictable); block input; then awaited TTS |
+| Correct TTS (single-step) | **Yes** | Awaited so the explanation finishes BEFORE the round advances. Without await, the TTS subtitle/audio paints over the next round's transition (equivalent-ratios regression). |
 | Correct SFX (multi-step, mid-round match) | No | SFX + sticker only, fire-and-forget; no dynamic TTS |
 | Round complete SFX | **Yes** | Gate before next round advances |
-| Wrong SFX (single-step) | **Yes** | SFX awaited (~1s, predictable); block input; then fire-and-forget TTS |
-| Wrong TTS (single-step) | **No — fire-and-forget** | NEVER await dynamic TTS in a submit handler; retry must not depend on TTS completion |
+| Round complete TTS | **Yes** | Awaited — finishes before round advance. Same reasoning as single-step correct TTS. |
+| Wrong SFX (single-step) | **Yes** | SFX awaited (~1s, predictable); block input; then awaited TTS |
+| Wrong TTS (single-step) | **Yes** | Awaited so the explanation finishes BEFORE retry/advance. Without await, the TTS bleeds into the retry input or the next round. |
 | Wrong SFX (multi-step) | No | SFX + sticker only, fire-and-forget; no dynamic TTS |
+| Explanatory TTS (Bloom L2+, any moment) | **Yes** | If `playDynamicFeedback`'s `audio_content` carries a Bloom L2+ explanation (a *why*, not just an ack), it MUST be awaited so the student actually hears it. Bloom L1 acks (e.g., "Yes!", "Correct!") MAY remain fire-and-forget. |
 | Tile select / deselect SFX | No | Pure ambient micro-interaction |
 | Partial progress SFX + VO (chains) | No | Don't interrupt — student starts next chain |
 | End-game SFX → VO (victory/game-over) | **Yes** (sequential) | But screen + CTA already visible, so student CAN interrupt |
 | New cards / content appearing SFX | No | Ambient |
 
-### Submit-handler Pattern (Single-step games — SFX awaited, dynamic TTS fire-and-forget)
+### Submit-handler Pattern (Single-step games — SFX awaited, then TTS awaited)
 
 ```javascript
 // BEFORE any await: lock input so the game freezes, not the TTS pipeline
@@ -35,16 +37,32 @@ gameState.isProcessing = true;
 try {
   await FeedbackManager.sound.play('correct_sound_effect', { sticker: CORRECT_STICKER });
 } catch(e) {}
-// Dynamic TTS is fire-and-forget — game flow MUST NOT depend on TTS completion.
-// If the TTS network stalls, the next round still loads.
-FeedbackManager.playDynamicFeedback({
-  audio_content: 'Great! 5 in the thousands place gives 5000',
-  subtitle: 'Great! 5 in the thousands place gives 5000',
-  sticker: CORRECT_STICKER
-}).catch(function(e) { console.error('TTS error:', e.message); });
+// Dynamic TTS is AWAITED — the explanation must finish before round advance,
+// otherwise its subtitle/audio paints on top of the next round
+// (equivalent-ratios regression, GEN-FEEDBACK-TTS-AWAIT). The package
+// already bounds resolution (3 s API timeout, 60 s streaming) so a stalled
+// TTS can never freeze the game indefinitely. Wrap in try/catch so a
+// rejection is swallowed.
+try {
+  await FeedbackManager.playDynamicFeedback({
+    audio_content: 'Great! 5 in the thousands place gives 5000',
+    subtitle: 'Great! 5 in the thousands place gives 5000',
+    sticker: CORRECT_STICKER
+  });
+} catch(e) { console.error('TTS error:', e.message); }
 // Do NOT re-enable here. renderRound() / loadRound() re-enables inputs when the next round paints.
 // advance to next round
 ```
+
+**Carve-outs that remain fire-and-forget.** TTS is awaited only when it carries an explanation tied to a specific moment (submit handlers, round-complete). The following sites stay fire-and-forget because the audio has no explanatory payload and/or the student should keep interacting:
+
+| Moment | Why fire-and-forget |
+|---|---|
+| Round-start dynamic TTS (line 14) | Contextual welcome, not feedback — student should interact immediately |
+| Partial progress SFX + VO in chains (line 23) | Ambient progress acknowledgement — don't pause mid-chain |
+| Tile select / deselect SFX (line 22) | Pure micro-interaction |
+| New cards / content appearing SFX (line 25) | Ambient |
+| Multi-step mid-round match SFX (line 17) | SFX + sticker only — no TTS exists |
 
 ### Fire-and-Forget Pattern
 
@@ -91,6 +109,7 @@ if (gameState.isProcessing) return;
 | Restart / Try Again | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` |
 | Game cleanup (endGame) | `FeedbackManager._stopCurrentDynamic()` + `FeedbackManager.sound.pause()` + `FeedbackManager.stream.stopAll()` |
 | `nextRound()` / `scheduleNextRound()` silent auto-advance (no CTA) | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — FIRST line, before `currentRound++` |
+| `showRoundIntro(n)` entry (multi-round, between-round transition) | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` + `FeedbackManager._stopCurrentDynamic()` — FIRST lines, BEFORE the new round's `transitionScreen.show()` / `sound_round_n`. With awaited TTS in submit handlers (`GEN-FEEDBACK-TTS-AWAIT`) the explanation normally finishes before this point — the cleanup remains mandatory as defense-in-depth: TTS streaming can hit its 60 s upper bound, the try/catch can swallow a mid-stream rejection that left audio partially playing, or a tail of `sound_round_n` from a previous transition can linger. Validator: `GEN-ROUND-BOUNDARY-STOP`. |
 | `endGame()` entry (victory/game-over TransitionScreen) | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — FIRST line after the `gameEnded` guard, before phase mutation |
 | `restartGame()` entry | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — FIRST line, before recreating SignalCollector / Timer / ProgressBar |
 | Level-transition button `action` callback | `FeedbackManager.sound.stopAll()` + `FeedbackManager.stream.stopAll()` — before `startLevel()` / `nextLevel()` |
@@ -270,8 +289,10 @@ When an answer is submitted, execute in this exact order:
 5. recordAttempt({...})                   — log attempt BEFORE audio
 6. signalCollector.recordViewEvent(...)   — record feedback event
 7a. await FeedbackManager.sound.play(...)  — play SFX with sticker (awaited; ~1s predictable)
-7b. [Single-step only] FeedbackManager.playDynamicFeedback(...).catch(function(e){})
-    — dynamic TTS is FIRE-AND-FORGET, NEVER awaited; game flow MUST NOT block on TTS completion
+7b. [Single-step + round-complete] try { await FeedbackManager.playDynamicFeedback(...); } catch(e){}
+    — dynamic TTS is AWAITED so the explanation finishes BEFORE round advance.
+    Package already bounds resolution (3 s API / 60 s streaming) so it can't freeze the game.
+    Validator: GEN-FEEDBACK-TTS-AWAIT.
 8. Advance (renderRound / loadRound / endGame)
    — renderRound / loadRound is the single source of truth for re-enabling inputs
    (it sets isProcessing = false, voiceInput.enable(), btn.disabled = false, etc.)
@@ -285,8 +306,8 @@ When an answer is submitted, execute in this exact order:
 - `progressBar.update` fires BEFORE audio so student sees the heart/round change immediately
 - Visual CSS applies BEFORE audio so student sees green/red while audio plays
 - SFX is awaited (short, predictable ~1s) so the visual flash has time to land before advance
-- Dynamic TTS is fire-and-forget so a stalled TTS stream never freezes the game — the next round loads independently; TTS keeps playing through the transition
-- Inputs are re-enabled only by the next `renderRound()` / `loadRound()` — tying re-enable to audio completion would make TTS latency block gameplay
+- Dynamic TTS is awaited so the explanation finishes attached to the answer it explains; package-level bounds (3 s API / 60 s streaming) prevent indefinite freezes, and the `try/catch` swallows rejection so a network failure still lets the game advance
+- Inputs are re-enabled only by the next `renderRound()` / `loadRound()` — same single-source-of-truth invariant as before; awaited TTS just delays when `renderRound` is reached
 
 ### Defense-in-depth CSS (optional but recommended)
 
