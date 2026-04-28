@@ -93,16 +93,45 @@ Follow the exact function order from [code-patterns.md](reference/code-patterns.
 
 ### Step 4: Write the Fallback Content
 
-The `fallbackContent.rounds` array is the game's offline dataset. It must:
+The `fallbackContent.rounds` array is the game's offline dataset. **It is round-set-cycled** — meaning a student playing Set A on first attempt, Set B on Try Again, Set C on next Try Again, then back to A. The runtime `getRounds()` helper groups by `set` key and `restartGame()` rotates `gameState.setIndex` on each restart. The fallback dataset MUST seed all three sets so the cycle has content.
 
-- Contain at least `totalRounds` round objects
-- Follow the exact round schema from the spec
-- Include every field the answer handler and recordAttempt read (id, answer, options, difficulty, misconception tags, feedbackCorrect, feedbackWrong, etc.)
-- Progress in difficulty (easy -> medium -> hard, or per spec stages)
-- Have stable `id` fields (e.g., `'r1_topic_detail'`) for cross-session comparison
-- Contain rounds for at least **3 distinct `set` values** (`"A"`, `"B"`, `"C"`). Each set contains exactly `totalRounds` rounds with the same round schema.
-- Round `id` values globally unique across sets — use prefix convention `"A_r1_…"`, `"B_r1_…"`, `"C_r1_…"` so `question_id` analytics segment by set via prefix (no schema change required).
-- Parallel difficulty progression across sets — Set A's Round 1 ≈ Set B's Round 1 ≈ Set C's Round 1 in difficulty. A student cycling through sets on retry experiences comparable learning load.
+**MANDATORY — round-set structure (validator rule `GEN-ROUNDSETS-MIN-3` blocks build-time):**
+
+- **`rounds.length === totalRounds × 3` (or more)** — NOT `totalRounds`. Three sets × `totalRounds` rounds per set = the array length.
+- **Every round has a `set: 'A' | 'B' | 'C'` key** — mixed tagged/untagged rounds fail the validator.
+- **At least 3 distinct `set` values** present: `"A"`, `"B"`, `"C"`. Each set contains exactly `totalRounds` rounds with the same round schema.
+- **Round `id` values globally unique across sets** — use prefix convention `"A_r1_…"`, `"B_r1_…"`, `"C_r1_…"`. The prefix lets `question_id` analytics segment by set without schema change. Duplicating an `id` across sets fails the validator.
+- **Parallel difficulty progression across sets** — Set A's Round 1 ≈ Set B's Round 1 ≈ Set C's Round 1 in difficulty. A student cycling through sets on retry experiences comparable learning load each session.
+
+**Other round-content rules (apply to every round in every set):**
+
+- Follow the exact round schema from the spec.
+- Include every field the answer handler and recordAttempt read (id, answer, options, difficulty, misconception tags, feedbackCorrect, feedbackWrong, etc.).
+- Progress in difficulty WITHIN a set (easy → medium → hard, or per spec stages).
+- Stable `id` fields for cross-session comparison.
+
+**Skeleton:**
+
+```javascript
+var fallbackContent = {
+  totalRounds: 10,        // rounds per session (per set)
+  totalLives: 3,
+  rounds: [
+    // Set A — 10 rounds
+    { set: 'A', id: 'A_r1_…', round: 1, /* …spec schema… */ },
+    { set: 'A', id: 'A_r2_…', round: 2, /* … */ },
+    // … 8 more …
+    // Set B — 10 rounds (parallel difficulty to Set A)
+    { set: 'B', id: 'B_r1_…', round: 1, /* … */ },
+    // … 9 more …
+    // Set C — 10 rounds (parallel difficulty to Set A)
+    { set: 'C', id: 'C_r1_…', round: 1, /* … */ },
+    // … 9 more …
+  ]
+};
+```
+
+Total array length here = `10 × 3 = 30`. Same `round` numbers (1..10) appear three times, distinguished by the `set` key.
 
 ### Step 5: Implement the Answer Handler
 
@@ -131,6 +160,7 @@ Before outputting, verify against every check:
 - [ ] GEN-SYNCDOMSTATE-ALLATTRS: syncDOM writes `data-round` and `data-score`
 - [ ] GEN-SHOWRESULTS-SYNC: showResults calls syncDOM after phase assignment
 - [ ] GEN-RESTART-RESET: resetGame resets phase, currentRound, score, attempts, events
+- [ ] GEN-ROUNDSETS-MIN-3: `fallbackContent.rounds` contains rounds for ≥ 3 distinct `set` values (`'A'`, `'B'`, `'C'`); each set has exactly `totalRounds` rounds; every round has a `set` key (no mixed mode); all `id` values globally unique across sets. `rounds.length === totalRounds × 3` (or more) — NOT `totalRounds`. `gameState.setIndex: 0` field present. `getRounds()` filters by current set. `restartGame()` rotates `setIndex` BEFORE `resetGameState()` (rotation is NOT in the reset list). See SKILL.md Step 4 for the full pattern.
 - [ ] GEN-CORRECT-ANSWER-EXPOSURE: `gameState.correctAnswer` set each round
 - [ ] GEN-FLOATING-BUTTON-CDN: When spec has a Submit CTA, the FloatingButton CDN script (or the bundle `components/index.js`) is included and `new FloatingButtonComponent(...)` is instantiated in DOMContentLoaded
 - [ ] GEN-FLOATING-BUTTON-SLOT: `ScreenLayout.inject(...)` passes `slots.floatingButton: true` whenever `FloatingButtonComponent` is used

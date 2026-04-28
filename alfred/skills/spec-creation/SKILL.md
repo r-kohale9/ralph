@@ -140,15 +140,28 @@ Each round in `rounds[]` MUST carry an `answer` payload that the AnswerComponent
 
 For a **standalone game with N evaluated answers** (`totalRounds: 1`), use an `answers: [...]` array on the single round instead of `answer:`.]
 
-Example:
+**Round-set cycling — MANDATORY for multi-round games (validator: GEN-ROUNDSETS-MIN-3).** The `rounds` array is round-set-cycled at runtime. A student plays Set A on first attempt, Set B after Try Again / Play Again, Set C on the next restart, then back to A. The spec MUST author all three sets so the build step copies them verbatim into `fallbackContent`.
+
+- `rounds.length === totalRounds × 3` (or more) — NOT `totalRounds`. Three sets of `totalRounds` rounds each.
+- Every round object carries a `set: 'A' | 'B' | 'C'` key. Mixed tagged/untagged rounds fail the validator.
+- `id` values globally unique across sets — prefix convention `A_r1_…`, `B_r1_…`, `C_r1_…`.
+- Parallel difficulty across sets — Set A's Round 1 ≈ Set B's Round 1 ≈ Set C's Round 1 in difficulty so each retry maintains the same learning load.
+- Standalone games (`totalRounds: 1`) are exempt — single round, no cycling needed.
+
+Example (10 rounds × 3 sets = 30 round objects):
 ```js
 const fallbackContent = {
   previewInstruction: '<p>Tap two tiles that double each other!</p>',
   previewAudioText: 'Find two numbers where one is double the other. Tap both to match them.',
   previewAudio: null,           // filled at deploy time by TTS pipeline
   showGameOnPreview: false,
+  totalRounds: 10,              // rounds per session (per set)
+  totalLives: 3,
   rounds: [
+    // ── Set A — 10 rounds ──
     {
+      set: 'A',
+      id: 'A_r1_…',
       round: 1,
       stage: 1,
       type: "A",
@@ -157,11 +170,21 @@ const fallbackContent = {
         "[wrong_answer_1]": "misconception-name",
         "[wrong_answer_2]": "misconception-name"
       }
-    }
-    // ... all N rounds
+    },
+    // ... 9 more Set A rounds, ids A_r2_… through A_r10_…
+
+    // ── Set B — 10 rounds (parallel difficulty to Set A, different surface content) ──
+    { set: 'B', id: 'B_r1_…', round: 1, stage: 1, type: "A", /* ... */ },
+    // ... 9 more Set B rounds
+
+    // ── Set C — 10 rounds (parallel difficulty to Set A) ──
+    { set: 'C', id: 'C_r1_…', round: 1, stage: 1, type: "A", /* ... */ },
+    // ... 9 more Set C rounds
   ]
 };
 ```
+
+The spec author MUST author all three sets here. Do NOT delegate Set B/C generation to the build step — the build step copies content verbatim from this section. A spec that ships only Set A produces a game that fails the validator and offers no actual cycling.
 
 ## Defaults Applied
 [List every decision that was NOT specified by the creator and was filled by a default.

@@ -43,7 +43,9 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 
 **Invariant — start at 0:** The first `progressBar.update()` call on the initial flow path MUST be `update(0, totalLives)`. The progression counter starts at 0 when the game begins, never at 1. Validator rule `5e0-PROGRESSBAR-START-ONE` blocks any first-call whose first arg is not literal `0`.
 
-**Increment policy is game-specific.** The first arg to `update()` is a progression counter. What it counts — rounds completed, correct answers, points earned, section progress — is defined per game. Pick the metric that matches the spec and increment it when that metric changes. The "rounds completed, incremented on correct feedback" policy shown in the round loop below is ONE example; swap the increment condition to match your progression metric.
+**Increment policy — DEFAULT is "rounds attempted" (NOT "rounds correct").** The first arg to `update()` is a progression counter. **For the canonical multi-round shape, this MUST count rounds the student has played through (correct OR wrong) — i.e., it tracks position in the round sequence, not score.** Why: in a 10-round game, if the student gets rounds 3 and 7 wrong but doesn't lose all lives, they still finish with 10/10 on the bar — the bar reflects "where am I in the game", which is what the student intuitively reads. A "correct-only" counter would show 8/10 on the final round, making the last round feel mis-numbered.
+
+The counter increments AFTER feedback completes, regardless of correct/wrong (provided lives remain). Wrong answers do NOT retry the same round — they advance to the next round AND lose a life. Game ends early via Game Over only if `lives === 0`.
 
 | Moment | Runtime call |
 |---|---|
@@ -51,9 +53,9 @@ This file tells you how to implement the flow from `pre-generation/game-flow.md`
 | Runtime start, `totalRounds === 1` | `progressBar.hide()` (standalone) |
 | After Preview → Welcome mount | no new call needed (already at 0 from start) |
 | Entering Round-i intro / body | `update(progress, livesLeft)` — reflects current progression state, **not** `i` or `i-1`. Idempotent no-op if state hasn't changed since last update. |
-| Feedback wrong, lives remaining > 0 | `update(progress, livesLeft)` — hearts decrement; `progress` changes only if the game's metric includes wrong answers |
-| Feedback / round-complete — metric increments | Bump the counter in state FIRST, then `update(progress, livesLeft)` BEFORE any awaited SFX / transition. See "Round-complete handler — progress bar bumps FIRST" in code-patterns.md. |
-| Victory entry | `update(totalRounds, livesLeft)` — bar shows full (game complete, regardless of metric) |
+| AFTER feedback audio resolves, BEFORE the next round renders / Victory / Game Over fires | Bump `progress` (counts rounds attempted) — correct OR wrong — then `update(progress, livesLeft)`. **Timing: just before the round changes, NOT immediately after submit.** The student sees feedback for the round they just played with the bar still showing the round they're on, and the bar advances as the round changes. The bump MUST still happen BEFORE the awaited round-change UI (`nextRound()` render, `transitionScreen.show(...)` for Victory, `showGameOver()`) — that's what guarantees Victory paints `N/N` and Game Over preserves the post-bump value. Wrong answers also decrement `livesLeft` — single `update(progress, livesLeft)` reflects both. See "Round-complete handler — bump just before round change" in code-patterns.md. |
+| Wrong answer, `livesLeft === 0` after decrement | Bump progress (the failed round still counts as attempted) → `update(progress, 0)` → then `showGameOver()`. The bar shows the post-bump value + 0 hearts; Game Over preserves that state. |
+| Victory entry | `update(totalRounds, livesLeft)` — bar shows full. (With the rounds-attempted counter, `progress` already equals `totalRounds` here; this call is idempotent but explicit.) |
 | Game Over entry | **no call** — state preserved (bar shows prior value + 0 hearts so the student sees their final state) |
 | **Restart-path entry** (after Game Over `Try Again`, or after <3★ Victory `Play Again`) | `update(0, totalLives)` — **reset to the start-at-0 invariant** so a fresh start is visibly signaled before Round 1 begins. *Placement depends on flow shape — see below.* |
 
@@ -79,7 +81,14 @@ The reset itself is universal; *where* you place the `update(0, totalLives)` cal
 
 ## Round loop pattern
 
-**This example uses a "rounds completed, incremented on correct feedback" policy.** The invariant (start at 0) is universal; the increment condition is not — swap the `if (verdict.correct)` check for whatever matches your game's progression metric (e.g. `if (verdict.correct && !verdict.retry)`, `state.progress += verdict.points`, `if (allCardsPlaced)`, etc.).
+**Default progression policy — "rounds attempted", bump just before round change.** `state.progress` increments after the round's feedback completes, regardless of correct/wrong, **immediately before the round-change UI fires** (next `showRoundIntro` render, Victory transition, or Game Over transition). The bar visibly advances *as the round changes*, not as the student submits. Wrong answers also decrement `livesLeft`; if lives hit 0 the game ends via `showGameOver()` BEFORE the next round renders. The header `previewScreen.setScore(...)` continues to track *correct* answers (separate counter, separate update site).
+
+**Visual sequence per round:**
+1. Student submits → feedback plays (sound + sticker, ~1.5–2 s) → bar still shows previous progress
+2. Feedback resolves → bump `state.progress` → `progressBar.update(progress, livesLeft)` → bar visibly advances
+3. Next round intro renders / Victory / Game Over fires (whichever applies)
+
+The bump still respects the "before the awaited round-change UI" ordering rule — what changes is *when within the round* it fires. Bump after feedback await, before transition await.
 
 ```js
 async function startGame() {
@@ -102,21 +111,33 @@ async function startGame() {
     await showRoundIntro(i);                // transition, auto-advance on sound end
     progressBar.update(state.progress, state.livesLeft);
     const verdict = await renderRoundAndWaitForSubmit(i);
-    await runFeedbackWindow(verdict);       // 2000ms, sound + sticker
+    // 1. State mutations (score / lives) — header refresh now (no animation)
     if (verdict.correct) {
-      state.progress++;                     // game-specific policy — swap the condition to match your metric
-      progressBar.update(state.progress, state.livesLeft);
-      previewScreen.setScore(state.progress + '/' + totalRounds);  // header counter bumps, no animation
+      state.score++;                        // score = correct count (header)
+      previewScreen.setScore(state.score + '/' + totalRounds);
     } else {
       state.livesLeft--;
-      if (state.livesLeft === 0) return showGameOver();
-      progressBar.update(state.progress, state.livesLeft);
-      i--;  // retry same round
     }
+    // 2. Feedback FIRST — bar still at previous progress while feedback plays
+    await runFeedbackWindow(verdict);       // ~2000ms sound + sticker
+    // 3. Bump progress + update bar JUST BEFORE the round-change UI fires
+    state.progress++;
+    progressBar.update(state.progress, state.livesLeft);
+    // 4. Round-change UI
+    if (state.livesLeft === 0) return showGameOver();   // exits with bumped progress + 0 hearts
+    // (loop continues — next iteration's showRoundIntro is the round-change UI)
   }
-  await showVictory();
+  await showVictory();   // bar already at totalRounds/totalRounds from the last bump above
 }
 ```
+
+**Two counters, two update sites:**
+- `state.progress` — rounds attempted (0 → totalRounds) — drives `progressBar.update()`
+- `state.score` — rounds correct (0 → totalRounds) — drives `previewScreen.setScore()` and is what `getStars()` evaluates
+
+Do NOT collapse these. The progress bar is "where am I"; the header score is "how am I doing". A student on round 10 with 7 correct sees `Round 10/10` on the bar AND `7/10` in the header — both correct, both readable.
+
+**Alternative policies (only when spec explicitly opts in):** "rounds correct", "points earned", "section progress", "tiles cleared". Document the chosen metric in the spec's `## Flow` section and adjust the increment site accordingly. **The default for any rounds-based game is "rounds attempted" — never invent a custom policy without spec authorization.**
 
 ## ActionBar header state updates — MANDATORY
 

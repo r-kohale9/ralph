@@ -740,46 +740,89 @@ When the game has a `TimerComponent`, instantiate it into a container inside `#g
 - `timer.pause()` / `timer.resume()` from VisibilityTracker's `onInactive` / `onResume` callbacks, so the countdown freezes while the tab is hidden
 - `timer.reset()` on restart
 
-### Round-complete handler — progress bar bumps FIRST (ordering rule)
+### Round-complete handler — bump just before round change (ordering rule)
 
-Every round-complete handler (the code path that fires when the round's progression metric changes) **MUST** bump the progress bar BEFORE any awaited SFX / VO / transition:
+The round-complete handler runs after the student submits and feedback plays. **Bump the progress bar AFTER feedback resolves, immediately BEFORE the round-change UI fires** (next `showRoundIntro`, Victory transition, or Game Over transition). The student sees feedback for the round they just played with the bar still on that round, and the bar advances *as the round changes* — not at submit.
+
+**Default policy — `gameState.progress` counts rounds attempted, NOT rounds correct.** It increments on EVERY round, regardless of verdict. Wrong answers also decrement `gameState.lives`. Score (correct count) is a separate counter (`gameState.score`) that drives the header `previewScreen.setScore(...)`, not the progress bar. See `flow-implementation.md` § Round loop pattern for the full pattern.
+
+**Canonical sequence per round:**
 
 ```javascript
-if (progressBar) {
-  // gameState.progress is whatever counter this game tracks (rounds completed,
-  // correct answers, points earned, section progress, …). Increment the counter
-  // in state FIRST, then pass the new value here.
-  try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+// Default: rounds-attempted progress counter, bump just before round change
+async function onRoundComplete(verdict) {
+  // 1. State mutations + header refresh (header animates / updates with the score number)
+  if (verdict.correct) {
+    gameState.score++;                                                         // header counter
+    previewScreen.setScore(gameState.score + '/' + gameState.totalRounds);     // header, no animation
+  } else {
+    gameState.lives--;                                                         // life lost
+  }
+  // 2. Feedback FIRST — bar still at previous progress while feedback plays
+  await FeedbackManager.sound.play(verdict.correct ? 'correct' : 'incorrect', {...});
+  // 3. Bump progress + update bar JUST BEFORE the round-change UI fires
+  gameState.progress++;                                                        // every round
+  if (progressBar) {
+    try { progressBar.update(gameState.progress, Math.max(0, gameState.lives)); } catch (e) {}
+  }
+  // 4. Round-change UI (this is what the bump must precede)
+  if (gameState.lives === 0) return endGame('game_over');                      // bumped + 0 hearts
+  if (gameState.progress >= gameState.totalRounds) return endGame('victory');  // bumped to N/N
+  nextRound();
 }
 ```
 
-BEFORE any of: awaited round-complete SFX, sticker, subtitle, VO, `trackEvent('round_complete', ...)`, `nextRound()`, `endGame('victory')`.
+**Ordering rule:** the bump MUST happen BEFORE any of `nextRound()`, `endGame('victory')`, `endGame('game_over')`, or any awaited round-change transition (`transitionScreen.show(...)`). It does NOT need to happen before the awaited feedback SFX — the bump fires AFTER feedback resolves. This is the corrected ordering: feedback first, bump second, round-change UI third.
 
-Why: round-complete SFX is typically awaited (1–2s) and the final round hands off directly to `endGame('victory')` → Victory transition. If the bar is updated after the await, the Victory screen renders with the bar still at the previous value. Bumping first makes the bar paint the new value the instant the metric changes, in sync with the visual "green / locked" state. Same ordering principle as `recordAttempt`-before-audio — data/UI first, audio/transitions second. PART-023 + feedback/SKILL.md ordering priority 0.
+Why this timing: bumping at submit feels premature (bar advances before the student has seen the result of their answer). Bumping after the round-change UI is too late (Victory paints with the pre-bump value — matching-doubles regression, April 2026). The middle path — bump after feedback resolves, before round-change UI — keeps the bar in sync with the visible round transition AND guarantees Victory / Game Over render with the post-bump value.
 
-Note: the counter itself is game-specific (see the ProgressBarComponent section above). Only the **ordering** rule — bump before await — is universal. The *start-at-0* invariant still applies: the very first `progressBar.update()` on the init path is `update(0, totalLives)`, regardless of what increment policy this handler uses later.
-
-**Anti-pattern — bar updated after the await:**
+**Anti-pattern 1 — bar updated AFTER the round-change transition:**
 
 ```javascript
 // WRONG — Victory renders with the pre-bump value on the final round
 async function onRoundComplete() {
   await FeedbackManager.sound.play('all_correct', { ... });
-  progressBar.update(gameState.progress, gameState.lives);   // too late
   if (lastRound) endGame('victory');
+  progressBar.update(gameState.progress, gameState.lives);   // too late — Victory already showing
 }
 ```
 
-**Correct — bar updated first:**
+**Anti-pattern 2 — progress counts only correct (causes round 10/10 to read 8/10):**
 
 ```javascript
-async function onRoundComplete() {
-  gameState.progress++;                                                        // bump state first
-  progressBar.update(gameState.progress, Math.max(0, gameState.lives));        // then UI
-  await FeedbackManager.sound.play('all_correct', { ... });                    // then SFX
-  if (lastRound) endGame('victory');                                           // then transition
+// WRONG — student finishes the final round and the bar shows 8/10
+// because they got rounds 3 and 7 wrong somewhere. Bar is mis-numbered.
+async function onRoundComplete(verdict) {
+  if (verdict.correct) {
+    gameState.progress++;
+    progressBar.update(gameState.progress, gameState.lives);
+  } else {
+    gameState.lives--;
+    progressBar.update(gameState.progress, gameState.lives);   // hearts only, progress static
+  }
+  // Result: a 10-round game with 2 wrong answers shows "Round 8/10" on the
+  // last round. The bar disagrees with the header / round-intro / preview Q label.
 }
 ```
+
+**Anti-pattern 3 — bar bumped at submit, before feedback (visually premature):**
+
+```javascript
+// WRONG — bar advances the instant the student taps Submit, while feedback
+// is still playing for the round they were ON. Feels like the game has
+// already moved on before the student has processed the result.
+async function onRoundComplete(verdict) {
+  if (verdict.correct) gameState.score++; else gameState.lives--;
+  gameState.progress++;
+  progressBar.update(gameState.progress, gameState.lives);   // bar advances now
+  await FeedbackManager.sound.play(...);                     // feedback plays AFTER bar moved
+  // The student sees: tap submit → bar jumps to next round → THEN feedback for previous round.
+}
+```
+
+**Correct — feedback first, bump just before round change:** see canonical sequence above. The visible order is: tap submit → feedback plays for current round (bar still on current round) → bar advances → next round / Victory / Game Over.
+
+**Alternative policies (only with explicit spec authorization):** rounds-correct, points-earned, section-progress, tiles-cleared. Default is rounds-attempted — never invent a custom policy without spec opt-in. Document the chosen metric in the spec's `## Flow` section.
 
 ### Preview timer sync — the game must render its own timer; do NOT rely on PreviewScreen mirroring
 
@@ -876,7 +919,7 @@ function getRounds() {
 }
 ```
 
-`fallbackContent` MUST contain a complete set of rounds matching the spec schema. Never empty.
+`fallbackContent.rounds` MUST contain rounds for at least 3 distinct `set` values (`'A'`, `'B'`, `'C'`), each with exactly `totalRounds` rounds — so total array length is `totalRounds × 3` (or more), NOT `totalRounds`. Every round object carries a `set: 'A'|'B'|'C'` key. All `id` values globally unique across sets (prefix convention `A_r1_…`, `B_r1_…`, `C_r1_…`). Validator rule `GEN-ROUNDSETS-MIN-3` blocks build-time. Never empty. See game-building SKILL.md Step 4 for the canonical skeleton.
 
 ### getStars
 
