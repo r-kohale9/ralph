@@ -8,6 +8,8 @@
 
 ## Code
 
+### Lives game (totalLives > 0)
+
 ```javascript
 // Helper — creates/recreates ProgressBarComponent (call at init and restart)
 function createProgressBar() {
@@ -15,22 +17,58 @@ function createProgressBar() {
   progressBar = new ProgressBarComponent({
     slotId: 'mathai-progress-slot',
     totalRounds: gameState.totalRounds,
-    totalLives: gameState.totalLives
+    totalLives: gameState.totalLives,
+    showLives: true                // hearts visible (default)
   });
 }
 
-// At init — start at 0 rounds completed
 createProgressBar();
 progressBar.update(0, gameState.lives);
 
 // After each round completes
 gameState.currentRound++;
 progressBar.update(gameState.currentRound, gameState.lives);
-
-// On restart
-createProgressBar();
-progressBar.update(0, gameState.lives);
 ```
+
+### No-lives game (gameState.totalLives === 0 or archetype has no lives mechanic)
+
+```javascript
+// Helper — creates/recreates ProgressBarComponent for a no-lives game
+function createProgressBar() {
+  if (progressBar) progressBar.destroy();
+  progressBar = new ProgressBarComponent({
+    slotId: 'mathai-progress-slot',
+    totalRounds: gameState.totalRounds,
+    totalLives: 0,                 // MUST be 0, not a placeholder like totalRounds
+    showLives: false               // MANDATORY for no-lives games — hides the hearts strip
+  });
+}
+
+createProgressBar();
+progressBar.update(0, 0);          // second arg is lives — pass 0 for no-lives games
+```
+
+### Forbidden — using `totalRounds` as a placeholder for `totalLives`
+
+```javascript
+// ❌ Forbidden — renders 3 hearts that never decrement
+progressBar = new ProgressBarComponent({
+  totalRounds: gameState.totalRounds,
+  totalLives: gameState.totalRounds  // wrong shape; the hearts strip becomes meaningless
+});
+
+// ❌ Forbidden — passing a non-zero totalLives without showLives:false hides nothing
+progressBar = new ProgressBarComponent({
+  totalRounds: 3,
+  totalLives: 3   // showLives defaults to true → hearts render even though no lives mechanic
+});
+```
+
+**Rule of thumb.** `showLives` is *not* optional. Pick exactly one of:
+- Lives game: `totalLives: <N>` AND `showLives: true` (or omit — default).
+- No-lives game: `totalLives: 0` AND `showLives: false`.
+
+Validator rule `PROGRESSBAR-NO-LIVES-MUST-HIDE` fails the build if a game's `gameState.totalLives === 0` (or the archetype has no lives mechanic) and the ProgressBar is instantiated with `showLives !== false`.
 
 ## Constructor Options
 
@@ -38,10 +76,10 @@ progressBar.update(0, gameState.lives);
 |--------|------|----------|---------|-------------|
 | `autoInject` | boolean | No | `true` | Auto-inject into progress slot |
 | `totalRounds` | number | Yes | — | Total rounds in game |
-| `totalLives` | number | Yes | — | Total hearts to display |
+| `totalLives` | number | Yes | — | Total hearts to display. Pass `0` for no-lives games. |
 | `slotId` | string | No | `'mathai-progress-slot'` | Container element ID |
 | `labelFormat` | string | No | `'Round {current}/{total}'` | Label template |
-| `showLives` | boolean | No | `true` | Show hearts |
+| `showLives` | boolean | **Conditional** | `true` | Show hearts. **MUST be `false` if `totalLives === 0` or the archetype has no lives mechanic.** Default `true` only applies when `totalLives > 0`. |
 | `showTrack` | boolean | No | `true` | Show progress bar track |
 | `showLabel` | boolean | No | `true` | Show round label |
 

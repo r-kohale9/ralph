@@ -17,57 +17,117 @@ Every P7 game. These are **mandatory**, not optional. The base P7 pattern covers
 
 | Trigger | Behavior |
 |---------|----------|
-| Click/tap the input | Input receives focus **and** scrolls to center of viewport (above virtual keyboard) |
-| Programmatic `focus()` (e.g. round transition) | Same scroll-into-view |
-| `visualViewport` resize (keyboard opens) | Re-scroll input into view |
+| Click/tap the input | Input receives focus **and** scrolls into view per the **adaptive block** rule below |
+| Programmatic `focus()` (e.g. round transition) | Same adaptive scroll-into-view |
+| `visualViewport` resize (keyboard opens) | Re-scroll input into view, **only if the user is not actively scrolling** |
 
-### Implementation
+### Adaptive `block:` rule (NEW — required for tall-question games)
+
+The `scrollIntoView({ block })` argument is no longer a fixed `'center'`. It depends on the question's height vs the available viewport above the input:
+
+```javascript
+function pickScrollBlock() {
+  var question = document.getElementById('question-block')         // primary id
+              || document.querySelector('.question-block, .question, .game-question, [data-role="question"]');
+  if (!question) return 'center';                                  // fallback
+
+  var vv = window.visualViewport;
+  var viewportH = vv ? vv.height : window.innerHeight;
+  // Half the viewport (above the centered input) is the budget for the question.
+  // If the question itself is taller than that budget, centering would push the
+  // top of the question above the viewport and the player can't read it.
+  var qH = question.getBoundingClientRect().height;
+  return (qH > viewportH * 0.5) ? 'end' : 'center';
+}
+```
+
+`block: 'center'` puts the input in the vertical middle of the viewport — fine when the question fits in the half-screen above it. `block: 'end'` puts the input at the *bottom* of the viewport (just above the virtual keyboard), leaving the *full* upper half-viewport free for the question. The validator's tall-question rule below requires this branch.
+
+### `visualViewport.resize` re-scroll guard (NEW)
+
+The keyboard-open re-scroll must NOT fight a user-initiated scroll. Track whether the user has scrolled in the last ~600ms and skip the re-scroll if so:
+
+```javascript
+var userScrolledAt = 0;
+window.addEventListener('scroll', function() { userScrolledAt = Date.now(); }, { passive: true });
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', function() {
+    if (document.activeElement !== input) return;
+    // Skip re-scroll if user scrolled in the last 600ms — they're trying to read the question
+    if (Date.now() - userScrolledAt < 600) return;
+    setTimeout(function() {
+      inputWrap.scrollIntoView({ behavior: 'smooth', block: pickScrollBlock() });
+    }, 50);
+  });
+}
+```
+
+Without this guard, the keyboard-resize handler yanks the player back to the input every time they try to scroll up to read a tall question — a real failure shipped (mind-your-numbers 2026-Q2: 3-cluster SVG question, half-viewport budget exceeded, user could not scroll up).
+
+### Implementation (full)
 
 ```javascript
 var input = document.getElementById('answer-input');
 var inputWrap = input.parentElement;
+var userScrolledAt = 0;
+
+window.addEventListener('scroll', function() { userScrolledAt = Date.now(); }, { passive: true });
+
+function pickScrollBlock() {
+  var question = document.getElementById('question-block')
+              || document.querySelector('.question-block, .question, .game-question, [data-role="question"]');
+  if (!question) return 'center';
+  var vv = window.visualViewport;
+  var viewportH = vv ? vv.height : window.innerHeight;
+  var qH = question.getBoundingClientRect().height;
+  return (qH > viewportH * 0.5) ? 'end' : 'center';
+}
 
 function focusAndScroll() {
   input.focus({ preventScroll: true });
-  // Give the browser a tick for virtual-keyboard layout
   setTimeout(function() {
-    inputWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    inputWrap.scrollIntoView({ behavior: 'smooth', block: pickScrollBlock() });
   }, 50);
 }
 
 input.addEventListener('click', focusAndScroll);
 input.addEventListener('focus', function() {
-  // Tab / programmatic focus — still scroll into view
   setTimeout(function() {
-    inputWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    inputWrap.scrollIntoView({ behavior: 'smooth', block: pickScrollBlock() });
   }, 50);
 });
 
-// Re-scroll when the virtual keyboard opens
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', function() {
-    if (document.activeElement === input) {
-      setTimeout(function() {
-        inputWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 50);
-    }
+    if (document.activeElement !== input) return;
+    if (Date.now() - userScrolledAt < 600) return;
+    setTimeout(function() {
+      inputWrap.scrollIntoView({ behavior: 'smooth', block: pickScrollBlock() });
+    }, 50);
   });
 }
 ```
 
-### Required CSS
+### Required CSS (UPDATED — accommodates tall questions)
 
 ```css
 .input-wrap {
-  /* Ensure scrollIntoView leaves room for top chrome and virtual keyboard */
-  scroll-margin-top: 24px;
-  scroll-margin-bottom: 280px;
+  scroll-margin-top: 24px;       /* breathing room above the input on block:'end' */
+  scroll-margin-bottom: 280px;   /* room below for keyboard on block:'center' */
 }
 
 body {
-  /* Bottom padding so the input can reach vertical center even on the last screen */
-  padding-bottom: 320px;
+  padding-top: 16px;             /* ensures top of question never sits behind status bar */
+  padding-bottom: 320px;         /* ensures input can reach center / end on the last screen */
   min-height: 100vh;
+}
+
+#question-block,
+.question-block {
+  /* If the question can grow tall, allow it to scroll independently rather than
+     stretching the layout — but keep `overflow: visible` if the layout already
+     has body-level scroll. Pick one strategy per game and stick to it. */
 }
 ```
 
@@ -78,9 +138,12 @@ Always call `scrollIntoView` on a **wrapper span/div** around the input (not the
 ### Anti-patterns
 
 1. Calling `scrollIntoView({ block: 'start' })` — puts the input flush with the top, leaving no breathing room for the question above it.
-2. Calling `focus()` without `preventScroll: true` — causes a double-scroll (browser default + our smooth scroll).
-3. Omitting the `setTimeout` — scrollIntoView fires before the virtual keyboard has resized the viewport, and the input ends up hidden behind the keyboard again.
-4. Calling `scrollIntoView` on the `<input>` directly — unreliable on iOS.
+2. Calling `scrollIntoView({ block: 'center' })` *unconditionally* on tall-question games — pushes the question top off-screen and the user can't scroll up to read it because the keyboard-resize handler yanks them back. Use `pickScrollBlock()`.
+3. Calling `focus()` without `preventScroll: true` — causes a double-scroll (browser default + our smooth scroll).
+4. Omitting the `setTimeout` — scrollIntoView fires before the virtual keyboard has resized the viewport, and the input ends up hidden behind the keyboard again.
+5. Calling `scrollIntoView` on the `<input>` directly — unreliable on iOS.
+6. `visualViewport.resize` re-scroll without the user-scroll guard — fights player attempts to scroll up to a tall question. Always include the `Date.now() - userScrolledAt < 600` skip.
+7. Putting the question element inside a parent with `overflow: hidden` and no scroll affordance — the user has nowhere to go to read the rest. Either let the body scroll, or give the question its own scroll container with visible affordance.
 
 ---
 
@@ -162,6 +225,10 @@ When building a P7 game, verify ALL of:
 
 - [ ] Clicking the input focuses it **and** scrolls it into view
 - [ ] On mobile (simulated visualViewport), the input sits above the virtual keyboard when focused
+- [ ] **Tall question (height > 50% of viewport): input scrolls to `block: 'end'`, NOT `block: 'center'`** — the entire question remains visible above the input
+- [ ] **`pickScrollBlock()` (or equivalent inline branch) is implemented** — no unconditional `block: 'center'` calls
+- [ ] **`visualViewport.resize` re-scroll is gated by a recent-user-scroll guard** (`Date.now() - userScrolledAt < 600` or equivalent)
+- [ ] Manual scroll-up succeeds when the question is tall (re-scroll handler does NOT yank the user back)
 - [ ] Initial input width equals `MIN_W`
 - [ ] Width is non-decreasing as characters are typed (from `MIN_W` upward)
 - [ ] Width never exceeds `MAX_W`, even when content overflows
@@ -170,8 +237,8 @@ When building a P7 game, verify ALL of:
 - [ ] `font-variant-numeric: tabular-nums` present on the input
 - [ ] `transition: width 140ms ease-out` present on the input
 - [ ] `scroll-margin-top` and `scroll-margin-bottom` set on the wrapper
-- [ ] Body has `padding-bottom` large enough to scroll the input to center even on the last screen
-- [ ] `visualViewport` resize re-scrolls when keyboard opens
+- [ ] Body has `padding-bottom` large enough to scroll the input to center / end even on the last screen
+- [ ] `visualViewport` resize re-scrolls when keyboard opens (subject to the user-scroll guard)
 
 ---
 

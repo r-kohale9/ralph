@@ -236,7 +236,7 @@ Per PART-025. Game-building rules:
 ### TransitionScreen
 Per PART-024. Game-building rules:
 - `transitionScreen.show()` takes ONE argument -- an options object (GEN-TRANSITION-API).
-- `icons` array must contain emoji strings only, never SVG/HTML/paths (GEN-TRANSITION-ICONS).
+- `icons` array must contain **single-glyph emoji strings only** — never URLs, never SVG markup, never image paths, never multi-word text. The component renders each entry as **text inside a `.mathai-ts-icons` span**, NOT as an `<img src>`. Passing a URL surfaces the URL as giant text in the UI (a real failure shipped: kakuro 2026-Q2 — passed `icons: [STICKER_ROUNDS]` where `STICKER_ROUNDS` was a `https://cdn...gif` URL → the round-intro screen rendered the full URL at 80px font). Image / sticker URLs go on the **separate `sticker` prop of `safePlaySound` / `FeedbackManager.sound.play`**, NEVER on `icons[]`. Validator rules `GEN-TRANSITION-ICONS` (existing — SVG ban) and `TRANSITION-ICONS-NO-URL` (new — URL ban) enforce this.
 - ALL `transitionScreen.show()` calls MUST be awaited (returns a Promise).
 - **Every transition screen MUST play audio** (SFX ± dynamic VO). No silent transitions. Fire via the `onMounted` callback: `onMounted: () => FeedbackManager.sound.play('<id>', { sticker })`. Approved IDs per PART-024: `vo_game_start`, `sound_game_complete`, `sound_game_over`, `vo_level_start_N`, `vo_motivation`.
 - **`stars:` and `icons:` are mutually exclusive.** TransitionScreenComponent renders them into the same `.mathai-ts-icons` DOM element — `stars:` always wins, so any `icons: [...]` emoji silently disappears. Pick one per screen: Victory passes `stars: N`; Game Over / Round Intro / Motivation / Stars Collected pass `icons: ['<emoji>']`. Do NOT pass both. `test/content-match.test.js` fails the build if you do.
@@ -923,6 +923,10 @@ function getRounds() {
 
 ### getStars
 
+Two canonical shapes — pick exactly one. They map to the spec's star criteria:
+
+#### Shape A — score-based (no duration)
+
 ```javascript
 function getStars(score) {
   var total = gameState.totalRounds;
@@ -932,6 +936,39 @@ function getStars(score) {
   return 0;
 }
 ```
+
+#### Shape B — score + duration (speed gate)
+
+If any star tier depends on duration/speed, **PART-006 TimerComponent is mandatory** and the duration value MUST come from the timer's API (`timer.getTimeTaken()` for total elapsed seconds, `timer.getElapsedTimes()` for per-round laps). See PART-006 § "When PART-006 is mandatory" for the full contract.
+
+```javascript
+// ✅ Correct — duration sourced from TimerComponent
+function getStars(score) {
+  var total = gameState.totalRounds;
+  if (!timer) return 0;                                  // PART-006 must be present
+  var elapsedSec = timer.getTimeTaken();                 // single source of truth
+  if (score === total && elapsedSec < 30) return 3;      // 3★ requires fast solve
+  if (score >= Math.ceil(total * 0.6)) return 2;
+  if (score >= 1) return 1;
+  return 0;
+}
+```
+
+#### Forbidden — hand-rolled latency in player-visible logic
+
+```javascript
+// ❌ Forbidden by PART-006 § "Forbidden patterns"
+function getStars() {
+  var avg = sum(gameState.responseTimes) / gameState.responseTimes.length;  // FAILS validator
+  if (avg < 3000) return 3;
+}
+// ❌ Forbidden — Date.now in score / feedback / end-game
+if (Date.now() - gameState.roundStartTime < 2000) gameState.score += 2;     // FAILS validator
+```
+
+`gameState.responseTimes`, `gameStartTime`, `levelStartTime`, `roundStartTime`, `Date.now()`, `performance.now()` MUST NOT appear in `getStars`, score updates, feedback selection, lives loss, or end-game branches. They are allowed *only* inside the `recordAttempt({ response_time_ms: Date.now() - roundStartTime })` telemetry call (data-contract carve-out).
+
+The static validator rule `TIMER-MANDATORY-WHEN-DURATION-VISIBLE` enforces this at build time.
 
 ### Keyboard Handling (Input-Based Games)
 
