@@ -103,6 +103,7 @@ Star thresholds must be explicit numbers, not vague descriptions.
 | E1 | **Star thresholds are explicit numbers** — e.g., "3 stars >= 90%, 2 stars >= 66%, 1 star >= 33%" | All three thresholds are numbers | Thresholds missing (pipeline default 90/66/33 will apply — flag it) | Thresholds described vaguely ("3 stars for doing great") |
 | E2 | **Lives count is explicit or archetype-defaulted** — if the game uses lives, how many? | Lives count is a number in the spec | Spec says "lives" without a count (pipeline default 3 will apply — flag it) | Spec is contradictory about lives (e.g., "no lives" in one section, "3 hearts" in another) |
 | E3 | **Timer is explicit or confirmed absent** — if timed, how many seconds? | Timer value stated OR spec confirms no timer | Spec mentions "timed" without a duration (pipeline default will apply — flag it) | Spec is contradictory about timer |
+| E3a | **PART-006 mandatory triggers** — scan the spec for any time/duration/speed concept: `timer\|seconds\|duration\|"time pressure"\|"time limit"\|speed\|fast\|"how quickly"\|"how fast"\|"under N second"\|"in N second"\|"within N second"\|"under N minute"\|within\|"response time"\|countdown\|"speed round"\|"race against"`. If ANY match, the spec MUST declare PART-006 (TimerComponent). Star tiers / feedback that depend on duration MUST source from `timer.getTimeTaken()` / `timer.getElapsedTimes()` — hand-rolled `Date.now()` is forbidden in player-visible logic per PART-006 § "Forbidden patterns". | No time-trigger words OR spec declares PART-006 with timer config | Spec implies a speed concept loosely (e.g. "be quick") but doesn't declare a timer — flag for confirmation | Spec describes a speed gate ("3 stars for solving in under N seconds") but does not declare PART-006, OR spec declares speed-based stars but says "no visible timer" |
 | E4 | **Round count is explicit** | Round count is a number | Round count missing (archetype default will apply — flag it) | No round count and no content to infer from |
 
 ### F. Misconception Design
@@ -270,7 +271,7 @@ When the spec is silent on a decision, report it as a WARN using the pipeline de
 | Difficulty curve | 3 equal stages (easy/medium/hard) | WARN if not stated |
 | Rounds | 9 (3 per stage) | WARN if not stated |
 | Lives | 0 (L1-L2) or 3 (L3+) based on Bloom level | WARN if not stated |
-| Timer | None | WARN only if spec mentions time/speed |
+| Timer | None | **FAIL** if spec mentions any time/duration/speed concept without declaring PART-006 (see E3a). WARN only if spec is silent on time. |
 | Feedback style | playDynamicFeedback + show correct answer | WARN if not stated |
 | Bloom level | L2 Understand | WARN if not stated |
 | Scaffolding | Show correct after wrong, auto-advance | WARN if not stated |

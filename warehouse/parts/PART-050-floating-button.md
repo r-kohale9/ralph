@@ -89,6 +89,37 @@ const floatingBtn = new FloatingButtonComponent({
    - `click` on MCQ option chips
    - `drop`, `dragend` on DnD targets
    - Any programmatic state mutation (reset, undo, clear)
+
+   **Predicate semantics — match the player's solving model**, not just the most literal "every cell is positively asserted" reading. The predicate must accept any **deterministic completion** of the round, including elimination-only paths.
+
+   ### Three predicate shapes (pick the one matching the archetype)
+
+   | Archetype shape | Predicate template |
+   |---|---|
+   | **Direct fill** (text/number input, MCQ select, DnD all slots filled) | "Every required input has a non-empty value" |
+   | **Elimination + selection** (e.g. logic grids with ✖/✓ tri-state cells) | "For every row in every attribute block, exactly ONE cell is `✓`, OR exactly N-1 cells are `✖` (so the remaining cell is uniquely implied)" |
+   | **Constraint satisfaction** (Kakuro, Cross-Numbers, hex sums, queens) | "Every required cell holds a value" — submit fires evaluation, evaluation reports correctness |
+
+   For elimination archetypes, write the predicate as the OR of "explicit ✓" and "implied by elimination":
+
+   ```js
+   // ✅ Correct — accepts both solving paths
+   function isRowComplete(row, blockSize) {
+     var checks  = row.filter(c => c === 'check').length;
+     var crosses = row.filter(c => c === 'cross').length;
+     return checks === 1 || crosses === blockSize - 1; // explicit ✓ OR all-but-one ✖
+   }
+   ```
+
+   ```js
+   // ❌ Forbidden in elimination archetypes — strict literal "every row has a ✓"
+   //   forces the player to redundantly mark the implied cell after solving.
+   function isRowComplete(row /* , blockSize */) {
+     return row.filter(c => c === 'check').length === 1; // misses elimination path
+   }
+   ```
+
+   **Why this matters.** Logic-grid puzzles are *designed* to be solved by elimination — a player who places all the ✖s for impossibilities has solved the puzzle. Forcing them to *also* go back and place a ✓ on the implied cell is a usability defect; the FloatingButton predicate must mirror the natural solving move, not require a redundant confirmation step. Real failure shipped: cross-logic 2026-Q2 — players placed only ✖s, the strict predicate never returned true, the submit button never appeared, the round was unwinnable.
 3. **On submit click:** `on('submit')` handler runs. If it returns a Promise, the button auto-shows `Submitting…` and ignores clicks until resolved. Handler dispatches to `setMode('retry')` or `setMode('next')` based on result.
 4. **On retry click:** clear feedback, reset input, set mode to `null` (back to predicate-driven).
 5. **On next click:** advance round, set mode to `null` until the player re-enters a submittable state.

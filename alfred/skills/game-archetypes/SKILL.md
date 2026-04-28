@@ -376,11 +376,17 @@ Every archetype with `lives > 0` MUST have a `game_over` screen. This is the mos
 
 *Negative example:* A Lives Challenge game is generated with `lives: 3` but no `game_over` screen. When lives hit 0, `syncDOMState` sets `data-phase="game_over"` but no screen exists for it -- white screen. Test harness times out waiting for a visible element.
 
-### 4. Adding PART-006 (timer) to non-timed archetypes without spec justification
+### 4. Skipping PART-006 (timer) when the game uses duration for player-visible logic
 
-Timer adds complexity (TimerComponent late-load bug, timer display, timer-expiry end condition). Never add it "just in case". Only add when the archetype requires it or the spec explicitly asks for it.
+**Updated rule (supersedes the older "never add it just in case" framing).** PART-006 is **mandatory** whenever the spec text mentions any time/duration/speed concept OR any code path uses elapsed time to drive player-visible state (stars, score, lives, feedback selection, end-game). See PART-006 § "When PART-006 is mandatory" for the complete trigger table.
 
-*Negative example:* An MCQ Quiz spec says nothing about time. Agent adds PART-006 "for engagement." TimerComponent loads asynchronously and races with game init -- 1 in 3 builds get a `TimerComponent is not defined` error at runtime because the CDN script hasn't loaded when `startTimer()` is called.
+The deterrent against adding timers "just in case" still applies *only* when the archetype has zero time-related triggers — e.g. an MCQ Quiz spec that says nothing about speed and whose `getStars()` never reads a duration. Adding PART-006 there is still wasteful complexity.
+
+But: if `getStars()` reads `responseTimes` / `Date.now() - roundStartTime`, OR if the preview text says "Solve in under N seconds for 3 stars", OR if any visible feedback depends on speed — **PART-006 is required**. Hand-rolled `Date.now()` reads in player-visible logic are forbidden by PART-006's single-source-of-truth contract.
+
+*Negative example A (now caught by validator):* doubles' spec describes a speed round and `getStars()` awards 3★ when `avgResponseMs < 2000`. Agent omits PART-006 because the older rule said "don't add timer just in case." Player sees the 3★ promise in the preview text but has no clock — speed gate is invisible. With the new contract this fails the build (validator rule `TIMER-MANDATORY-WHEN-DURATION-VISIBLE`).
+
+*Negative example B (still discouraged):* An MCQ Quiz spec has no speed mention and `getStars()` is purely score-based. Agent adds PART-006 "for engagement." TimerComponent loads asynchronously, races with init — `TimerComponent is not defined` errors at runtime. Don't add the timer here; the spec has no time trigger.
 
 ### 5. Using MCQ Quiz archetype for Bloom L1-L2 learning games
 
