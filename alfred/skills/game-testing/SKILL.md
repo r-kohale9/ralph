@@ -177,6 +177,9 @@ Test boundary conditions and error handling.
 | 4.5 | No JS errors during full playthrough | `browser_console_messages` after completing the entire game | Zero error-level messages from start to finish |
 | 4.6 | Clicks during transitions | Click rapidly during round transitions and feedback | No crash, no double-advance, no skipped rounds |
 | 4.7 | No runaway intervals after game end | After game completes: `browser_evaluate(() => { let count = 0; const orig = clearInterval; return 'check manual'; })` -- instead, wait 5 seconds after game end and check for console errors or performance issues | No console errors accumulating after game end. Alternatively, verify `setInterval` IDs are cleared in `endGame`. |
+| 4.8 | **P6 ONLY — Bank slot collapses when tag placed (V8)** | After placing one tag in a zone, `browser_evaluate` the source bank slot's `getBoundingClientRect().height` AND `getComputedStyle(...).display` | `height === 0` AND `display === 'none'`. `visibility: hidden` is a FAIL — the slot still occupies layout space and remaining tags do NOT re-center. |
+| 4.9 | **P6 ONLY — Bank re-centers (V10)** | Place 2–3 tags in zones. Take a screenshot of the bank tray before/after. Compare the horizontal centre of the remaining tags vs the bank container's centre. | Remaining tags re-centre horizontally — the bank does not show ghost gaps where placed tags used to be. |
+| 4.10 | **P6 ONLY — Tag returns to its own slot (V9)** | Place a tag in a zone, then drag it back to the bank (or evict it via dropping a different tag on the same zone). `browser_evaluate` to verify `tag.parentElement.dataset.bankSlotId === tag.dataset.tagId`. | Tag is reparented to its dedicated slot; the slot's collapse class is removed; tag is immediately pickable. |
 
 **Procedure:**
 

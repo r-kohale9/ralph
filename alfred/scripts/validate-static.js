@@ -356,6 +356,92 @@ if (hasDndKitImport) {
         'stale instances silently break drag from round 2 onward.',
     );
   }
+  // GEN-DND-BANK-COLLAPSE — P6 §5 / F5 — bank re-centering invariant.
+  // When a tag leaves the bank (placed in a zone), its dedicated bank slot MUST
+  // collapse (display:none, not visibility:hidden — visibility keeps the layout
+  // footprint and remaining tags don't re-center). And the collapse class MUST be
+  // toggled on/off when tags leave/return so the bank visually updates.
+  // Detection (heuristic — fires on any drag-shaped game with @dnd-kit):
+  //   1. CSS rule: a "bank/pool/tray slot empty/collapsed/hidden" class must use display:none.
+  //      Pattern: /\.(?:pool|bank|tray)-slot[\w-]*\.(?:empty|collapsed|hidden)\s*\{[^}]*display\s*:\s*none/
+  //      OR a generic collapse helper like `.bank-slot-empty { display: none }`.
+  //   2. JS toggle: classList.add('empty'|'collapsed'|'hidden') AND classList.remove(...) MUST
+  //      both reference the same token; missing either side = bug (tag leaves but slot stays /
+  //      tag returns but slot stays collapsed).
+  // Note: Keep regex permissive — any of pool/bank/tray + any of empty/collapsed/hidden + display:none.
+  const bankCollapseCss =
+    /\.(?:pool|bank|tray)[\w-]*[.\s][^{]*\.(?:empty|collapsed|hidden|placed|filled-out)\s*\{[^}]*display\s*:\s*none/i.test(html) ||
+    /\.(?:pool|bank|tray)-slot[\w-]*\.(?:empty|collapsed|hidden)\s*\{[^}]*display\s*:\s*none/i.test(html) ||
+    /\.(?:pool|bank|tray)[\w-]*-?(?:empty|collapsed|hidden)\s*\{[^}]*display\s*:\s*none/i.test(html);
+  const hasAddCollapse =
+    /classList\.add\s*\(\s*['"](?:empty|collapsed|hidden|placed)['"]/i.test(html);
+  const hasRemoveCollapse =
+    /classList\.remove\s*\(\s*['"](?:empty|collapsed|hidden|placed)['"]/i.test(html) ||
+    /classList\.remove\s*\([^)]*['"](?:empty|collapsed|hidden|placed)['"]/i.test(html);
+  if (!bankCollapseCss) {
+    errors.push(
+      'GEN-DND-BANK-COLLAPSE-CSS: @dnd-kit/dom used but no bank-collapse CSS rule found. ' +
+        'Per PART-043 / P6 §5 (Smart Re-Sorting & Bank Re-Centering) and Failure F5: when a tag is ' +
+        'placed in a drop zone, its dedicated bank slot MUST collapse so remaining tags re-center. ' +
+        'visibility:hidden keeps the layout footprint and is NOT a valid collapse. Required CSS shape: ' +
+        '`.pool-slot.empty { display: none; }` (or .bank-slot, .tray-slot + .empty/.collapsed/.hidden).',
+    );
+  }
+  if (!hasAddCollapse || !hasRemoveCollapse) {
+    errors.push(
+      'GEN-DND-BANK-COLLAPSE-TOGGLE: @dnd-kit/dom used but bank-slot collapse toggle is incomplete. ' +
+        `Found classList.add('empty|collapsed|hidden|placed'): ${hasAddCollapse}, ` +
+        `classList.remove(...): ${hasRemoveCollapse}. ` +
+        'Per PART-043 / P6 §5: when a tag leaves the bank for a zone, classList.add the collapse ' +
+        'token on the source bank slot; when a tag returns, classList.remove it. Missing either side ' +
+        'means the bank visual de-syncs from the placement state.',
+    );
+  }
+  // GEN-DND-SENSOR-DISTANCE / GEN-DND-SENSOR-NO-DELAY — P6 §8 Universal Touch Support.
+  // Default PointerSensor in @dnd-kit/dom@beta uses 250ms touch hold-delay (per dndkit.com docs).
+  // The skill mandates a Distance-only activation constraint so mobile pickup is instant.
+  // Three checks:
+  //   1. PointerSensor + PointerActivationConstraints imported AND used in DragDropManager construction.
+  //   2. PointerActivationConstraints.Distance instantiated with `new` (it's a class).
+  //   3. NO PointerActivationConstraints.Delay anywhere — that re-introduces the touch hold.
+  const importsPointerSensor = /import\s*\{[^}]*\bPointerSensor\b[^}]*\}\s*from\s*["']https:\/\/esm\.sh\/@dnd-kit\/dom@beta["']/i.test(html) ||
+    /\bPointerSensor\s*[:,]/i.test(html); // also matches `window.__dndKitClasses = { ..., PointerSensor: PointerSensor }` shape
+  const importsConstraints = /\bPointerActivationConstraints\b/.test(html);
+  const usesPointerSensorConfigure = /PointerSensor\s*\.\s*configure\s*\(/i.test(html);
+  const instantiatesDistance = /new\s+PointerActivationConstraints\s*\.\s*Distance\s*\(/i.test(html);
+  const usesDelay = /new\s+PointerActivationConstraints\s*\.\s*Delay\s*\(/i.test(html);
+  // Only fire if the file uses DragDropManager (some games may stub dnd-kit). Sub-path import detection:
+  const usesSubPathSensorsImport = /from\s+["']https:\/\/esm\.sh\/@dnd-kit\/dom@beta\/sensors["']/i.test(html);
+
+  if (usesSubPathSensorsImport) {
+    errors.push(
+      'GEN-DND-SENSOR-SUBPATH: Importing PointerSensor from "@dnd-kit/dom@beta/sensors" sub-path. ' +
+        'esm.sh does NOT resolve that sub-path — the import returns undefined and the manager is ' +
+        'left with no sensors → drag does not work. Import from the main package instead: ' +
+        'import { PointerSensor, PointerActivationConstraints } from "https://esm.sh/@dnd-kit/dom@beta";',
+    );
+  }
+  if (!importsPointerSensor || !importsConstraints || !usesPointerSensorConfigure || !instantiatesDistance) {
+    errors.push(
+      'GEN-DND-SENSOR-DISTANCE: @dnd-kit/dom used but no Distance-based activation constraint configured. ' +
+        `Imports PointerSensor: ${importsPointerSensor}, imports PointerActivationConstraints: ${importsConstraints}, ` +
+        `calls PointerSensor.configure(...): ${usesPointerSensorConfigure}, instantiates Distance: ${instantiatesDistance}. ` +
+        'Per PART-043 / P6 §8: the default PointerSensor adds a 250ms touch hold-delay that makes mobile ' +
+        'feel sluggish. Required shape: ' +
+        '`new DragDropManager({ sensors: [ PointerSensor.configure({ activationConstraints: ' +
+        '[ new PointerActivationConstraints.Distance({ value: 3 }) ] }) ] })`. ' +
+        'Both PointerSensor and PointerActivationConstraints export from the MAIN @dnd-kit/dom package — ' +
+        'do NOT use a /sensors sub-path. Distance is a CLASS, instantiate it with `new`, not as a plain object.',
+    );
+  }
+  if (usesDelay) {
+    errors.push(
+      'GEN-DND-SENSOR-NO-DELAY: @dnd-kit/dom configured with PointerActivationConstraints.Delay — ' +
+        'forbidden by P6 §8 Universal Touch Support. The Delay constraint forces the player to hold ' +
+        'before drag activates, making mobile feel laggy. .dnd-tag has touch-action: none so the browser ' +
+        'will not hijack the touch for scroll — the delay is unnecessary. Use Distance-only activation.',
+    );
+  }
 }
 
 // Key game functions must be declared async if they contain await calls

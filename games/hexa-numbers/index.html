@@ -263,10 +263,15 @@
     }
 
     .hex-board {
+      /* CSS vars carry the half-hex offsets so JS positioning code stays size-agnostic */
+      --hex-w: 78px;
+      --hex-h: 90px;
+      --hex-w-half: 39px;
+      --hex-h-half: 45px;
       position: relative;
       width: 100%;
       max-width: 400px;
-      height: 360px;
+      height: 305px;
       margin: 0 auto 14px auto;
       display: block;
     }
@@ -274,8 +279,8 @@
     /* Hexagon shape via CSS clip-path */
     .hex {
       position: absolute;
-      width: 78px;
-      height: 90px;
+      width: var(--hex-w);
+      height: var(--hex-h);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -289,13 +294,28 @@
     }
 
     .hex-target {
-      width: 84px;
-      height: 96px;
+      width: var(--hex-w);
+      height: var(--hex-h);
       color: #FFFFFF;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 800;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
       box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+      z-index: 2;
+    }
+
+    /* Mobile: shrink board + hexes proportionally so the percentage-based
+       slot positions still tile cleanly. Hex W:H ratio kept at 78:90. */
+    @media (max-width: 420px) {
+      .hex-board {
+        --hex-w: 60px;
+        --hex-h: 70px;
+        --hex-w-half: 30px;
+        --hex-h-half: 35px;
+        max-width: 308px;
+        height: 240px;
+      }
+      .hex-target { font-size: 14px; letter-spacing: 0; }
     }
     .hex-target.target-teal { background: var(--hex-target-teal); }
     .hex-target.target-green { background: var(--hex-target-green); }
@@ -363,6 +383,8 @@
 
     /* Pool tray */
     .pool-tray {
+      --hex-w: 78px;
+      --hex-h: 90px;
       width: 100%;
       max-width: 400px;
       margin: 0 auto;
@@ -375,6 +397,13 @@
       gap: 6px;
       align-items: center;
     }
+    @media (max-width: 420px) {
+      .pool-tray {
+        --hex-w: 60px;
+        --hex-h: 70px;
+        max-width: 308px;
+      }
+    }
     .pool-row {
       display: flex;
       gap: 6px;
@@ -383,19 +412,19 @@
       width: 100%;
     }
     .pool-slot {
-      width: 78px;
-      height: 90px;
+      width: var(--hex-w);
+      height: var(--hex-h);
       position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .pool-slot.empty { visibility: hidden; }
+    .pool-slot.empty { display: none; }
 
     .dnd-tag {
       position: relative;
-      width: 78px;
-      height: 90px;
+      width: var(--hex-w, 78px);
+      height: var(--hex-h, 90px);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1106,29 +1135,37 @@
     var STICKER_GAME_COMPLETE_GENERIC = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-107.gif';
     var STICKER_GAME_OVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
 
-    // Slot positions on the 400x360 board (percentage-based for responsive layout)
-    // Triangle: T1 top-left (~25%,18%), T2 top-right (~75%,18%), T3 bottom-center (~50%,72%)
-    // Inner blues (s1..s6) sit between/around targets; outer whites (s7..s13) on perimeter.
+    // Slot positions on the 400x305 board — pointy-top hex axial grid.
+    // 4 rows alternating offset by half hex-width (39px). Row pitch 68px (= 0.75 × hex height 90).
+    // Row 0 (y=15.4%):  s7   s8   s9   s10              (offset)
+    // Row 1 (y=37.7%): s4  T1   s1   T2   s5            (no offset)
+    // Row 2 (y=60.0%):  s13  s2   s3   s11              (offset)
+    // Row 3 (y=82.3%):     s12   T3   s6                (no offset)
+    // Each target's 6 actual hex neighbours match its spec ring exactly:
+    //   T1 ring = [s1(E), s4(W), s7(NW), s8(NE), s2(SE), s13(SW)] ✓
+    //   T2 ring = [s1(W), s5(E), s9(NW), s10(NE), s11(SE), s3(SW)] ✓
+    //   T3 ring = [s2(NW), s3(NE), s6(E), s12(W)] geometric, plus s11/s13 as logical
+    //   "borrowed" outer-ring members per spec geometry comment.
     var SLOT_POSITIONS = {
       // Targets
-      t1: { left: 21,  top: 16 },
-      t2: { left: 79,  top: 16 },
-      t3: { left: 50,  top: 72 },
+      t1: { left: 30.5, top: 37.7 },
+      t2: { left: 69.5, top: 37.7 },
+      t3: { left: 50,   top: 82.3 },
       // Blue inner slots
-      s1: { left: 50,  top: 12 },   // shared T1+T2 (between two top targets)
-      s2: { left: 30,  top: 44 },   // shared T1+T3
-      s3: { left: 70,  top: 44 },   // shared T2+T3
-      s4: { left: 7,   top: 32 },   // T1-only
-      s5: { left: 93,  top: 32 },   // T2-only
-      s6: { left: 50,  top: 86 },   // T3-only
+      s1: { left: 50,   top: 37.7 },  // shared T1+T2 (between top targets, same row)
+      s2: { left: 40.25,top: 60.0 },  // shared T1+T3 (T1 SE neighbour)
+      s3: { left: 59.75,top: 60.0 },  // shared T2+T3 (T2 SW neighbour)
+      s4: { left: 11,   top: 37.7 },  // T1-only (T1 W)
+      s5: { left: 89,   top: 37.7 },  // T2-only (T2 E)
+      s6: { left: 69.5, top: 82.3 },  // T3-only (T3 E)
       // White outer slots
-      s7: { left: 7,   top: 6 },    // T1 outer (top-left)
-      s8: { left: 35,  top: 0 },    // T1 outer (above-T1)
-      s9: { left: 65,  top: 0 },    // T2 outer (above-T2)
-      s10:{ left: 93,  top: 6 },    // T2 outer (top-right)
-      s11:{ left: 86,  top: 56 },   // shared T2+T3 outer
-      s12:{ left: 30,  top: 88 },   // T3 outer (bottom-left)
-      s13:{ left: 14,  top: 56 }    // shared T1+T3 outer
+      s7: { left: 20.75,top: 15.4 },  // T1 outer NW
+      s8: { left: 40.25,top: 15.4 },  // T1 outer NE
+      s9: { left: 59.75,top: 15.4 },  // T2 outer NW
+      s10:{ left: 79.25,top: 15.4 },  // T2 outer NE
+      s11:{ left: 79.25,top: 60.0 },  // shared T2+T3 outer corridor (T2 SE)
+      s12:{ left: 30.5, top: 82.3 },  // T3 outer SW
+      s13:{ left: 20.75,top: 60.0 }   // shared T1+T3 outer corridor (T1 SW)
     };
 
     // ─── 5. syncDOM ─────────────────────────────────────────────────────────
@@ -1392,8 +1429,8 @@
         var tEl = document.createElement('div');
         tEl.className = 'hex hex-target ' + targetClass;
         tEl.id = 'target-' + tg.id;
-        tEl.style.left = 'calc(' + pos.left + '% - 42px)';
-        tEl.style.top = 'calc(' + pos.top + '% - 48px)';
+        tEl.style.left = 'calc(' + pos.left + '% - var(--hex-w-half))';
+        tEl.style.top = 'calc(' + pos.top + '% - var(--hex-h-half))';
         tEl.setAttribute('data-target-id', tg.id);
         var labelSpan = document.createElement('span');
         labelSpan.textContent = String(tg.value);
@@ -1414,8 +1451,8 @@
         sEl.id = 'slot-' + slot.id;
         sEl.setAttribute('data-slot-id', slot.id);
         sEl.setAttribute('data-slot-color', slot.color);
-        sEl.style.left = 'calc(' + sp.left + '% - 39px)';
-        sEl.style.top = 'calc(' + sp.top + '% - 45px)';
+        sEl.style.left = 'calc(' + sp.left + '% - var(--hex-w-half))';
+        sEl.style.top = 'calc(' + sp.top + '% - var(--hex-h-half))';
         board.appendChild(sEl);
         gameState.slotEls[slot.id] = sEl;
         gameState.placement[slot.id] = null; // empty
@@ -1670,8 +1707,30 @@
       var DragDropManager = dndKitClasses.DragDropManager;
       var Draggable = dndKitClasses.Draggable;
       var Droppable = dndKitClasses.Droppable;
+      var PointerSensor = dndKitClasses.PointerSensor;
+      var PointerActivationConstraints = dndKitClasses.PointerActivationConstraints;
 
-      var manager = new DragDropManager();
+      // P6 §8 Universal Touch Support — distance-only activation, NO delay.
+      // Default PointerSensor uses 250ms hold-delay on touch (dndkit.com/extend/sensors/pointer-sensor),
+      // making mobile feel sluggish. .dnd-tag has touch-action: none so the browser already won't
+      // hijack the touch for scroll — the delay is unnecessary. 3px distance gives instant pickup
+      // on both mouse and touch.
+      var manager;
+      if (PointerSensor && PointerActivationConstraints && PointerActivationConstraints.Distance) {
+        manager = new DragDropManager({
+          sensors: [
+            PointerSensor.configure({
+              activationConstraints: [
+                new PointerActivationConstraints.Distance({ value: 3 })
+              ]
+            })
+          ]
+        });
+      } else {
+        // Fallback if the build's @dnd-kit/dom CDN bundle doesn't expose PointerSensor —
+        // default sensors still work, just with the touch hold-delay.
+        manager = new DragDropManager();
+      }
       gameState.dndManager = manager;
 
       var round = gameState.currentRoundData;
@@ -1874,6 +1933,7 @@
         }
       }
       poolSlot.appendChild(tagEl);
+      poolSlot.classList.remove('empty');
       gameState.placement[hexId + '__origin'] = 'pool';
     }
 
@@ -1893,6 +1953,9 @@
           prevSlEl.classList.remove('slot-correct', 'slot-conflict');
         }
       }
+      // Collapse the source pool-slot so remaining pool tags re-centre (P6 §5)
+      var poolSlot = gameState.poolSlotEls[hexId];
+      if (poolSlot) poolSlot.classList.add('empty');
       // Move DOM
       slEl.appendChild(tagEl);
       slEl.classList.remove('slot-empty', 'drop-hover-ok', 'drop-hover-bad');
@@ -2695,8 +2758,14 @@
   <!-- @dnd-kit/dom ESM loader — runs independently of waitForPackages so DnD setup
        defers cleanly until the library finishes loading (P6 R1 invariant). -->
   <script type="module">
-    import { DragDropManager, Draggable, Droppable } from 'https://esm.sh/@dnd-kit/dom@beta';
-    window.__dndKitClasses = { DragDropManager: DragDropManager, Draggable: Draggable, Droppable: Droppable };
+    import { DragDropManager, Draggable, Droppable, PointerSensor, PointerActivationConstraints } from 'https://esm.sh/@dnd-kit/dom@beta';
+    window.__dndKitClasses = {
+      DragDropManager: DragDropManager,
+      Draggable: Draggable,
+      Droppable: Droppable,
+      PointerSensor: PointerSensor,
+      PointerActivationConstraints: PointerActivationConstraints
+    };
     // Notify the rest of the game
     var ready = function() {
       try {

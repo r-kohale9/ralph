@@ -111,7 +111,33 @@ Two distinct cases when dropping into an **occupied** zone:
 
 ### 5. Smart Re-Sorting & Bank Re-Centering
 
-Whenever a tag is returned to the starting bank (either dropped outside a zone or evicted), it snaps back into its correct original position. Use dedicated placeholder slots in the bank, one per tag, so returning a tag means appending it back to its own slot. **Empty slots must collapse** (e.g. `display: none` via a class) so that the remaining tags stay center-aligned in the bank. Remove the class when a tag returns to its slot.
+Whenever a tag is returned to the starting bank (either dropped outside a zone or evicted), it snaps back into its correct original position. Use dedicated placeholder slots in the bank, one per tag, so returning a tag means appending it back to its own slot. **Empty slots must collapse** so that the remaining tags stay center-aligned in the bank.
+
+**Collapse mechanism (MANDATORY — validator GEN-DND-BANK-COLLAPSE-CSS / GEN-DND-BANK-COLLAPSE-TOGGLE):**
+
+Use `display: none` (NOT `visibility: hidden` — `visibility` keeps the slot's layout footprint and remaining tags do NOT re-center). Toggle a class on the bank slot at every placement boundary:
+
+```css
+/* CSS — required shape (any of pool/bank/tray + any of empty/collapsed/hidden + display:none) */
+.pool-slot.empty { display: none; }   /* or .bank-slot, .tray-slot */
+```
+
+```javascript
+// JS — three call sites, no exceptions
+function placeOnSlot(tagId, zoneId) {
+  // ... existing zone placement logic ...
+  bankSlots[tagId].classList.add('empty');     // collapse the source bank slot
+}
+
+function returnToBank(tagId) {
+  // ... existing return-to-bank logic ...
+  bankSlots[tagId].classList.remove('empty');  // restore the bank slot
+}
+
+// Initial render: slots start WITHOUT the .empty class (every tag visible in the bank).
+```
+
+If you skip the JS toggle (CSS rule present but `classList.add/remove` never called) the bank visually de-syncs from placement state — tags appear in zones AND in the bank simultaneously, OR slots stay collapsed after a tag returns. The validator fails the build for either half missing.
 
 ### 6. Zone-to-Zone Transfer
 
@@ -132,6 +158,60 @@ Works flawlessly across desktop (mouse) and mobile (touch/swipe) without the scr
 - `touch-action: none` goes **only on the draggable elements themselves** — never on `body`, parent containers, or drop zones. Putting it on containers blocks page scrolling.
 - Use a pointer-based sensor with a small distance activation constraint (e.g. 3px) for both mouse and touch — **no delay constraint**. The `touch-action: none` on the draggable already prevents the browser from hijacking the touch for scrolling, so a hold-delay is unnecessary and makes the interaction feel sluggish.
 - Add a global `touchmove` handler with `{ passive: false }` that calls `preventDefault()` **only while a drag is active** (gate it with a flag set on drag start / cleared on drag end).
+
+**Sensor configuration (MANDATORY — validator GEN-DND-SENSOR-DISTANCE / GEN-DND-SENSOR-NO-DELAY):**
+
+`@dnd-kit/dom`'s default PointerSensor uses a **250ms touch hold-delay with 5px tolerance** (per [dndkit.com/extend/sensors/pointer-sensor § Default Behavior](https://dndkit.com/extend/sensors/pointer-sensor)). That delay makes mobile feel laggy — the player has to hold, then drag. Override the default with a Distance-only constraint, applied uniformly to mouse and touch:
+
+```html
+<!-- ESM CDN: import PointerSensor and the constraints class from the SAME root package -->
+<script type="module">
+  import {
+    DragDropManager, Draggable, Droppable,
+    PointerSensor, PointerActivationConstraints
+  } from 'https://esm.sh/@dnd-kit/dom@beta';
+  window.__dndKitClasses = {
+    DragDropManager, Draggable, Droppable, PointerSensor, PointerActivationConstraints
+  };
+</script>
+```
+
+```javascript
+// Inside DnD setup — REPLACE `new DragDropManager()` with:
+var manager = new DragDropManager({
+  sensors: [
+    PointerSensor.configure({
+      activationConstraints: [
+        new PointerActivationConstraints.Distance({ value: 3 })
+        // No `Delay` constraint — pickup activates after 3px of movement on both mouse and touch.
+      ]
+    })
+  ]
+});
+```
+
+**Why this exact shape (do NOT improvise):**
+
+- `PointerActivationConstraints.Distance` is a **class, instantiated with `new`**. A plain object `{ distance: 3 }` is silently ignored.
+- `activationConstraints` is an **array** of constraint instances, not a single object.
+- Both `PointerSensor` and `PointerActivationConstraints` export from the **main package** (`@dnd-kit/dom`). There is no `/sensors` sub-path on the ESM CDN — that import will 404 silently.
+- Do NOT spread `defaults` — the default array contains the very PointerSensor with the 250ms touch delay you're trying to remove. Replace it entirely.
+
+**Anti-patterns (all silently break drag or keep the touch delay):**
+
+```javascript
+// ❌ Default — keeps the 250ms touch hold-delay
+var manager = new DragDropManager();
+
+// ❌ Plain-object constraint shape — ignored, falls back to defaults
+PointerSensor.configure({ activationConstraints: { distance: 3 } });
+
+// ❌ Sub-path import — 404 on esm.sh, PointerSensor === undefined, manager has no sensors → no drag
+import { PointerSensor } from 'https://esm.sh/@dnd-kit/dom@beta/sensors';
+
+// ❌ Spreading defaults — re-adds the default PointerSensor with the touch delay alongside the configured one
+sensors: (defaults) => [...defaults, PointerSensor.configure({...})]
+```
 
 ### 9. Input Blocking During Awaited Feedback
 
