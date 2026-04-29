@@ -67,7 +67,7 @@ The exact document structure every game must follow. Do not deviate from the ele
     /* 7. recordAttempt */
     /* 8. getStars */
     /* 9. getRounds (with fallback) */
-    /* 10. waitForPackages (typeof checks for 4 packages, 180s timeout) */
+    /* 10. waitForPackages — readiness gate. Derive the package set from `mandatory-components.md`: every component the file calls `new X(...)` on AND every slot injected via `ScreenLayout.inject(...)` must be a hard `&&` term. NO `||` operators. 180s timeout. See § waitForPackages template below. */
     /* 11. FeedbackManager preload + audio helper functions */
     /* 12. handlePostMessage */
     /* 13. render (phase router) */
@@ -151,11 +151,61 @@ Scripts load in two groups, in this exact order:
 - All game JS is inline in `<script>`
 - Sentry release tag must match game ID: `"{game-id}@1.0.0"`
 
+## `waitForPackages` template
+
+The single source of truth for the package set is [`mandatory-components.md`](./mandatory-components.md). Read that file first; it lists every component (with conditional opt-out flags) and the slot↔class map. The template below shows the **default** shape (no spec opt-outs). Drop a row only when the matching opt-out is set in `spec.md`.
+
+```javascript
+function waitForPackages() {
+  return new Promise(function (resolve, reject) {
+    var startedAt = Date.now();
+    var TIMEOUT_MS = 180000;
+    function check() {
+      var ok =
+        typeof FeedbackManager !== 'undefined' &&
+        typeof TimerComponent !== 'undefined' &&
+        typeof VisibilityTracker !== 'undefined' &&
+        typeof SignalCollector !== 'undefined' &&
+        typeof ScreenLayout !== 'undefined' &&
+        typeof PreviewScreenComponent !== 'undefined' &&        // drop if previewScreen: false
+        typeof TransitionScreenComponent !== 'undefined' &&     // drop if no transitionScreen slot
+        typeof ProgressBarComponent !== 'undefined' &&          // drop if no progressBar slot
+        typeof FloatingButtonComponent !== 'undefined' &&       // drop if floatingButton: false
+        typeof AnswerComponentComponent !== 'undefined';        // drop if answerComponent: false
+      if (ok) return resolve(true);
+      if (Date.now() - startedAt > TIMEOUT_MS) {
+        return reject(new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms'));
+      }
+      setTimeout(check, 100);
+    }
+    check();
+  });
+}
+```
+
+**Hard rules** (validator: `GEN-WAITFORPACKAGES-NO-OR`, `GEN-WAITFORPACKAGES-MISSING`, `GEN-SLOT-INSTANTIATION-MATCH`):
+
+- **No `||` inside the readiness expression.** Ever. `ScreenLayout` registering on `window` does NOT imply `PreviewScreenComponent` is registered — they're set at different points in the same bundle's IIFE. The `||` shape is the fail-open bug that shipped in age-matters.
+- **Every `new X(...)` ⇒ `typeof X` term.** If the file constructs `new PreviewScreenComponent(...)`, then `typeof PreviewScreenComponent !== 'undefined'` MUST be a hard `&&` term.
+- **Every `slots: { Y: true }` ⇒ matching `new YComponent(...)`.** A slot declared but never instantiated is a wasted DOM node and a missing-class bug. Slot↔class map is in [`mandatory-components.md`](./mandatory-components.md).
+- **Component instantiations use attributable catches.** Never `try { ... } catch (e) {}`. Use:
+
+  ```javascript
+  try {
+    previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+  } catch (e) {
+    console.error('[PreviewScreenComponent ctor failed]', e && e.message, e);
+    if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+  }
+  ```
+
+  A silent catch on `new XComponent(...)` converts a `ReferenceError` from a missing class into a null reference downstream. Step 6 fails any build with `console.error`, so an attributable error makes the bug self-detecting.
+
 ## Init Sequence Rules
 
 The `DOMContentLoaded` handler runs 16 steps in order (see template above). Critical constraints:
 
-1. `waitForPackages()` uses `typeof` checks for FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector with 180s timeout
+1. `waitForPackages()` uses hard `&&` `typeof` checks for the full set derived from `mandatory-components.md` (no `||` fallbacks), 180s timeout
 2. `FeedbackManager.init()` must be awaited -- but do NOT call `unlock()` after it
 3. `ScreenLayout.inject()` must run before any DOM insertion into `#gameContent`. `slots.previewScreen: true` is MANDATORY -- every game has a preview screen
 4. `PreviewScreenComponent` is instantiated AFTER `ScreenLayout.inject()` with only `{ slotId: 'mathai-preview-slot' }` -- do NOT pass `autoInject`, `gameContentId`, `questionLabel`, `score`, or `showStar`

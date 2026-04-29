@@ -42,7 +42,7 @@ Use the Playwright MCP tools directly (`browser_navigate`, `browser_screenshot`,
 
 ### Phase 2: Test All 5 Categories
 
-Execute categories in this order: game-flow → mechanics → level-progression → edge-cases → contract. Fix game-flow failures first — downstream categories depend on it.
+Execute categories in this order: game-flow → init-readiness → mechanics → level-progression → edge-cases → contract. Fix game-flow failures first — downstream categories depend on it.
 
 Test every category in order. For EVERY issue found, fix it immediately in the HTML file, reload the page, and re-test. Do not defer fixes.
 
@@ -79,6 +79,32 @@ Test the full user journey from start to finish.
 3. Play through the entire game by clicking correct answers. Use `browser_evaluate(() => window.gameState.correctAnswer)` to find the correct answer each round.
 4. Screenshot the results screen.
 5. Click Play Again. Screenshot. Verify fresh state.
+
+---
+
+## Category 1.5: init-readiness (cold load)
+
+The fail-open-gate bug class is invisible on warm reloads — the CDN bundle is in cache, every component class is defined synchronously, and the silently-swallowed `ReferenceError` from a missing class never fires. The bug only manifests on cold loads where `ScreenLayout` registers on `window` before `PreviewScreenComponent` (or any other late-loading component) does. This category catches that race.
+
+**Run this category twice: once with cache enabled (warm), once with cache disabled (cold).** Compare results. A discrepancy is a cold-load bug.
+
+| # | Check | How to verify | Pass criteria |
+|---|-------|---------------|---------------|
+| 1.5.1 | Cold load — disable cache | `browser_navigate` with `Cache-Control: no-store`, OR Playwright `context.setExtraHTTPHeaders({ 'Cache-Control': 'no-store' })` + `route('**/*', r => r.continue({ headers: { ...r.request().headers(), 'Cache-Control': 'no-store' }}))`, OR start fresh Chromium with `--disable-cache`. Reload. | Page reloads with all CDN scripts re-fetched (verify via Network tab: 200 OK, not 304). |
+| 1.5.2 | All required components instantiated | Within 5s of `DOMContentLoaded`, `browser_evaluate(() => ({ previewScreen: !!window.previewScreen, transitionScreen: !!window.transitionScreen, progressBar: !!window.progressBar, floatingBtn: !!window.floatingBtn, answerComponent: !!window.answerComponent }))`. Drop fields that the spec opted out of (`previewScreen: false`, `floatingButton: false`, `answerComponent: false`). | Every kept field is `true`. A `false` value means `waitForPackages` resolved before that class was defined → fail-open gate. |
+| 1.5.3 | `data-phase` is not `gameplay` while preview is enabled | `browser_evaluate(() => document.getElementById('app').getAttribute('data-phase'))` immediately after load. Spec keeps preview unless `previewScreen: false`. | If preview is enabled: `data-phase` is `start_screen` or `preview`, NOT `gameplay`. The standalone fallback should NOT have run if `waitForPackages` succeeded. |
+| 1.5.4 | No console errors during init | `browser_console_messages()` after the 5s readiness window. | Zero `error`-level messages. An `[XComponent ctor failed]` log indicates a missing class — re-check the readiness gate (`mandatory-components.md`). |
+| 1.5.5 | Standalone fallback does not silently boot with missing components | `browser_evaluate(() => window.gameState.isActive)` immediately after fallback timer (2s). | If fallback fired with any required class undefined, the visible error UI is rendered and `gameState.isActive === false`. The fallback MUST NOT call `setupGame()` with a partial component graph (see `code-patterns.md` § Standalone fallback). |
+
+**Procedure:**
+
+1. Start the local server.
+2. Open the page with cache disabled. Take a screenshot at `+0ms`, `+500ms`, `+2s`, `+5s` after `DOMContentLoaded`.
+3. Run the 5 checks above.
+4. If 1.5.2 fails (any expected component is `null` after 5s): the readiness gate is fail-open. Check `waitForPackages` body for `||` (validator: `GEN-WAITFORPACKAGES-NO-OR`) and missing typeof terms (`GEN-WAITFORPACKAGES-MISSING`). The validator should already have caught it — if it didn't, file a regression.
+5. Run the same checks with cache enabled (warm). If results differ between cold and warm, the bug is a script-load race; the fix is in the readiness gate, not in init logic.
+
+**Why this category exists:** age-matters, spot-the-pairs, and cross-logic all passed Categories 1–5 on warm reloads but shipped fail-open gates that only manifest on cold loads. This category is the runtime backstop for the validator's static checks.
 
 ---
 

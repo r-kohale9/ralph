@@ -4,6 +4,8 @@
 
 **Purpose:** post-celebration `Correct Answers!` carousel that reveals the *evaluated* portion of each round AFTER the player has finished playing AND seen the celebration beats (Victory transition if any, then the Stars Collected yay + star animation). The component never appears during preview state, never appears mid-round, and is the last in-game card the player interacts with — its Next click signals iframe teardown via `next_ended`.
 
+**Readiness gate requirement (CRITICAL):** When this part is in scope, `waitForPackages` MUST include `typeof AnswerComponentComponent !== 'undefined'` as a hard `&&` term. NEVER `||`. See [`alfred/skills/game-building/reference/mandatory-components.md`](../skills/game-building/reference/mandatory-components.md). Validators: `GEN-WAITFORPACKAGES-NO-OR`, `GEN-WAITFORPACKAGES-MISSING`, `GEN-SLOT-INSTANTIATION-MATCH` (specialization of the existing `GEN-ANSWER-COMPONENT-INSTANTIATE` rule for the answerComponent slot). The `new AnswerComponentComponent(...)` call MUST use an attributable catch (`console.error` + `Sentry.captureException`), never a silent `try { ... } catch (e) {}`.
+
 ---
 
 ## Opt-out (`answerComponent: false`) — CREATOR-ONLY

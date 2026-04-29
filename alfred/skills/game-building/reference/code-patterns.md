@@ -10,7 +10,7 @@ Every game MUST implement all patterns below. Each section either references a P
 
 Every game listens for `game_init` from a parent window. When running standalone (local server, Playwright tests, preview), there is no parent — `game_init` never arrives — and the game stays on a blank start screen forever.
 
-**Required pattern:** Add a fallback timer that runs **independently of `waitForPackages()`**. The fallback must be able to fire even if CDN packages never load.
+**Required pattern:** Add a fallback timer that runs **independently of `waitForPackages()`**. The fallback must be able to fire even if CDN packages never load. AND the fallback must re-verify that every required component is defined before booting — partial-component boot is the bug that shipped in age-matters.
 
 ```javascript
 // Inside DOMContentLoaded, AFTER registering the message listener and sending game_ready:
@@ -24,22 +24,55 @@ waitForPackages().then(function(loaded) {
 // 2. Standalone fallback — runs INDEPENDENTLY, not nested inside waitForPackages
 //    Builds fallback layout if ScreenLayout didn't load, then starts the game.
 setTimeout(function() {
-  if (!gameState.isActive && !gameState.gameEnded) {
-    if (!document.getElementById('gameContent')) {
-      buildFallbackLayout();
-      // ... populate slots with innerHTML ...
-    }
-    gameState.content = fallbackContent;
-    gameState.totalRounds = fallbackContent.rounds.length;
-    setupGame();
-    startGame();
+  // 2a. Abort if a live preview is mounted (covered case A: waitForPackages succeeded).
+  if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+  if (gameState.isActive || gameState.gameEnded) return;
+
+  // 2b. Re-verify the readiness gate. If any required class is still undefined,
+  //     waitForPackages did NOT succeed — render an attributable error instead
+  //     of silently booting with a partial component graph.
+  //     Drop rows here only when their spec opt-out flag is set, exactly as in waitForPackages.
+  var missing = [];
+  if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+  if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+  if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+  if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+  if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+  if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+  if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+  if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+  if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+  if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+
+  if (missing.length > 0) {
+    var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+    console.error('[' + msg + ']');
+    if (typeof Sentry !== 'undefined') Sentry.captureMessage(msg);
+    var gc = document.getElementById('gameContent') || document.body;
+    gc.innerHTML =
+      '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">' +
+      'Game failed to load — please refresh.' +
+      '</div>';
+    return;
   }
+
+  // 2c. All classes defined → boot.
+  if (!document.getElementById('gameContent')) {
+    buildFallbackLayout();
+    // ... populate slots with innerHTML ...
+  }
+  gameState.content = fallbackContent;
+  gameState.totalRounds = fallbackContent.rounds.length;
+  setupGame();
+  startGame();
 }, 2000);
 ```
 
 **Why CRITICAL:** Without this, the game is untestable locally and unrenderable in standalone preview. This bug appeared in THREE Alfred-built games before being corrected.
 
 **Anti-pattern (CRITICAL):** Never nest the standalone fallback inside `waitForPackages().then(...)`. If CDN packages fail to load, `waitForPackages` blocks for 180s — the standalone fallback never fires, and Playwright tests time out waiting for the game to start. The fallback MUST be a top-level `setTimeout` that runs regardless of CDN availability.
+
+**Anti-pattern (CRITICAL):** Never silently call `setupGame()` from the fallback when one or more required classes are still undefined. That's the age-matters fail-open shape — `previewScreen` ends up `null` and the game boots into Round 1 with no preview. The fallback MUST re-check the same set as `waitForPackages` (see [`mandatory-components.md`](./mandatory-components.md)) and surface a visible error if any are missing.
 
 ---
 
@@ -57,8 +90,11 @@ Per PART-007. Game-building rules:
 
 ### waitForPackages
 Per PART-003. Game-building rules:
-- Must resolve before any CDN component is used (FeedbackManager, TimerComponent, VisibilityTracker, SignalCollector).
-- Game MUST NOT block on missing packages after timeout -- proceed gracefully.
+- **The package set is derived from [`mandatory-components.md`](./mandatory-components.md)**, not from PART-003's baseline list. Every component the file calls `new X(...)` on AND every slot injected via `ScreenLayout.inject(...)` must be a hard `&&` `typeof X !== 'undefined'` term in the readiness expression.
+- **No `||` operators inside the readiness expression.** Validator: `GEN-WAITFORPACKAGES-NO-OR`. The historical fail-open shape `(typeof PreviewScreenComponent !== 'undefined' || typeof ScreenLayout !== 'undefined')` is forbidden — `ScreenLayout` and `PreviewScreenComponent` register on `window` at different points in the same bundle's IIFE, so one being defined does NOT imply the other is.
+- **Component instantiations use attributable catches**, never `try { ... } catch (e) {}`. A silent catch on `new XComponent(...)` converts a `ReferenceError` from a missing class into a null reference downstream. Use `console.error('[X ctor failed]', e.message, e); if (typeof Sentry !== 'undefined') Sentry.captureException(e);`.
+- Must resolve before any CDN component is used.
+- 180s timeout. Reject (don't swallow) on timeout — the standalone fallback re-checks the gate and renders the failure UI.
 - See `parts/PART-003.md` for full implementation.
 
 ### handlePostMessage

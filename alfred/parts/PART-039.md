@@ -12,6 +12,8 @@
 const previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
 ```
 
+**Readiness gate requirement (CRITICAL):** When this part is in scope, `waitForPackages` MUST include `typeof PreviewScreenComponent !== 'undefined'` as a hard `&&` term. NEVER `||`. The age-matters fail-open shape `(typeof PreviewScreenComponent !== 'undefined' || typeof ScreenLayout !== 'undefined')` short-circuits as soon as `ScreenLayout` registers, before `PreviewScreenComponent` does — `previewScreen` ends up `null` on cold loads. See [`alfred/skills/game-building/reference/mandatory-components.md`](../skills/game-building/reference/mandatory-components.md). Validators: `GEN-WAITFORPACKAGES-NO-OR`, `GEN-WAITFORPACKAGES-MISSING`, `GEN-SLOT-INSTANTIATION-MATCH`. The `new PreviewScreenComponent(...)` call MUST use an attributable catch (`console.error` + `Sentry.captureException`), never a silent `try { ... } catch (e) {}`.
+
 **show() options:**
 
 | Option | Type | Notes |

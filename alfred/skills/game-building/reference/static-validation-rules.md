@@ -62,10 +62,16 @@ Complete index of every check in `validate-static.js` (T1 layer), mapped to the 
 | GEN-WAITFOR-MATCH-B | new TimerComponent() used but typeof not in waitForPackages | warning | game-building (code-patterns) | Covered |
 | GEN-WAITFOR-MATCH-C | new ProgressBarComponent() used but typeof not in waitForPackages | warning | game-building (code-patterns) | Covered |
 | GEN-WAITFOR-MATCH-D | new TransitionScreenComponent() used but typeof not in waitForPackages | warning | game-building (code-patterns) | Covered |
-| 5f3-TIMER-TYPEOF | TimerComponent used but no typeof guard in waitForPackages | error | game-building (code-patterns) | Covered |
-| 5f3-TRANSITION-TYPEOF | TransitionScreenComponent used but no typeof guard | error | game-building (code-patterns) | Covered |
-| 5f3-PROGRESS-TYPEOF | ProgressBarComponent used but no typeof guard | error | game-building (code-patterns) | Covered |
-| 5f3-SIGNAL-TYPEOF | SignalCollector used but no typeof guard | error | game-building (code-patterns) | Covered |
+| 5f3-TIMER-TYPEOF (5f3a) | TimerComponent used but no typeof guard in waitForPackages | error | game-building (mandatory-components) | Covered |
+| 5f3-TRANSITION-TYPEOF (5f3b) | TransitionScreenComponent used but no typeof guard | error | game-building (mandatory-components) | Covered |
+| 5f3-PROGRESS-TYPEOF (5f3c) | ProgressBarComponent used but no typeof guard | error | game-building (mandatory-components) | Covered |
+| 5f3-SIGNAL-TYPEOF (5f3d) | SignalCollector used but no typeof guard | error | game-building (mandatory-components) | Covered |
+| 5f3-PREVIEW-TYPEOF (5f3e) | PreviewScreenComponent used but no typeof guard | error | game-building (mandatory-components) | Covered |
+| 5f3-FLOATING-TYPEOF (5f3f) | FloatingButtonComponent used but no typeof guard | error | game-building (mandatory-components) | Covered |
+| 5f3-ANSWER-TYPEOF (5f3g) | AnswerComponentComponent used but no typeof guard | error | game-building (mandatory-components) | Covered |
+| GEN-WAITFORPACKAGES-NO-OR (5f3h) | `waitForPackages` body contains `\|\|` — readiness expression must use only `&&`. The `\|\| ScreenLayout` fail-open shape was the age-matters bug. | error | game-building (mandatory-components, code-patterns) | Covered |
+| GEN-WAITFORPACKAGES-MISSING (5f3i) | `new XComponent(...)` constructed but `typeof XComponent` missing from the `waitForPackages` body — silent-skip pattern (typeof guard at instantiation time) is NOT a substitute. | error | game-building (mandatory-components) | Covered |
+| GEN-SLOT-INSTANTIATION-MATCH (5f3j) | `ScreenLayout.inject({ slots: { X: true } })` declared but `new XComponent(...)` never called. Slot↔class map: previewScreen→PreviewScreenComponent, transitionScreen→TransitionScreenComponent, progressBar→ProgressBarComponent, floatingButton→FloatingButtonComponent, answerComponent→AnswerComponentComponent. | error | game-building (mandatory-components) | Covered |
 
 ## FeedbackManager
 

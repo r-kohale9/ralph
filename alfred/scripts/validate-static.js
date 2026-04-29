@@ -1329,7 +1329,13 @@ if (
 // The CDN bundle loads components sequentially: ScreenLayout (step 2) → ProgressBarComponent
 // (step 3) → TransitionScreenComponent (step 4) → TimerComponent (step 7, last).
 // Any game that calls new X() on these components must include a typeof guard in the
-// waitForPackages() while-loop, or the game crashes with ReferenceError at init.
+// waitForPackages() readiness expression, or the game crashes with ReferenceError at init.
+//
+// CANONICAL SHAPE (see alfred/skills/game-building/reference/mandatory-components.md):
+//   var ok =
+//     typeof FeedbackManager !== 'undefined' &&
+//     typeof TimerComponent !== 'undefined' &&
+//     ... ;  // every required class as a hard `&&` term, NO `||` operators
 //
 // IMPORTANT: CDN components may be accessed as bare globals (typeof TimerComponent) OR
 // via window.components (typeof window.components?.TimerComponent). Both forms are valid.
@@ -1344,10 +1350,11 @@ if (
   !/window\.components\??\.TimerComponent\s*===\s*['"]undefined['"]/.test(html)
 ) {
   errors.push(
-    'ERROR: TimerComponent is used but typeof TimerComponent is not in waitForPackages() check — TimerComponent loads at CDN step 7, AFTER ScreenLayout (step 2). Without a typeof guard, init runs before TimerComponent is defined → ReferenceError → blank page. ' +
-    'Add ONE of these to the waitForPackages while-loop condition:\n' +
-    '  Option A (bare global): `|| typeof TimerComponent === "undefined"`\n' +
-    '  Option B (window.components): `|| typeof window.components?.TimerComponent === "undefined"`'
+    'ERROR (5f3a): TimerComponent is used but typeof TimerComponent is not in waitForPackages() — TimerComponent loads at CDN step 7, AFTER ScreenLayout (step 2). Without a typeof guard, init runs before TimerComponent is defined → ReferenceError → blank page. ' +
+    'Add a hard `&&` term to the readiness expression in waitForPackages():\n' +
+    '  Option A (bare global): `&& typeof TimerComponent !== "undefined"`\n' +
+    '  Option B (window.components): `&& typeof window.components?.TimerComponent !== "undefined"`\n' +
+    'NEVER use `||` in the readiness expression — see GEN-WAITFORPACKAGES-NO-OR.'
   );
 }
 if (
@@ -1357,10 +1364,11 @@ if (
   !/window\.components\??\.TransitionScreenComponent\s*===\s*['"]undefined['"]/.test(html)
 ) {
   errors.push(
-    'ERROR: TransitionScreenComponent is used but typeof TransitionScreenComponent is not in waitForPackages() check — it loads at CDN step 4, AFTER ScreenLayout (step 2). Without a typeof guard, init runs before TransitionScreenComponent is defined → ReferenceError → blank page. ' +
-    'Add ONE of these to the waitForPackages while-loop condition:\n' +
-    '  Option A (bare global): `|| typeof TransitionScreenComponent === "undefined"`\n' +
-    '  Option B (window.components): `|| typeof window.components?.TransitionScreenComponent === "undefined"`'
+    'ERROR (5f3b): TransitionScreenComponent is used but typeof TransitionScreenComponent is not in waitForPackages() — it loads at CDN step 4, AFTER ScreenLayout (step 2). Without a typeof guard, init runs before TransitionScreenComponent is defined → ReferenceError → blank page. ' +
+    'Add a hard `&&` term to the readiness expression in waitForPackages():\n' +
+    '  Option A (bare global): `&& typeof TransitionScreenComponent !== "undefined"`\n' +
+    '  Option B (window.components): `&& typeof window.components?.TransitionScreenComponent !== "undefined"`\n' +
+    'NEVER use `||` in the readiness expression — see GEN-WAITFORPACKAGES-NO-OR.'
   );
 }
 if (
@@ -1370,10 +1378,11 @@ if (
   !/window\.components\??\.ProgressBarComponent\s*===\s*['"]undefined['"]/.test(html)
 ) {
   errors.push(
-    'ERROR: ProgressBarComponent is used but typeof ProgressBarComponent is not in waitForPackages() check — it loads at CDN step 3, AFTER ScreenLayout (step 2). Without a typeof guard, init runs before ProgressBarComponent is defined → ReferenceError → blank page. ' +
-    'Add ONE of these to the waitForPackages while-loop condition:\n' +
-    '  Option A (bare global): `|| typeof ProgressBarComponent === "undefined"`\n' +
-    '  Option B (window.components): `|| typeof window.components?.ProgressBarComponent === "undefined"`'
+    'ERROR (5f3c): ProgressBarComponent is used but typeof ProgressBarComponent is not in waitForPackages() — it loads at CDN step 3, AFTER ScreenLayout (step 2). Without a typeof guard, init runs before ProgressBarComponent is defined → ReferenceError → blank page. ' +
+    'Add a hard `&&` term to the readiness expression in waitForPackages():\n' +
+    '  Option A (bare global): `&& typeof ProgressBarComponent !== "undefined"`\n' +
+    '  Option B (window.components): `&& typeof window.components?.ProgressBarComponent !== "undefined"`\n' +
+    'NEVER use `||` in the readiness expression — see GEN-WAITFORPACKAGES-NO-OR.'
   );
 }
 if (
@@ -1383,13 +1392,204 @@ if (
   !/window\.components\??\.SignalCollector\s*===\s*['"]undefined['"]/.test(html)
 ) {
   errors.push(
-    'ERROR: SignalCollector is used but typeof SignalCollector is not in waitForPackages() check — ' +
+    'ERROR (5f3d): SignalCollector is used but typeof SignalCollector is not in waitForPackages() — ' +
     'SignalCollector loads via the Helpers CDN bundle. Without a typeof guard, new SignalCollector() runs before the CDN package loads → ReferenceError → blank page. ' +
-    'Add ONE of these to the waitForPackages while-loop condition:\n' +
-    '  Option A (bare global): `|| typeof SignalCollector === "undefined"`\n' +
-    '  Option B (window.components): `|| typeof window.components?.SignalCollector === "undefined"`'
+    'Add a hard `&&` term to the readiness expression in waitForPackages():\n' +
+    '  Option A (bare global): `&& typeof SignalCollector !== "undefined"`\n' +
+    '  Option B (window.components): `&& typeof window.components?.SignalCollector !== "undefined"`\n' +
+    'NEVER use `||` in the readiness expression — see GEN-WAITFORPACKAGES-NO-OR.'
   );
 }
+
+// ─── 5f3e. PreviewScreenComponent / FloatingButtonComponent / AnswerComponentComponent ───
+// Same as 5f3a-d, but for the components that were previously uncovered. These are the
+// late-loading components that PART-039, PART-050, PART-051 declare mandatory but
+// PART-003's stale baseline list does not name. The age-matters fail-open bug shipped
+// because PreviewScreenComponent was not enforced by 5f3.
+if (
+  /\bPreviewScreenComponent\b/.test(html) &&
+  !/typeof\s+PreviewScreenComponent/.test(html) &&
+  !/typeof\s+window\.components\??\.PreviewScreenComponent/.test(html) &&
+  !/window\.components\??\.PreviewScreenComponent\s*===\s*['"]undefined['"]/.test(html)
+) {
+  errors.push(
+    'ERROR (5f3e): PreviewScreenComponent is used but typeof PreviewScreenComponent is not in waitForPackages() — without a hard typeof guard, ' +
+    'init runs before PreviewScreenComponent is registered on window → silent ReferenceError → previewScreen stays null → preview never mounts. ' +
+    'Add a hard `&&` term: `&& typeof PreviewScreenComponent !== "undefined"`. NEVER `||`. ' +
+    'See alfred/skills/game-building/reference/mandatory-components.md.'
+  );
+}
+if (
+  /\bFloatingButtonComponent\b/.test(html) &&
+  !/typeof\s+FloatingButtonComponent/.test(html) &&
+  !/typeof\s+window\.components\??\.FloatingButtonComponent/.test(html) &&
+  !/window\.components\??\.FloatingButtonComponent\s*===\s*['"]undefined['"]/.test(html)
+) {
+  errors.push(
+    'ERROR (5f3f): FloatingButtonComponent is used but typeof FloatingButtonComponent is not in waitForPackages() — same fail-open shape as 5f3e. ' +
+    'Add a hard `&&` term: `&& typeof FloatingButtonComponent !== "undefined"`. NEVER `||`. ' +
+    'See alfred/skills/game-building/reference/mandatory-components.md.'
+  );
+}
+if (
+  /\bAnswerComponentComponent\b/.test(html) &&
+  !/typeof\s+AnswerComponentComponent/.test(html) &&
+  !/typeof\s+window\.components\??\.AnswerComponentComponent/.test(html) &&
+  !/window\.components\??\.AnswerComponentComponent\s*===\s*['"]undefined['"]/.test(html)
+) {
+  errors.push(
+    'ERROR (5f3g): AnswerComponentComponent is used but typeof AnswerComponentComponent is not in waitForPackages() — same fail-open shape as 5f3e. ' +
+    'Add a hard `&&` term: `&& typeof AnswerComponentComponent !== "undefined"`. NEVER `||`. ' +
+    'See alfred/skills/game-building/reference/mandatory-components.md.'
+  );
+}
+
+// ─── 5f3h. GEN-WAITFORPACKAGES-NO-OR — strict: no `||` in the readiness expression. ───
+// The readiness expression is the boolean inside the waitForPackages function body that
+// determines when the gate resolves. The age-matters fail-open shape was:
+//   var ok =
+//     typeof FeedbackManager !== 'undefined' &&
+//     (typeof PreviewScreenComponent !== 'undefined' || typeof ScreenLayout !== 'undefined');
+// `ScreenLayout` and `PreviewScreenComponent` are registered on window at different points
+// in the same bundle's IIFE, so the `||` short-circuit lets the gate resolve while the
+// component is still undefined. This rule rejects any `||` operator inside the body of
+// `function waitForPackages()`. The canonical shape uses only `&&`.
+//
+// Detection strategy: locate the `waitForPackages` function body, then scan only that body
+// for `||`. Avoids false positives on `||` elsewhere in the file.
+(function checkWaitForPackagesNoOr() {
+  // Match: `function waitForPackages` ... opening `{` ... balanced body until matching `}`.
+  // We use a non-balanced regex but capture a generous slice — false positives only
+  // appear if something else legitimately uses `||` inside, which this rule wants to flag.
+  const fnStart = html.search(/function\s+waitForPackages\s*\(/);
+  if (fnStart < 0) return; // No function — other rules handle that.
+  const slice = html.slice(fnStart);
+  // Find the function body by tracking braces from the first `{` after the signature.
+  const openIdx = slice.indexOf('{');
+  if (openIdx < 0) return;
+  let depth = 0;
+  let endIdx = -1;
+  for (let i = openIdx; i < slice.length; i++) {
+    const ch = slice[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) { endIdx = i; break; }
+    }
+  }
+  if (endIdx < 0) return;
+  const body = slice.slice(openIdx, endIdx + 1);
+  // Strip line comments (//...) and block comments (/* ... */) so a comment containing
+  // `||` doesn't trigger a false positive.
+  const stripped = body
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '');
+  if (/\|\|/.test(stripped)) {
+    errors.push(
+      'ERROR (GEN-WAITFORPACKAGES-NO-OR): waitForPackages() body contains `||` — the readiness expression must use only `&&`. ' +
+      '`||` creates fail-open gates: e.g. `(typeof PreviewScreenComponent !== "undefined" || typeof ScreenLayout !== "undefined")` resolves as soon as ScreenLayout loads, before PreviewScreenComponent is defined → silent ReferenceError on `new PreviewScreenComponent(...)` → previewScreen stays null. ' +
+      'Replace every `||` in the readiness expression with `&&`. ' +
+      'See alfred/skills/game-building/reference/mandatory-components.md.'
+    );
+  }
+})();
+
+// ─── 5f3i. GEN-WAITFORPACKAGES-MISSING — every `new XComponent` ⇒ typeof X
+// term INSIDE waitForPackages body. ──────────────────────────────────────────
+// For each component class the file actually constructs (`new XComponent(...)`),
+// the waitForPackages function body must contain a hard typeof guard for that
+// class. The check is scoped to the waitForPackages body (not the whole file),
+// because a `typeof X` guard at instantiation time (e.g.
+// `if (typeof X !== 'undefined') new X(...)`) is NOT the same as gating init —
+// it silently skips the component when the class hasn't loaded yet, producing
+// the same null-reference bug as the age-matters fail-open. The cross-logic
+// game ships with this exact silent-skip pattern; this rule catches it.
+//
+// 5f3a-g cover the common components with file-wide regex (legacy). 5f3i
+// adds the body-scoped check that catches the silent-skip variant.
+(function checkWaitForPackagesMissing() {
+  // Locate waitForPackages body.
+  const fnStart = html.search(/function\s+waitForPackages\s*\(/);
+  if (fnStart < 0) return; // No function — other rules handle that.
+  const slice = html.slice(fnStart);
+  const openIdx = slice.indexOf('{');
+  if (openIdx < 0) return;
+  let depth = 0;
+  let endIdx = -1;
+  for (let i = openIdx; i < slice.length; i++) {
+    const ch = slice[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) { endIdx = i; break; }
+    }
+  }
+  if (endIdx < 0) return;
+  const body = slice.slice(openIdx, endIdx + 1);
+
+  // Collect every constructed component name in the whole file.
+  const ctorRegex = /new\s+([A-Z][A-Za-z0-9]*Component[A-Za-z0-9]*)\s*\(/g;
+  const constructed = new Set();
+  let m;
+  while ((m = ctorRegex.exec(html)) !== null) {
+    constructed.add(m[1]);
+  }
+  for (const name of constructed) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp('typeof\\s+' + escaped + '\\b');
+    const reWindow = new RegExp('typeof\\s+window\\.components\\??\\.' + escaped + '\\b');
+    if (!re.test(body) && !reWindow.test(body)) {
+      errors.push(
+        `ERROR (GEN-WAITFORPACKAGES-MISSING): \`new ${name}(...)\` is constructed but \`typeof ${name}\` is missing from the waitForPackages body — the readiness expression must include a hard \`&&\` term for every component the file constructs. ` +
+        `A \`typeof ${name}\` guard at instantiation time (silent-skip pattern) is NOT a substitute — it produces the same null-reference bug on cold loads. ` +
+        `Add \`&& typeof ${name} !== "undefined"\` to the readiness expression in waitForPackages(). ` +
+        'See alfred/skills/game-building/reference/mandatory-components.md.'
+      );
+    }
+  }
+})();
+
+// ─── 5f3j. GEN-SLOT-INSTANTIATION-MATCH — every ScreenLayout slot ⇒ matching new XComponent. ───
+// Slot↔class map (from mandatory-components.md):
+//   previewScreen     → PreviewScreenComponent
+//   transitionScreen  → TransitionScreenComponent
+//   progressBar       → ProgressBarComponent
+//   floatingButton    → FloatingButtonComponent
+//   answerComponent   → AnswerComponentComponent
+//
+// If the file declares `slots: { X: true }` in ScreenLayout.inject(...), it must also
+// call `new XComponent(...)`. A slot declared but never instantiated is a wasted DOM node
+// and a sign the gate is incomplete. Reuses the existing GEN-ANSWER-COMPONENT-INSTANTIATE
+// pattern (lib/validate-static.js:4451-4465) and generalizes.
+(function checkSlotInstantiationMatch() {
+  const slotMap = {
+    previewScreen: 'PreviewScreenComponent',
+    transitionScreen: 'TransitionScreenComponent',
+    progressBar: 'ProgressBarComponent',
+    floatingButton: 'FloatingButtonComponent',
+    answerComponent: 'AnswerComponentComponent'
+  };
+  // Locate ScreenLayout.inject(...) call body so we only inspect slot declarations there.
+  const injectMatch = html.match(/ScreenLayout\.inject\s*\([^)]*\{[\s\S]*?\}\s*\)/);
+  if (!injectMatch) return;
+  const injectBody = injectMatch[0];
+  // Look for slots: { ... } object inside.
+  const slotsMatch = injectBody.match(/slots\s*:\s*\{([^}]*)\}/);
+  if (!slotsMatch) return;
+  const slotsBody = slotsMatch[1];
+  for (const [slotKey, className] of Object.entries(slotMap)) {
+    const slotEnabledRe = new RegExp('\\b' + slotKey + '\\s*:\\s*true\\b');
+    if (!slotEnabledRe.test(slotsBody)) continue;
+    const ctorRe = new RegExp('new\\s+' + className + '\\s*\\(');
+    if (!ctorRe.test(html)) {
+      errors.push(
+        `ERROR (GEN-SLOT-INSTANTIATION-MATCH): ScreenLayout.inject() declares \`slots: { ${slotKey}: true }\` but the file never constructs \`new ${className}(...)\`. ` +
+        `Either instantiate the component (and add a \`typeof ${className}\` guard to waitForPackages) or remove the slot declaration. ` +
+        'See alfred/skills/game-building/reference/mandatory-components.md § Slot ↔ class instantiation contract.'
+      );
+    }
+  }
+})();
 
 // ─── 5f4. TimerComponent constructor signature check ─────────────────────────
 // TimerComponent constructor: new TimerComponent('container-id', { options })
@@ -2584,23 +2784,30 @@ if (hasStartGame) {
   }
 
   // ─── GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN ─────────────────────────────────
-  // Victory / game_over TransitionScreen must have `buttons: []` — the Next
-  // CTA is owned by FloatingButton, NOT by a button inside the TransitionScreen
-  // card. A sub-agent regression (bodmas-blitz 2026-04-23) put `text: 'Next'`
-  // inside the transitionScreen.show(...) buttons array, producing a confusing
-  // two-step Next UX: (1) player sees Next on the card, clicks it, (2) floating
-  // Next then appears at the bottom, player clicks THAT to actually fire
-  // next_ended. Users see two Next buttons in sequence.
+  // The Next/Continue/Done/Finish CTA — i.e. the "advance the lifecycle one
+  // step" navigation verb — is owned by FloatingButton, NOT by a button inside
+  // a TransitionScreen card. A sub-agent regression (bodmas-blitz 2026-04-23)
+  // put `text: 'Next'` inside the transitionScreen.show(...) buttons array,
+  // producing a confusing two-step Next UX: (1) player sees Next on the card,
+  // clicks it, (2) floating Next then appears at the bottom, player clicks
+  // THAT to actually fire next_ended. Users see two Next buttons in sequence.
   //
-  // Detection: search for `text: '<reserved>'` where <reserved> is one of the
-  // advance-CTA words {Next, Continue, Done, Finish, Go to Next, Play Again}.
-  // These text values only appear in game source inside a TransitionScreen
-  // button config — FloatingButton's own labels are configured via
-  // setLabels({next: 'x'}) where the key is 'next', not 'text'.
+  // Reserved words (forbidden in TS button text): NAVIGATION VERBS only —
+  // {Next, Continue, Done, Finish, Go to Next, Skip Forward}.
   //
-  // "I'm ready" / "Let's go" / "Skip" / button text on welcome / round-intro
-  // TransitionScreens are allowed (not in the reserved-word list).
-  const tsCtaPattern = /text\s*:\s*['"](?:Next|Continue|Done\b|Finish|Go\s*to\s*Next|Play\s*Again)['"]/gi;
+  // Allowed in TS button text: SEMANTIC END-GAME ACTIONS that name a
+  // destination/branch — {Play Again, Claim Stars, Try Again, I'm ready,
+  // Let's go, Skip}. These belong on Victory / Game Over / Motivation cards
+  // and route to specific screens (showMotivation, showStarsCollected,
+  // restartGame). They are NOT navigation verbs and do NOT compete with
+  // FloatingButton's `next` mode.
+  //
+  // The canonical Victory template (default-transition-screens.md § 3) uses
+  // `[Play Again, Claim Stars]` for <3★ and `[Claim Stars]` for 3★. Stripping
+  // those buttons to silence this rule breaks the Play Again loop and is the
+  // pattern this rule explicitly does NOT want. See GEN-VICTORY-BUTTONS-
+  // REQUIRED for the positive enforcement of that template.
+  const tsCtaPattern = /text\s*:\s*['"](?:Next|Continue|Done\b|Finish|Go\s*to\s*Next|Skip\s*Forward)['"]/gi;
   const tsCtaMatches = [];
   let tsm;
   while ((tsm = tsCtaPattern.exec(html)) !== null) {
@@ -2615,22 +2822,125 @@ if (hasStartGame) {
   if (tsCtaMatches.length > 0) {
     const offenders = tsCtaMatches.map(m => 'line ' + m.line + ': text:"' + m.label + '"').join('; ');
     errors.push(
-      'ERROR [GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN]: TransitionScreen button with a Next / Continue / Done / Finish / ' +
-        'Play Again text was found AND FloatingButton is in use. Offender(s): ' + offenders + '. ' +
-        'The Next CTA is owned by FloatingButton, NOT by a button inside the TransitionScreen card. ' +
-        'Victory / game_over TransitionScreens MUST use `buttons: []` (empty array) and rely on ' +
-        'tap-to-dismiss. Then, inside `transitionScreen.onDismiss(...)`, call `floatingBtn.setMode(\'next\')` ' +
-        'to show the floating Next button. A Next button inside the TransitionScreen card followed by a floating ' +
-        'Next button is a confusing double-Next UX — the player clicks the card\'s Next, sees another Next appear ' +
-        'at the bottom, and has no idea which one fires `next_ended`. ' +
-        'CORRECT PATTERN: ' +
-        'transitionScreen.show({ title: ..., stars: ..., buttons: [], content: resultsHtml }); ' +
-        'transitionScreen.onDismiss(() => { transitionScreen.hide(); floatingBtn.setMode(\'next\'); }); ' +
-        'floatingBtn.on(\'next\', () => { postMessage({type:\'next_ended\'}); floatingBtn.destroy(); }); ' +
-        'Welcome / round-intro / motivation screens may still have buttons (I\'m ready, Let\'s go, Skip) — those ' +
-        'labels are NOT in the reserved-word list and do not trigger this rule. ' +
-        '(PART-050 "Next flow" — Step 3 "buttons: []", GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN)'
+      'ERROR [GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN]: TransitionScreen button with a navigation-verb text ' +
+        '(Next / Continue / Done / Finish / Go to Next / Skip Forward) was found AND FloatingButton is in use. ' +
+        'Offender(s): ' + offenders + '. ' +
+        'Navigation verbs are owned by FloatingButton, NOT by a button inside the TransitionScreen card. ' +
+        'A Next inside the TS card followed by a floating Next at the bottom is a confusing double-Next UX. ' +
+        'CORRECT PATTERN for END-OF-FLOW (after AnswerComponent reveal, or after final inline feedback): ' +
+        'floatingBtn.setMode(\'next\'); floatingBtn.on(\'next\', () => { postMessage({type:\'next_ended\'}); floatingBtn.destroy(); }); ' +
+        'NOTE: SEMANTIC END-GAME ACTIONS (Play Again, Claim Stars, Try Again, I\'m ready, Let\'s go, Skip) are ' +
+        'ALLOWED on TS cards — they name a destination, not a navigation step. The canonical Victory template ' +
+        '(default-transition-screens.md § 3) requires `[Play Again, Claim Stars]` for <3★ and `[Claim Stars]` for 3★. ' +
+        'Do NOT strip those buttons to silence this rule — they are NOT in the reserved list. ' +
+        '(PART-050 "Next flow", GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN, default-transition-screens.md § 3, ' +
+        'see also GEN-VICTORY-BUTTONS-REQUIRED for positive enforcement)'
     );
+  }
+
+  // ─── GEN-VICTORY-BUTTONS-REQUIRED ─────────────────────────────────────────
+  // Positive enforcement of the canonical Victory template
+  // (default-transition-screens.md § 3). Three sub-agent regressions
+  // (cross-logic, bodmas-blitz 2026-04-23, others) have stripped the Victory
+  // buttons array entirely to silence GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN,
+  // breaking the Play Again -> showMotivation loop. This rule catches that
+  // regression directly: any `transitionScreen.show({...})` whose `title:`
+  // matches /Victory/i MUST contain a `Claim Stars` button. If the source
+  // also branches on `gameState.stars` (implying a <3★ path exists), it MUST
+  // additionally contain a `Play Again` button.
+  //
+  // Auto-skips for standalone games (totalRounds === 1) — those are barred
+  // from TransitionScreen entirely by GEN-FLOATING-BUTTON-STANDALONE-TS-
+  // FORBIDDEN, so there's no Victory TS to enforce.
+  if (!isStandalone) {
+    const victoryShowPattern = /transitionScreen\s*\.\s*show\s*\(\s*\{[\s\S]{0,3000}?\}\s*\)/g;
+    let vsm;
+    while ((vsm = victoryShowPattern.exec(html)) !== null) {
+      const block = vsm[0];
+      const isVictory = /title\s*:\s*['"][^'"]*Victory/i.test(block);
+      if (!isVictory) continue;
+      const hasClaimStars = /text\s*:\s*['"][^'"]*Claim\s*Stars[^'"]*['"]/i.test(block);
+      const hasPlayAgain = /text\s*:\s*['"][^'"]*Play\s*Again[^'"]*['"]/i.test(block);
+      const branchesOnStars =
+        /gameState\s*\.\s*stars\s*[<!=]/.test(block) ||
+        /stars\s*[<!=]/.test(block) ||
+        /showMotivation\s*\(/.test(html);
+      const lineNo = html.slice(0, vsm.index).split('\n').length;
+      if (!hasClaimStars) {
+        errors.push(
+          'ERROR [GEN-VICTORY-BUTTONS-REQUIRED]: Victory transitionScreen.show at line ' + lineNo +
+            ' is missing a `text: "Claim Stars"` button. The canonical Victory template ' +
+            '(default-transition-screens.md § 3) MUST include a primary "Claim Stars" button that routes to ' +
+            'showStarsCollected. Stripping the buttons array (e.g. `buttons: []` plus an `onDismiss` workaround) ' +
+            'breaks the documented end-of-game flow and is a direct regression — `Claim Stars` is NOT in ' +
+            'GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN\'s reserved list. ' +
+            'CORRECT: const buttons = stars === 3 ? [{text: "Claim Stars", type: "primary", action: showStarsCollected}] ' +
+            ': [{text: "Play Again", type: "secondary", action: showMotivation}, {text: "Claim Stars", type: "primary", action: showStarsCollected}]; ' +
+            'transitionScreen.show({ title: "Victory 🎉", stars, buttons, ... }). ' +
+            '(default-transition-screens.md § 3, GEN-VICTORY-BUTTONS-REQUIRED)'
+        );
+      }
+      if (branchesOnStars && !hasPlayAgain) {
+        errors.push(
+          'ERROR [GEN-VICTORY-BUTTONS-REQUIRED]: Victory transitionScreen.show at line ' + lineNo +
+            ' branches on gameState.stars (or showMotivation exists) implying a <3★ path, but no `text: "Play Again"` ' +
+            'button is present. The canonical Victory template requires `[Play Again, Claim Stars]` when stars < 3 ' +
+            'so the player can choose to retry the game. ' +
+            'CORRECT: include {text: "Play Again", type: "secondary", action: showMotivation} in the buttons array ' +
+            'when stars < 3. (default-transition-screens.md § 3, GEN-VICTORY-BUTTONS-REQUIRED)'
+        );
+      }
+    }
+  }
+
+  // ─── GEN-FLOATING-BUTTON-LIFECYCLE ────────────────────────────────────────
+  // FloatingButton state per screen. Victory / Game Over / Motivation MUST
+  // hide the FloatingButton (setMode('hidden') or .destroy()) before the
+  // TransitionScreen renders its in-card buttons — otherwise both the in-card
+  // CTA (Claim Stars / Try Again / I'm ready) and a floating button compete
+  // for the player's attention. setMode('next') is reserved for AnswerComponent
+  // reveal (or, for answerComponent: false games, for Stars Collected onMounted
+  // after celebration audio).
+  //
+  // Static check: each `transitionScreen.show({...title: "Victory|Game Over|
+  // Ready to improve"...})` call site must have a `floatingBtn.setMode('hidden')`
+  // OR `floatingBtn.destroy()` within ±25 lines (typically immediately before
+  // the show()). This catches the "Victory rendered while submit-mode floating
+  // button still visible" regression.
+  if (/\bfloatingBtn\b/.test(html) || /\bnew\s+FloatingButtonComponent\s*\(/.test(html)) {
+    const lifecycleScreens = [
+      { name: 'Victory', re: /title\s*:\s*['"][^'"]*Victory/i },
+      { name: 'Game Over', re: /title\s*:\s*['"][^'"]*Game\s*Over/i },
+      { name: 'Motivation', re: /title\s*:\s*['"][^'"]*Ready\s*to\s*improve/i },
+    ];
+    const showCallPattern = /transitionScreen\s*\.\s*show\s*\(\s*\{[\s\S]{0,3000}?\}\s*\)/g;
+    let scm;
+    while ((scm = showCallPattern.exec(html)) !== null) {
+      const block = scm[0];
+      const screen = lifecycleScreens.find(s => s.re.test(block));
+      if (!screen) continue;
+      const lineNo = html.slice(0, scm.index).split('\n').length;
+      const lines = html.split('\n');
+      const start = Math.max(0, lineNo - 25);
+      const end = Math.min(lines.length, lineNo + 5);
+      const window = lines.slice(start, end).join('\n');
+      const hidden =
+        /floatingBtn\s*\.\s*setMode\s*\(\s*['"]hidden['"]/.test(window) ||
+        /floatingBtn\s*\.\s*destroy\s*\(/.test(window);
+      if (!hidden) {
+        errors.push(
+          'ERROR [GEN-FLOATING-BUTTON-LIFECYCLE]: ' + screen.name + ' transitionScreen.show at line ' + lineNo +
+            ' has no `floatingBtn.setMode(\'hidden\')` or `floatingBtn.destroy()` within the surrounding 25 lines. ' +
+            'The FloatingButton MUST be hidden before Victory / Game Over / Motivation renders, otherwise the ' +
+            'in-card buttons compete with a stale floating button. ' +
+            'setMode(\'next\') is reserved for AnswerComponent reveal (or Stars Collected onMounted when ' +
+            'answerComponent: false). ' +
+            'CORRECT: try { floatingBtn.setMode(\'hidden\'); } catch (e) {} ' +
+            'await transitionScreen.show({ ... }); ' +
+            '(default-transition-screens.md FloatingButton ownership table, GEN-FLOATING-BUTTON-LIFECYCLE)'
+        );
+      }
+    }
   }
 
   // ─── GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN ──────────────────────────

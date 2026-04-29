@@ -4,6 +4,8 @@
 
 **Purpose:** fixed-bottom action button that owns the Submit → Retry / Next state machine for the entire game session. Absorbs PART-022's Submit / Retry / Next lifecycle. Reset remains inline per PART-022.
 
+**Readiness gate requirement (CRITICAL):** When this part is in scope, `waitForPackages` MUST include `typeof FloatingButtonComponent !== 'undefined'` as a hard `&&` term. NEVER `||`. See [`alfred/skills/game-building/reference/mandatory-components.md`](../skills/game-building/reference/mandatory-components.md). Validators: `GEN-WAITFORPACKAGES-NO-OR`, `GEN-WAITFORPACKAGES-MISSING`, `GEN-SLOT-INSTANTIATION-MATCH`. The `new FloatingButtonComponent(...)` call MUST use an attributable catch (`console.error` + `Sentry.captureException`), never a silent `try { ... } catch (e) {}`.
+
 ---
 
 ## Opt-out (`floatingButton: false`)
