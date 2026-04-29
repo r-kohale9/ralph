@@ -37,3 +37,27 @@
   ```
 
 This matches the canonical React `TimerComponent`'s `showInActionBar: true` layout (`src/modules/home/view/activity/Components/Blocks/AllInOne/ComponentV2/components/timer/index.tsx`).
+
+**End-of-game cleanup (MANDATORY):**
+
+The timer must stop ticking the moment the player can no longer interact with the game — i.e. the moment a Victory or Game Over screen appears, or any screen where the core gameplay is complete. The "core game" is over once one of these screens is shown; continuing to tick after `game_complete` is misleading because the player isn't playing any more. Post-game screens (Stars Collected, AnswerComponent carousel, end-of-game transition stack) inherit the same paused state — they are review states, not gameplay.
+
+Apply at every terminal handler (typical names: `showVictory`, `showGameOver`, `endGame`):
+
+```js
+try { if (timer && timer.pause) timer.pause(); } catch (e) {}
+```
+
+Rules:
+
+- Stop the timer **before** calling `transitionScreen.show(...)` for Victory / Game Over.
+- It is NOT enough to put the stop call inside a function literally named `endGame()` if your terminal phase transitions (`showVictory()` / `showGameOver()`) don't route through it. Stop on **every** path that posts `game_complete` or sets `gameState.phase` to `'results'` / `'game_over'`.
+- On **Play Again / Try Again / Replay**, the restart path (`restartGame()` or equivalent) MUST treat the timer like a fresh page load: re-mount or `reset()` + `start()` so the stopwatch begins at 0 again. The whole game restarts — that includes the timer.
+- Pause is also the right method when the visibility tracker fires (background tab); this rule is specifically about end-of-gameplay, not the visibility case.
+
+**Verification:**
+
+- [ ] Timer value visibly stops on the Victory screen (screenshot, wait 3 s, screenshot — value unchanged).
+- [ ] Timer value visibly stops on the Game Over screen (same check).
+- [ ] After Play Again / Try Again, timer resets to `00:00` and resumes ticking on the first round.
+- [ ] Every code path that posts `game_complete` (or sets `gameState.phase` to `'results'` / `'game_over'`) invokes `timer.pause()` first — confirmed by reading the source, not just by checking that a function named `endGame()` contains the call.
