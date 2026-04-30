@@ -243,8 +243,8 @@ Do NOT call `setupGame()` from `restartGame()` if `setupGame()` ends with `showP
 | `skip()` | Skip preview, transition to game state |
 | `setPreviewData(key, value)` | Store user interaction data from preview content |
 | `setStar(visible)` | Runtime toggle of the header star (show/hide). Pass-through to ActionBar. |
-| `setScore(text)` | Runtime score text update (e.g. `"1/10"`). Pass-through to ActionBar. Call on every correct answer / round advance so the header reflects current progress. |
-| `setQuestionLabel(text)` | Runtime question-label update (e.g. `"Q2"`). Pass-through to ActionBar. Call when advancing to a new round. |
+
+**Not part of the public API** (stars-immutable contract): `setScore` and `setQuestionLabel` pass-throughs. The header is mutated only by `game_init` (initial baseline) and `show_star` (numerator increment). See PART-040 and `data-contract/schemas/postmessage-schema.md`.
 | `getState()` | Returns current state: `'idle'`, `'preview'`, or `'game'` |
 | `isActive()` | Returns true while the preview overlay is mounted |
 | `destroy()` | Full cleanup. Call exactly once in the end-of-game teardown — inside the FloatingButton `on('next', ...)` handler, AFTER `next_ended` is posted. `endGame()` wires the handler but MUST NOT call `destroy()` directly, because the preview wrapper (including the ActionBar header + `#previewStar`) must stay mounted while the end-screen star-award animation plays and while the player absorbs results. Per PART-040, the star animation fires on `show_star` postMessage AFTER `endGame()` and relies on the header existing until the player advances. |

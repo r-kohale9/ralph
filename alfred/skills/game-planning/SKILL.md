@@ -230,6 +230,8 @@ For EVERY screen in the flow diagram:
 6. For gameplay screen: define the round presentation sequence (preview, instructions, media, gameplay reveal).
 7. **For the 4 standard transition screens (`game_over`, `motivation`, `victory`, `stars_collected`):** copy the canonical Elements table from `reference/default-transition-screens.md` verbatim. Override a row ONLY when the spec's `## Flow` or content section explicitly specifies different copy (e.g. Victory's subtitle is always game-specific). Do NOT invent alternative titles/buttons/stickers.
 
+**ActionBar header — end-of-game-only.** The platform header (`#previewQuestionLabel` + `#previewScore` + `#previewStar`) is a fixed persistent fixture on every non-Preview wireframe, but it does NOT update mid-game. Stars in the ActionBar represent overall game performance, awarded once via `show_star` at end. Wireframes MUST NOT propose a "running ActionBar score" widget that updates per correct round; MUST NOT propose a custom ActionBar label format like `'L1'` / `'Round 1'` / `'Stage N'` (the format is fixed at `'Q' + N`). Game-internal running counters (fast-tap meters, point tallies, level indicators) belong inside `#gameContent` — render them as a custom status row INSIDE the gameplay area, never in the platform header.
+
 ### Step 4: Derive round-flow.md
 
 For each distinct round type:

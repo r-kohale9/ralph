@@ -48,10 +48,10 @@ new ActionBarComponent({ slotId: 'mathai-preview-slot' });
 | Method | Signature | Called by |
 |---|---|---|
 | `setAvatarSpeaking(bool)` | speaking state | PreviewScreen on audio play / pause / stop |
-| `setStar(visible: boolean)` | runtime star toggle | Games (via `previewScreen.setStar(...)` pass-through) |
-| `setScore(text: string)` | runtime score text update (e.g. "1/10") | Games (via `previewScreen.setScore(...)` pass-through) on every state change |
-| `setQuestionLabel(text: string)` | runtime question-label update (e.g. "Q2") | Games (via `previewScreen.setQuestionLabel(...)` pass-through) on round advance |
+| `setStar(visible: boolean)` | runtime star visibility toggle | Games (via `previewScreen.setStar(...)` pass-through) |
 | `destroy()` | remove `message` listener, cancel star animations, flush queue | PreviewScreen on own `destroy()` |
+
+**Not part of the public API** (stars-immutable contract): `setScore` and `setQuestionLabel`. The header is mutated only by `game_init` (initial baseline) and `show_star` (numerator increment). Validators `GEN-ACTIONBAR-STARS-IMMUTABLE` and `GEN-QUESTION-LABEL-IMMUTABLE` block any direct calls statically.
 
 ## DOM ownership
 
@@ -68,27 +68,30 @@ new ActionBarComponent({ slotId: 'mathai-preview-slot' });
 
 ## Updating header state from game code
 
-Call the pass-through methods on PreviewScreen:
+The ActionBar header is mutated by exactly two paths:
 
-```js
-previewScreen.setQuestionLabel('Q' + gameState.currentRound);
-previewScreen.setScore(gameState.score + '/' + gameState.totalRounds);
-previewScreen.setStar(true);
-```
+1. **`game_init.data.score` / `game_init.data.questionLabel`** — sets the initial baseline. Sent once by the host (or constructed in fallbackContent for standalone runs).
+2. **`show_star.data.count`** — increments the `#previewScore` numerator by `count` after the flying-star animation. The denominator is locked.
 
-These forward to `ActionBarComponent.setScore` / `setQuestionLabel` / `setStar` and mutate the header DOM directly. No messages are posted, so the game's own `handlePostMessage` listener is not re-triggered.
+Games MUST NOT call `previewScreen.setScore(...)` or `previewScreen.setQuestionLabel(...)` — these methods are not part of the public API. Games MUST NOT mutate `#previewScore` / `#previewStar` / `#previewQuestionLabel` directly via DOM APIs — validator `5e0-DOM-BOUNDARY` blocks this.
 
-**Why NOT re-post `game_init` from the game:** the game listens on the same `window` for `{type:'game_init'}` to run `setupGame()`. A re-fire from the game would re-run setup with fallback content and reset state. Games fire `game_init` exactly once — from the host-harness path — and use the direct methods above for all subsequent header updates.
+**Why NOT re-post `game_init` from the game:** the game listens on the same `window` for `{type:'game_init'}` to run `setupGame()`. A re-fire from the game would re-run setup with fallback content and reset state.
 
 ## game_init payload contract (host → game + ActionBar)
 
-ActionBar ALSO listens to `window.message` events for `{ type: 'game_init', data: { questionLabel, score, showStar } }`. Each payload **shallow-merges** into the internal state so partial updates (e.g. `{ score: '2/3' }` alone) don't blank previously-set fields — this is reliability rule R8. This path remains for the host harness (and for demo pages like `usage.html` that have no competing listener) but games should not use it.
+ActionBar listens to `window.message` events for `{ type: 'game_init', data: { questionLabel, score, showStar } }`. Each payload **shallow-merges** into the internal state so partial updates don't blank previously-set fields — reliability rule R8.
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `data.score` | `'X/Y'` string OR `{ x: number, y: number }` | `'0/3'` | Initial baseline of `#previewScore`. `y` is the maximum stars achievable; locked for the session. The object form is normalized to `'x/y'` and clamped (`x ≥ 0`, `y ≥ 1`). String form must match `/^\d+\/\d+$/`; otherwise default applies. |
+| `data.questionLabel` | string matching `/^Q\d+$/` | `'Q1'` | Initial label of `#previewQuestionLabel`. Format is enforced — invalid values log a warning and fall back to `'Q1'`. |
+| `data.showStar` | `boolean` | `true` | Visibility of `#previewStar`. |
 
 ## show_star payload contract
 
-`show_star` is an **intra-frame** message dispatched by the game via `window.postMessage(...)` (NOT `window.parent.postMessage(...)`). It triggers a 1 s flying-star animation that lands on the header star, upgrades `#previewStar` to the awarded tier, and — when a `score` is included — updates `#previewScore` at animation end.
+`show_star` is an **intra-frame** message dispatched by the game via `window.postMessage(...)` (NOT `window.parent.postMessage(...)`). It triggers a 1 s flying-star animation that lands on the header star, upgrades `#previewStar` to the awarded tier, and **increments `#previewScore` numerator by `count`** at animation end.
 
-**Scope — ONCE per game, at the end-of-game celebration only.** Do NOT fire `show_star` on every correct answer. It is the single-shot big-celebration beat, not a per-round effect. Per-round score bumps and question-label updates use `previewScreen.setScore(...)` / `previewScreen.setQuestionLabel(...)` directly (no animation). Firing `show_star` N times in a multi-round game plays N stacked animations and spams the player — regression caught twice in QA (equivalent-ratio-quest, equivalent-ratios).
+**Scope — ONCE per game, at the end-of-game celebration only.** Stars in the ActionBar represent overall game performance, not running progress. Firing `show_star` N times in a multi-round game plays N stacked animations and over-counts the displayed numerator — regression caught twice in QA (equivalent-ratio-quest, equivalent-ratios).
 
 Fire locations:
 - **Standalone** (`totalRounds: 1`): inside `endGame` after all feedback audio completes, before setTimeout reveals Next.
@@ -96,11 +99,9 @@ Fire locations:
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `count` | `1 \| 2 \| 3` | `1` | Picks `star-full.png` / `*_x2.png` / `*_x3.png`. Values outside {1,2,3} are clamped. |
+| `count` | `1 \| 2 \| 3` | `1` | Picks `star-full.png` / `*_x2.png` / `*_x3.png`. Values outside {1,2,3} are clamped to `1`. **Also the increment applied to `#previewScore` numerator** after the animation ends — clamped at the locked denominator. |
 | `variant` | `'yellow' \| 'blue'` | `'yellow'` | Palette family. Yellow matches the static-star default. |
 | `silent` | `boolean` | `false` | Skips the success chime for rapid combos. |
-| `score` | `string` | *undefined → no change* | Applied to `#previewScore` AFTER the 1 s animation finishes. Use this to atomically bump the header count in lockstep with the award — celebration visibly precedes the number change. |
-| `questionLabel` | `string` | *undefined → no change* | Applied to `#previewQuestionLabel` AFTER the animation finishes. Rarely needed here; round advance normally uses `previewScreen.setQuestionLabel(...)` directly. |
 
 Rapid-fire behavior:
 - Identical payloads within 500 ms are **deduped** (swallowed silently) to absorb accidental double-fires.

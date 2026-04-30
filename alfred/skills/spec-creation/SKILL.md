@@ -77,12 +77,23 @@ A structured `spec.md` file with ALL of the following sections. Every section is
 - **retryPreservesInput:** [true | false — default `false`. Applicable only when `Rounds: 1` AND `Lives > 1` (standalone + Try Again reachable). `true` keeps the input value intact after the player taps Try Again; `false` clears it. See PART-050 "Try Again flow". Ignored for multi-round games and for standalone games with Lives = 1.]
 - **autoShowStar:** [true | false — default `true`. When `true`, the generator emits the default `show_star` postMessage at PART-050's canonical end-of-game spot (before `floatingBtn.setMode('next')` in standalone, inside `transitionScreen.onDismiss(...)` in multi-round). Set `false` to suppress the default trigger and fire `show_star` yourself at a custom beat. See PART-050 "Next flow".]
 - **Star rating:** 3 stars = [threshold], 2 stars = [threshold], 1 star = [threshold]
+- **Star denominator (`y`):** [default `3`; only declare if non-default — e.g., `5` for a 5-tier game. Sets the locked denominator of the ActionBar `x/y` display. Sent via `game_init.data.score.y`.]
 - **Input:** [input type(s) with specifics]
 - **Feedback:** [feedback style]
 
+## Stars contract (read before defining scoring)
+
+Stars in the platform ActionBar represent **overall game performance**, awarded once at the end of the game via the `show_star` celebration animation. They are NOT a running counter of correct rounds, current round number, in-game points, or any mid-game progress.
+
+- The ActionBar shows `x/y` where `y` (denominator) is the **maximum stars achievable** (default `3`) and `x` (numerator) starts at `0` and increments only via `show_star` fires (typically a single fire at end-of-game with `count` = the earned star tier).
+- **Only sanctioned write paths:** (1) `game_init.data.score` sets the initial baseline (default `0/3`); (2) `show_star.data.count` increments the numerator. Games cannot mutate the header at runtime — `setScore` and `setQuestionLabel` are not part of the public API.
+- **Stars calculation:** spec MUST declare it. If omitted, default rule: `3★ at ≥ 90% correct`, `2★ at ≥ 60%`, `1★ at ≥ 1 correct`, `0★ at 0 correct`, with `y = 3`. Spec MAY override the calculation (e.g., lives-based, accuracy + speed), but the override must be a deterministic function of end-of-game state.
+- **Game-internal counters** (e.g., a fast-tap meter, live point tally, level indicator) belong in `#gameContent` — not in the platform header. Do NOT plan a "running ActionBar score" widget.
+- **Question label** is fixed at `'Q' + N` (e.g., `'Q1'`). Do NOT propose a custom label format like `'L1'` or `'Round 1'`; game-internal vocabulary lives in `#gameContent`.
+
 ## Scoring
 - Points: [formula, e.g., +1 per correct]
-- Stars: [thresholds as fractions of total rounds]
+- Stars: [thresholds as exact numbers, e.g., "3★ at 9-10 correct, 2★ at 6-8, 1★ at 1-5, 0★ at 0"]
 - Lives: [how lives are lost, what happens at 0]
 - Partial credit: [if applicable, or "None"]
 

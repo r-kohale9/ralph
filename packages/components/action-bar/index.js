@@ -13,7 +13,17 @@
  * narrow setter API for PreviewScreenComponent to drive avatar speaking state
  * and for games to toggle the header star.
  *
- * @version 1.2.0
+ * Stars-immutable contract.
+ *   - Public `setScore` / `setQuestionLabel` are NOT exposed. Games must not
+ *     mutate the header at runtime. Sanctioned write paths only:
+ *       (1) `game_init.data.score`        sets initial "x/y" baseline
+ *       (2) `game_init.data.questionLabel` sets initial label (must match /^Q\d+$/)
+ *       (3) `show_star.data.count`         increments numerator by count
+ *   - `_animateStarAward` increments the numerator (clamped at the locked
+ *     denominator). The `payload.score` and `payload.questionLabel` fields
+ *     on `show_star` are ignored.
+ *   - `data.score` accepts both "X/Y" string and { x, y } object forms.
+ *
  * @license MIT
  */
 
@@ -25,7 +35,6 @@
     return;
   }
 
-  var VERSION = "1.2.0";
   var SPEAKING_AVATAR_URL =
     "https://cdn.homeworkapp.ai/sets-gamify-assets/math-ai-assets/assets/videos/optimized_speaking_avatar.mp4";
   var SILENT_AVATAR_URL =
@@ -130,7 +139,7 @@
     this._preloadStarAssets();
     this._initSentry();
 
-    console.log("[ActionBar] Initialized v" + VERSION);
+    console.log("[ActionBar] Initialized");
   }
 
   // ============================================================
@@ -268,15 +277,42 @@
     this._populateHeaderFromGameInit();
   };
 
+  // Normalize score input to canonical "x/y" string. Accepts:
+  //   - "X/Y" string
+  //   - { x: number, y: number } object
+  //   - falsy → default
+  // Enforces: format ^\d+\/\d+$ (validated against `Q + N` denominator rule
+  // for question labels lives separately).
+  ActionBarComponent.prototype._normalizeScore = function (raw) {
+    if (raw == null || raw === "") return "0/3";
+    if (typeof raw === "object" && typeof raw.x === "number" && typeof raw.y === "number") {
+      var x = Math.max(0, Math.floor(raw.x));
+      var y = Math.max(1, Math.floor(raw.y));
+      return x + "/" + y;
+    }
+    var s = String(raw);
+    if (/^\d+\/\d+$/.test(s)) return s;
+    return "0/3";
+  };
+
+  // Validate question label. Pipeline contract: must match ^Q\d+$.
+  ActionBarComponent.prototype._normalizeQuestionLabel = function (raw) {
+    if (raw == null || raw === "") return "Q1";
+    var s = String(raw);
+    if (/^Q\d+$/.test(s)) return s;
+    console.warn("[ActionBar] Invalid questionLabel '" + s + "' (must match /^Q\\d+$/), defaulting to 'Q1'");
+    return "Q1";
+  };
+
   ActionBarComponent.prototype._populateHeaderFromGameInit = function () {
     var d = this._gameInitData || {};
     if (this._questionLabelEl && d.questionLabel !== undefined) {
-      this._questionLabelEl.textContent = d.questionLabel || "Q1";
+      this._questionLabelEl.textContent = this._normalizeQuestionLabel(d.questionLabel);
     } else if (this._questionLabelEl && !this._questionLabelEl.textContent) {
       this._questionLabelEl.textContent = "Q1";
     }
     if (this._scoreEl && d.score !== undefined) {
-      this._scoreEl.textContent = d.score || "0/3";
+      this._scoreEl.textContent = this._normalizeScore(d.score);
     } else if (this._scoreEl && !this._scoreEl.textContent) {
       this._scoreEl.textContent = "0/3";
     }
@@ -304,17 +340,18 @@
     }
   };
 
-  /**
-   * Runtime score-text update. Preferred over re-posting game_init because
-   * games share the `message` listener with their own game_init handler;
-   * direct method calls avoid that collision.
-   */
-  ActionBarComponent.prototype.setScore = function (text) {
+  // PRIVATE — internal use only. Called from the show_star animation finish
+  // callback to apply the post-animation numerator increment. Games MUST NOT
+  // mutate the header score directly; the only sanctioned write paths are
+  // (1) `game_init.data.score` for the initial baseline and (2) `show_star`
+  // animation which increments the numerator by `count`. Validator rule
+  // GEN-ACTIONBAR-STARS-IMMUTABLE blocks game-side calls statically.
+  ActionBarComponent.prototype._setScoreInternal = function (text) {
     if (this._scoreEl) this._scoreEl.textContent = text == null ? "" : String(text);
     this._gameInitData.score = text;
   };
 
-  ActionBarComponent.prototype.setQuestionLabel = function (text) {
+  ActionBarComponent.prototype._setQuestionLabelInternal = function (text) {
     if (this._questionLabelEl) this._questionLabelEl.textContent = text == null ? "" : String(text);
     this._gameInitData.questionLabel = text;
   };
@@ -358,16 +395,16 @@
     this._starLastKey = key;
     this._starLastFiredAt = now;
 
+    if (payload.score !== undefined) {
+      console.warn("[ActionBar] show_star.data.score is ignored; the numerator increments by `count` automatically.");
+    }
+
     var job = {
       url: resolved.url,
       variant: resolved.variant,
       count: resolved.count,
       silent: payload.silent === true,
-      fromRect: payload.fromRect || null,
-      // Optional header text updates applied AT ANIMATION END so the
-      // celebration visibly precedes the number change (PART-040 v1.2.0+).
-      score: typeof payload.score === "string" || typeof payload.score === "number" ? payload.score : null,
-      questionLabel: typeof payload.questionLabel === "string" ? payload.questionLabel : null
+      fromRect: payload.fromRect || null
     };
 
     if (this._starAnimating) {
@@ -445,10 +482,19 @@
           try { self._starEl.src = job.url; } catch (e) { /* ignore */ }
           if (self._starEl.style.display === "none") self._starEl.style.display = "inline-block";
         }
-        // Apply optional header text updates AFTER the animation ends so the
-        // celebration visibly precedes the number change.
-        if (job.score !== null) self.setScore(job.score);
-        if (job.questionLabel !== null) self.setQuestionLabel(job.questionLabel);
+        // Increment the numerator by `count` AFTER the animation ends so the
+        // celebration visibly precedes the number change. Denominator (`y`)
+        // is locked by `game_init.data.score`; only `x` mutates here.
+        if (self._scoreEl && job.count > 0) {
+          var currentText = self._scoreEl.textContent || "0/3";
+          var m = /^(\d+)\/(\d+)$/.exec(currentText.trim());
+          if (m) {
+            var nextX = Math.min(parseInt(m[1], 10) + job.count, parseInt(m[2], 10));
+            self._setScoreInternal(nextX + "/" + m[2]);
+          } else {
+            console.warn("[ActionBar] Score text '" + currentText + "' does not match x/y; skipping increment.");
+          }
+        }
         self._starAnimating = false;
         var next = self._starQueue.shift();
         if (next) self._runStarAnimation(next);
@@ -600,7 +646,7 @@
     this._sentryReady = true;
 
     try {
-      Sentry.setTag("action_bar_version", VERSION);
+      Sentry.setTag("action_bar_version", "current");
     } catch (e) { /* ignore */ }
 
     for (var i = 0; i < this._sentryQueue.length; i++) {
@@ -619,7 +665,7 @@
       Sentry.captureException(err, {
         tags: {
           component: "action_bar",
-          action_bar: VERSION,
+          action_bar: "current",
           game_id: (context && context.game_id) || "unknown",
           play_id: (context && context.play_id) || "unknown"
         },
@@ -637,5 +683,5 @@
   window.ActionBarComponent = ActionBarComponent;
   window.ActionBar = ActionBarComponent;
 
-  console.log("[MathAI] ActionBarComponent v" + VERSION + " loaded");
+  console.log("[MathAI] ActionBarComponent loaded");
 })(window);

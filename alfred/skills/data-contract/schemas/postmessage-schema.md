@@ -93,28 +93,35 @@ For a **standalone game with N evaluated answers** (`totalRounds: 1`, multiple a
 
 When the spec declares `answerComponent: false`, the field is unused (and may be omitted) — validator rules in the `GEN-ANSWER-COMPONENT-*` group auto-skip. **`answerComponent: false` is a CREATOR-ONLY opt-out per PART-051; no LLM step may auto-default it.** Spec-creation MUST default `answerComponent` to `true` silently; spec-review FAILs any spec setting `false` without quoted creator opt-out (check H5); build MUST NOT mutate spec.md to silence the validator.
 
+### game_init.data.score and game_init.data.questionLabel
+
+The ActionBar header is **state-driven by `game_init` only**. The denominator (`y` in `x/y`) and the question label are locked at boot and cannot be mutated at runtime by game code.
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `data.score` | `'X/Y'` string OR `{ x: number, y: number }` | `'0/3'` (or `'0/' + totalRounds` if you set `y`) | Initial baseline of `#previewScore`. **`y` is locked for the session** — `show_star` increments only the numerator `x`. Set `y` to the maximum stars achievable (typically `3`). |
+| `data.questionLabel` | `string` matching `/^Q\d+$/` | `'Q1'` | Initial label of `#previewQuestionLabel`. Format is enforced (validator `GEN-QUESTION-LABEL-FORMAT`) — game-internal vocabulary like "Level N" / "Round N" / "Stage N" goes in `#gameContent`, never in the platform header. |
+| `data.showStar` | `boolean` | `true` | Visibility of `#previewStar`. |
+
+Games MUST NOT call `previewScreen.setScore(...)` or `previewScreen.setQuestionLabel(...)` — these methods are not part of the public API. Validator rules `GEN-ACTIONBAR-STARS-IMMUTABLE` and `GEN-QUESTION-LABEL-IMMUTABLE` block any such calls statically.
+
 ### show_star (PART-040) — intra-frame star-award animation
 
-A game-triggered postMessage consumed by the ActionBar in the **same window** (not the host). Fires the flying-star animation, plays the award chime, and upgrades the static `#previewStar` image to the awarded tier.
+A game-triggered postMessage consumed by the ActionBar in the **same window** (not the host). Fires the flying-star animation, plays the award chime, upgrades the static `#previewStar` image to the awarded tier, and **increments the `#previewScore` numerator by `count`** after the 1 s animation finishes (so the celebration visibly precedes the number change).
 
 ```javascript
-// Default 1 yellow star
-window.postMessage({ type: 'show_star' }, '*');
+// 1 yellow star — numerator goes from x → x+1
+window.postMessage({ type: 'show_star', data: { count: 1 } }, '*');
 
-// 2 blue stars, no sound
-window.postMessage({
-  type: 'show_star',
-  data: { count: 2, variant: 'blue', silent: true }
-}, '*');
+// 3 yellow stars at end-of-game — numerator goes from x → x+3 (clamped at y)
+window.postMessage({ type: 'show_star', data: { count: 3 } }, '*');
 ```
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `data.count` | `1 \| 2 \| 3` | `1` | Tier of the awarded star image. |
+| `data.count` | `1 \| 2 \| 3` | `1` | Tier of the awarded star image. **Also the increment applied to `#previewScore` numerator** after the animation ends. The numerator is clamped at the denominator `y` (set by `game_init.data.score`). |
 | `data.variant` | `'yellow' \| 'blue'` | `'yellow'` | Palette family. |
 | `data.silent` | `boolean` | `false` | Skip the success chime. |
-| `data.score` | `string` | *omitted → header unchanged* | Applied to `#previewScore` AFTER the 1 s animation ends — atomically bumps the header count in lockstep with the award. Use `gameState.score + '/' + gameState.totalRounds`. |
-| `data.questionLabel` | `string` | *omitted → header unchanged* | Applied to `#previewQuestionLabel` after the animation ends. Rarely used here — round advance normally calls `previewScreen.setQuestionLabel(...)` directly. |
 
 **Target matters.** `show_star` uses `window.postMessage(...)` because the ActionBar listens in the same frame as the game. `game_complete` / `next_ended` / `WORKSHEET_BACK` use `window.parent.postMessage(...)` because they target the host. Mixing the two targets is the most common mistake:
 
@@ -130,6 +137,8 @@ window.postMessage({
 ActionBar dedupes identical payloads within 500 ms and queues distinct ones (up to 3 deep), so over-firing is safe.
 
 **Default trigger points (generator-emitted).** The generator fires `show_star` automatically at PART-050's end-of-game spot — before `floatingBtn.setMode('next')` in standalone, inside `transitionScreen.onDismiss` in multi-round. Set `spec.autoShowStar: false` to suppress the default and fire it manually at a custom beat (e.g. from a button's `action()` callback).
+
+**Stars contract.** Stars in the ActionBar represent overall game performance, not running progress. Default firing pattern: ONE `show_star` at end-of-game with `count` = 0–3 derived from `getStars()`. Multi-beat awards (e.g., one star per cleared phase) are allowed but each fire still increments the same locked-denominator counter.
 
 ### previewResult field (PART-039)
 

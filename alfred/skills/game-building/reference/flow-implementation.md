@@ -81,7 +81,7 @@ The reset itself is universal; *where* you place the `update(0, totalLives)` cal
 
 ## Round loop pattern
 
-**Default progression policy — "rounds attempted", bump just before round change.** `state.progress` increments after the round's feedback completes, regardless of correct/wrong, **immediately before the round-change UI fires** (next `showRoundIntro` render, Victory transition, or Game Over transition). The bar visibly advances *as the round changes*, not as the student submits. Wrong answers also decrement `livesLeft`; if lives hit 0 the game ends via `showGameOver()` BEFORE the next round renders. The header `previewScreen.setScore(...)` continues to track *correct* answers (separate counter, separate update site).
+**Default progression policy — "rounds attempted", bump just before round change.** `state.progress` increments after the round's feedback completes, regardless of correct/wrong, **immediately before the round-change UI fires** (next `showRoundIntro` render, Victory transition, or Game Over transition). The bar visibly advances *as the round changes*, not as the student submits. Wrong answers also decrement `livesLeft`; if lives hit 0 the game ends via `showGameOver()` BEFORE the next round renders. `state.score` (correct count) is tracked separately and feeds `getStars()` at end-of-game — it does NOT update the ActionBar header mid-round (the header is end-of-game-only).
 
 **Visual sequence per round:**
 1. Student submits → feedback plays (sound + sticker, ~1.5–2 s) → bar still shows previous progress
@@ -101,20 +101,18 @@ async function startGame() {
   });
   await showWelcome();  // transition, tap "I'm ready"
   progressBar.show(); progressBar.update(0, totalLives);  // ← start-at-0 invariant
-  // Seed the ActionBar header — PART-040 expects direct method calls,
-  // NOT re-posting game_init (which would re-trigger setupGame()).
-  previewScreen.setQuestionLabel('Q1');
-  previewScreen.setScore('0/' + totalRounds);
+  // ActionBar header is locked at boot via game_init.data.score / .questionLabel.
+  // Games MUST NOT call previewScreen.setScore(...) / .setQuestionLabel(...) —
+  // these methods are not part of the public API. Stars in the header are an
+  // end-of-game performance representation, not a running counter.
   for (let i = 1; i <= totalRounds; i++) {
     state.round = i;
-    previewScreen.setQuestionLabel('Q' + i);
     await showRoundIntro(i);                // transition, auto-advance on sound end
     progressBar.update(state.progress, state.livesLeft);
     const verdict = await renderRoundAndWaitForSubmit(i);
-    // 1. State mutations (score / lives) — header refresh now (no animation)
+    // 1. State mutations (score / lives) — internal counters only, no header refresh
     if (verdict.correct) {
-      state.score++;                        // score = correct count (header)
-      previewScreen.setScore(state.score + '/' + totalRounds);
+      state.score++;                        // score = correct count, feeds getStars() at end
     } else {
       state.livesLeft--;
     }
@@ -128,34 +126,43 @@ async function startGame() {
     // (loop continues — next iteration's showRoundIntro is the round-change UI)
   }
   await showVictory();   // bar already at totalRounds/totalRounds from the last bump above
+  // End-of-game: fire show_star ONCE with count = getStars() — increments
+  // ActionBar numerator from 0 → final star tier.
+  window.postMessage({ type: 'show_star', data: { count: getStars(), variant: 'yellow' } }, '*');
 }
 ```
 
 **Two counters, two update sites:**
 - `state.progress` — rounds attempted (0 → totalRounds) — drives `progressBar.update()`
-- `state.score` — rounds correct (0 → totalRounds) — drives `previewScreen.setScore()` and is what `getStars()` evaluates
+- `state.score` — rounds correct (0 → totalRounds) — feeds `getStars()` at end-of-game
 
-Do NOT collapse these. The progress bar is "where am I"; the header score is "how am I doing". A student on round 10 with 7 correct sees `Round 10/10` on the bar AND `7/10` in the header — both correct, both readable.
+Do NOT collapse these. The progress bar is "where am I"; the ActionBar stars are "how did I do overall". A student on round 10 with 7 correct sees `Round 10/10` on the progress bar mid-game; the ActionBar stays at `0/3` until the final `show_star` celebration awards the earned stars.
 
 **Alternative policies (only when spec explicitly opts in):** "rounds correct", "points earned", "section progress", "tiles cleared". Document the chosen metric in the spec's `## Flow` section and adjust the increment site accordingly. **The default for any rounds-based game is "rounds attempted" — never invent a custom policy without spec authorization.**
 
-## ActionBar header state updates — MANDATORY
+## ActionBar header state updates — STARS-IMMUTABLE CONTRACT
 
-The header's `#previewScore` and `#previewQuestionLabel` text are state-driven — games MUST refresh them on every progression change. Mid-round updates use direct `previewScreen.setScore(...)` / `previewScreen.setQuestionLabel(...)` (no animation). The `show_star` flying-star animation is reserved for the ONE end-of-game celebration beat — firing it per round plays the animation N times in a row and spams the player (equivalent-ratio-quest + equivalent-ratios regressions).
+The header `#previewScore` and `#previewQuestionLabel` are **locked at boot** by `game_init`. Games MUST NOT mutate them at runtime — `setScore` and `setQuestionLabel` are not part of the public API. Stars in the ActionBar represent overall game performance, not running progress.
 
-| Moment | Call | Animation? |
+| Moment | Path | Animation? |
 |---|---|---|
-| After `previewScreen` is instantiated (in `startGameAfterPreview`) | `previewScreen.setQuestionLabel('Q1')` + `previewScreen.setScore('0/' + totalRounds)` | No |
-| Round advance (new round begins, multi-round) | `previewScreen.setQuestionLabel('Q' + gameState.currentRound)` | No |
-| Correct answer evaluated mid-round (score bumps) | `previewScreen.setScore(gameState.score + '/' + totalRounds)` | No |
-| Non-award score mutation (penalty, undo) | `previewScreen.setScore(gameState.score + '/' + totalRounds)` | No |
-| **End-of-game celebration (once per session)** | `window.postMessage({type:'show_star', data:{count, variant:'yellow', score: gameState.score + '/' + totalRounds}}, '*')` | **Yes** — `score` applied AFTER the 1 s flying-star animation |
+| Boot (host fires `game_init`, or fallback) | `data.score: '0/3'` or `{ x: 0, y: 3 }` + `data.questionLabel: 'Q1'` | No (sets baseline) |
+| Mid-round | **No header update.** `state.score` accumulates internally. ActionBar shows `0/y` throughout gameplay. | — |
+| **End-of-game celebration (once per session)** | `window.postMessage({type:'show_star', data:{count: getStars(), variant:'yellow'}}, '*')` | **Yes** — numerator increments by `count` AFTER the 1 s animation |
 
-**Never fire `game_init` from game code to update these fields.** Games already have a `handlePostMessage` listener that processes `game_init` by calling `setupGame()` — a re-fire would reset state with fallback content. The direct methods + end-of-game show_star mutate header DOM in-process and bypass the message bus.
+**Never fire `game_init` from game code to update these fields.** Games already have a `handlePostMessage` listener that processes `game_init` by calling `setupGame()` — a re-fire would reset state with fallback content.
 
-**Never fire `show_star` per round.** It is a one-time end-of-game celebration, not a per-correct-answer effect. If you need a per-round score bump, use `previewScreen.setScore(...)` directly.
+**Never fire `show_star` per round.** It is a one-time end-of-game celebration; the numerator increments automatically by `count`. Multi-fire stacks the flying-star animation N times and over-counts the displayed stars.
 
-**Validator gates:** `GEN-HEADER-REFRESH` errors if the header never updates. `GEN-SHOW-STAR-ONCE` errors if `show_star` is fired more than once.
+**Question label format is `Q + N`.** Game-internal vocabulary like "Level N" / "Round N" / "Stage N" goes in `#gameContent`, never in the platform header.
+
+**Validator gates:**
+- `GEN-ACTIONBAR-STARS-IMMUTABLE` — fails on any `.setScore(` call.
+- `GEN-QUESTION-LABEL-IMMUTABLE` — fails on any `.setQuestionLabel(` call.
+- `GEN-QUESTION-LABEL-FORMAT` — fails if a `questionLabel:` literal doesn't match `/^Q\d+$/`.
+- `GEN-SHOW-STAR-ONCE` — fails if `show_star` fires more than once.
+- `GEN-SHOW-STAR-REQUIRED` — fails if a PreviewScreen+FloatingButton game has no `show_star` with `count`.
+- `5e0-DOM-BOUNDARY` — fails on direct DOM access to `#previewScore` / `#previewStar` / `#previewQuestionLabel`.
 
 ## End-of-game star-award animation (`show_star`) — MANDATORY
 

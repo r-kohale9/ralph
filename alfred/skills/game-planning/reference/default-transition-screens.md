@@ -7,6 +7,38 @@ Rule of application:
 - **Strings** (title, subtitle, button labels) are the defaults listed here; replaced ONLY if the spec's `## Flow` or the Elements table explicitly specifies different copy.
 - **Audio ids** are the defaults; replaced only if the spec or feedback plan names different sounds.
 
+## FloatingButton ownership per screen
+
+The Next CTA contract is split between in-card buttons and the FloatingButton. Get this wrong and you either (a) double-up Next surfaces (player taps card-Next, then floating-Next, confused which fires `next_ended`) or (b) strip required in-card buttons and break the documented end-of-flow loop.
+
+| Screen | In-card `buttons:` | FloatingButton state on entry |
+|---|---|---|
+| Welcome | `[{text: "Let's go!", action: showRoundIntro(1)}]` | `setMode('hidden')` |
+| Round Intro | `[]` (auto-resolves after audio) | `setMode('hidden')` |
+| Game Over | `[{text: "Try Again", action: showMotivation}]` | `setMode('hidden')` |
+| Motivation | `[{text: "I'm ready! 🙌", action: restartGame}]` | `setMode('hidden')` |
+| **Victory** | `stars === 3` → `[Claim Stars]`<br>`stars < 3` → `[Play Again, Claim Stars]` | `setMode('hidden')` |
+| Stars Collected | `[]` (persist; dismisses via FloatingButton OR setTimeout to AnswerComponent) | `answerComponent: true` → still hidden, set in `showAnswerCarousel`<br>`answerComponent: false` → `setMode('next')` in `onMounted` after audio |
+| AnswerComponent reveal (not a TS) | n/a | `setMode('next')` — the only place navigation-verb Next lives |
+
+**Rules:**
+- In-card buttons own SEMANTIC end-game ACTIONS: `Play Again`, `Claim Stars`, `Try Again`, `I'm ready`, `Let's go`, `Skip`. These name a destination/branch.
+- FloatingButton owns NAVIGATION VERBS: `Next`, `Continue`, `Done`, `Finish`. These advance the lifecycle.
+- `floatingBtn.setMode('hidden')` MUST be called before `transitionScreen.show()` for Victory / Game Over / Motivation. Enforced by `GEN-FLOATING-BUTTON-LIFECYCLE`.
+- Putting a navigation verb (`Next` etc.) inside any TS button is forbidden by `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN`.
+- Stripping the Victory `buttons:` array (e.g. `buttons: []` + `onDismiss` workaround) is forbidden by `GEN-VICTORY-BUTTONS-REQUIRED`.
+
+## Game shape: when these screens apply
+
+| Shape | totalRounds | totalLives | Game Over? | Victory? | Stars Collected? | Notes |
+|---|---|---|---|---|---|---|
+| Multi-round, lives | > 1 | > 0 | yes | yes | yes | Full chain. Default. |
+| Multi-round, no lives | > 1 | 0 | no | yes | yes | Skip Game Over → Motivation path; <3★ Victory still has Play Again. |
+| Standalone, lives | 1 | > 0 | inline panel | inline panel | inline panel | TransitionScreen FORBIDDEN (`GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN`). End-flow is `#gameContent` panel + `floatingBtn.setMode('next')`. |
+| Standalone, no lives | 1 | 0 | n/a | inline panel | inline panel | Same — no TransitionScreen. |
+
+Standalone games skip ALL end-of-flow TransitionScreens. The remaining sections of this doc apply to multi-round games only.
+
 ## 1. Game Over
 
 Shown when `gameState.lives` decrements to 0 during gameplay.
@@ -58,6 +90,30 @@ Shown when the last round is cleared with `lives >= 1`.
 | `onMounted` | `FeedbackManager.sound.play('sound_game_victory', { sticker: STICKER_CELEBRATE })` |
 
 Spec may override: subtitle (always game-specific), onMounted sound id.
+
+**FloatingButton state:** `floatingBtn.setMode('hidden')` MUST be called before `transitionScreen.show(...)` for Victory. The in-card buttons (`Play Again` / `Claim Stars`) own routing — they are SEMANTIC ACTIONS, not navigation verbs, so they do NOT trigger `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN`. Stripping the `buttons:` array to silence that rule is itself a violation (`GEN-VICTORY-BUTTONS-REQUIRED`). The `onDismiss` callback MUST NOT be used as a substitute for the `buttons:` array — Victory dismisses via explicit button taps only, never tap-anywhere.
+
+**Canonical code shape:**
+```js
+async function showVictory() {
+  try { floatingBtn.setMode('hidden'); } catch (e) {}
+  const stars = gameState.stars;
+  const buttons = stars === 3
+    ? [{ text: 'Claim Stars', type: 'primary', action: showStarsCollected }]
+    : [
+        { text: 'Play Again', type: 'secondary', action: showMotivation },
+        { text: 'Claim Stars', type: 'primary', action: showStarsCollected }
+      ];
+  await transitionScreen.show({
+    stars, title: 'Victory 🎉', subtitle: getVictorySubtitle(),
+    buttons, persist: true,
+    onMounted: () => {
+      postGameComplete();                          // BEFORE audio (data-contract rule)
+      FeedbackManager.sound.play('sound_game_victory', { sticker: STICKER_CELEBRATE });
+    }
+  });
+}
+```
 
 ## 4. Stars Collected
 

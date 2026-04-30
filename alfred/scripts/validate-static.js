@@ -3144,8 +3144,9 @@ if (hasStartGame) {
   // ─── GEN-SHOW-STAR-ONCE ───────────────────────────────────────────────────
   // show_star is the end-of-game flying-star celebration — a single-shot beat,
   // not a per-round effect. Firing it on every correct answer plays N stacked
-  // animations in a multi-round game and spams the player. Per-round score
-  // bumps belong in `previewScreen.setScore(...)` (direct, no animation).
+  // animations in a multi-round game and spams the player. The numerator of
+  // `#previewScore` (x of x/y) is incremented automatically by ActionBar
+  // when show_star fires; there is no separate per-round score-bump path.
   const showStarRe = /type\s*:\s*['"]show_star['"]/g;
   const showStarMatches = html.match(showStarRe) || [];
   if (showStarMatches.length > 1) {
@@ -3161,55 +3162,12 @@ if (hasStartGame) {
       'ERROR [GEN-SHOW-STAR-ONCE]: `show_star` postMessage found ' + showStarMatches.length + ' times — ' +
         'it must fire EXACTLY ONCE per game session, at the end-of-game celebration beat, not on every correct answer. ' +
         'Call sites near lines: ' + lineNumbers + '. ' +
-        'Per-round score bumps MUST use `previewScreen.setScore(gameState.score + "/" + gameState.totalRounds)` — ' +
-        'direct method, no animation. Reserve the show_star flying-star animation for the ONE end-of-game beat ' +
+        'Stars in the ActionBar represent overall game performance, not running progress. ' +
+        'Reserve the show_star flying-star animation for the ONE end-of-game beat ' +
         '(standalone: inside endGame, after all feedback audio; multi-round: inside the victory / stars-collected ' +
         'TransitionScreen\'s onMounted or onDismiss, after celebration audio). ' +
-        '(PART-040 "show_star payload contract", code-patterns.md "ActionBar header refresh", GEN-SHOW-STAR-ONCE)'
+        '(PART-040 "show_star payload contract", GEN-SHOW-STAR-ONCE)'
     );
-  }
-
-  // ─── GEN-HEADER-REFRESH ───────────────────────────────────────────────────
-  // PART-040 v1.2.0 makes the ActionBar header state-driven: #previewScore and
-  // #previewQuestionLabel only update when the game tells them to. Without
-  // these calls the header stays on its boot value forever (e.g. "0/3") even
-  // after the student answers correctly, and the star-award animation's
-  // landing-tier swap is the only visible change.
-  //
-  // Heuristic: if PreviewScreenComponent is in use AND FloatingButton is in
-  // use (i.e. real gameplay, not a demo shell), require at least one of:
-  //   - `previewScreen.setScore(` somewhere in source (direct method path)
-  //   - A show_star postMessage whose data object contains `score:` (the
-  //     animation-end atomic path introduced with PART-040 v1.2.0's score
-  //     payload extension)
-  // Either is sufficient. Games that use both are fine.
-  const usesPreviewScreen = /new\s+PreviewScreenComponent\b|previewScreen\s*=/.test(html);
-  const usesFloatingBtn = /new\s+FloatingButtonComponent\b/.test(html);
-  if (usesPreviewScreen && usesFloatingBtn) {
-    const callsSetScore = /previewScreen\s*\.\s*setScore\s*\(/.test(html);
-    const showStarHasScore = /type\s*:\s*['"]show_star['"][\s\S]{0,400}\bscore\s*:/.test(html);
-    if (!callsSetScore && !showStarHasScore) {
-      errors.push(
-        'ERROR [GEN-HEADER-REFRESH]: ActionBar header score never updates. ' +
-          'The header `#previewScore` is state-driven (PART-040 v1.2.0+) — without a ' +
-          '`previewScreen.setScore(...)` call OR a `score:` field inside the show_star ' +
-          'postMessage payload, the score stays on its boot value forever even when the ' +
-          'student answers correctly. ' +
-          'Fix (pick ONE): ' +
-          '(A) Inside the correct-answer path, fire ' +
-          '`window.postMessage({type:"show_star", data:{count, variant:"yellow", ' +
-          'score: gameState.score + "/" + gameState.totalRounds}}, "*")` — the score ' +
-          'is applied AFTER the 1s animation finishes, so the celebration precedes the ' +
-          'number change. OR ' +
-          '(B) Call `previewScreen.setScore(gameState.score + "/" + gameState.totalRounds)` ' +
-          'directly in the correct-answer handler (updates immediately). ' +
-          'Also seed the initial header state once from startGameAfterPreview(): ' +
-          '`previewScreen.setQuestionLabel("Q1"); previewScreen.setScore("0/" + gameState.totalRounds);`. ' +
-          'DO NOT re-post game_init from game code — the game\'s own handlePostMessage ' +
-          'would re-run setupGame() with fallback content. ' +
-          '(PART-040 "Updating header state from game code", GEN-HEADER-REFRESH)'
-      );
-    }
   }
 
   // ─── GEN-ROUND-BOUNDARY-STOP ──────────────────────────────────────────────
@@ -3924,7 +3882,7 @@ if (styleBlocks.length === 0) {
           'so the bar renders "Round 1/N" before round 1 is played. ' +
           'Fix: track a progression counter in state that starts at 0 (e.g. gameState.progress = 0), ' +
           'bump it on EVERY round attempted (correct OR wrong — default policy is "rounds attempted", NOT "rounds correct" — so a 10-round game ends with the bar showing 10/10 even if some rounds were answered wrong), and pass that variable directly to update(). ' +
-          'Score (correct count) is a SEPARATE counter on gameState.score that drives previewScreen.setScore() — do NOT use it for the progress bar. ' +
+          'Score (correct count) is a SEPARATE counter on gameState.score that drives the end-of-game show_star count — do NOT use it for the progress bar. ' +
           'See alfred/skills/game-building/reference/code-patterns.md § Round-complete handler and alfred/parts/PART-023.md.'
       );
     }
@@ -4853,6 +4811,101 @@ if (/new\s+Audio\s*\(/.test(html)) {
 //   GEN-ANSWER-COMPONENT-NOT-IN-PREVIEW   — .show() not gated by previewScreen.isActive() === true
 //   GEN-ANSWER-COMPONENT-DESTROY          — .destroy() called from cleanup path
 //   GEN-ANSWER-COMPONENT-SLIDE-SHAPE      — slides[] use `render` callback only (no html / element keys)
+// ─── ActionBar stars-immutable contract ──────────────────────────────
+//   GEN-ACTIONBAR-STARS-IMMUTABLE  — game code must not call .setScore(...)
+//   GEN-QUESTION-LABEL-IMMUTABLE   — game code must not call .setQuestionLabel(...)
+//   GEN-QUESTION-LABEL-FORMAT      — questionLabel literals must match /^Q\d+$/
+//   GEN-SHOW-STAR-REQUIRED         — PreviewScreen+FloatingButton game must fire show_star with count
+(function checkActionBarStarsImmutable() {
+  // GEN-ACTIONBAR-STARS-IMMUTABLE
+  const setScoreRe = /\.\s*setScore\s*\(/g;
+  const setScoreMatches = [];
+  let m;
+  while ((m = setScoreRe.exec(html)) !== null) setScoreMatches.push(m.index);
+  if (setScoreMatches.length > 0) {
+    const lines = setScoreMatches.slice(0, 5).map((o) => html.slice(0, o).split('\n').length).join(', ');
+    errors.push(
+      'ERROR [GEN-ACTIONBAR-STARS-IMMUTABLE]: game code calls .setScore(...) — found ' +
+        setScoreMatches.length + ' call(s) near lines: ' + lines + '. ' +
+        'setScore is not part of the ActionBar public API (stars-immutable contract). ' +
+        'The header score is mutated only by (1) `game_init.data.score` for the initial ' +
+        'baseline, or (2) the `show_star` animation which increments the numerator by ' +
+        '`count`. Stars represent overall game performance, not running progress. ' +
+        'Fix: remove all setScore() calls. Seed the baseline by including ' +
+        '`data: { score: { x: 0, y: maxStars } }` in your game_init payload (or rely on ' +
+        'the default "0/3"). Increment via show_star at the end-of-game celebration only. ' +
+        '(PART-040 "Stars-immutable contract", GEN-ACTIONBAR-STARS-IMMUTABLE)'
+    );
+  }
+
+  // GEN-QUESTION-LABEL-IMMUTABLE
+  const setQLabelRe = /\.\s*setQuestionLabel\s*\(/g;
+  const setQLabelMatches = [];
+  let m2;
+  while ((m2 = setQLabelRe.exec(html)) !== null) setQLabelMatches.push(m2.index);
+  if (setQLabelMatches.length > 0) {
+    const lines = setQLabelMatches.slice(0, 5).map((o) => html.slice(0, o).split('\n').length).join(', ');
+    errors.push(
+      'ERROR [GEN-QUESTION-LABEL-IMMUTABLE]: game code calls .setQuestionLabel(...) — found ' +
+        setQLabelMatches.length + ' call(s) near lines: ' + lines + '. ' +
+        'ActionBar removed the public setQuestionLabel method. The label is owned ' +
+        'by `game_init.data.questionLabel` (must match /^Q\\d+$/, default "Q1") and cannot ' +
+        'be mutated at runtime. ' +
+        'Fix: remove all setQuestionLabel() calls. Pass the desired label through ' +
+        '`game_init.data.questionLabel` from the host, or rely on the component default ' +
+        '"Q1". Note: the platform action-bar label is always "Q + integer" — game-internal ' +
+        'concepts like "Level N" belong in `#gameContent`, not in the platform header. ' +
+        '(PART-040, GEN-QUESTION-LABEL-IMMUTABLE)'
+    );
+  }
+
+  // GEN-QUESTION-LABEL-FORMAT
+  const labelLiteralRe = /questionLabel\s*:\s*['"]([^'"]+)['"]/g;
+  const violations = [];
+  let m3;
+  while ((m3 = labelLiteralRe.exec(html)) !== null) {
+    if (!/^Q\d+$/.test(m3[1])) {
+      violations.push({ value: m3[1], offset: m3.index });
+    }
+  }
+  if (violations.length > 0) {
+    const detail = violations.slice(0, 5).map((v) => {
+      const line = html.slice(0, v.offset).split('\n').length;
+      return '"' + v.value + '" (line ' + line + ')';
+    }).join(', ');
+    errors.push(
+      'ERROR [GEN-QUESTION-LABEL-FORMAT]: questionLabel must match /^Q\\d+$/. ' +
+        'Found ' + violations.length + ' violation(s): ' + detail + '. ' +
+        'The platform ActionBar label format is fixed — "Q1", "Q2", etc. Game-internal ' +
+        'vocabulary (Level, Round, Stage) belongs in #gameContent, not in the platform ' +
+        'header. ' +
+        '(PART-040, GEN-QUESTION-LABEL-FORMAT)'
+    );
+  }
+
+  // GEN-SHOW-STAR-REQUIRED
+  const usesPreviewScreen = /new\s+PreviewScreenComponent\b|previewScreen\s*=/.test(html);
+  const usesFloatingBtn = /new\s+FloatingButtonComponent\b/.test(html);
+  if (usesPreviewScreen && usesFloatingBtn) {
+    const showStarWithCount = /type\s*:\s*['"]show_star['"][\s\S]{0,400}\bcount\s*:/.test(html);
+    if (!showStarWithCount) {
+      errors.push(
+        'ERROR [GEN-SHOW-STAR-REQUIRED]: PreviewScreen + FloatingButton game has no ' +
+          '`show_star` postMessage with a numeric `count`. Without one, the ActionBar ' +
+          'header numerator never advances and the player never earns stars. ' +
+          'Fix: at the end-of-game celebration beat (standalone: inside endGame after ' +
+          'all feedback audio; multi-round: inside the victory / stars-collected ' +
+          'TransitionScreen onMounted), fire ' +
+          '`window.postMessage({type:"show_star", data:{count: getStars(), variant:"yellow"}}, "*")`. ' +
+          'The numerator of #previewScore increments by `count` automatically. ' +
+          'Also include `data: { score: { x: 0, y: maxStars } }` in your game_init ' +
+          'payload to set the denominator (default "0/3"). ' +
+          '(PART-040 "Stars-immutable contract", GEN-SHOW-STAR-REQUIRED)'
+      );
+    }
+  }
+})();
+
 (function checkAnswerComponent() {
   // Spec opt-out short-circuits ALL rules in this block, regardless of whether
   // the source still references the component.

@@ -4,6 +4,26 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 
 ---
 
+## Victory buttons stripped to silence FloatingButton-TS-CTA rule (2026-04-29 — cross-logic, bodmas-blitz, doubles)
+
+**Lesson L-VICTORY-001: `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN` reserved-word list incorrectly included `Play Again`** | Source: cross-logic Step 5 RCA 2026-04-29; bodmas-blitz 2026-04-23 regression; doubles (suspected)
+
+Three sub-agent regressions across two weeks all traced to the same pipeline contradiction. The default Victory template (`alfred/skills/game-planning/reference/default-transition-screens.md` § 3) requires `[Play Again, Claim Stars]` for `<3★` and `[Claim Stars]` for `3★`. The validator rule `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN` then flagged `text: 'Play Again'` because the reserved-word list grouped it with navigation verbs (`Next | Continue | Done | Finish | Go to Next | Play Again`). Sub-agents read the validator error literally and chose the easy fix: strip ALL Victory buttons (`buttons: []`), wire `transitionScreen.onDismiss(...) → showStarsCollected`. Side effects: (a) `Play Again` branch unreachable — `<3★` runs go straight to Stars Collected with no retry option, killing the documented motivation/restart loop; (b) tap-anywhere dismiss replaces explicit-button dismiss, deviating from the canonical Victory template; (c) `floatingBtn.setMode('next')` named in the workaround comment but not actually wired in `showVictory` (cross-logic example) — the FloatingButton was never re-shown after Victory dismissed.
+
+Root cause was the reserved-word list conflating two semantically distinct categories:
+- **Navigation verbs** — `Next`, `Continue`, `Done`, `Finish`, `Go to Next`, `Skip Forward`. These advance the lifecycle by one step. They are FloatingButton's job. Putting them on a TS card creates the documented double-Next UX (player taps card-Next, sees floating-Next at the bottom, can't tell which fires `next_ended`).
+- **Semantic end-game actions** — `Play Again`, `Claim Stars`, `Try Again`, `I'm ready`, `Let's go`, `Skip`. These name a destination/branch (route to `showMotivation`, `showStarsCollected`, `restartGame`). They belong on TS cards.
+
+Fix landed 2026-04-29: (1) Removed `Play Again` from the navigation-verb reserved list in `lib/validate-static.js` (`GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN`). The list now contains navigation verbs only. (2) Added new positive rule `GEN-VICTORY-BUTTONS-REQUIRED` that fires when a `transitionScreen.show({...title: /Victory/i...})` call is missing a `Claim Stars` button, OR is missing `Play Again` while branching on `gameState.stars` / `showMotivation` exists. Catches the strip-and-onDismiss regression directly. (3) Added `GEN-FLOATING-BUTTON-LIFECYCLE` requiring `floatingBtn.setMode('hidden')` (or `.destroy()`) within ±25 lines of any Victory / Game Over / Motivation `transitionScreen.show()` — Victory's in-card buttons can't compete with a stale submit-mode floating button.
+
+Companion doc updates: `alfred/skills/game-planning/reference/default-transition-screens.md` got a new top-level "FloatingButton ownership per screen" table and a "Game shape: when these screens apply" table that distinguishes multi-round vs standalone end-flows. `alfred/skills/game-building/reference/code-patterns.md` got three canonical snippets: Victory (multi-round, AnswerComponent enabled), Stars Collected → AnswerComponent → next_ended chain, and standalone end-flow (no TransitionScreen). The "FloatingButton ownership (CRITICAL)" subsection enumerates the three regression patterns the validator now blocks.
+
+Cross-game backfill required: cross-logic, bodmas-blitz (2026-04-23 source of the rule's reserved list), doubles (suspected). Each needs `showVictory` rebuilt per the canonical snippet — restore conditional `[Play Again, Claim Stars]`, add `floatingBtn.setMode('hidden')` before show, remove the `transitionScreen.onDismiss(...)` workaround.
+
+**Standalone games (`totalRounds === 1`) are unaffected** — `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` already bans TransitionScreen entirely. End-flow is inline `#gameContent` panel + `floatingBtn.setMode('next')`. Documented as "Canonical Standalone end-flow" snippet in code-patterns.md.
+
+---
+
 ## waitForPackages fail-open gate (2026-04-28 — age-matters preview-never-mounts bug)
 
 **Lesson L-INIT-001: `||` inside `waitForPackages` readiness expression creates fail-open gates — never use it** | Source: age-matters cold-load logs 2026-04-28, full-pipeline gap analysis
