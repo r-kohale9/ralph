@@ -311,17 +311,79 @@
       "  padding: 16px;" +
       "  box-sizing: border-box;" +
       "  width: 100%;" +
-      "  display: flex;" +
-      "  align-items: center;" +
-      "  justify-content: center;" +
       "}" +
+      // Slide is a plain block container — games own their internal layout.
+      // We DO NOT use `display: flex` here; flex would force every top-level
+      // child the game renders into a single horizontal flex item, which
+      // compresses multi-section answer views (header + grid + caption,
+      // stacked result cards, etc.) side-by-side and produces overlap when
+      // children have intrinsic widths. Block flow lets games stack children
+      // vertically by default; games that want flex/grid layouts apply those
+      // rules to their own wrapper. `text-align: center` provides sensible
+      // default centering for inline content; block children that should be
+      // centered horizontally use `margin: 0 auto` (or per-game CSS).
+      // `line-height: 1.5` gives readable vertical rhythm for any text the
+      // game renders (default ~1.2 looks cramped against the mint backdrop).
       ".mathai-answer-slide {" +
       "  width: 100%;" +
       "  padding: 8px;" +
       "  box-sizing: border-box;" +
+      "  text-align: center;" +
+      "  line-height: 1.5;" +
+      "}" +
+      // Auto-spacing for game-rendered content. Most games render either
+      // (a) several siblings directly into the slide, or (b) one wrapper div
+      // containing multiple sections. Two-level `> * + *` covers both shapes:
+      // the first selector spaces direct children, the second spaces the
+      // grandchildren inside a single-wrapper layout. This gives breathing
+      // room without forcing every game to author spacing CSS, while still
+      // letting games override with explicit margins or with one of the
+      // utility classes below.
+      ".mathai-answer-slide > * + *," +
+      ".mathai-answer-slide > * > * + * {" +
+      "  margin-top: 14px;" +
+      "}" +
+      // Common HTML tags inside the slide get sensible block-rhythm. Games
+      // that prefer tight packing can override per-tag.
+      ".mathai-answer-slide p," +
+      ".mathai-answer-slide h1," +
+      ".mathai-answer-slide h2," +
+      ".mathai-answer-slide h3," +
+      ".mathai-answer-slide h4 {" +
+      "  margin: 0;" +
+      "}" +
+      // Utility classes games can apply to their answer-view wrapper for
+      // canonical layouts. Documented in PART-051. Use these when the
+      // default block-flow + margin-top rhythm isn't enough — e.g. a row of
+      // result chips, or a column of mixed-height sections.
+      //
+      //   <div class="mathai-answer-stack">  → vertical column with gap
+      //     <div>Title</div>
+      //     <div>Grid</div>
+      //     <div>Explanation</div>
+      //   </div>
+      //
+      //   <div class="mathai-answer-row">    → horizontal row that wraps
+      //     <span>1:2</span><span>vs</span><span>2:4</span>
+      //   </div>
+      ".mathai-answer-stack {" +
       "  display: flex;" +
+      "  flex-direction: column;" +
+      "  gap: 14px;" +
+      "  align-items: center;" +
+      "}" +
+      ".mathai-answer-stack > * + * {" +
+      "  margin-top: 0;" + // gap owns spacing — neutralise the auto-margin rule above
+      "}" +
+      ".mathai-answer-row {" +
+      "  display: flex;" +
+      "  flex-wrap: wrap;" +
+      "  gap: 8px 12px;" +
       "  align-items: center;" +
       "  justify-content: center;" +
+      "}" +
+      ".mathai-answer-row > * + * {" +
+      "  margin-top: 0;" + // gap owns spacing
       "}";
 
     document.head.appendChild(style);

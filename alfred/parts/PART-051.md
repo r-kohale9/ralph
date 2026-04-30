@@ -108,6 +108,34 @@ const answerComponent = new AnswerComponentComponent({
 
 The component clears the slide container before every render (on `show`, on every nav, on `update` if index didn't change). Games can therefore reuse a single render function that constructs DOM from `gameState` / round data without worrying about leaks.
 
+### Layout helpers (use these to keep children well-spaced)
+
+The slide container is plain block flow with `text-align: center` and `line-height: 1.5`. Two auto-margin rules (`> * + *` and `> * > * + *`) provide a 14 px vertical rhythm for direct and once-wrapped children, so simple multi-section views don't need any spacing CSS. For richer layouts use one of these utility classes (defined by the component, no extra CSS needed in the game):
+
+| Class | Purpose | Notes |
+|---|---|---|
+| `.mathai-answer-stack` | Vertical column with `gap: 14px`, centred | Use when wrapping multiple stacked sections — neutralises the auto `> * + *` margin so spacing is owned by `gap`. |
+| `.mathai-answer-row` | Horizontal row with `gap: 8px 12px`, wraps | Use for inline groups of chips / labels / values that should sit side-by-side. |
+
+```javascript
+function renderAnswerForRound(round, container) {
+  container.innerHTML = ''; // already cleared, but explicit is fine
+  var wrap = document.createElement('div');
+  wrap.className = 'mathai-answer-stack';
+  wrap.innerHTML =
+    '<div class="er-answer-title">Round ' + round.round + '</div>' +
+    '<div class="mathai-answer-row">' +
+    '  <span>' + round.answer.left + '</span>' +
+    '  <span>vs</span>' +
+    '  <span>' + round.answer.right + '</span>' +
+    '</div>' +
+    '<div class="er-answer-explanation">' + round.answer.explanation + '</div>';
+  container.appendChild(wrap);
+}
+```
+
+If a game emits raw children directly into the container (no wrapper), the `> * + *` rule still spaces them. The utility classes are the ergonomic option for richer views.
+
 ---
 
 ## Lifecycle
