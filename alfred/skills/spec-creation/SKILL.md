@@ -206,6 +206,73 @@ Format: "- **[Decision]**: defaulted to [value] (creator did not specify)"]
 Format: "- WARNING: [description of conflict or concern]"]
 ```
 
+## Faithful translation boundary
+
+Spec creation is a **faithful translation** of the creator's description. The spec may format, structure, fill in defaults from `defaults.md`, and validate consistency. The spec may NOT introduce pedagogy / scaffolding / interaction / feedback requirements that the creator did not request.
+
+### What you may add silently
+
+- Required structural sections (Identity, Target Skills, Core Mechanic, Game Parameters, Feedback table, Defaults Applied, etc.) — the spec template demands them.
+- Default values from `skills-taxonomy.md` Creator Decision Defaults table when the creator was silent on the choice.
+- Rules tagged `[MANDATORY]` in pedagogy/, feedback/, mobile/, data-contract/ skills.
+- Misconception tags drawn from the misconceptions taxonomy (because data-contract requires them).
+
+### What you may NOT add silently
+
+- Rules tagged `[SUGGESTED]` in any skill — these are defaults that creators may reasonably override or not want.
+- Pedagogical elaborations not in the creator description (Bloom-level scaffolding, metacognitive prompts, ask-back patterns, retry policies) unless the creator stated them.
+- Feedback strings, button labels, message templates, dialogue text — the spec may say "TTS names the violated clue" but must not invent the exact string template unless the creator wrote one.
+- **Sound ids — NOT spec-creation's invention space.** Every audio id referenced anywhere in the spec (Feedback table, round content, fallbackContent, mechanics descriptions) MUST come from the canonical table at `alfred/skills/feedback/reference/feedbackmanager-api.md` § Standard Audio URLs. Spec-creation does NOT invent sound ids — names like `bubble_pop_sfx` / `tap_select_sfx` / `game_correct_sound` that LOOK canonical but are not in the table are forbidden. When the creator's description references a custom audio asset they uploaded (a sound NOT in the canonical table), capture it in an OPTIONAL `creatorSounds` block with the creator-supplied URL — the build merges these alongside canonical sounds. This mirrors `creatorScreenAudio` (Plan A — TS narration) and per-round `*Subtitle` pairing (Plan B): creator content uses creator-quoted strings; everything else comes from canon. Validator: `GEN-SOUND-ID-CANONICAL` blocks games at the build wire if they reference invented ids.
+
+  Optional `creatorSounds` block (only present when the creator quoted a custom audio URL):
+  ```yaml
+  creatorSounds:
+    custom_celebration:
+      url: 'https://creator-cdn.example/celebration.mp3'
+      quotedFrom: '<creator description excerpt naming this asset>'
+    custom_chime:
+      url: 'https://creator-cdn.example/chime.mp3'
+      quotedFrom: '...'
+  ```
+  Field rules: `url` is non-empty and points at a CDN (HTTPS); `quotedFrom` is a verbatim excerpt from the creator description proving the creator authored this sound. Spec-review FAILs on missing fields. Absent block = game uses only canonical sounds (the common case).
+- **Subtitle strings paired with per-round TTS** are NOT inventions. Whenever the spec stores a per-round audio narration field (any field with the `*TTS` suffix on a round entry — e.g. `keyInferenceTTS`, `violatedClueTTS`), the spec MUST also store a paired `*Subtitle` string with the same prefix (e.g. `keyInferenceSubtitle`, `violatedClueSubtitle`). The Subtitle string is a paraphrase or excerpt of the TTS, ≤60 chars at a word boundary — it captures the punch line of the inference / the clue being violated, NOT a generic celebration. **Generic disconnected literals are forbidden** ("Great job!", "Nice deduction!", "Try again!" while the audio says "since Arjun is from India and the Lion lover is from Japan, Maya must like the Lion" — that strands students who can't hear the audio). The spec creator authors both strings together; the build inlines them verbatim into `playDynamicFeedback({audio_content: round.keyInferenceTTS, subtitle: round.keyInferenceSubtitle, sticker})`. See spec-review § Z7 (`SCOPE-CREEP-SUBTITLE-DISCONNECTED`) and validator `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO`.
+- New screens, new game phases, new interaction patterns — only what the creator described.
+- Composition requirements that aren't on the table in feedback/SKILL.md § Composition with screen primitives — if a feedback moment doesn't have an existing composition row, the SPEC may not invent one. Flag it for build to AskUserQuestion.
+- **Transition-screen audio (TS narration / SFX / sticker assignments) — NOT spec-creation's responsibility.** The set of prescribed TS for a game shape (Welcome / Round Intro / Victory / Game Over / Motivation / Stars Collected), their canonical narration templates (e.g. `"Puzzle ${n} of ${N}"`, `"Victory! You got ${score} of ${totalRounds}!"`), and the SFX → TTS sequencing rules are owned by `game-planning` (which writes the resolved `## Screen Audio` table into `pre-generation/screens.md`) and `default-transition-screens.md` (the canonical templates). Spec-creation does NOT enumerate these screens or their text. The spec only carries narration content when the creator's description explicitly quotes per-screen narration text or explicitly opts a screen out — captured in an OPTIONAL `creatorScreenAudio` block (see below). This mirrors how `previewAudioText` (line 125) is only present when the creator described preview narration.
+
+### Optional `creatorScreenAudio` block
+
+Include this in the spec ONLY when the creator's description quotes per-screen narration or asks for a screen's TTS to be skipped. Absent screens get canonical defaults from game-planning; spec-creation does NOT need to enumerate them.
+
+```yaml
+creatorScreenAudio:
+  victory: { audioText: "Brilliant deduction! You solved them all." }   # creator wrote this verbatim
+  welcome: { silent: true }                                              # creator said "no welcome voice"
+  # any of: welcome, roundIntro, victory, gameOver, motivation, starsCollected
+```
+
+Field rules:
+- `audioText`: a non-empty string the creator quoted. Spec-review FAILs on empty.
+- `silent: true`: the creator explicitly opted out this screen's TTS. The screen still plays its SFX (game-planning enforces this; only Stars Collected is silent-by-canon).
+- Either `audioText` or `silent: true` per entry — never both. Never omit both.
+
+Game-planning merges this block on top of the canonical defaults when generating `screens.md`. The build agent reads only the resolved table, never the spec's `creatorScreenAudio` directly.
+
+### Suggestions section
+
+Anything pedagogy/SKILL.md or feedback/SKILL.md *suggests* (`[SUGGESTED]`) but doesn't mandate, and that adds value the creator probably wants but didn't ask for, goes into a NEW spec section titled `## Suggestions (require explicit creator approval)`. Each suggestion lists: what, why, which skill recommends it, and "applies if creator approves". The build pipeline does NOT implement these unless promoted into the main spec by an explicit creator approval.
+
+### Diff from creator description (mandatory output)
+
+Every spec MUST end with a `## Diff from creator description` section. List every spec line that is NOT directly traceable to:
+1. The literal creator description, OR
+2. A `[MANDATORY]` rule in pedagogy/, feedback/, mobile/, data-contract/, OR
+3. The Creator Decision Defaults table.
+
+For each diffed item: one line `- <spec line snippet> — added because <reason>`.
+
+If this section is missing, spec-review (Step 2) hard-fails with `SCOPE-CREEP-MISSING-DIFF`.
+
 ## Procedure
 
 Follow these steps in order. Do not skip any step. Do not combine steps.
@@ -342,6 +409,23 @@ Use misconception names that are specific to the math topic. Do not use generic 
 
 5e. **Build the fallbackContent structure.**
 Produce the COMPLETE fallbackContent array with every round as a JavaScript object. Include all fields needed for the game engine to render the round without ambiguity. Every round object must include a `misconception_tags` mapping from each wrong answer to its misconception name.
+
+5e-i. **Pair every per-round TTS field with a Subtitle field.** Whenever a round entry stores per-round audio narration (any field whose name ends with `TTS` — typically `keyInferenceTTS` for the correct path and `violatedClueTTS` for the wrong path), the round MUST also store a sibling field with the same prefix and a `Subtitle` suffix. The Subtitle is the on-screen caption rendered while the TTS audio plays — a paraphrase or excerpt of the TTS, ≤60 chars at a word boundary, capturing the punch line so students who can't hear the audio still get the scaffold.
+
+Convention: `<X>TTS` ↔ `<X>Subtitle`. Examples:
+
+```javascript
+{
+  id: 'round-1',
+  // ... grid / clues / solution / misconception_tags ...
+  keyInferenceTTS: 'Nice — since Arjun is from India and the Lion lover is from Japan, Maya must like the Lion.',
+  keyInferenceSubtitle: 'Maya likes the Lion!',                              // ≤60 chars, paraphrases TTS
+  violatedClueTTS: 'That breaks clue 2 — Arjun is from India. Which row still has Arjun checked against Japan?',
+  violatedClueSubtitle: 'Clue 2 — Arjun is from India.',                     // ≤60 chars, names violated clue
+}
+```
+
+**Generic disconnected literals are forbidden** — `subtitle: 'Great job!'` paired with a 30-word `audio_content: round.keyInferenceTTS` is the cross-logic 2026-04-29 regression this rule blocks. The Subtitle MUST share at least one substantive content word (≥4 chars, excluding stopwords) with the paired TTS. Spec-review check Z7 enforces this; static validator `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO` blocks any `playDynamicFeedback({audio_content: <round.*TTS>, subtitle: '<generic literal>'})` shape at the build wire.
 
 ### Step 6: Define scoring and feedback
 

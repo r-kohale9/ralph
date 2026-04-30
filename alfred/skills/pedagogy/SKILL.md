@@ -1,5 +1,13 @@
 # Skill: Pedagogy
 
+## Tag conventions
+
+Rules in this skill and its detail files are tagged:
+- **`[MANDATORY]`** — must be enforced; spec-review FAILs if violated. Often tied to a hard validator or downstream contract.
+- **`[SUGGESTED]`** — default behavior; spec-creation may include or omit based on creator intent. If creator description is silent on the topic, the rule may be applied silently. If creator description specifies a contradicting choice, defer to the creator. Suggestions land in the spec's "## Suggestions (require explicit creator approval)" section if added without creator request.
+
+The faithful-translation boundary (spec-creation/SKILL.md § Faithful translation boundary) uses these tags to decide what may be silently added vs what must be flagged.
+
 ## Purpose
 
 Encode the pedagogical knowledge that makes a game teach, not just test: Bloom-to-structure mapping, misconception-aware distractor design, difficulty calibration, scaffolding patterns, emotional safety, and Indian curriculum alignment.
@@ -67,7 +75,7 @@ If ambiguous, default to **L2 Understand** (pipeline default from skills-taxonom
 
 ### Step 2: Verify Bloom-interaction compatibility
 
-**[CRITICAL]** Check that the stated (or inferred) Bloom level is compatible with the spec's interaction type. If they conflict, emit a WARNING and recommend a correction.
+**[MANDATORY]** Check that the stated (or inferred) Bloom level is compatible with the spec's interaction type. If they conflict, emit a WARNING and recommend a correction.
 
 | Bloom level | Compatible interactions | Incompatible interactions (WARNING) |
 |-------------|----------------------|-------------------------------------|
@@ -122,13 +130,13 @@ WARNING: Bloom-interaction mismatch
 
 ## Constraints
 
-1. **[CRITICAL] Every distractor must have a misconception tag.** No tag = random wrong answer = reject.
-2. **[CRITICAL] Never use lives at L1 or L2 by default.** Only with explicit spec justification.
-3. **[STANDARD] 70-85% success rate target is a design constraint,** not post-hoc observation.
-4. **[STANDARD] Scaffolding must trigger after at most 3 wrong attempts.**
-5. **[CRITICAL] Game-over language must never use "fail," "lose," or "game over."**
-6. **[STANDARD] Every game spec must reference an NCERT chapter.**
-7. **[ADVISORY] Hindi vocabulary bridges recommended for Class 4-6.**
+1. **[MANDATORY] Every distractor must have a misconception tag.** No tag = random wrong answer = reject.
+2. **[SUGGESTED] Never use lives at L1 or L2 by default.** Only with explicit spec justification. (Tagging note: pedagogical default; creators may specify lives at any Bloom level if justified, so this is overridable rather than a hard gate.)
+3. **[SUGGESTED] 70-85% success rate target is a design constraint,** not post-hoc observation.
+4. **[SUGGESTED] Scaffolding must trigger after at most 3 wrong attempts.**
+5. **[MANDATORY] Game-over language must never use "fail," "lose," or "game over."**
+6. **[SUGGESTED] Every game spec must reference an NCERT chapter.** (Tagging note: no hard validator enforces this; defaulting to SUGGESTED so creator-specified non-NCERT boards or chapter-less practice games aren't blocked.)
+7. **[SUGGESTED] Hindi vocabulary bridges recommended for Class 4-6.**
 
 ## Defaults
 

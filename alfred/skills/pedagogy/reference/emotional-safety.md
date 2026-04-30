@@ -2,11 +2,11 @@
 
 ## Core Principle
 
-**[STANDARD]** A student who feels stupid will not learn. Every design decision must pass the test: "Would a 12-year-old in a crowded classroom feel okay if their friend saw this screen?"
+**[SUGGESTED]** A student who feels stupid will not learn. Every design decision must pass the test: "Would a 12-year-old in a crowded classroom feel okay if their friend saw this screen?"
 
 ## Game-Over Language
 
-**[CRITICAL]** Never use:
+**[MANDATORY]** Never use (banned phrases — spec-review FAILs if present):
 - "Game Over" (sounds final, punitive)
 - "You failed" / "You lost"
 - "Wrong!" as standalone (too harsh)
@@ -27,12 +27,12 @@ Always use:
 
 ## Failure Recovery Patterns
 
-### After 2 consecutive wrong answers
+### After 2 consecutive wrong answers **[SUGGESTED]**
 
 - Change encouragement tone slightly: "Take your time with this one."
 - No structural change to the game. Two wrongs is normal.
 
-### After 3 consecutive wrong answers
+### After 3 consecutive wrong answers **[SUGGESTED]**
 
 This is a critical moment. The student's confidence is crumbling. Response:
 
@@ -43,7 +43,7 @@ This is a critical moment. The student's confidence is crumbling. Response:
 
 Record this event: `confidence_recovery_triggered: true` in the next `recordAttempt`.
 
-### After 5 consecutive wrong answers
+### After 5 consecutive wrong answers **[SUGGESTED]**
 
 This indicates a prerequisite gap, not a difficulty problem. The student likely lacks foundational knowledge for this game.
 

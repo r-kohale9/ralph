@@ -2,7 +2,7 @@
 
 ## NCERT/CBSE Alignment
 
-**[STANDARD]** The primary target is NCERT textbooks for Classes 4-8 (CBSE board). Every game spec should reference the specific NCERT chapter and exercise it aligns to.
+**[SUGGESTED]** The primary target is NCERT textbooks for Classes 4-8 (CBSE board). Every game spec should reference the specific NCERT chapter and exercise it aligns to. (Tagging note: no hard validator enforces NCERT chapter references; creators may target other boards or skip explicit chapter mapping.)
 
 | Class | Key math domains (NCERT) | Bloom levels typically appropriate |
 |-------|-------------------------|-----------------------------------|
@@ -48,7 +48,7 @@ These are misconceptions observed in Indian classrooms. They overlap with univer
 
 ## Hindi/English Math Vocabulary
 
-**[ADVISORY]** Many Indian students learn math in English at school but think about it in Hindi. When writing game text, use English terms but be aware of Hindi equivalents for common confusions:
+**[SUGGESTED]** Many Indian students learn math in English at school but think about it in Hindi. When writing game text, use English terms but be aware of Hindi equivalents for common confusions:
 
 | English | Hindi (Devanagari) | Hindi (transliterated) | Notes |
 |---------|-------------------|----------------------|-------|

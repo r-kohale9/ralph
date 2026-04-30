@@ -1,6 +1,6 @@
 # Bloom-to-Game Mapping
 
-**[CRITICAL]** This is the central lookup table. For each Bloom level, every structural decision is predetermined. The pipeline does not guess -- it looks up.
+**[SUGGESTED]** This is the central lookup table. For each Bloom level, every structural decision is a default recommendation. The pipeline looks up these defaults; creators may override individual rows for specific games. (Tagging note: the table as a *reference* is canonical, but each row — e.g. "L4 scaffolding after 1st wrong = metacognitive prompt" — is a pedagogical default, not a hard contract. The L4-after-1-wrong-metacognitive rule is the one that bit cross-logic and is explicitly SUGGESTED.)
 
 ## L1 Remember
 

@@ -246,7 +246,29 @@ Payload fields: `count` ∈ {1,2,3} default 1; `variant` ∈ {'yellow','blue'} d
 Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
 - **CDN script:** `https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js`
 - **Init:** `await FeedbackManager.init()` in DOMContentLoaded
-- **Preload:** `await FeedbackManager.sound.preload([...])` with exact SFX URLs from `feedback/reference/feedbackmanager-api.md`
+- **Preload:** `await FeedbackManager.sound.preload([...])` with exact `(id, url)` pairs from `feedback/reference/feedbackmanager-api.md` § Standard Audio URLs. **The id and URL are coupled — one always points at the same URL.** Do NOT invent ids and do NOT copy a URL from a previous preload row when adding a new id. When the spec declares custom sounds (`spec.creatorSounds`), append those entries with the creator-supplied URLs.
+
+  ```javascript
+  // CORRECT — every entry's (id, url) matches feedbackmanager-api.md verbatim
+  await FeedbackManager.sound.preload([
+    { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+    { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+    { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+    { id: 'sound_bubble_select',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' }
+  ]);
+  ```
+
+  ```javascript
+  // WRONG — invented id ('bubble_pop_sfx' is not in the canonical table) registered with a copy-pasted URL
+  // (the builder copy-pasted the rounds_sound_effect URL because it had no canonical URL for the invented id).
+  // Cell taps now play the round-intro sting instead of a bubble (cross-logic 2026-04-29 regression).
+  await FeedbackManager.sound.preload([
+    { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+    { id: 'bubble_pop_sfx',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' }  // ← rejected by GEN-SOUND-ID-CANONICAL
+  ]);
+  ```
+
+  Validator: `GEN-SOUND-ID-CANONICAL` blocks both invented ids and (id, URL) drift at Step 5.
 - **Static SFX:** `await FeedbackManager.sound.play(id, {sticker: STICKER_URL})` — sticker is a string URL. Awaited for terminal moments, fire-and-forget for mid-round
 - **CRITICAL — Minimum Feedback Duration:** `sound.play()` can resolve BEFORE audio finishes. ALL answer-feedback calls (`sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_*`, `partial_correct_*`) MUST use `Promise.all` with a 1500ms floor: `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ]);` — guarantees audio fully plays before round advance / tile reset / game-over. Does NOT apply to VO or transition audio. Validator rule `5e0-FEEDBACK-MIN-DURATION`. See PART-026 Anti-Pattern 34.
 - **Dynamic VO:** all VO is dynamic TTS, never preloaded. **Usage depends on context:**
@@ -620,7 +642,7 @@ The core game loop MUST follow this order:
 5. Update internal `score`/`lives` counters and call `syncDOM()`. Do NOT touch the ActionBar header here — the header is locked at boot by `game_init.data.score` and updated only by the end-of-game `show_star` celebration. `setScore` and `setQuestionLabel` are not part of the public API.
 6. Visual feedback (selected-wrong/selected-correct classes, correct-reveal)
 7. FeedbackManager audio (per `skills/feedback/SKILL.md`):
-   - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → then **AWAIT** `try { await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker}); } catch(e){}`. SFX awaited (~1.5s floor) for predictable visual flash; TTS awaited so the explanation finishes BEFORE round advance — without await, the subtitle/audio paints over the next round's transition (equivalent-ratios regression). Package bounds TTS resolution at 3 s (API timeout) / 60 s (streaming) so it can never freeze the game indefinitely; `try/catch` swallows rejection so a network failure still advances. Validator: `GEN-FEEDBACK-TTS-AWAIT`.
+   - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → then **AWAIT** `try { await FeedbackManager.playDynamicFeedback({audio_content: round.<X>TTS, subtitle: round.<X>Subtitle, sticker}); } catch(e){}`. SFX awaited (~1.5s floor) for predictable visual flash; TTS awaited so the explanation finishes BEFORE round advance — without await, the subtitle/audio paints over the next round's transition (equivalent-ratios regression). Package bounds TTS resolution at 3 s (API timeout) / 60 s (streaming) so it can never freeze the game indefinitely; `try/catch` swallows rejection so a network failure still advances. **Subtitle pairing rule:** `subtitle` MUST come from a paired authored field on the same round object (`<X>TTS` ↔ `<X>Subtitle` convention; see spec-creation/SKILL.md § 5e-i). NEVER hard-code a generic literal like `'Great job!'` or `'Try again!'` while `audio_content` reads `round.<X>TTS` — that strands students who can't hear the audio (cross-logic 2026-04-29 regression). Validators: `GEN-FEEDBACK-TTS-AWAIT` (await), `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO` (subtitle pairing).
    - **Multi-step mid-round match:** `FeedbackManager.sound.play(id, {sticker}).catch(...)` — fire-and-forget. NO dynamic TTS, NO subtitle. SFX + sticker only.
    - Last-life wrong: ALWAYS play wrong SFX (awaited, Promise.all 1500ms min) BEFORE endGame(false) — never skip
 8. **Advance to next round** via `renderRound()` / `loadRound()` / `endGame()`. DO NOT set `isProcessing = false` here and DO NOT re-enable inputs in the handler after audio. `renderRound()` / `loadRound()` is the single source of truth: it sets `isProcessing = false`, re-enables inputs (buttons, voice input), clears marks, and resets state for the new round. Exception: API-failure path and terminal game-over are the only places the handler itself unblocks (so the user can retry or see the end screen).
@@ -711,6 +733,9 @@ Victory, Game Over, Play Again, and Try Again render **inside** the preview wrap
 3. ❌ **Calling `transitionScreen.show({title: 'Victory', ...})` without first calling `floatingBtn.setMode('hidden')`** → `GEN-FLOATING-BUTTON-LIFECYCLE`. A stale floating button competes with the in-card Claim Stars / Play Again buttons.
 
 ### Canonical Victory snippet (multi-round, AnswerComponent enabled)
+
+**TS audio shape:** every prescribed TS plays SFX → TTS, both awaited inside `onMounted`. The `sfxId`, `sticker`, and `ttsText` come from the `## Screen Audio` table in `pre-generation/screens.md` (game-planning resolves them — including `creatorScreenAudio` overrides). Inline the resolved `ttsText` into the snippet; runtime tokens like `${score}`, `${totalRounds}` are interpolated against `gameState`. If the Screen Audio row is `silent`, omit the `playDynamicFeedback` call (Stars Collected is the canonical example).
+
 ```javascript
 async function showVictory() {
   gameState.phase = 'results';
@@ -725,16 +750,85 @@ async function showVictory() {
         { text: 'Play Again',  type: 'secondary', action: showMotivation },
         { text: 'Claim Stars', type: 'primary',   action: showStarsCollected }
       ];
+  // ttsText resolved by game-planning into screens.md Screen Audio table; build inlines it.
+  const ttsText = stars === 3
+    ? `Victory! You got ${gameState.score} out of ${gameState.totalRounds}!`
+    : `Great work! You got ${gameState.score} out of ${gameState.totalRounds}!`;
   await transitionScreen.show({
     stars,
     title: 'Victory 🎉',
     subtitle: getVictorySubtitle(),                                     // game-specific from screens.md
     buttons,
     persist: true,
-    onMounted: () => {
+    onMounted: () => (async () => {
       postGameComplete();                                               // BEFORE audio (data-contract)
-      FeedbackManager.sound.play('sound_game_victory', { sticker: STICKER_CELEBRATE });
-    }
+      try { await safePlaySound('sound_game_victory', { sticker: STICKER_CELEBRATE }); } catch (e) {}
+      if (ttsText) {                                                    // null when Screen Audio marks silent
+        try { await FeedbackManager.playDynamicFeedback({
+          audio_content: ttsText, subtitle: ttsText, sticker: STICKER_CELEBRATE
+        }); } catch (e) {}
+      }
+    })()
+  });
+}
+```
+
+### Canonical Round Intro snippet
+```javascript
+async function showRoundIntro(n) {
+  // Cross-Cutting Rule 10 cleanup before opening a new TS
+  try { FeedbackManager.sound.pause(); } catch (e) {}
+  try { FeedbackManager.stream.stopAll(); } catch (e) {}
+  try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+  try { floatingBtn.setMode('hidden'); } catch (e) {}
+  const ttsText = `Puzzle ${n} of ${gameState.totalRounds}`;            // from screens.md Screen Audio
+  return new Promise(resolve => {
+    transitionScreen.show({
+      title: `Puzzle ${n} of ${gameState.totalRounds}`,
+      icons: ['🧩'],
+      persist: true,
+      onMounted: () => (async () => {
+        try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+        if (ttsText) {
+          try { await FeedbackManager.playDynamicFeedback({
+            audio_content: ttsText, subtitle: ttsText, sticker: STICKER_ROUND
+          }); } catch (e) {}
+        }
+        try { transitionScreen.hide(); } catch (e) {}
+        resolve();
+      })()
+    });
+    // Safety timeout in case audio stalls past the package's 60s limit
+    setTimeout(() => { try { transitionScreen.hide(); } catch (e) {} resolve(); }, 8000);
+  });
+}
+```
+
+### Canonical Welcome snippet
+```javascript
+async function showWelcome() {
+  try { floatingBtn.setMode('hidden'); } catch (e) {}
+  const ttsText = `Let's play ${gameState.gameTitle || 'this game'}!`;  // from screens.md Screen Audio
+  return new Promise(resolve => {
+    transitionScreen.show({
+      title: 'Welcome!',
+      icons: ['👋'],
+      persist: true,
+      buttons: [{ text: "Let's go!", type: 'primary', action: () => {
+        try { FeedbackManager.sound.pause(); } catch (e) {}
+        try { FeedbackManager.stream.stopAll(); } catch (e) {}
+        try { transitionScreen.hide(); } catch (e) {}
+        resolve();
+      } }],
+      onMounted: () => (async () => {
+        try { await safePlaySound('sound_level_transition', { sticker: STICKER_LEVEL }); } catch (e) {}
+        if (ttsText) {
+          try { await FeedbackManager.playDynamicFeedback({
+            audio_content: ttsText, subtitle: ttsText, sticker: STICKER_LEVEL
+          }); } catch (e) {}
+        }
+      })()
+    });
   });
 }
 ```

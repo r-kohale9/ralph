@@ -227,6 +227,35 @@ try {
 // advance to next round
 ```
 
+**Per-round long-audio + paired short-subtitle (the canonical CASE 4 / CASE 7 shape).** When `audio_content` is creator-supplied per-round narration (an inference explanation, a violated-clue ask-back), `subtitle` MUST come from a paired authored field on the same round object. The pairing convention is `<X>TTS` ↔ `<X>Subtitle` — both strings live in the spec's round entry, both inline verbatim into the call. See spec-creation/SKILL.md § 5e-i for the authoring rule.
+
+```javascript
+// CORRECT (CASE 4) — long inference TTS, paired short subtitle
+try {
+  await FeedbackManager.playDynamicFeedback({
+    audio_content: round.keyInferenceTTS,    // e.g. "Nice — since Arjun is from India and the Lion lover is from Japan, Maya must like the Lion."
+    subtitle:      round.keyInferenceSubtitle, // e.g. "Maya likes the Lion!"  ≤60 chars, paraphrases TTS
+    sticker:       STICKER_CORRECT
+  });
+} catch (e) {}
+
+// WRONG (CASE 7) — long violated-clue TTS, paired short subtitle
+try {
+  await FeedbackManager.playDynamicFeedback({
+    audio_content: round.violatedClueTTS,    // e.g. "That breaks clue 2 — Arjun is from India. Which row still has Arjun checked against Japan?"
+    subtitle:      round.violatedClueSubtitle, // e.g. "Clue 2 — Arjun is from India."  ≤60 chars
+    sticker:       STICKER_INCORRECT
+  });
+} catch (e) {}
+
+// ANTI-PATTERN — disconnected generic literal (cross-logic 2026-04-29 regression)
+// audio_content: round.keyInferenceTTS, subtitle: 'Nice deduction!'
+// audio_content: round.violatedClueTTS, subtitle: 'Check the clue again.'
+//   ↑ The audio carries L4 scaffolding; the subtitle is content-disconnected.
+//     Students who can't hear audio (mute / slow TTS / deaf/HoH) get NO scaffold.
+//     Validator GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO blocks this at Step 5.
+```
+
 **Fire-and-forget SFX (multi-step mid-round):**
 
 ```javascript

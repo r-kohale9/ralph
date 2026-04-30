@@ -39,6 +39,25 @@ The Next CTA contract is split between in-card buttons and the FloatingButton. G
 
 Standalone games skip ALL end-of-flow TransitionScreens. The remaining sections of this doc apply to multi-round games only.
 
+## Default narration strings (TTS templates)
+
+Every prescribed TS plays an SFX → TTS pair, both awaited inside `onMounted`. The SFX and sticker are the per-screen defaults listed in the per-screen tables below; the TTS narration `audio_content` uses these canonical templates unless the spec's optional `creatorScreenAudio` block overrides a screen.
+
+| Screen | Default `ttsText` template | Notes |
+|---|---|---|
+| `welcome` | `"Let's play ${gameTitle}!"` | `${gameTitle}` interpolated from `spec.title` at build time. |
+| `roundIntro` | `"Puzzle ${n} of ${N}"` (Board Puzzle / Logic Grid archetypes) / `"Round ${n} of ${N}"` (other archetypes) | `${n}` from `gameState.currentRound`; `${N}` from `gameState.totalRounds`. Archetype branch is data, not creator voice. |
+| `victory` | `"Victory! You got ${score} out of ${totalRounds}!"` (3★) / `"Great work! You got ${score} out of ${totalRounds}!"` (<3★) | Conditional on `gameState.stars`. `${score}` from `gameState.score`; `${totalRounds}` from `gameState.totalRounds`. |
+| `gameOver` | `"You completed ${score} of ${totalRounds}. Let's try again!"` | |
+| `motivation` | `"Ready to improve your ${primaryMetric}?"` | `primaryMetric` defaults to `'score'`; spec may override (see § 2). |
+| `starsCollected` | `null` | **Canon exception** — Stars Collected plays SFX only, no TTS. The build skips the TTS step when `ttsText === null`. |
+
+**These templates are runtime data interpolations, not authored prose.** Round number, game title, score, totalRounds — all come from `gameState` or `spec`. Inventing a creator-flavored string is forbidden by `spec-creation/SKILL.md` line 224; using these templates is NOT invention. Creator-flavored copy enters via `spec.creatorScreenAudio.<screen>.audioText`, which game-planning merges in when generating the `## Screen Audio` table in `pre-generation/screens.md`.
+
+**Game-planning is the single source of truth.** It walks the prescribed TS list for the game shape (table above), pulls templates from this section, applies any `creatorScreenAudio` overrides from the spec, and writes the resolved `## Screen Audio` table into `screens.md`. The build agent reads only that table — never this doc directly, never the spec's `creatorScreenAudio` block directly.
+
+This section reconciles with `feedback/SKILL.md` § Composition with screen primitives (rows 198-204), which prescribes the same `await safePlaySound(...) → await playDynamicFeedback({audio_content, subtitle, sticker})` shape on TS `onMounted`. The two references now agree.
+
 ## 1. Game Over
 
 Shown when `gameState.lives` decrements to 0 during gameplay.
@@ -51,9 +70,9 @@ Shown when `gameState.lives` decrements to 0 during gameplay.
 | `stars` | — (do NOT pass; conflicts with `icons`) |
 | `buttons` | `[{ text: 'Try Again', type: 'primary', action: showMotivation }]` |
 | `persist` | `true` |
-| `onMounted` | `FeedbackManager.sound.play('sound_game_over', { sticker: STICKER_SAD })` |
+| `onMounted` | async — `await safePlaySound('sound_game_over', { sticker: STICKER_SAD })` → `try { await playDynamicFeedback({audio_content: ttsText, subtitle: ttsText, sticker: STICKER_SAD}); } catch(e){}` where `ttsText` comes from the resolved Screen Audio table in `screens.md` (default: `"You completed ${score} of ${totalRounds}. Let's try again!"`). |
 
-Spec may override: subtitle (if the game has a specific game-over message), onMounted sound id.
+Spec may override: subtitle (if the game has a specific game-over message), onMounted sound id, narration text via `creatorScreenAudio.gameOver`.
 
 ## 2. Motivation ("Ready to improve")
 
@@ -67,7 +86,7 @@ Shown after `Try Again` on Game Over, and after `Play Again` on a < 3★ Victory
 | `stars` | — (none) |
 | `buttons` | `[{ text: "I'm ready! 🙌", type: 'primary', action: restartToRound1 }]` |
 | `persist` | `true` |
-| `onMounted` | `FeedbackManager.sound.play('sound_motivation', { sticker: STICKER_MOTIVATE })` |
+| `onMounted` | async — `progressBar.update(0, totalLives)` (restart-path reset) → `await safePlaySound('sound_motivation', { sticker: STICKER_MOTIVATE })` → `try { await playDynamicFeedback({audio_content: ttsText, subtitle: ttsText, sticker: STICKER_MOTIVATE}); } catch(e){}` where `ttsText` comes from the resolved Screen Audio table (default: `"Ready to improve your ${primaryMetric}?"`). |
 
 Spec may override: the word `"score"` in the title (e.g. `"speed"`, `"accuracy"`, `"time"`) when the game has a non-accuracy primary metric. Default is `"score"`.
 
@@ -87,9 +106,9 @@ Shown when the last round is cleared with `lives >= 1`.
 | `stars` | `gameState.stars` (0, 1, 2, or 3 — drives the star row rendering) |
 | `buttons` | conditional on `gameState.stars`:  <br>• `stars === 3` → `[{ text: 'Claim Stars', type: 'primary', action: showStarsCollected }]`  <br>• `stars < 3` → `[{ text: 'Play Again', type: 'secondary', action: showMotivation }, { text: 'Claim Stars', type: 'primary', action: showStarsCollected }]` (horizontal layout — component handles it) |
 | `persist` | `true` |
-| `onMounted` | `FeedbackManager.sound.play('sound_game_victory', { sticker: STICKER_CELEBRATE })` |
+| `onMounted` | async — `postGameComplete()` (data-contract: BEFORE audio) → `await safePlaySound('sound_game_victory', { sticker: STICKER_CELEBRATE })` → `try { await playDynamicFeedback({audio_content: ttsText, subtitle: ttsText, sticker: STICKER_CELEBRATE}); } catch(e){}` where `ttsText` comes from the resolved Screen Audio table (default: `"Victory! You got ${score} out of ${totalRounds}!"` for 3★, `"Great work! You got ${score} out of ${totalRounds}!"` otherwise). |
 
-Spec may override: subtitle (always game-specific), onMounted sound id.
+Spec may override: subtitle (always game-specific), onMounted sound id, narration text via `creatorScreenAudio.victory`.
 
 **FloatingButton state:** `floatingBtn.setMode('hidden')` MUST be called before `transitionScreen.show(...)` for Victory. The in-card buttons (`Play Again` / `Claim Stars`) own routing — they are SEMANTIC ACTIONS, not navigation verbs, so they do NOT trigger `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN`. Stripping the `buttons:` array to silence that rule is itself a violation (`GEN-VICTORY-BUTTONS-REQUIRED`). The `onDismiss` callback MUST NOT be used as a substitute for the `buttons:` array — Victory dismisses via explicit button taps only, never tap-anywhere.
 
@@ -104,13 +123,22 @@ async function showVictory() {
         { text: 'Play Again', type: 'secondary', action: showMotivation },
         { text: 'Claim Stars', type: 'primary', action: showStarsCollected }
       ];
+  // ttsText resolved by game-planning into screens.md Screen Audio table; build inlines it.
+  const ttsText = stars === 3
+    ? `Victory! You got ${gameState.score} out of ${gameState.totalRounds}!`
+    : `Great work! You got ${gameState.score} out of ${gameState.totalRounds}!`;
   await transitionScreen.show({
     stars, title: 'Victory 🎉', subtitle: getVictorySubtitle(),
     buttons, persist: true,
-    onMounted: () => {
-      postGameComplete();                          // BEFORE audio (data-contract rule)
-      FeedbackManager.sound.play('sound_game_victory', { sticker: STICKER_CELEBRATE });
-    }
+    onMounted: () => (async () => {
+      postGameComplete();                                                      // BEFORE audio (data-contract)
+      try { await safePlaySound('sound_game_victory', { sticker: STICKER_CELEBRATE }); } catch (e) {}
+      if (ttsText) {
+        try { await FeedbackManager.playDynamicFeedback({
+          audio_content: ttsText, subtitle: ttsText, sticker: STICKER_CELEBRATE
+        }); } catch (e) {}
+      }
+    })()
   });
 }
 ```

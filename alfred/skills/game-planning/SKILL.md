@@ -230,6 +230,17 @@ For EVERY screen in the flow diagram:
 6. For gameplay screen: define the round presentation sequence (preview, instructions, media, gameplay reveal).
 7. **For the 4 standard transition screens (`game_over`, `motivation`, `victory`, `stars_collected`):** copy the canonical Elements table from `reference/default-transition-screens.md` verbatim. Override a row ONLY when the spec's `## Flow` or content section explicitly specifies different copy (e.g. Victory's subtitle is always game-specific). Do NOT invent alternative titles/buttons/stickers.
 
+7d. **Sound ids in plan.md MUST come from canonical table.** Every sound id referenced in `plan.md` (Feedback Moment Table, screens.md Screen Audio table, end-game beats, round-flow.md feedback steps) MUST be either (a) a canonical id from `alfred/skills/feedback/reference/feedbackmanager-api.md` § Standard Audio URLs, OR (b) a custom id declared in `spec.creatorSounds`. The planner does NOT invent ids — `bubble_pop_sfx` / `tap_select_sfx` / `correct_chime_sfx` / etc. that look right but aren't canonical are forbidden. When the spec/creator describes a sound that doesn't have an obvious canonical match, ASK via the planner's clarifying question loop ("Did the creator mean `sound_bubble_select` from canonical? Or do they have a custom URL?") — never guess. Validator: `GEN-SOUND-ID-CANONICAL`.
+
+8. **Resolve the Screen Audio table.** game-planning OWNS the per-game TS audio table (see `reference/plan-formats.md` § Screen Audio). For each prescribed TS for the game's shape (read the "Game shape" table in `reference/default-transition-screens.md`), produce one row in the `## Screen Audio` table at the top of `screens.md` with:
+    - `sfxId` and `sticker` from the per-screen tables in `default-transition-screens.md`.
+    - `ttsText` resolved as follows, in priority order:
+      1. If `spec.creatorScreenAudio.<screen>.silent: true` → emit `(silent — creator opt-out)` and set `source: silent`.
+      2. Else if `spec.creatorScreenAudio.<screen>.audioText` is non-empty → emit that string verbatim, `source: creator`.
+      3. Else if the screen is `starsCollected` → emit `(silent — canon exception)`, `source: silent`. (Stars Collected is silent by canon regardless of `creatorScreenAudio`.)
+      4. Else → emit the canonical template from `default-transition-screens.md` § Default narration strings, `source: default`. Interpolation tokens (`${n}`, `${score}`, `${gameTitle}`, etc.) stay literal in the table — the build agent resolves them at runtime.
+    The build agent reads ONLY the resolved Screen Audio table; it does NOT consult `default-transition-screens.md` or `spec.creatorScreenAudio` directly. This is the single contract surface for TS audio.
+
 **ActionBar header — end-of-game-only.** The platform header (`#previewQuestionLabel` + `#previewScore` + `#previewStar`) is a fixed persistent fixture on every non-Preview wireframe, but it does NOT update mid-game. Stars in the ActionBar represent overall game performance, awarded once via `show_star` at end. Wireframes MUST NOT propose a "running ActionBar score" widget that updates per correct round; MUST NOT propose a custom ActionBar label format like `'L1'` / `'Round 1'` / `'Stage N'` (the format is fixed at `'Q' + N`). Game-internal running counters (fast-tap meters, point tallies, level indicators) belong inside `#gameContent` — render them as a custom status row INSIDE the gameplay area, never in the platform header.
 
 ### Step 4: Derive round-flow.md

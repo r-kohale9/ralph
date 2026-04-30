@@ -528,6 +528,174 @@ if (hasFeedbackManager) {
         'synchronously inside handleAnswer(), leaving isProcessing=true and deadlocking the game.'
     );
   }
+
+  // ─── GEN-SOUND-ID-CANONICAL ─────────────────────────────────────────────────
+  // Every sound id used in FeedbackManager.sound.preload([{id, url}]) and
+  // FeedbackManager.sound.play('<id>', ...) MUST come from the canonical
+  // (id, URL) table at alfred/skills/feedback/reference/feedbackmanager-api.md.
+  //
+  // Cross-logic 2026-04-29 regression: the planner invented `bubble_pop_sfx`
+  // (not in the canonical table); the builder needed a URL for the invented
+  // id and copied the URL from the previous preload row (rounds_sound_effect).
+  // Result: cell taps played the round-intro sting instead of a bubble.
+  //
+  // Detection:
+  //   1. Parse FeedbackManager.sound.preload([...]) argument array. For each
+  //      { id: '<id>', url: '<url>' } entry:
+  //      - If id is in CANONICAL_URLS map AND url !== CANONICAL_URLS[id] → ERROR (URL drift).
+  //      - If id is NOT in CANONICAL_URLS AND NOT in CANONICAL_ALIASES AND NOT
+  //        in spec.creatorSounds → ERROR (invented id).
+  //   2. Every sound.play('<literal>', ...) and safePlaySound('<literal>', ...)
+  //      with a STRING LITERAL id — id MUST appear in the preload array.
+  //      (Skip dynamic ids like `safePlaySound(stars >= 3 ? 'A' : 'B', ...)`.)
+  //
+  // Auto-skips: dynamic id expressions; calls inside safePlayDynamic /
+  // playDynamicFeedback (which use audio_content text, not a sound id).
+  const CANONICAL_URLS = {
+    correct_sound_effect:        'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3',
+    incorrect_sound_effect:      'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3',
+    sound_life_lost:             'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3',
+    rounds_sound_effect:         'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3',
+    victory_sound_effect:        'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3',
+    game_complete_sound_effect:  'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3',
+    game_over_sound_effect:      'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506638331.mp3',
+    tap_sound:                   'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3',
+    sound_bubble_select:         'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3',
+    sound_bubble_deselect:       'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3',
+    new_cards:                   'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432104595.mp3',
+    all_correct:                 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506764346.mp3',
+    soundChainComplete:          'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501597903.mp3',
+    soundPartialCorrect:         'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757501548938.mp3',
+    sound_level_transition:      'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1756742499143.mp3',
+  };
+  // Skill-doc-allowed aliases — referenced in default-transition-screens.md
+  // and code-patterns.md but lacking authoritative URLs in feedbackmanager-api.md.
+  // Allowed (id permitted) but URL not enforced. Documentation drift to clean
+  // up in a follow-up; for now, don't break existing games that use them.
+  const CANONICAL_ALIASES = new Set([
+    'sound_motivation',
+    'sound_stars_collected',
+    'sound_game_over',
+    'sound_game_victory',
+    'sound_game_complete',
+  ]);
+
+  // Read spec.creatorSounds for the auto-skip whitelist.
+  const creatorSoundIds = new Set();
+  if (specContext && typeof specContext.creatorSoundsRaw === 'string') {
+    // Best-effort: parse `creatorSounds:` block by id keys.
+    const re = /^\s{2,}([A-Za-z_][\w]*)\s*:\s*$/gm;
+    let m;
+    while ((m = re.exec(specContext.creatorSoundsRaw)) !== null) {
+      creatorSoundIds.add(m[1]);
+    }
+  }
+
+  // Find preload calls — balanced-bracket walk to extract the array argument.
+  function _findPreloadEntries(src) {
+    const out = [];
+    const re = /FeedbackManager\s*\.\s*sound\s*\.\s*preload\s*\(\s*\[/g;
+    let mc;
+    while ((mc = re.exec(src)) !== null) {
+      let i = mc.index + mc[0].length;
+      let depth = 1;
+      let inStr = null;
+      const start = i;
+      while (i < src.length && depth > 0) {
+        const ch = src[i];
+        if (inStr) {
+          if (ch === '\\') { i += 2; continue; }
+          if (ch === inStr) inStr = null;
+        } else if (ch === '"' || ch === "'" || ch === '`') {
+          inStr = ch;
+        } else if (ch === '[') depth += 1;
+        else if (ch === ']') {
+          depth -= 1;
+          if (depth === 0) {
+            out.push({ body: src.slice(start, i), index: mc.index });
+            break;
+          }
+        }
+        i += 1;
+      }
+    }
+    return out;
+  }
+
+  const preloadCalls = _findPreloadEntries(html);
+  const preloadedIds = new Set();
+  const offendingPreload = [];
+  for (const { body, index } of preloadCalls) {
+    // Match `{ id: '<id>', url: '<url>' }` entries (order-tolerant).
+    const entryRe = /\{\s*[^}]*?\bid\s*:\s*['"`]([^'"`]+)['"`][^}]*?\burl\s*:\s*['"`]([^'"`]+)['"`][^}]*?\}/g;
+    const entryReReverse = /\{\s*[^}]*?\burl\s*:\s*['"`]([^'"`]+)['"`][^}]*?\bid\s*:\s*['"`]([^'"`]+)['"`][^}]*?\}/g;
+    let em;
+    while ((em = entryRe.exec(body)) !== null) {
+      const id = em[1];
+      const url = em[2];
+      preloadedIds.add(id);
+      if (creatorSoundIds.has(id)) continue;
+      if (id in CANONICAL_URLS) {
+        if (url !== CANONICAL_URLS[id]) {
+          const lineNo = html.slice(0, index + em.index).split('\n').length;
+          offendingPreload.push({ kind: 'url-drift', line: lineNo, id, url, expected: CANONICAL_URLS[id] });
+        }
+        continue;
+      }
+      if (CANONICAL_ALIASES.has(id)) continue;
+      const lineNo = html.slice(0, index + em.index).split('\n').length;
+      offendingPreload.push({ kind: 'invented-id', line: lineNo, id, url });
+    }
+    while ((em = entryReReverse.exec(body)) !== null) {
+      const url = em[1];
+      const id = em[2];
+      preloadedIds.add(id);
+      // (Same checks as above — don't double-report on entries the forward regex already caught.)
+      if (creatorSoundIds.has(id)) continue;
+      if (id in CANONICAL_URLS) {
+        if (url !== CANONICAL_URLS[id] && !offendingPreload.some(o => o.id === id)) {
+          const lineNo = html.slice(0, index + em.index).split('\n').length;
+          offendingPreload.push({ kind: 'url-drift', line: lineNo, id, url, expected: CANONICAL_URLS[id] });
+        }
+        continue;
+      }
+      if (CANONICAL_ALIASES.has(id)) continue;
+      if (!offendingPreload.some(o => o.id === id)) {
+        const lineNo = html.slice(0, index + em.index).split('\n').length;
+        offendingPreload.push({ kind: 'invented-id', line: lineNo, id, url });
+      }
+    }
+  }
+
+  if (offendingPreload.length > 0) {
+    const inventedList = offendingPreload.filter(o => o.kind === 'invented-id');
+    const driftList = offendingPreload.filter(o => o.kind === 'url-drift');
+    const parts = [];
+    if (inventedList.length) {
+      parts.push('INVENTED IDS (' + inventedList.length + '): ' +
+        inventedList.slice(0, 5).map(o => 'line ' + o.line + ' id="' + o.id + '"').join('; ') +
+        '. None of these ids appear in feedbackmanager-api.md § Standard Audio URLs. ' +
+        'Common canonical alternatives: sound_bubble_select / sound_bubble_deselect / tap_sound (cell-tap micro-SFX); ' +
+        'correct_sound_effect / incorrect_sound_effect (answer SFX); rounds_sound_effect (round transitions); ' +
+        'victory_sound_effect / game_complete_sound_effect / game_over_sound_effect (end-game).'
+      );
+    }
+    if (driftList.length) {
+      parts.push('URL DRIFT (' + driftList.length + '): ' +
+        driftList.slice(0, 5).map(o => 'line ' + o.line + ' id="' + o.id + '" url="' + o.url + '" (expected "' + o.expected + '")').join('; ') +
+        '. The (id, url) pair is fixed by the canonical table — do not copy a URL from a previous preload row.'
+      );
+    }
+    errors.push(
+      'ERROR [GEN-SOUND-ID-CANONICAL]: ' + parts.join(' ') + ' ' +
+      'Fix: replace each invented id with a canonical id from feedbackmanager-api.md § Standard Audio URLs ' +
+      '(use the (id, url) pair verbatim). For genuinely custom audio assets the creator uploaded, declare ' +
+      'them in spec.creatorSounds and re-run the build. ' +
+      '(feedback/reference/feedbackmanager-api.md § Standard Audio URLs (AUTHORITATIVE), ' +
+      'spec-creation/SKILL.md § creatorSounds, code-patterns.md § FeedbackManager Integration Preload, ' +
+      'GEN-SOUND-ID-CANONICAL)'
+    );
+  }
 }
 
 // ─── 5b2b. TransitionScreen hide() check (PART-025-HIDE) ────────────────────
@@ -2060,6 +2228,9 @@ if (/\bProgressBarComponent\b/.test(html)) {
         "RIGHT for no-lives games: new ProgressBarComponent({ totalLives: gameState.totalRounds, " +
         "totalRounds: gameState.totalRounds, slotId: 'mathai-progress-slot' }) and call " +
         "progressBar.update(currentRound, 0) to show no hearts. " +
+        "totalLives must be a positive integer matching the spec's lives count. " +
+        "For no-lives games (totalLives:0 in spec), still pass a numeric placeholder >=1 here AND set " +
+        "showLives:false on the ProgressBarComponent — the regex artifact is a known limitation tracked separately. " +
         "(which-ratio #561 P0, GEN-PROGRESSBAR-LIVES, CR-024)"
     );
   }
@@ -2615,7 +2786,10 @@ if (hasStartGame) {
         'keeping data-testid="bb-submit-btn" and inner text "Submit" — this rule scans all 5 attributes and still fires. ' +
         'If existing tests reference data-testid="bb-submit-btn", update them to target the FloatingButton DOM (' +
         'selector: .mathai-fb-btn-primary, or add a data-testid via the FloatingButton API). ' +
-        'Reset remains inline per PART-022. (PART-050, 5e0-FLOATING-BUTTON-DUP)'
+        'Reset remains inline per PART-022. ' +
+        'Use floatingBtn.setMode(\'next\') and floatingBtn.once(\'next\', handler) instead of a custom button. ' +
+        'See alfred/skills/feedback/SKILL.md § Composition with screen primitives. ' +
+        '(PART-050, 5e0-FLOATING-BUTTON-DUP)'
     );
   }
 })();
@@ -2938,6 +3112,8 @@ if (hasStartGame) {
         'ALLOWED on TS cards — they name a destination, not a navigation step. The canonical Victory template ' +
         '(default-transition-screens.md § 3) requires `[Play Again, Claim Stars]` for <3★ and `[Claim Stars]` for 3★. ' +
         'Do NOT strip those buttons to silence this rule — they are NOT in the reserved list. ' +
+        'Move the CTA to floatingBtn.setMode(\'next\') and trigger transitionScreen.hide() from the FloatingButton\'s \'next\' handler. ' +
+        'See alfred/skills/game-building/reference/flow-implementation.md § FloatingButton-driven TS dismissal. ' +
         '(PART-050 "Next flow", GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN, default-transition-screens.md § 3, ' +
         'see also GEN-VICTORY-BUTTONS-REQUIRED for positive enforcement)'
     );
@@ -3136,6 +3312,8 @@ if (hasStartGame) {
           '(5) `setTimeout(() => floatingBtn.setMode("next"), 1100)`. ' +
           'Do NOT split into runFeedbackSequence / finalizeAfterDwell / inner-endGame — ' +
           'TTS MUST be awaited inside endGame() before it returns. ' +
+          'Standalone end-of-game must be a single 5-beat block in endGame() (SFX await -> game_complete sync -> TTS await -> show_star -> setTimeout setMode(\'next\')). ' +
+          'Splitting into helper chains stacks animations on top of audio. ' +
           '(PART-050 "Next flow", flow-implementation.md beat sequence, GEN-ENDGAME-AFTER-TTS)'
       );
     }
@@ -3202,6 +3380,8 @@ if (hasStartGame) {
           '`try { FeedbackManager.sound.stopAll(); } catch (e) {} ' +
           'try { FeedbackManager.stream.stopAll(); } catch (e) {} ' +
           'try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}`. ' +
+          'Place these calls at the FIRST line of nextRound, showRoundIntro, endGame, restartGame: ' +
+          '`FeedbackManager.sound.pause(); FeedbackManager.stream.stopAll(); FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic();` ' +
           '(feedback/reference/timing-and-blocking.md "Stop Triggers" — showRoundIntro entry row, ' +
           'flow-implementation.md "Round-boundary audio cleanup", GEN-ROUND-BOUNDARY-STOP)'
       );
@@ -3312,8 +3492,178 @@ if (hasStartGame) {
           'still advances. ' +
           'Carve-outs that may stay fire-and-forget: round-start TTS (inside `showRoundIntro` / `onMounted`), ' +
           'chain-progress / partial-match audio. ' +
+          'Pattern: `try { await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker}); } catch(e){}`. ' +
+          'See alfred/skills/feedback/SKILL.md § Default Feedback by Game Type. ' +
           '(feedback/SKILL.md "Default Feedback by Game Type", timing-and-blocking.md submit-handler pattern, ' +
           'code-patterns.md "Dynamic VO", GEN-FEEDBACK-TTS-AWAIT)'
+      );
+    }
+  }
+
+  // ─── GEN-TS-TTS-MISSING ───────────────────────────────────────────────────
+  // Every prescribed TransitionScreen `onMounted` MUST chain SFX → TTS, both
+  // awaited, per feedback/SKILL.md CASE 1/2/11/12 + default-transition-screens.md
+  // § Default narration strings. The legacy SFX-only shape (cross-logic,
+  // spot-the-pairs, 2026-04-29) is the regression this rule catches.
+  //
+  // Trigger: a `transitionScreen.show({...})` call whose `title` matches one of
+  // the prescribed-TS regexes AND whose body lacks a `playDynamicFeedback(`
+  // call. Auto-skips:
+  //   - Stars Collected (silent by canon — title matches /Stars\s*collected|Yay/i)
+  //   - Standalone games (TransitionScreen forbidden by GEN-FLOATING-BUTTON-
+  //     STANDALONE-TS-FORBIDDEN; no TS to enforce)
+  //
+  // Rationale: the build agent reads `pre-generation/screens.md` § Screen Audio
+  // for `ttsText`. When the row is non-silent, the build MUST emit a
+  // `playDynamicFeedback(...)` call inside `onMounted`. This rule doesn't
+  // require the await to be present (GEN-TS-AUDIO-AWAITED handles that); it
+  // requires the call to EXIST.
+  // (isStandalone declared below; compute locally here)
+  const _isStandaloneTtsMissing = specContext.totalRounds === 1;
+  // Balanced-brace traversal: find every `transitionScreen.show(` and walk
+  // forward counting `{`/`}` and `(`/`)` until the matching close. The naive
+  // non-greedy regex `[\s\S]{0,4000}?\}\s*\)` stops at the FIRST `})`
+  // (typically the inner `safePlaySound({sticker})` close), missing the rest
+  // of the `onMounted` body where the TTS call lives.
+  // Hoisted out of both rules' if-blocks so GEN-TS-AUDIO-AWAITED can reuse it.
+  function _extractTsShowBlocks(src) {
+      const blocks = [];
+      const callRe = /transitionScreen\s*\.\s*show\s*\(/g;
+      let mc;
+      while ((mc = callRe.exec(src)) !== null) {
+        let i = mc.index + mc[0].length;
+        // Skip whitespace, expect `{`
+        while (i < src.length && /\s/.test(src[i])) i += 1;
+        if (src[i] !== '{') continue;
+        let depthBrace = 0;
+        let depthParen = 1; // already inside show(
+        let inStr = null;
+        let inLine = false;
+        let inBlock = false;
+        const start = mc.index;
+        while (i < src.length) {
+          const ch = src[i];
+          const next = src[i + 1];
+          if (inLine) {
+            if (ch === '\n') inLine = false;
+          } else if (inBlock) {
+            if (ch === '*' && next === '/') { inBlock = false; i += 1; }
+          } else if (inStr) {
+            if (ch === '\\') { i += 1; }
+            else if (ch === inStr) inStr = null;
+          } else if (ch === '/' && next === '/') { inLine = true; i += 1; }
+          else if (ch === '/' && next === '*') { inBlock = true; i += 1; }
+          else if (ch === '"' || ch === "'" || ch === '`') inStr = ch;
+          else if (ch === '{') depthBrace += 1;
+          else if (ch === '}') depthBrace -= 1;
+          else if (ch === '(') depthParen += 1;
+          else if (ch === ')') {
+            depthParen -= 1;
+            if (depthParen === 0) {
+              blocks.push({ block: src.slice(start, i + 1), index: start });
+              break;
+            }
+          }
+          i += 1;
+        }
+      }
+      return blocks;
+    }
+  const tsShowBlocks = _extractTsShowBlocks(html);
+  if (!_isStandaloneTtsMissing) {
+    const prescribedTitles = [
+      { name: 'Welcome', re: /title\s*:\s*['"`][^'"`]*Welcome/i },
+      { name: 'Round Intro', re: /title\s*:\s*['"`][^'"`]*(?:Round|Puzzle|Level)\s*\$\{?[a-zA-Z0-9_]/i },
+      { name: 'Round Intro', re: /title\s*:\s*['"`][^'"`]*(?:Round|Puzzle|Level)\s*['"`+]/i },
+      { name: 'Victory', re: /title\s*:\s*['"`][^'"`]*Victory/i },
+      { name: 'Game Over', re: /title\s*:\s*['"`][^'"`]*Game\s*Over/i },
+      { name: 'Motivation', re: /title\s*:\s*['"`][^'"`]*Ready\s*to\s*improve/i },
+    ];
+    const silentExceptions = /title\s*:\s*['"`][^'"`]*(?:Stars\s*collected|Yay)/i;
+    const offendingTs = [];
+    for (const { block, index } of tsShowBlocks) {
+      if (silentExceptions.test(block)) continue;
+      const matchedScreen = prescribedTitles.find(p => p.re.test(block));
+      if (!matchedScreen) continue;
+      const hasTts = /\bplayDynamicFeedback\s*\(/.test(block) ||
+                     /\bsafeDynamic\s*\(/.test(block) ||
+                     /\bsafePlayDynamic\s*\(/.test(block);
+      if (hasTts) continue;
+      const lineNo = html.slice(0, index).split('\n').length;
+      offendingTs.push({ name: matchedScreen.name, line: lineNo });
+    }
+    if (offendingTs.length > 0) {
+      const off = offendingTs.slice(0, 5).map(o => o.name + ' at line ' + o.line).join('; ');
+      errors.push(
+        'ERROR [GEN-TS-TTS-MISSING]: ' + offendingTs.length + ' prescribed TransitionScreen ' +
+          (offendingTs.length === 1 ? 'onMounted is' : 'onMounted bodies are') +
+          ' missing a `playDynamicFeedback(` call. Offender(s): ' + off + '. ' +
+          'Every prescribed TS (Welcome / Round Intro / Victory / Game Over / Motivation) MUST chain ' +
+          'SFX → TTS, both awaited, inside onMounted — per feedback/SKILL.md § Composition with screen primitives ' +
+          '(rows 198-204) and default-transition-screens.md § Default narration strings. The SFX-only shape was the ' +
+          'cross-logic / spot-the-pairs regression (2026-04-29). ' +
+          'CORRECT: onMounted: () => (async () => { ' +
+            'try { await safePlaySound(sfxId, { sticker }); } catch (e) {} ' +
+            'if (ttsText) try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker }); } catch (e) {} ' +
+          '})(). ' +
+          'The `ttsText` comes from `pre-generation/screens.md` § Screen Audio (game-planning resolves it). ' +
+          'EXCEPTION: Stars Collected (`title: "Yay!\\nStars collected!"`) is silent by canon and auto-skips this rule. ' +
+          '(feedback/SKILL.md CASE 1/2/11/12, default-transition-screens.md § Default narration strings, GEN-TS-TTS-MISSING)'
+      );
+    }
+  }
+
+  // ─── GEN-TS-AUDIO-AWAITED ─────────────────────────────────────────────────
+  // When a TS `onMounted` body contains BOTH `safePlaySound`/`sound.play` AND
+  // `playDynamicFeedback`, both calls MUST be awaited. The sequential ordering
+  // rule (CASE 1/2/11/12: "Both are awaited in order — the second never starts
+  // until the first finishes") breaks if either call is fire-and-forget — the
+  // SFX overlaps the TTS, or the screen dismisses before audio finishes.
+  if (!_isStandaloneTtsMissing) {
+    const offendingAwait = [];
+    for (const { block, index } of tsShowBlocks) {
+      const hasSfx = /\b(?:safePlaySound|FeedbackManager\s*\.\s*sound\s*\.\s*play)\s*\(/.test(block);
+      const hasTts = /\b(?:playDynamicFeedback|safeDynamic|safePlayDynamic)\s*\(/.test(block);
+      if (!hasSfx || !hasTts) continue;
+      // Check each SFX/TTS call is preceded by `await` within ~60 chars back.
+      const checkAwaited = (callRegex) => {
+        let m;
+        const re = new RegExp(callRegex.source, 'g');
+        while ((m = re.exec(block)) !== null) {
+          const back = block.slice(Math.max(0, m.index - 60), m.index);
+          if (!(/\bawait\s*$/.test(back) || /\bawait\s+\(?\s*$/.test(back))) {
+            return false;
+          }
+        }
+        return true;
+      };
+      const sfxAwaited = checkAwaited(/\b(?:safePlaySound|FeedbackManager\s*\.\s*sound\s*\.\s*play)\s*\(/);
+      const ttsAwaited = checkAwaited(/\b(?:playDynamicFeedback|safeDynamic|safePlayDynamic)\s*\(/);
+      if (sfxAwaited && ttsAwaited) continue;
+      const lineNo = html.slice(0, index).split('\n').length;
+      offendingAwait.push({
+        line: lineNo,
+        sfx: sfxAwaited ? 'awaited' : 'NOT awaited',
+        tts: ttsAwaited ? 'awaited' : 'NOT awaited'
+      });
+    }
+    if (offendingAwait.length > 0) {
+      const off = offendingAwait.slice(0, 5)
+        .map(o => 'line ' + o.line + ' (SFX ' + o.sfx + ', TTS ' + o.tts + ')')
+        .join('; ');
+      errors.push(
+        'ERROR [GEN-TS-AUDIO-AWAITED]: ' + offendingAwait.length + ' TransitionScreen ' +
+          (offendingAwait.length === 1 ? 'onMounted body has' : 'onMounted bodies have') +
+          ' fire-and-forget audio. Offender(s): ' + off + '. ' +
+          'When a TS onMounted contains both SFX and TTS, both MUST be awaited in sequence ' +
+          '(CASE 1/2/11/12: "Both are awaited in order — the second never starts until the first finishes"). ' +
+          'Fire-and-forget breaks the sequential audio guarantee — SFX overlaps TTS, or the screen dismisses ' +
+          'before audio finishes. ' +
+          'CORRECT: onMounted: () => (async () => { ' +
+            'try { await safePlaySound(sfxId, { sticker }); } catch (e) {} ' +
+            'try { await playDynamicFeedback({ audio_content, subtitle, sticker }); } catch (e) {} ' +
+          '})(). ' +
+          '(feedback/SKILL.md rule 9 line 267 "Sequential audio must await in order", GEN-TS-AUDIO-AWAITED)'
       );
     }
   }
@@ -3391,6 +3741,138 @@ if (hasStartGame) {
           'so the submittable predicate takes over again, (2) optionally focus the input if retryPreservesInput is false. ' +
           'Lives decrement happens ONCE in the wrong-answer branch of the submit handler — NOT in the retry handler. ' +
           '(PART-050 "Try Again flow", GEN-FLOATING-BUTTON-RETRY-LIVES-RESET)'
+      );
+    }
+  }
+})();
+
+// ─── Feedback-layer composition rules (Track B) ─────────────────────────────
+// Three blocking rules that codify the prose-only "Rule 1" of feedback/SKILL.md
+// (FeedbackManager + TransitionScreen own the feedback layer). Each fires only
+// when the game is also using the platform feedback components, so they never
+// false-positive on hand-rolled standalone games.
+//
+//   GEN-FEEDBACK-CUSTOM-DIALOGUE        — custom dialogue overlay alongside
+//                                          FeedbackManager / TransitionScreen
+//   GEN-INLINE-CTA-WITH-FLOATING-BUTTON — inline advance CTA alongside
+//                                          FloatingButton (rename-evasion of
+//                                          5e0-FLOATING-BUTTON-DUP)
+//   GEN-CUSTOM-SUBTITLE-RENDER          — custom subtitle DOM duplicates
+//                                          playDynamicFeedback's auto-rendered
+//                                          subtitle line
+(function checkFeedbackLayerComposition() {
+  const usesFeedbackManager =
+    /\bnew\s+FeedbackManager\b/.test(html) ||
+    /\bFeedbackManager\s*\.\s*playDynamicFeedback\s*\(/.test(html);
+  const usesTransitionScreen =
+    /\bnew\s+TransitionScreenComponent\s*\(/.test(html) ||
+    /\bTransitionScreenComponent\b/.test(html);
+  const usesFloatingButton =
+    /\bnew\s+FloatingButtonComponent\s*\(/.test(html) ||
+    /\bnew\s+FloatingButton\s*\(/.test(html);
+
+  // ── B1: GEN-FEEDBACK-CUSTOM-DIALOGUE ──────────────────────────────────────
+  // A custom dialogue/feedback card overlay alongside FeedbackManager or
+  // TransitionScreenComponent is a duplicated feedback layer.
+  if (usesFeedbackManager || usesTransitionScreen) {
+    const idDialogueRe = /\bid\s*=\s*["']([^"']*(?:fail|wrong|correct|incorrect|feedback)Dialogue[^"']*)["']/i;
+    const classDialogueRe =
+      /\bclass\s*=\s*["']([^"']*(?:^|\s)(?:fd-[\w-]*|fail-[\w-]*|wrong-feedback-[\w-]*|feedback-card[\w-]*)[^"']*)["']/i;
+    const idHit = idDialogueRe.exec(html);
+    const classHit = classDialogueRe.exec(html);
+    const matched = idHit
+      ? 'id="' + idHit[1] + '"'
+      : (classHit ? 'class="' + classHit[1] + '"' : null);
+    if (matched) {
+      errors.push(
+        'ERROR [GEN-FEEDBACK-CUSTOM-DIALOGUE]: Custom feedback overlay detected (matched element: ' +
+          matched + '). FeedbackManager + TransitionScreen own the feedback layer ' +
+          '(Rule 1 of feedback/SKILL.md). Use TransitionScreen.show({title, subtitle, sticker, persist: true}) ' +
+          'for persistent feedback messages. ' +
+          'See alfred/skills/feedback/SKILL.md § Composition with screen primitives and ' +
+          'alfred/skills/feedback/reference/composition-anti-patterns.md anti-pattern #1.'
+      );
+    }
+  }
+
+  // ── B2: GEN-INLINE-CTA-WITH-FLOATING-BUTTON ───────────────────────────────
+  // Inline advance CTA alongside FloatingButton — rename-evasion of
+  // 5e0-FLOATING-BUTTON-DUP. Excludes buttons inside FloatingButton /
+  // TransitionScreen subtrees (mathai-transition-* class, mathai-fb-* class,
+  // or data-floating-button-cta marker).
+  if (usesFloatingButton) {
+    const advanceTextRe = /\b(?:move\s+on|continue|onward|proceed|got\s+it|okay|next|advance)\b/i;
+    const advanceAriaRe = /\b(?:move\s+forward|advance|next)\b/i;
+    const inlineBtnRe = /<button\b([^>]*)>([\s\S]*?)<\/button>/gi;
+    const inlineViolations = [];
+    let ibm;
+    while ((ibm = inlineBtnRe.exec(html)) !== null) {
+      const attrs = ibm[1] || '';
+      const inner = (ibm[2] || '').replace(/<[^>]+>/g, '').trim();
+      // Skip CDN-rendered buttons (FloatingButton / TransitionScreen subtrees).
+      if (/\bmathai-(?:fb|ts|transition|preview|action)-/i.test(attrs)) continue;
+      if (/\bdata-floating-button-cta\b/i.test(attrs)) continue;
+      // Skip buttons whose enclosing container looks like a TransitionScreen
+      // markup wrapper (rare in source, but safe).
+      const before = html.slice(Math.max(0, ibm.index - 400), ibm.index);
+      if (/<div[^>]*class=["'][^"']*mathai-transition-/i.test(before)) continue;
+
+      const ariaMatch = /\baria-label\s*=\s*["']([^"']+)["']/i.exec(attrs);
+      const aria = ariaMatch ? ariaMatch[1] : '';
+      const textHit = inner && advanceTextRe.test(inner);
+      const ariaHit = aria && advanceAriaRe.test(aria);
+      if (textHit || ariaHit) {
+        const label = textHit
+          ? 'text="' + (inner.length < 60 ? inner : inner.slice(0, 57) + '...') + '"'
+          : 'aria-label="' + aria + '"';
+        inlineViolations.push(label);
+        if (inlineViolations.length >= 3) break;
+      }
+    }
+    if (inlineViolations.length > 0) {
+      errors.push(
+        'ERROR [GEN-INLINE-CTA-WITH-FLOATING-BUTTON]: Inline advance CTA found alongside FloatingButton ' +
+          '(matched: ' + inlineViolations.join('; ') + '). ' +
+          'This often appears as a workaround to dodge `5e0-FLOATING-BUTTON-DUP` by renaming the button. ' +
+          'Use `floatingBtn.setMode(\'next\')` and `floatingBtn.once(\'next\', handler)` instead — the ' +
+          'FloatingButton is the canonical advance surface. ' +
+          'See alfred/skills/feedback/SKILL.md § Composition with screen primitives and ' +
+          'composition-anti-patterns.md #2-#3.'
+      );
+    }
+  }
+
+  // ── B3: GEN-CUSTOM-SUBTITLE-RENDER ────────────────────────────────────────
+  // playDynamicFeedback({subtitle: ...}) renders the subtitle natively. A
+  // custom subtitle / caption / message-line element duplicates that.
+  const playDynamicCallRe = /playDynamicFeedback\s*\(\s*\{([\s\S]{0,2000}?)\}\s*\)/g;
+  let pdc;
+  let hasSubtitleArg = false;
+  while ((pdc = playDynamicCallRe.exec(html)) !== null) {
+    if (/\bsubtitle\s*:/.test(pdc[1])) { hasSubtitleArg = true; break; }
+  }
+  if (hasSubtitleArg) {
+    // Find a custom subtitle/caption element. Exclude the canonical
+    // `mathai-subtitle-*` (CDN-rendered) and `mathai-*-subtitle` classes.
+    const customSubtitleRe =
+      /\b(?:class|id)\s*=\s*["']([^"']*(?:subtitle|caption|message-line|fd-msg)[^"']*)["']/gi;
+    let csm;
+    let matched = null;
+    while ((csm = customSubtitleRe.exec(html)) !== null) {
+      const val = csm[1] || '';
+      // Skip the canonical mathai-* CDN classes.
+      if (/\bmathai-[\w-]*subtitle\b/i.test(val)) continue;
+      if (/\bmathai-subtitle-[\w-]+/i.test(val)) continue;
+      matched = val;
+      break;
+    }
+    if (matched) {
+      errors.push(
+        'ERROR [GEN-CUSTOM-SUBTITLE-RENDER]: Custom subtitle rendering duplicates FeedbackManager\'s ' +
+          'auto-rendered subtitle. The element ' + matched + ' is unnecessary because ' +
+          'playDynamicFeedback({subtitle}) renders subtitles natively. Remove the custom element. ' +
+          'See alfred/skills/feedback/SKILL.md § Composition with screen primitives and ' +
+          'composition-anti-patterns.md #4.'
       );
     }
   }
@@ -3497,6 +3979,8 @@ if (hasStartGame) {
         'so this code runs before the student taps the button. The transition screen flashes for one ' +
         'frame then gets replaced. Move game-flow continuation (showRoundIntro, renderRound, startGame, ' +
         'restartGame, nextRound, etc.) inside the button `action` callback. ' +
+        'Each persist:true TS must have an explicit floatingBtn.once(\'next\', ...) or transitionScreen.onDismiss handler that calls transitionScreen.hide() before the next show(). ' +
+        'See alfred/skills/game-building/reference/flow-implementation.md § Persist chaining. ' +
         'See PART-024 "show() Promise Resolves IMMEDIATELY" and GEN-TS-PERSIST-FALLTHROUGH. ' +
         `Violations at HTML offset(s): ${violations.join(', ')}.`
     );

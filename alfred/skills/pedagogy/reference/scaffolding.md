@@ -1,6 +1,6 @@
 # Scaffolding Patterns by Bloom Level
 
-**[STANDARD]** Scaffolding is the support given when a student is stuck. It is NOT the same as feedback (which responds to a completed attempt). Scaffolding intervenes DURING the struggle, before the student gives up.
+**[SUGGESTED]** Scaffolding is the support given when a student is stuck. It is NOT the same as feedback (which responds to a completed attempt). Scaffolding intervenes DURING the struggle, before the student gives up.
 
 ## When Scaffolding Triggers
 
@@ -8,13 +8,13 @@
 |-------|--------|
 | 1st wrong attempt | Bloom-level-dependent (see below) |
 | 2nd wrong attempt | Bloom-level-dependent (see below) |
-| 3rd wrong attempt | Always: show full solution, mark as scaffolded, advance |
+| 3rd wrong attempt | **[SUGGESTED]** Show full solution, mark as scaffolded, advance |
 | 15 seconds with no input (L1/L2) | Gentle nudge: "Take your time!" (not a hint) |
 | 30 seconds with no input (L3/L4) | No nudge. Thinking time is expected. |
 
 ## Scaffolding by Bloom Level
 
-### L1 Remember: Immediate Reveal
+### L1 Remember: Immediate Reveal **[SUGGESTED]**
 
 ```
 Wrong attempt -> Show correct answer immediately
@@ -26,7 +26,7 @@ Wrong attempt -> Show correct answer immediately
 
 Why: At L1, the student either recalls or doesn't. There is nothing to "hint at." Rapid exposure to correct answers builds the memory trace.
 
-### L2 Understand: Guided Hint, Then Reveal
+### L2 Understand: Guided Hint, Then Reveal **[SUGGESTED]**
 
 ```
 1st wrong -> Guided hint: highlight the distinguishing property
@@ -40,7 +40,7 @@ Why: At L1, the student either recalls or doesn't. There is nothing to "hint at.
 
 Why: Understanding requires connecting features to categories. The first hint narrows attention. The second provides the connection explicitly.
 
-### L3 Apply: Progressive Procedural Reveal
+### L3 Apply: Progressive Procedural Reveal **[SUGGESTED]**
 
 ```
 1st wrong -> Nudge toward the procedure
@@ -59,7 +59,7 @@ Why: Understanding requires connecting features to categories. The first hint na
 
 Why: At L3, the student knows the concept but fumbles the procedure. Each hint gives one more piece of the procedure, preserving as much productive struggle as possible.
 
-### L4 Analyze: Metacognitive Scaffolding
+### L4 Analyze: Metacognitive Scaffolding **[SUGGESTED]** (this is the rule that bit cross-logic — metacognitive prompt after 1 wrong is a pedagogical default, not a contract; creators can override or omit)
 
 ```
 1st wrong -> Metacognitive prompt
@@ -88,7 +88,7 @@ Why: At L4, showing the answer teaches nothing -- the reasoning IS the content. 
 | Correct on 3rd attempt (after 2 hints) | Minimal score (+0.25) | No change |
 | Revealed after 3rd wrong | No score (0) | -1 life (L3 only) |
 
-Record in `recordAttempt`: `is_scaffolded: true`, `scaffold_level: 1|2|3`, `attempts_before_correct: N`.
+**[MANDATORY]** Record in `recordAttempt`: `is_scaffolded: true`, `scaffold_level: 1|2|3`, `attempts_before_correct: N`. (Data-contract field; analytics depend on these.)
 
 ## Scaffolding vs Hints vs Feedback -- Definitions
 

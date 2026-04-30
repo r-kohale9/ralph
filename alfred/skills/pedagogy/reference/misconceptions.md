@@ -2,7 +2,7 @@
 
 ## What is a misconception tag?
 
-**[CRITICAL]** A misconception tag is a short, named identifier for a specific wrong belief that leads to a specific wrong answer. It is NOT a random wrong number. Every distractor in every game must exist because a real student would pick it for a real reason.
+**[MANDATORY]** A misconception tag is a short, named identifier for a specific wrong belief that leads to a specific wrong answer. It is NOT a random wrong number. Every distractor in every game must exist because a real student would pick it for a real reason. (Tagging note: enforced by data-contract — every distractor must carry misconception_tag/name/explanation; spec-review FAILs on missing tags.)
 
 Format: `MISCONCEPTION-DOMAIN-NUMBER` (e.g., `MISC-FRAC-01`, `MISC-GEO-03`).
 
@@ -21,7 +21,7 @@ For each question, follow this process:
 4. **Name the misconception** and write the explanation that corrects it.
 5. **If you need a 4th option**, use a computational error distractor (right procedure, arithmetic mistake) -- tag it `MISC-CALC-01` ("careless calculation error").
 
-Never:
+Never (all **[MANDATORY]** — distractor design rules enforced by spec-review):
 - Use random wrong numbers as distractors
 - Use distractors that no student would ever pick (e.g., a negative number when all options should be positive)
 - Use the same misconception twice in one question
@@ -116,7 +116,7 @@ These are the most common misconceptions per math domain. Use these as a startin
 
 ## Using misconception data for analytics
 
-Every `recordAttempt` call must include:
+**[MANDATORY]** Every `recordAttempt` call must include:
 - `selected_option`: what the student picked
 - `correct_answer`: what was right
 - `misconception_tag`: which misconception the selected distractor targets (null if correct)

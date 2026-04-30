@@ -4,6 +4,70 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 
 ---
 
+## Sound id invented + URL copied from previous preload row — `bubble_pop_sfx` regression (2026-04-29 — cross-logic)
+
+**Lesson L-SOUND-ID-001: planner invented a sound id; builder filled the URL by copy-pasting the previous preload row; cell taps played the round-intro sting instead of a bubble.** | Source: cross-logic 2026-04-29 — `plan.md:94, 180` named the cell-tap SFX `bubble_pop_sfx`. That id does NOT appear in `feedback/reference/feedbackmanager-api.md`'s canonical (id, URL) table. The planner LLM made up a name because the spec said "soft bubble micro-SFX" + "pop" felt natural. The build agent then registered the invented id at `index.html:2161` with a URL copied from the row above (`rounds_sound_effect → …1757506558124.mp3`), because the plan didn't supply a URL and the canonical table didn't either (the id wasn't in it). Result: every cell tap played the round-intro sting at the volume and tone of a transition cue. A 12-puzzle L4 logic-grid game with constant tapping turned into background-music-on-every-tap; the canonical CASE 9 sound is `sound_bubble_select` at `…1758162403784.mp3`, and the canonical table specifies it explicitly at `feedbackmanager-api.md:162`.
+
+**Same three-layer pattern as L-FB-SUBTITLE / L-TS-AUDIO.** Fabrication-without-canonical-source bug:
+
+| Layer | Today's state | Effect |
+|---|---|---|
+| **Spec/plan content** | Planner free to invent sound ids; nothing forced consultation of `feedbackmanager-api.md`'s canonical table. | `bubble_pop_sfx` slipped past plan review. |
+| **Build wiring** | Build skill said "use exact URLs from feedbackmanager-api.md" but didn't enforce that the (id, url) PAIR matches. The builder treated id and url as independently chosen. | URL drift: invented id paired with copy-pasted URL → wrong sound plays at runtime. |
+| **Validator** | `5b2-REGISTER` blocked `sound.register()`. `PART-011-SOUND` blocked the wrong API call. Nothing whitelisted ids; nothing pinned id → URL. | `bubble_pop_sfx + rounds URL` passed Step 5 cleanly. |
+
+**Why the build picked the copy-paste URL with confidence.** The previous preload entry was `rounds_sound_effect → …1757506558124.mp3`. The builder needed a URL for `bubble_pop_sfx`, the plan didn't supply one, and the most recently-seen URL in the file was the rounds URL. Without a canonical lookup, "stay near the local context" is the path of least resistance.
+
+**Fix landed 2026-04-29:**
+
+1. **Canonical table promoted to authoritative** (`feedbackmanager-api.md` § Standard Audio URLs) — one-paragraph "AUTHORITATIVE" header above the table; invented ids forbidden; (id, URL) pair fixed; custom assets via spec's `creatorSounds` block.
+2. **Feedback skill CASE 9 row tightened** — explicitly enumerates `sound_bubble_select` / `sound_bubble_deselect` / `tap_sound` and names invented variants like `bubble_pop_sfx` / `tap_select_sfx` as forbidden.
+3. **Spec-creation rule** — sound ids not spec-creation's invention space; optional `creatorSounds` block holds creator-uploaded URLs only.
+4. **Game-planning rule** (§ 7d) — every sound id in plan.md MUST be canonical or in `spec.creatorSounds`; planner asks via clarifying-question loop, never guesses.
+5. **Build skill rule** — every preload `(id, url)` pair MUST match canonical verbatim; copy-from-previous-row anti-pattern forbidden.
+6. **Validator** (`alfred/scripts/validate-static.js`) — new rule `GEN-SOUND-ID-CANONICAL`. Hard-coded canonical map snapshotted from `feedbackmanager-api.md`. Two failure modes flagged: (a) invented id not in canonical / aliases / `spec.creatorSounds`; (b) URL drift on canonical id. Auto-skips dynamic id expressions. Smoke-tested: cross-logic's `bubble_pop_sfx` flagged correctly; synthetic URL drift flagged correctly; spot-the-pairs + hexa-numbers pass.
+
+**Open documentation drift (out of session scope).** Several skill-doc references (`sound_game_over`, `sound_motivation`, `sound_game_victory`, `sound_stars_collected`, `sound_game_complete`) are NOT in the authoritative table — they're aliases used in `default-transition-screens.md` and `code-patterns.md` without canonical URLs. The validator allows these aliases (id permitted, URL not enforced) so existing games don't break, but next sweep should add proper URLs to the canonical table OR migrate skill docs to canonical names.
+
+**Affected games:** cross-logic only — validator flags on next regeneration; new build will use `sound_bubble_select` + canonical URL. spot-the-pairs and hexa-numbers pass.
+
+**Sibling, not extension.** Third instance of the "creator-content slot needs a canonical source + validator gate" pattern, joining L-TS-AUDIO and L-FB-SUBTITLE. Each handles a different content domain (TS narration, per-attempt subtitle, sound id/URL); the remediation recipe is shared but the canonical surfaces are disjoint.
+
+---
+
+## TransitionScreen TTS narration silently dropped — SFX-only onMounted regression (2026-04-29 — cross-logic, spot-the-pairs, hexa-numbers)
+
+**Lesson L-TS-AUDIO-001: feedback/SKILL.md prescribed SFX → TTS in onMounted; default-transition-screens.md per-screen tables showed only SFX. Build agents followed the latter and dropped TTS** | Source: cross-logic + spot-the-pairs regenerated builds, both shipped with `safePlaySound(...).catch(noop)` and zero `playDynamicFeedback` calls inside any TS `onMounted`. hexa-numbers (Round Intro + Victory) shows the same shape.
+
+The Alfred pipeline gave contradictory guidance about TS audio:
+- `feedback/SKILL.md` § Composition with screen primitives (rows 198-204) + CASE 1/2/11/12 prescribed `await safePlaySound(...) → await playDynamicFeedback({audio_content, subtitle, sticker})` for every prescribed TS.
+- `game-planning/reference/default-transition-screens.md` § 1-4 per-screen tables showed only `FeedbackManager.sound.play('sound_*', {sticker})` in each `onMounted` row — no TTS line.
+- `game-building/SKILL.md` line ~283 prescribed `onMounted: () => FeedbackManager.sound.play('<id>', {sticker})` — SFX-only example.
+- `spec-creation/SKILL.md` had no field for per-screen TS narration text and forbade inventing copy without a creator quote (line 224).
+- `validate-static.js` `GEN-FEEDBACK-TTS-AWAIT` carved out `onmounted`/`showroundintro`/`showvictory`/etc., exempting TS audio from TTS-await enforcement.
+
+Every signal pointed the build agent toward SFX-only. The TTS prescription existed only in feedback/SKILL.md's composition table — the build agent's per-screen reference of choice was default-transition-screens.md, which was silent on TTS. Result: every regenerated game shipped with sticker SFX only on every TS, no spoken narration anywhere outside the gameplay correct/wrong path.
+
+Fix landed 2026-04-29 across spec, planning, building, validator, and games:
+
+1. **Ownership clarified.** TS audio is OWNED by game-planning (which writes the resolved `## Screen Audio` table into `pre-generation/screens.md`) and `default-transition-screens.md` (canonical narration templates). Spec-creation does NOT enumerate TS audio — it only carries an OPTIONAL `creatorScreenAudio` block when the creator quoted per-screen narration or asked for a screen's TTS to be skipped. This mirrors how `previewAudioText` is only present when the creator authored content.
+
+2. **Default narration strings published.** `default-transition-screens.md` got a new "Default narration strings" subsection with canonical templates (e.g. `"Puzzle ${n} of ${N}"`, `"Victory! You got ${score} out of ${totalRounds}!"`, `"Ready to improve your ${primaryMetric}?"`). These are runtime data interpolations (round number, score, game title, primary metric), NOT authored prose — using them is not invention. Stars Collected stays silent by canon (SFX + show_star + setTimeout, no TTS).
+
+3. **Per-screen tables reconciled.** Each `onMounted` row in default-transition-screens.md § 1-3 now reads `await safePlaySound(...) → try { await playDynamicFeedback({audio_content: ttsText, subtitle: ttsText, sticker}); } catch(e){}` — the same shape as feedback/SKILL.md's composition table. The two references no longer disagree.
+
+4. **Game-planning owns the resolution.** A new step in `game-planning/SKILL.md` walks the prescribed TS list for the game shape, pulls templates from default-transition-screens.md, applies any `creatorScreenAudio` overrides from the spec, and writes the resolved `## Screen Audio` table at the top of `screens.md`. The build agent reads ONLY this table for TS audio decisions.
+
+5. **Validator enforcement.** Two new rules in `alfred/scripts/validate-static.js`: `GEN-TS-TTS-MISSING` flags any prescribed TS `onMounted` lacking a `playDynamicFeedback`/`safeDynamic`/`safePlayDynamic` call (auto-skips Stars Collected and standalone games). `GEN-TS-AUDIO-AWAITED` requires both SFX and TTS to be `await`ed when both are present in the same `onMounted` body. Implementation note: the rules use a balanced-brace traversal (`_extractTsShowBlocks`) instead of the naive non-greedy regex `[\s\S]{0,4000}?\}\s*\)`, which stops at the FIRST `})` (typically the inner `safePlaySound({sticker})` close) and would miss the rest of the `onMounted` body where the TTS call lives.
+
+6. **Build skill snippets.** `code-patterns.md` got new "Canonical Round Intro snippet" + "Canonical Welcome snippet"; the existing Canonical Victory snippet (added in the FloatingButton-lifecycle session 2026-04-28) gained the awaited-TTS chain after the SFX. `flow-implementation.md` per-screen rows updated to the SFX → TTS shape.
+
+7. **Game backfill.** spot-the-pairs got a `safeDynamic` helper + awaited SFX → TTS in Welcome / Round Intro / Victory / Game Over / Motivation (validator now passes). cross-logic's index.html was moved to `index.html.prev` mid-session; a fresh build will pick up the new pipeline contract automatically. hexa-numbers (Round Intro + Victory) is out of session scope; the validator will flag it on its next regeneration.
+
+**Pipeline-level invariant going forward:** every prescribed TS plays SFX → TTS, both awaited, in `onMounted`. The narration content comes from `screens.md` (default templates by canon, creator overrides via `creatorScreenAudio`). Stars Collected is the only silent-by-canon screen. Standalone games (`totalRounds === 1`) have no TS at all and use the inline `#gameContent` end-flow panel.
+
+---
+
 ## Victory buttons stripped to silence FloatingButton-TS-CTA rule (2026-04-29 — cross-logic, bodmas-blitz, doubles)
 
 **Lesson L-VICTORY-001: `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN` reserved-word list incorrectly included `Play Again`** | Source: cross-logic Step 5 RCA 2026-04-29; bodmas-blitz 2026-04-23 regression; doubles (suspected)

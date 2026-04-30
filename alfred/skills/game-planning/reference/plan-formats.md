@@ -81,11 +81,36 @@ List every screen with its data-phase value:
 | Sticker / Icon | top-center | exact emoji string (e.g. `😔`) OR named sticker (e.g. `alfred_sad`) — the icons[] array passed to transitionScreen.show | no |
 | Title | center | **exact quoted string** — the `title` passed to transitionScreen.show | no |
 | Subtitle | center | **exact quoted string** (omit row if no subtitle) — the `subtitle` passed to transitionScreen.show | no |
-| Audio | (auto, onMounted) | **sound id + optional dynamic VO text** — fired by onMounted via FeedbackManager.sound.play(id, { sticker }) | no |
+| Audio | (auto, onMounted) | **sound id + sticker** — pulled from the per-screen Screen Audio table below; fired by onMounted via `await safePlaySound(id, { sticker })` followed by `await playDynamicFeedback({audio_content: ttsText, ...})` (see Screen Audio table) | no |
 | CTA 1 | bottom | **exact quoted button label** → which screen / function it routes to | tap |
 | CTA 2 | bottom (if multiple) | **exact quoted button label** → which screen / function it routes to | tap |
 
 These strings are the **contract** between planning and building. Game-building MUST copy title / subtitle / sticker / audio id / button labels VERBATIM from this table into `transitionScreen.show({...})`. Content drift (inventing a different title, adding stars to the subtitle, renaming a button) is blocked by `test/content-match.test.js` and static rule `5f-CONTENT-MATCH`.
+
+### Screen Audio (resolved by game-planning)
+
+A single per-game table at the top of `screens.md` lists the resolved SFX id, sticker, and TTS narration text for every prescribed TS. Game-planning generates this table by walking the prescribed TS list for the game shape (see `default-transition-screens.md` § Game shape table), pulling canonical templates from `default-transition-screens.md` § Default narration strings, and merging any `creatorScreenAudio` overrides from the spec.
+
+```markdown
+## Screen Audio
+
+| Screen          | sfxId                  | sticker             | ttsText                                              | source   |
+|-----------------|------------------------|---------------------|------------------------------------------------------|----------|
+| welcome         | sound_level_transition | STICKER_LEVEL       | Let's play Cross-Logic!                              | default  |
+| roundIntro      | rounds_sound_effect    | STICKER_ROUND       | Puzzle ${n} of ${N}                                  | default  |
+| victory         | sound_game_victory     | STICKER_CELEBRATE   | Brilliant deduction! You solved them all.            | creator  |
+| gameOver        | sound_game_over        | STICKER_SAD         | You completed ${score} of ${totalRounds}. Try again! | default  |
+| motivation      | sound_motivation       | STICKER_MOTIVATE    | Ready to improve your score?                         | default  |
+| starsCollected  | sound_stars_collected  | STICKER_CELEBRATE   | (silent — canon exception)                           | silent   |
+```
+
+Rules:
+- Game-planning MUST include one row per prescribed TS for the game's shape (see default-transition-screens.md § Game shape).
+- `ttsText` interpolation tokens (`${n}`, `${N}`, `${score}`, `${totalRounds}`, `${gameTitle}`, `${primaryMetric}`) are resolved at runtime by the build agent, not by game-planning.
+- `source: 'default'` — `ttsText` came from the default narration template.
+- `source: 'creator'` — `ttsText` came from `spec.creatorScreenAudio.<screen>.audioText`.
+- `source: 'silent'` — TTS is intentionally skipped on this screen. `ttsText` displays `(silent — ...)` for human readability; build emits SFX only. Allowed for Stars Collected always, and for any other screen where `spec.creatorScreenAudio.<screen>.silent: true`.
+- The build agent reads ONLY this table for TS audio decisions. It does not consult default-transition-screens.md or `spec.creatorScreenAudio` directly.
 
 ### Entry condition
 How the player arrives at this screen.

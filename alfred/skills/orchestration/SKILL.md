@@ -114,8 +114,8 @@ RULES:
 PHASE 1: NAIL THE INTENT
 
 STEP 1 — Draft Spec [SUB-AGENT]
-Read alfred/skills/spec-creation.md
-Read alfred/skills/game-archetypes.md
+Read alfred/skills/spec-creation/SKILL.md (note: § Faithful translation boundary — spec must include a `## Diff from creator description` section listing every spec line not directly traceable to the creator description, a `[MANDATORY]` rule, or a Creator Decision Default. Pedagogy `[SUGGESTED]` rules go in `## Suggestions (require explicit creator approval)`, NOT inline.)
+Read alfred/skills/game-archetypes/SKILL.md
 Read alfred/skills/pedagogy/SKILL.md
 Read alfred/skills/feedback/SKILL.md
 Read alfred/skills/mobile/SKILL.md
@@ -127,7 +127,7 @@ HUMAN REVIEWS SPEC
 Wait for my feedback. Revise and re-present until I say "approved".
 
 STEP 2 — Validate Spec [SUB-AGENT]
-Read alfred/skills/spec-review.md
+Read alfred/skills/spec-review/SKILL.md (note: § Z. Scope creep — Z1 hard-fails if spec lacks `## Diff from creator description`; Z3 hard-fails if pedagogy `[SUGGESTED]` rules are inlined without justification.)
 
 Run the spec through the review checklist. Show me:
 - PASS items (brief)
@@ -140,7 +140,7 @@ HUMAN REVIEWS VALIDATION RESULTS
 Wait for my feedback if there are any concerns.
 
 STEP 3 — Plan the Game [SUB-AGENT]
-Read alfred/skills/game-planning.md
+Read alfred/skills/game-planning/SKILL.md
 
 From the approved spec, generate the pre-generation plan:
 - Screen flow (every screen, every transition)
@@ -161,15 +161,15 @@ Wait for my go-ahead before proceeding.
 PHASE 2: BUILD, TEST, AND REVIEW
 
 STEP 4 — Build the Game [SUB-AGENT]
-Read alfred/skills/game-building.md
-Read alfred/skills/data-contract.md
+Read alfred/skills/game-building/SKILL.md
+Read alfred/skills/data-contract/SKILL.md
 Read alfred/skills/mobile/SKILL.md
-Read alfred/skills/feedback/SKILL.md
+Read alfred/skills/feedback/SKILL.md (mandatory: § Pre-flight: feedback primitive selection AND § Composition with screen primitives — the build sub-agent's final report MUST include the filled-in primitive-selection table from the Pre-flight section, with one row per feedback moment in the spec. If a moment doesn't match any row in § Composition, follow the § "When a feedback moment isn't on the table" policy: AskUserQuestion before rolling custom DOM; auto-approve = REJECT = fall back to closest matching row.)
 Read alfred/parts/PART-039-preview-screen.md  (authoritative PreviewScreen spec — MANDATORY in every game)
 Read alfred/parts/PART-051.md  (authoritative AnswerComponent spec — MANDATORY unless spec declares `answerComponent: false`. NOTE: `answerComponent: false` is a CREATOR-ONLY opt-out — no LLM step may auto-default it. If a spec arrives at step 4 with `answerComponent: false` lacking quoted creator opt-out, send it back to step 2.)
 
 Using the approved spec and plan, generate the complete game as a single index.html file.
-All CSS and JS must be inline. Follow the archetype skeleton from game-archetypes.md.
+All CSS and JS must be inline. Follow the archetype skeleton from game-archetypes/SKILL.md.
 Implement the flow inline per pre-generation/game-flow.md using the three CDN components (PreviewScreen, TransitionScreen, ProgressBar) — see game-building's reference/flow-implementation.md for the screen→component mapping, progress bar lifecycle, and round loop pattern.
 PreviewScreen is MANDATORY: `ScreenLayout.inject({ slots: { previewScreen: true, ... } })`, instantiate with `{ slotId: 'mathai-preview-slot' }` only, render `#gameContent` before `previewScreen.show()`, call `destroy()` from the FloatingButton `on('next', ...)` handler (AFTER `next_ended` is posted — NOT in `endGame()`, because the header must stay mounted while the end-screen `show_star` animation plays), and do NOT re-show on restart. See PART-039 + code-patterns.md § Preview screen integration.
 **Round-set cycling is MANDATORY** (validator rule `GEN-ROUNDSETS-MIN-3`): `fallbackContent.rounds` MUST seed at least 3 sets (`'A'`, `'B'`, `'C'`), each with exactly `totalRounds` rounds — so `rounds.length === totalRounds × 3` (or more), NOT `totalRounds`. Every round object MUST carry a `set: 'A'|'B'|'C'` key. All `id` values globally unique across sets (prefix convention `'A_r1_…'`, `'B_r1_…'`, `'C_r1_…'`). Parallel difficulty across sets (Set A Round 1 ≈ Set B Round 1 ≈ Set C Round 1). `gameState` includes `setIndex: 0`. `getRounds()` filters by current set via `getAvailableSets()` helper. `restartGame()` rotates `setIndex` BEFORE `resetGameState()` (rotation is NOT in the reset list — `setIndex` persists across in-session restarts so each Try Again / Play Again advances to the next set; resets to 0 only on fresh page load). See game-building/SKILL.md Step 4 + code-patterns.md `getRounds` / `restartGame`.
@@ -199,7 +199,7 @@ Report: number of issues found and fixed per check, and confirm exit code 0 from
 `node alfred/scripts/validate-static.js`.
 
 STEP 6 — Test and Fix [MAIN CONTEXT — requires Playwright]
-Read alfred/skills/game-testing.md
+Read alfred/skills/game-testing/SKILL.md
 
 DO NOT delegate this step to a sub-agent. Sub-agents cannot access Playwright MCP.
 Run this step directly in the main orchestrator context.
@@ -226,7 +226,7 @@ Kill the local server when done.
 Show me the test results summary with per-category pass/total counts.
 
 STEP 7 — Visual Review [MAIN CONTEXT — requires Playwright]
-Read alfred/skills/visual-review.md
+Read alfred/skills/visual-review/SKILL.md
 Read alfred/skills/game-building/reference/static-validation-rules.md
 Read alfred/parts/PART-026-anti-patterns.md (specifically Anti-Pattern 35 — preview private DOM)
 
@@ -291,7 +291,7 @@ ENTRY validator exit code, EXIT validator exit code (both MUST be 0 for
 APPROVED).
 
 STEP 8 — Final Review (with rejection fix loop) [MAIN CONTEXT — requires Playwright]
-Read alfred/skills/final-review.md
+Read alfred/skills/final-review/SKILL.md
 Read alfred/skills/game-building/reference/static-validation-rules.md
 
 DO NOT delegate this step to a sub-agent. Sub-agents cannot access Playwright MCP.
@@ -346,7 +346,7 @@ Wait for my go-ahead before proceeding.
 PHASE 3: DEPLOY
 
 STEP 10 — Deploy [SUB-AGENT]
-Read alfred/skills/deployment.md
+Read alfred/skills/deployment/SKILL.md
 
 Execute the deployment sequence:
 1. Generate content sets from the approved game (inputSchema extraction, content generation)
@@ -370,7 +370,7 @@ When confirmed: "Phase 3 complete. Game is live. Students can play it. Come back
 PHASE 4: GAUGE AND ITERATE
 
 STEP 11 — Gauge [SUB-AGENT]
-Read alfred/skills/gauge.md
+Read alfred/skills/gauge/SKILL.md
 
 After students have played the game, analyze gameplay data:
 1. Query per-round accuracy via MCP
@@ -388,7 +388,7 @@ HUMAN REVIEWS GAUGE RESULTS
 Wait for my feedback. Discuss findings until I decide on next action.
 
 STEP 12 — Iterate (if needed) [DEPENDS — sub-agent for code, main context for re-testing]
-Read alfred/skills/iteration.md
+Read alfred/skills/iteration/SKILL.md (note: this skill file is currently missing — flag and stop if Step 12 is reached)
 
 Based on gauge findings and creator decision:
 - If content-only change: update content set, re-deploy
@@ -463,20 +463,20 @@ The orchestration steps map to the legacy pipeline-v2 step sequence (replaced by
 
 | Skill | Path | Status |
 |-------|------|--------|
-| spec-creation | `alfred/skills/spec-creation.md` | Exists |
-| spec-review | `alfred/skills/spec-review.md` | Exists |
-| game-planning | `alfred/skills/game-planning.md` | Exists |
-| game-archetypes | `alfred/skills/game-archetypes.md` | Exists |
-| game-building | `alfred/skills/game-building.md` | Exists |
-| game-testing | `alfred/skills/game-testing.md` | Exists |
-| data-contract | `alfred/skills/data-contract.md` | Exists |
+| spec-creation | `alfred/skills/spec-creation/SKILL.md` | Exists (with § Faithful translation boundary) |
+| spec-review | `alfred/skills/spec-review/SKILL.md` | Exists (with § Z. Scope creep) |
+| game-planning | `alfred/skills/game-planning/SKILL.md` | Exists |
+| game-archetypes | `alfred/skills/game-archetypes/SKILL.md` | Exists |
+| game-building | `alfred/skills/game-building/SKILL.md` | Exists |
+| game-testing | `alfred/skills/game-testing/SKILL.md` | Exists |
+| data-contract | `alfred/skills/data-contract/SKILL.md` | Exists |
 | mobile | `alfred/skills/mobile/SKILL.md` | Exists |
-| pedagogy | `alfred/skills/pedagogy/SKILL.md` | Exists |
-| feedback | `alfred/skills/feedback/SKILL.md` | Exists |
-| visual-review | `alfred/skills/visual-review.md` | **Not yet written** |
-| final-review | `alfred/skills/final-review.md` | **Not yet written** |
-| deployment | `alfred/skills/deployment.md` | Exists |
-| gauge | `alfred/skills/gauge.md` | Exists |
-| iteration | `alfred/skills/iteration.md` | **Not yet written** |
+| pedagogy | `alfred/skills/pedagogy/SKILL.md` | Exists (rules tagged `[MANDATORY]` / `[SUGGESTED]`) |
+| feedback | `alfred/skills/feedback/SKILL.md` | Exists (with § Composition with screen primitives + § Pre-flight) |
+| visual-review | `alfred/skills/visual-review/SKILL.md` | Exists |
+| final-review | `alfred/skills/final-review/SKILL.md` | Exists |
+| deployment | `alfred/skills/deployment/SKILL.md` | Exists |
+| gauge | `alfred/skills/gauge/SKILL.md` | Exists |
+| iteration | `alfred/skills/iteration/SKILL.md` | **Missing — write before Step 12** |
 
 The pipeline will tell you if a required skill is missing and stop, so you can write it before continuing.

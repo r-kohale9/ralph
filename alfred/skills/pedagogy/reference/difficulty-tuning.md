@@ -2,7 +2,7 @@
 
 ## The 70-85% Target
 
-**[STANDARD]** Optimal learning happens when students succeed 70-85% of the time (Vygotsky's Zone of Proximal Development, validated by modern learning science). Below 70%, students disengage from frustration. Above 85%, they disengage from boredom.
+**[SUGGESTED]** Optimal learning happens when students succeed 70-85% of the time (Vygotsky's Zone of Proximal Development, validated by modern learning science). Below 70%, students disengage from frustration. Above 85%, they disengage from boredom.
 
 This means:
 - **If a game's pass rate is below 70%**: the game is too hard. Reduce difficulty or add scaffolding.
@@ -20,7 +20,7 @@ Every game has 3 stages (default). Each stage must be harder than the previous o
 | Stage 1 to Stage 2 | ONE difficulty dimension increases | Core mechanic, interaction type, visual layout |
 | Stage 2 to Stage 3 | ONE additional dimension increases, OR the Stage 2 dimension increases further | Same as above |
 
-Never change more than one dimension at a stage boundary. The student should feel "same game, harder problems" -- not "different game."
+**[SUGGESTED]** Never change more than one dimension at a stage boundary. The student should feel "same game, harder problems" -- not "different game."
 
 ## What Makes a Question Hard -- by Domain
 

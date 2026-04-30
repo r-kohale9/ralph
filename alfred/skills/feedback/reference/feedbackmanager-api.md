@@ -145,6 +145,8 @@ Every game preloads sounds from these categories:
 
 ## Standard Audio URLs (Production CDN)
 
+**AUTHORITATIVE — single source of truth for sound ids.** Every id used in `FeedbackManager.sound.preload([{id, url}])`, `FeedbackManager.sound.play('<id>', ...)`, or any wrapper helper (`safePlaySound`, `awaitedPlay`) MUST come from the canonical table below. Invented ids — names like `bubble_pop_sfx` / `tap_select_sfx` / `game_correct_sound` that look canonical but are not in this table — are forbidden. The (id, URL) pair is fixed: an id always points at the same URL across all games. Custom sounds (a creator-supplied audio asset not in this table) require a spec-level declaration with both the id and the URL the creator wants attached; spec-creation captures these in a `creatorSounds` block (see spec-creation/SKILL.md). The static validator `GEN-SOUND-ID-CANONICAL` enforces this contract at build time.
+
 **CRITICAL: Use these exact URLs. Do NOT invent or modify audio URLs.**
 
 ### SFX (Sound Effects)
