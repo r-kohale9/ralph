@@ -38,6 +38,15 @@
 
 This matches the canonical React `TimerComponent`'s `showInActionBar: true` layout (`src/modules/home/view/activity/Components/Blocks/AllInOne/ComponentV2/components/timer/index.tsx`).
 
+**Per-round reset vs. cumulative timer (MANDATORY):**
+
+Decide once per spec whether the timer is **per-round** (resets every round) or **cumulative** (runs continuously across rounds/levels), then follow the matching rule:
+
+- **Per-round reset:** Call `timer.reset()` (and `timer.start()` if needed) **before** `transitionScreen.show(...)` for the round-complete transition. The transition screen must already display the fresh `00:00` so the player never sees the previous round's final value flash through the transition. Resetting after the transition closes causes a visible jump.
+- **Cumulative across rounds/levels:** Do **NOT** reset between rounds. The timer keeps ticking through the round-complete transition (or is paused via `timer.pause()` if you want the transition to freeze it, then resumed on the next round). It only resets on Play Again / Try Again, per the end-of-game rules below.
+
+Picking the wrong mode is a spec bug, not a timing bug — confirm the intent in `spec.md` before wiring round-complete handlers.
+
 **End-of-game cleanup (MANDATORY):**
 
 The timer must stop ticking the moment the player can no longer interact with the game — i.e. the moment a Victory or Game Over screen appears, or any screen where the core gameplay is complete. The "core game" is over once one of these screens is shown; continuing to tick after `game_complete` is misleading because the player isn't playing any more. Post-game screens (Stars Collected, AnswerComponent carousel, end-of-game transition stack) inherit the same paused state — they are review states, not gameplay.

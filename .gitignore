@@ -5,3 +5,5 @@ tmp/
 .claude/worktrees/
 .playwright*
 .env
+node_modules/
+games/

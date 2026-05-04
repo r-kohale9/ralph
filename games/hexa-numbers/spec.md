@@ -1,911 +1,814 @@
 # Game Design: Hexa Numbers
 
 ## Identity
-
 - **Game ID:** hexa-numbers
-- **Title:** Hexa Numbers — Hexagon Sum Overlap Puzzle
-- **Class/Grade:** Class 4-6 (Grade 4-6) — DECISION-POINT flagged; source concept silent on grade.
-- **Math Domain:** Number Sense / Place-Value Reasoning / Addition (with constraint satisfaction).
-- **Topic:** Colour-gated hexagonal overlap puzzle — drag unique-value hexagons into blank cells so that every one of three distinct target totals is satisfied simultaneously. The game reinforces (a) decomposing a target number into place-value-friendly parts (e.g. 4279 ≈ 4000 + 200 + 40 + 30 + 6 + 3), and (b) recognising that a single shared hexagon contributes to the sums of two (or three) adjacent targets at once.
-- **Bloom Level:** L4 Analyze — students must decompose three target sums simultaneously, hold partial placements in working memory, recognise which slots are shared between targets, and test the whole arrangement. Pure recall (L1) or single-step addition (L3) does not cover the constraint-intersection demand.
-- **Archetype:** Board Puzzle (#6) — each round is a single board solved as a whole (not sequential per-item questions). Colour-gated drag-and-drop places hexagons; a CHECK button validates the entire arrangement once all 13 slots are filled.
-- **NCERT Alignment:** NCERT Class 4 Math "Play With Patterns" + Class 5 "Parts and Wholes" (place-value decomposition) + Class 6 "Knowing Our Numbers" (large-number reading, addition with mixed magnitudes). Constraint-satisfaction / logic-puzzle portion aligns with the NCERT puzzle appendices and Math Olympiad worksheets (source: IMC 2025-26 Final Round, worksheet 16483, "Hexa Numbers" block 310525).
+- **Title:** Hexa Numbers
+- **Class/Grade:** Class 4–6 (Grade 4–6, ~9–12 years old)
+- **Math Domain:** Number Sense & Operations (addition of small numbers, place-value reasoning with tens and ones)
+- **Topic:** Decomposing 2-digit numbers (40–90 range) into a sum of six small addends, with shared addends across overlapping rings
+- **Bloom Level:** L4 Analyze
+- **Archetype:** #6 Board Puzzle (single multi-step puzzle; one CHECK action; whole board is right-or-wrong as a unit)
+- **NCERT Reference:** Class 4 NCERT Chapter "Long and Short" / "Tick Tick Tick" — Place value & addition; Class 5 NCERT Chapter "The Fish Tale" / "Be My Multiple, I'll be Your Factor" — number-sense addition.
+- **Pattern:** P6 (Drag-and-drop) — uses `@dnd-kit/dom@beta`. Step 4 (Build) MUST run in MAIN CONTEXT so the orchestrator can call `mcp__context7__query-docs` for the dnd-kit API on demand.
+- **Input:** Drag-and-drop (PART-033 + dnd-kit), plus a single Submit/Check tap (PART-050).
 
 ## One-Line Concept
-
-Students drag colour-coded numbered hexagons from a 13-hex pool into 13 blank cells (6 light-blue shared slots around a tight tri-cluster of dark-teal target hexagons + 7 white outer-halo slots) so that the six hexagons around each of the three targets (4279, 7248, 9346) add to that target's value — tapping CHECK validates the whole board at once.
-
----
+The student drags 13 numbered hexagons into a honeycomb so that the six small hexagons surrounding each of three overlapping target numbers add to that target's value, then taps CHECK once to verify the whole board.
 
 ## Target Skills
 
 | Skill | Description | Round Type |
 |-------|-------------|------------|
-| Place-value decomposition | Break a 4-digit target (4279) into additive parts that can be represented by pool hexagons (4000 + 200 + 40 + 30 + 6 + 3). | All rounds |
-| Large-number addition (mental / scratch) | Add 6 numbers of mixed magnitudes (ones / tens / hundreds / thousands) to verify each target sum. | All rounds |
-| Constraint intersection | Recognise that a single hexagon in a shared (blue) slot counts toward two (or three) target totals — cannot be chosen without considering both. | All rounds (Type A) |
-| Colour-gated reasoning | Respect the rule "blue hexagon → blue slot, white hexagon → white slot". Plan placements within the colour palette each target has access to. | All rounds |
-| Hypothesis testing / whole-board validation | Commit to an arrangement, predict which targets will be off, revise. CHECK gives whole-board feedback with per-target conflict highlighting. | All rounds |
-
----
+| Place-value decomposition | Break a 2-digit target into a sum of six small addends spanning ones and tens. | hexa-board |
+| Addition of six small numbers | Mentally sum six small numbers (single-digit and small multiples of 5/10) to verify a ring. | hexa-board |
+| Constraint intersection | Recognize that a shared-slot hexagon must satisfy two target sums simultaneously. | hexa-board |
+| Colour-gated planning | Plan within the blue palette for inner slots and the white palette for outer slots independently. | hexa-board |
+| Hypothesis testing | Commit to an arrangement, predict passes, revise before the one-shot CHECK. | hexa-board |
 
 ## Core Mechanic
 
-Single interaction type across all three variants — colour-gated drag-and-drop with check-on-submit (Pattern P6). Difficulty scales by (a) tightness of the sum decomposition, (b) how many hexagon values are unique vs near-duplicates (misleads), and (c) cosmetic variant style (target colour and rule-glyph style). The underlying geometry, slot colours, and target values are identical across the three variants per the source concept.
+### Type A: "Hexa Board"
 
-### Type A: "Colour-gated hexagon overlap sum" (all rounds, all three variants)
-
-1. **Student sees:** A honeycomb-cross workspace with three dark-teal / dark-green **target hexagons** showing values 4279, 7248, 9346 arranged as a downward-pointing triangle (two targets on top, one below-centre). Around them, 13 blank slot hexagons — **6 light-blue inner slots** forming the shared ring between targets and **7 white outer-halo slots** on the perimeter. A **pool tray** below the workspace holding exactly 13 hexagons in 4 rows, each painted blue or white and labelled with a number. A single **CHECK** button at the bottom, initially disabled. Instruction bar above: "Arrange all the hexagons such that their sum equals the centre. 1⃣ Drag and drop the **blue hexagons** in the **blue blanks**, and 2⃣ **White hexagons** in the **white blanks**. You can drag and drop each hexagon only once."
-2. **Student does:** Drags each pool hexagon onto a matching-colour slot. Drop-on-occupied-slot **evicts** the previous occupant back to its pool row (or **swaps** if the source was another slot). Drop-on-pool returns a placed hexagon. Drop on a mismatched-colour slot is rejected (hexagon snaps back, soft error SFX). CHECK enables only when every one of the 13 slots is filled with a matching-colour hexagon. Tapping CHECK validates: **each target's 6-member ring sums to its displayed value**.
-3. **Correct criterion:** Every one of the three target sums passes (Target1 ring sums to 4279, Target2 ring to 7248, Target3 ring to 9346). Because all 13 pool hexagons must be placed, "leftovers" are not possible — every hex is in play.
-4. **Feedback:** See § Feedback. Correct → all slots flash green + correct SFX + TTS celebration + advance. Wrong → per-target red highlighting on the slots contributing to any violated target sum, the three target values each show a red ✗ if their sum fails (and green ✓ if they pass), CHECK button morphs to NEXT, correct arrangement is briefly revealed after ~1.5s, then NEXT advances. No retry inside the same round (matches source concept).
-
-**Variant cosmetic differences:**
-
-- **B1 (canonical, round 1):** Target hexagons rendered in **dark teal-grey** (#2F5F61). Instruction uses the glyphs **1⃣** and **2⃣**.
-- **B2 (round 2):** Target hexagons rendered in **dark green** (#27666D). Instruction uses plain **1.** and **2.**.
-- **B3 (round 3):** Target hexagons rendered in **dark green** (#27666D). Instruction uses the glyphs **1️⃣** and **2️⃣**.
-
-Mechanically identical. Cosmetic styling differs so students who replay notice the variant label but not the puzzle structure.
-
----
+1. **What the student sees**
+   - A board area with 3 dark **target hexagons** arranged in a downward-pointing triangle (T1 top-left, T2 top-right, T3 bottom-center). Each target displays a 2-digit number (40–90 range).
+   - 13 empty **slot hexagons** packed around the targets:
+     - 6 **inner blue slots** form the cluster between/under the targets. Some belong to two adjacent target rings.
+     - 7 **outer white slots** form the halo. Most belong to one target's ring; two corner slots are shared between two targets' outer rings.
+   - A **pool tray** below the board holds exactly 13 numbered hexagons: 6 painted blue and 7 painted white, each carrying a small number value (single-digit ones for white; small multiples of 5 / 10 for blue).
+   - A **CHECK** button (FloatingButton, PART-050). Disabled until all 13 slots hold a hexagon.
+2. **What the student does** (input type: drag-and-drop + 1 tap)
+   - Picks up a pool hexagon and drops it onto a slot.
+   - **Colour rule (the hidden constraint):** a blue hexagon may only enter a blue slot; a white hexagon may only enter a white slot. Dropping on a wrong-coloured slot bounces the hexagon back to the pool with a soft buzz (bubble-pop SFX).
+   - May freely re-arrange (drag a placed hexagon off a slot back to the pool, or to another same-colour slot).
+   - Taps **CHECK** once — one-shot per round; the result stands.
+3. **What counts as correct**
+   - The arrangement is judged as **all-or-nothing per target**. A target passes iff the six hexagons in its ring sum exactly to the target's value.
+   - The whole round counts as **solved on first CHECK** iff all three targets pass simultaneously.
+   - Each set (A, B, C) has **exactly one canonical arrangement modulo the topologically-trivial swaps** `outer-1 ↔ outer-2` (both T1-only) and `outer-6 ↔ outer-7` (both T3-only). Because both slots in each pair share the same target-ring membership, swapping their values is gameplay-equivalent and CHECK accepts all 4 symmetric variants. Uniqueness modulo these swaps is asserted in the Content Structure section and verified by build-time exhaustive search (each set must enumerate to exactly 4 raw solutions = 1 equivalence class).
+4. **What feedback plays**
+   - **All three pass:** green flash on every slot, SFX `sound_correct_answer` (CASE 6 round-complete) → awaited dynamic TTS ("Great! Every ring adds up!") with celebration sticker → auto-advance to next round-set variant.
+   - **Any target fails:** per-target tick/cross renders on each target hex. Slots that belong only to passing rings stay neutral. Slots in any failing target's ring glow red. After ~1.5 s the **reveal animation** plays: each pool hexagon glides to its canonical correct slot in turn (~2.5 s total). SFX `sound_life_lost` (one-shot) → awaited dynamic TTS ("Almost! Look at how the rings should add up.") → auto-advance to the next round-set variant.
+   - **Drop on wrong-colour slot:** soft buzz SFX (`sound_bubble_burst` style), hexagon springs back to its pool position. No life lost (no lives in this game). No round advance.
 
 ## Rounds & Progression
 
-The game ships **three round-sets (A, B, C)**, each containing exactly 3 rounds (B1/B2/B3 cosmetic variants). Per the platform's round-set cycle (validator `GEN-ROUNDSETS-MIN-3`), a student playing the game on first attempt sees Set A; tapping **Try Again** rotates to Set B; another Try Again rotates to Set C; then back to A. Each set is a **different puzzle** (different target triple + different pool) so retry is a genuinely fresh challenge, not a memorisation bypass.
+Three rounds per session, all sharing the same puzzle within a set. Set A → B → C is the round-set cycling axis (one full set per session); within a set, the three rounds are mechanically identical and only differ cosmetically (colour skin + glyph).
 
-**Within a set**, rounds R1/R2/R3 share the SAME target values and SAME solution — only the cosmetic skin (target colour + rule glyph style) changes per the source concept's B1 → B2 → B3 progression. Total rounds per session = three (one set), played as B1 (R1) → B2 (R2) → B3 (R3).
+### Stage 1: Variant B1 (Round 1)
+- Round type: hexa-board
+- Difficulty parameters: targets and pool fixed by the active set (A, B, or C). Geometry, slot IDs, and correct mapping are identical across all three rounds of a set.
+- Cosmetic skin: dark teal-grey targets, glyph A (sun-burst icon).
+- Score event: +1 if solved on first CHECK.
 
-### Set A: targets 4279, 7248, 9346 (canonical source values)
+### Stage 2: Variant B2 (Round 2)
+- Round type: hexa-board
+- Difficulty parameters: identical puzzle (same targets / same pool / same correct arrangement) — a fluency repeat after Round 1.
+- Cosmetic skin: dark green targets, glyph B (leaf icon).
+- Score event: +1 if solved on first CHECK.
 
-#### Stage A1: "Classic tri-target, clean decomposition" (Round 1 — Variant B1)
-- Round type: Type A.
-- Targets: **4279, 7248, 9346** (dark teal-grey).
-- Slots: 6 blue (shared inner ring) + 7 white (outer halo) = 13.
-- Pool: 13 hexagons, pre-designed so exactly one valid arrangement exists across colour constraints. Values chosen to emphasise place-value decomposition (e.g. {4000, 200, 40, 30, 6, 3, 2000, 5000, 2, 100, 200, 40, 6}).
-- Cognitive demand: **Decompose + intersect** — find values whose sum equals each target; respect colour gating; recognise shared slots contribute to two sums.
-- Rule-glyph style: **1⃣ / 2⃣**.
+### Stage 3: Variant B3 (Round 3)
+- Round type: hexa-board
+- Difficulty parameters: identical puzzle (same targets / same pool / same correct arrangement) — second fluency repeat.
+- Cosmetic skin: dark green targets, glyph C (star icon).
+- Score event: +1 if solved on first CHECK.
 
-#### Stage A2: "Same targets, green variant" (Round 2 — Variant B2)
-- Round type: Type A. Identical mechanics, identical geometry, **identical solution** to A1.
-- Cosmetic: dark-green targets; rule glyphs **1. / 2.**
-- Cognitive demand: identical to A1. The point of the variant is to reinforce the rule with a slightly different visual skin and train "same-puzzle-different-chrome" recognition.
+| Dimension | Stage 1 (R1, B1) | Stage 2 (R2, B2) | Stage 3 (R3, B3) |
+|-----------|-------------------|-------------------|-------------------|
+| Targets | Set's three values | Same as R1 | Same as R1 |
+| Pool values | Set's 13 values | Same as R1 | Same as R1 |
+| Correct arrangement | Set's canonical mapping | Same as R1 | Same as R1 |
+| Cosmetic colour | dark teal-grey | dark green | dark green |
+| Cosmetic glyph | glyph A (sun-burst) | glyph B (leaf) | glyph C (star) |
+| Cognitive demand | First exposure (analysis) | Fluency repeat (recall + verify) | Mastery repeat (automatic recall) |
 
-#### Stage A3: "Same targets, emoji-glyph variant" (Round 3 — Variant B3)
-- Round type: Type A. Identical mechanics, identical geometry, **identical solution** to A1/A2.
-- Cosmetic: dark-green targets; rule glyphs **1️⃣ / 2️⃣**.
-- Cognitive demand: identical.
-
-### Set B: targets 5318, 6427, 8259 (Try Again rotation 1)
-
-Parallel structure to Set A. Three rounds (B1/B2/B3 cosmetic) over the SAME three target values **5318, 6427, 8259**, with a distinct pool whose values decompose those targets. Within-set cosmetic progression mirrors Set A exactly (B1 dark teal-grey + 1⃣/2⃣ → B2 dark green + 1./2. → B3 dark green + 1️⃣/2️⃣).
-
-### Set C: targets 3147, 8624, 9135 (Try Again rotation 2)
-
-Parallel structure to Sets A/B. Three rounds (B1/B2/B3 cosmetic) over the SAME three target values **3147, 8624, 9135**, with a distinct pool. Cosmetic progression identical to Sets A/B.
-
-### Summary Table — Set A
-
-| Dimension | A1 (R1 — B1) | A2 (R2 — B2) | A3 (R3 — B3) |
-|-----------|---------------|---------------|---------------|
-| Set | A | A | A |
-| Round type | A | A | A |
-| Target values | 4279, 7248, 9346 | 4279, 7248, 9346 | 4279, 7248, 9346 |
-| Slot count | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) |
-| Pool size | 13 hexagons | 13 hexagons | 13 hexagons |
-| Target colour | Dark teal-grey | Dark green | Dark green |
-| Rule glyphs | 1⃣ / 2⃣ | 1. / 2. | 1️⃣ / 2️⃣ |
-| Distractors | None (every hex must be placed) | None | None |
-| Target first-attempt rate | 45–60% | 55–70% (same puzzle again) | 65–80% (third look) |
-
-### Summary Table — Set B
-
-| Dimension | B1 (R1 — B1) | B2 (R2 — B2) | B3 (R3 — B3) |
-|-----------|---------------|---------------|---------------|
-| Set | B | B | B |
-| Round type | A | A | A |
-| Target values | 5318, 6427, 8259 | 5318, 6427, 8259 | 5318, 6427, 8259 |
-| Slot count | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) |
-| Pool size | 13 hexagons | 13 hexagons | 13 hexagons |
-| Target colour | Dark teal-grey | Dark green | Dark green |
-| Rule glyphs | 1⃣ / 2⃣ | 1. / 2. | 1️⃣ / 2️⃣ |
-| Distractors | None | None | None |
-| Target first-attempt rate | 45–60% | 55–70% | 65–80% |
-
-### Summary Table — Set C
-
-| Dimension | C1 (R1 — B1) | C2 (R2 — B2) | C3 (R3 — B3) |
-|-----------|---------------|---------------|---------------|
-| Set | C | C | C |
-| Round type | A | A | A |
-| Target values | 3147, 8624, 9135 | 3147, 8624, 9135 | 3147, 8624, 9135 |
-| Slot count | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) | 13 (6 blue + 7 white) |
-| Pool size | 13 hexagons | 13 hexagons | 13 hexagons |
-| Target colour | Dark teal-grey | Dark green | Dark green |
-| Rule glyphs | 1⃣ / 2⃣ | 1. / 2. | 1️⃣ / 2️⃣ |
-| Distractors | None | None | None |
-| Target first-attempt rate | 45–60% | 55–70% | 65–80% |
-
----
+**Round-set cycling:** the spec authors three full sets (A, B, C) so `rounds.length === 9`. First play uses Set A; after a Try-Again / Play-Again the runtime cycles to Set B; the next restart cycles to Set C; a fourth restart loops back to Set A. Each set has a different triple of target values and a different canonical correct mapping (per the creator's "Replay" section).
 
 ## Game Parameters
-
-- **totalRounds:** 3
-- **Rounds:** 3 — one per variant per the source concept (block_count 3). Each is a full honeycomb puzzle.
-- **Timer:** None — L4 constraint-satisfaction tasks should not be timed. Source concept shows a timer in the status bar ("00:03") but treats it as elapsed-time display only. Spec defaults to **no countdown**; elapsed time may be shown but does not constrain play.
-- **Lives:** **None** (0). Source concept shows CHECK → NEXT flow without retry. Matches Board Puzzle archetype default. Flagged in Warnings.
-- **Star rating:**
-  - **3 stars** = all 3 rounds solved on first CHECK (perfect).
-  - **2 stars** = 2 of 3 rounds solved on first CHECK.
-  - **1 star** = 1 of 3 rounds solved on first CHECK.
-  - **0 stars** (still reaches results) = 0 rounds solved on first CHECK.
-- **Input:** Drag-and-drop (touch + mouse) using **Pattern P6**. Source = pool hexagon or currently-placed slot hexagon. Target = any colour-matching slot OR the pool tray (return). Plus CHECK / NEXT button tap.
-- **Feedback:** Per-round whole-arrangement validation on CHECK. Per-drop micro-feedback is visual only (soft snap SFX fire-and-forget on success, soft error SFX fire-and-forget on colour mismatch). Awaited SFX + TTS on CHECK resolution. FeedbackManager handles all audio.
-
----
+- **Rounds:** 3 per session (one full set, three cosmetic variants).
+- **Timer:** None (`timer: false`). This is a thinking puzzle, not a speed puzzle.
+- **Lives:** 0 (`totalLives: 0`). No lives, no game-over screen, no in-round retry. CHECK is one-shot; the result stands.
+- **retryPreservesInput:** N/A (multi-round, lives = 0).
+- **autoShowStar:** `true` (default end-of-game beat handled by PART-050 / Stars Collected).
+- **Star rating:** 3 stars = 3 first-CHECK solves; 2 stars = 2 first-CHECK solves; 1 star = 1 first-CHECK solve; 0 stars = 0 solves (still routes through Victory + Stars Collected; never through Game Over because `lives = 0`).
+- **Input:** Drag-and-drop (P6, dnd-kit) + single Submit tap per round (PART-050 'submit' mode).
+- **Feedback:** FeedbackManager (PART-017). Per-target tick/cross verdict. Reveal animation on any-fail. Single global CHECK gating per round.
+- **previewScreen:** `true` (PART-039 default).
+- **answerComponent:** `true` (creator did not opt out; default ships). Each round's `answer` payload is the canonical mapping for the active set so students can review the correct arrangement at end-of-game.
 
 ## Scoring
-
-- **Points:** +1 per round solved on first CHECK (max 3). No partial credit per target — the entire arrangement must be correct.
-- **Stars:** 3 stars = 3 first-CHECK solves, 2 = 2 solves, 1 = 1 solve, 0 = 0 solves.
-- **Lives:** None (no game_over path).
-- **Partial credit:** None for scoring. Telemetry records **per-target pass/fail** and per-slot placement so analytics can distinguish "one target off by a small amount" from "widely scrambled".
-
----
+- **Points:** +1 per round solved correctly on the first (and only) CHECK. Max 3 points per session.
+- **Stars (mapped from points):** 3 pts → 3★ · 2 pts → 2★ · 1 pt → 1★ · 0 pts → 0★. The 0★ Victory still renders the celebration + AnswerComponent (carousel shows the correct arrangement); there is no Game Over branch because `lives = 0`.
+- **Lives:** 0 (no penalty mechanic). A failed CHECK does not end the game; it just forfeits the point for that round and reveals the correct arrangement before advancing.
+- **Partial credit:** None — a round either solves all three targets or none. (Per-target tick/cross is a *feedback* affordance, not a scoring affordance.)
 
 ## Flow
 
-**Shape:** Multi-round (default) with two deltas from the canonical default:
-1. **No Game Over branch.** Lives = 0 → the "wrong AND lives = 0" branch is removed entirely. Wrong CHECK → NEXT button → next round transition → next round. Never transitions to game_over.
-2. **Wrong answer does NOT loop back to same round.** NEXT advances. Matches source concept ("drag-and-drop each hexagon only once" + single CHECK per round).
-
+**Shape:** Multi-round (default).
 **Changes from default:**
-- Remove Game Over path (no lives).
-- After wrong CHECK, advance to next round (no retry loop inside same round).
-- Replace the "submit" transition in the Gameplay → Feedback edge with an explicit CHECK button tap.
+- Delete the `Game Over` branch and its `Try Again` motivation transition (lives = 0 means Game Over is unreachable).
+- The `Feedback` block has a `~2.5 s reveal animation` sub-step on the any-fail path (pool hexagons glide to canonical positions before auto-advance).
+- The CHECK CTA is the FloatingButton in `submit` mode (PART-050) and is disabled until all 13 slots hold a hexagon.
+- AnswerComponent (PART-051) renders the canonical correct arrangement of the active set as one slide per round (3 identical slides for the same set).
 
 ```
-[Preview Screen (PART-039)]
-        |
-        v
-[Welcome / Level Screen]
-        |
-        v
-[Round N Transition: "Round N — Variant B{N}"]
-        |
-        v
-[Gameplay: Drag hexagons into colour-matching slots; CHECK disabled until all 13 slots filled]
-        |
-        | tap CHECK (all 13 slots filled with matching colours)
-        v
-[Validate 3 target sums]
-        |
-        +--> all 3 targets pass --> Correct feedback (green flash, SFX + TTS)
-        |                                 |
-        |                                 v
-        |                          [If N < 3: Round N+1 Transition]
-        |                          [If N == 3: Victory / Results]
-        |
-        +--> at least 1 target fails --> Wrong feedback
-                 (red on conflict slots,
-                  ✓/✗ badges on 3 target values,
-                  SFX + TTS, CHECK -> NEXT,
-                  correct arrangement briefly revealed)
-                 |
-                 | tap NEXT (or auto after ~3500 ms)
-                 v
-          [If N < 3: Round N+1 Transition]
-          [If N == 3: Victory / Results]
-
-(No Game Over; always reaches Results after Round 3.)
+┌──────────┐  tap   ┌──────────┐  tap   ┌──────────────┐  auto   ┌──────────────────┐
+│ Preview  ├───────▶│ Welcome  ├───────▶│ Round N      ├────────▶│ Game (round N)   │
+│ 🔊 prev  │        │ 🔊 welc. │        │ (trans.,     │ (after  │ 🔊 prompt / TTS  │
+│   audio  │        │    VO    │        │  no buttons) │  sound) │ Drag pool→slots  │
+└──────────┘        └──────────┘        │ 🔊 "Round N" │         │ CHECK (disabled  │
+                                        └──────────────┘         │ until 13 placed) │
+                                                ▲                └─────────┬────────┘
+                                                │                          │ tap CHECK
+                                                │                          ▼
+                                                │            ┌─────────────────────────────┐
+                                                │            │ Per-target tick/cross.      │
+                                                │            │ Pass→neutral. Fail→red glow.│
+                                                │            │ All-pass: 🔊 correct + TTS  │
+                                                │            │ Any-fail: ~2.5s reveal anim │
+                                                │            │           🔊 life_lost+TTS  │
+                                                │            └─────────┬───────────────────┘
+                                                │                      │
+                                                │                ┌─────┴────────┐
+                                                │                │              │
+                                                │          more rounds     last round done
+                                                │                │              │
+                                                │                ▼              ▼
+                                                │       (loop to Round N+1) ┌────────────────────┐
+                                                │                           │ Victory (status)   │
+                                                │                           │ 0–3★               │
+                                                │                           │ 🔊 sound_game_     │
+                                                │                           │    victory →       │
+                                                │                           │    vo_victory_     │
+                                                │                           │    stars_N         │
+                                                │                           └──────┬─────┬───────┘
+                                                │                                  │     │
+                                                │                     "Play Again" │     │ "Claim Stars"
+                                                │                     (only if     │     │
+                                                │                      0–2★)       ▼     ▼
+                                                │                     ┌──────────────────┐  ┌────────────────────────┐
+                                                │                     │ "Ready for       │  │ "Yay, stars            │
+                                                │                     │  another puzzle?"│  │  collected!"           │
+                                                │                     │ (trans., tap)    │  │ (trans., auto,         │
+                                                │                     │ 🔊 motivation VO │  │  no buttons)           │
+                                                │                     │ [I'm ready]      │  │ 🔊 stars-collected     │
+                                                │                     └────────┬─────────┘  │    sound + ✨ star     │
+                                                │                              │ tap        │    animation           │
+                                                │                              ▼            └──────────┬─────────────┘
+                                                └──────── restart from Round 1                         │ auto-handoff
+                                                          (skips Preview + Welcome,                    ▼
+                                                           cycles round-set A→B→C→A)         ┌─────────────────────────────┐
+                                                                                             │ Correct Answers carousel    │
+                                                                                             │ (PART-051, 3 slides — one   │
+                                                                                             │ per round; all show the     │
+                                                                                             │ same canonical board for    │
+                                                                                             │ the played set)             │
+                                                                                             │ FloatingButton 'next'       │
+                                                                                             └──────────┬──────────────────┘
+                                                                                                        │ tap Next
+                                                                                                        ▼
+                                                                                                       exit
 ```
-
----
 
 ## Feedback
 
 | Event | Behavior |
 |-------|----------|
-| Hexagon picked up from pool | Hex lifts (scale 1.06 + drop-shadow), pool slot dims. No audio. Soft cursor-grab. |
-| Hexagon dragged over a matching-colour slot | Slot border highlights purple. No audio. |
-| Hexagon dragged over a mismatched-colour slot | Slot border highlights soft red (feedback-only). No audio. |
-| Hexagon dropped on empty matching-colour slot | Snap SFX (fire-and-forget, no sticker, no TTS, no block). Slot turns filled. CHECK enables if all 13 slots now filled. |
-| Hexagon dropped on occupied matching-colour slot | Previous occupant animates back to the pool (evict) OR swaps (if source was another slot). Snap SFX (fire-and-forget). |
-| Hexagon dropped on mismatched-colour slot | Reject: hex returns to source (pool or seat). Soft error SFX (fire-and-forget). No placement change. |
-| Hexagon dragged from slot back to pool | Slot clears, pool slot refills. CHECK disables (not all slots filled). Soft deselect SFX (fire-and-forget). |
-| CHECK pressed, all 3 targets pass | Input blocked (`isProcessing = true`) before any await. All slots flash green (400ms). Three target badges show ✓. Awaited correct SFX + celebration sticker (~1.5s min duration). Fire-and-forget TTS + subtitle: "Great thinking! Every sum is spot on." After SFX, advance to next round. `recordAttempt` captures the whole arrangement BEFORE audio starts. |
-| CHECK pressed, one or more targets fail | Input blocked. Conflict slots (every slot contributing to any failed target) highlight red. Each target value shows ✓ or ✗ based on its own sum. Awaited wrong SFX + sad sticker (~1.5s min duration). Fire-and-forget TTS + subtitle: "Oh no! Not quite — check each sum." CHECK morphs to NEXT. After ~1500ms, the correct arrangement is briefly revealed (hexagons slide to their solution positions) so the student sees the answer before advancing. NEXT is tappable any time. |
-| NEXT pressed (or 3500ms auto-advance after wrong) | Stop all audio. Transition to next-round screen. If N == 3, transition to Victory / Results. |
-| Round complete (correct OR wrong+next) | `recordAttempt` already sent (before audio). Auto-advance. |
-| All 3 rounds complete | Results screen renders first; `game_complete` postMessage sent; then victory SFX + VO sequence (awaited, CTA interruptible). Star count by first-CHECK solves. |
-| Play Again / Claim Stars | Stop all audio; reset state; follow standard multi-round replay flow (no preview rerun). |
-| Visibility hidden | `VisibilityTracker` handles pause overlay (do not roll a custom one). Audio + drag state paused. |
-| Visibility restored | `VisibilityTracker` dismisses overlay. State continues. |
-
-### Conflict-slot rule (for red highlighting on wrong CHECK)
-
-For each target whose 6-member ring does NOT sum to its value, every slot in that ring is marked as a conflict slot. A slot shared between two targets becomes a conflict slot if **either** target's sum fails. A slot in only-passing rings is NOT highlighted (stays neutral) — this tells the student which slot-groups to reconsider.
-
-### Per-target badges
-
-On CHECK, each target hexagon displays a small badge (✓ green if its sum matches, ✗ red if not) so the student sees per-target which sums were right and which were wrong — critical for diagnosing the error on a 3-constraint puzzle.
-
----
+| Drop on **same-colour** slot | Hexagon snaps in. Soft `sound_bubble_pop` SFX, fire-and-forget, no sticker, no TTS. Re-evaluate CHECK enabled state (enable when all 13 slots filled). |
+| Drop on **wrong-colour** slot | Hexagon springs back to pool position with a soft buzz (`sound_bubble_burst`-style SFX), fire-and-forget, no sticker, no TTS. CHECK state unchanged. CASE 9 (micro-interaction). |
+| Drag a **placed** hexagon back to pool | Soft `sound_bubble_burst` deselect SFX, fire-and-forget. Re-evaluate CHECK (likely disable). |
+| CHECK tapped, **all three targets pass** | Input blocked (`isProcessing = true`). Each target hex shows green tick. All slots flash green for ~600 ms. Awaited `sound_correct_answer` SFX with celebration sticker (CASE 6 round-complete) → awaited dynamic TTS ("Great! Every ring adds up to its target.") with subtitle. ProgressBar bumps FIRST (`progressBar.update(currentRound, 0)`) before audio. Then auto-advance to next round (or to Victory after Round 3). |
+| CHECK tapped, **any target fails** | Input blocked. Each target hex shows tick (pass) or cross (fail). Slots in any failing ring glow red (~1.5 s). Reveal animation plays: each pool/placed hexagon glides to its canonical slot over ~2.5 s. Awaited `sound_life_lost` SFX with sad sticker → awaited dynamic TTS ("Almost! Here's how the rings should add up.") with subtitle. ProgressBar bumps FIRST. Then auto-advance to next round (or Victory after Round 3). **No retry within round.** |
+| Round complete (auto-advance) | Round transition screen renders (CASE 2 Variant A — auto-advancing, no CTA). Sequential audio: round SFX awaited → round VO awaited. Then Game (Round N+1) renders. |
+| Complete all 3 rounds | Victory screen renders (with star count 0–3). `game_complete` postMessage sent BEFORE audio. Victory SFX → Victory VO sequential. CTAs visible: `Play Again` (if <3★) and `Claim Stars`. |
+| Tap "Claim Stars" | Routes to "Yay, stars collected!" transition. `sound_stars_collected` awaited → `show_star` postMessage → setTimeout(~1500 ms) → `showAnswerCarousel()` (PART-051). |
+| Tap "Play Again" | Routes through "Ready for another puzzle?" motivation transition → `restartGame()` → game restarts from Round 1 (skips Preview + Welcome). Round-set cycles A → B → C → A. ProgressBar reset on the motivation transition's `onMounted` (covers the restart-path entry). |
+| AnswerComponent Next tapped | `answerComponent.destroy()`, `previewScreen.destroy()`, `floatingBtn.destroy()`, postMessage `{type:'next_ended'}`. Iframe tears down. |
+| Visibility hidden / tab switch (CASE 14) | Timer is N/A; FeedbackManager pauses any in-flight audio; VisibilityTracker's built-in PopupComponent renders the pause overlay (autoShowPopup default — never custom). |
+| Visibility restored (CASE 15) | Audio resumes; VisibilityTracker dismisses its own popup; gameplay continues. |
+| Audio failure (CASE 16) | All audio calls try/catch wrapped. Visual feedback (tick/cross/red glow/reveal animation) renders regardless. Game advances normally. |
 
 ## Content Structure (fallbackContent)
 
-Geometry note: this spec commits to an explicit slot-membership list per target rather than computing hex adjacency from coordinates. The 13 slot IDs are `s1..s13`; slots `s1..s6` are blue (shared inner ring), `s7..s13` are white (outer halo). Each round ships with (a) the 13 pool hexagons (id + colour + value), (b) the three target definitions (id + value + colour-variant + member-slot list), and (c) the ground-truth `solution` mapping each slot-id to the pool hex id that belongs there. The renderer uses explicit layout indices for CSS placement.
+### Geometry & slot ID schema (canonical, identical across all sets)
+
+Three target hexagons:
+- **T1** — top-left target
+- **T2** — top-right target
+- **T3** — bottom-center target
+
+Six **inner blue slots** (slot IDs `inner-1` … `inner-6`) and seven **outer white slots** (slot IDs `outer-1` … `outer-7`):
+
+| Slot ID | Colour | Belongs to ring of |
+|---------|--------|---------------------|
+| `inner-1` | blue | T1 only |
+| `inner-2` | blue | T1 + T2 (shared inner edge between top-left and top-right targets) |
+| `inner-3` | blue | T2 only |
+| `inner-4` | blue | T2 + T3 (shared inner edge between top-right and bottom targets) |
+| `inner-5` | blue | T3 only |
+| `inner-6` | blue | T1 + T3 (shared inner edge between top-left and bottom targets) |
+| `outer-1` | white | T1 only (outer halo) |
+| `outer-2` | white | T1 only (outer halo) |
+| `outer-3` | white | T1 + T2 (corner shared between two outer halos) |
+| `outer-4` | white | T2 only (outer halo) |
+| `outer-5` | white | T2 + T3 (corner shared between two outer halos) |
+| `outer-6` | white | T3 only (outer halo) |
+| `outer-7` | white | T3 only (outer halo) |
+
+Per-target rings (each is exactly 6 slots):
+- **T1 ring (6 slots):** `inner-1`, `inner-2`, `inner-6`, `outer-1`, `outer-2`, `outer-3`
+- **T2 ring (6 slots):** `inner-2`, `inner-3`, `inner-4`, `outer-3`, `outer-4`, `outer-5`
+- **T3 ring (6 slots):** `inner-4`, `inner-5`, `inner-6`, `outer-5`, `outer-6`, `outer-7`
+
+Membership counts (sanity check, sum to 18 = 3 × 6):
+- Inner: `inner-1`(1) + `inner-2`(2) + `inner-3`(1) + `inner-4`(2) + `inner-5`(1) + `inner-6`(2) = 9
+- Outer: `outer-1`(1) + `outer-2`(1) + `outer-3`(2) + `outer-4`(1) + `outer-5`(2) + `outer-6`(1) + `outer-7`(1) = 9
+- Total = 18 ✓
+
+The build step MUST render this exact slot topology so per-target sum verification matches the canonical mappings below.
+
+### Set A — targets 45, 65, 60
+
+**Pool (13 hexagons, all distinct values):**
+- Blue (6): `5`, `10`, `15`, `20`, `25`, `30`
+- White (7): `1`, `2`, `3`, `4`, `6`, `7`, `8`
+
+**Canonical correct mapping (the unique solution modulo outer-1↔outer-2 and outer-6↔outer-7 swaps):**
+
+| Slot ID | Colour | Pool value | Contributes to |
+|---------|--------|-----------:|----------------|
+| `inner-1` | blue | `20` | T1 |
+| `inner-2` | blue | `10` | T1, T2 |
+| `inner-3` | blue | `30` | T2 |
+| `inner-4` | blue | `15` | T2, T3 |
+| `inner-5` | blue | `25` | T3 |
+| `inner-6` | blue | `5` | T1, T3 |
+| `outer-1` | white | `2` | T1 |
+| `outer-2` | white | `7` | T1 |
+| `outer-3` | white | `1` | T1, T2 |
+| `outer-4` | white | `6` | T2 |
+| `outer-5` | white | `3` | T2, T3 |
+| `outer-6` | white | `4` | T3 |
+| `outer-7` | white | `8` | T3 |
+
+**Sum verification:**
+- T1 = 20 + 10 + 5 + 2 + 7 + 1 = **45** ✓
+- T2 = 10 + 30 + 15 + 1 + 6 + 3 = **65** ✓
+- T3 = 15 + 25 + 5 + 3 + 4 + 8 = **60** ✓
+
+**Solvability:** exactly one valid arrangement modulo the outer-1↔outer-2 and outer-6↔outer-7 swaps (verified — exhaustive search of all 6! × 7! colour-respecting placements yields 4 raw solutions = 1 equivalence class).
+
+### Set B — targets 50, 65, 75
+
+**Pool (13 hexagons, all distinct values):**
+- Blue (6): `5`, `10`, `15`, `25`, `30`, `35`
+- White (7): `1`, `2`, `3`, `4`, `6`, `8`, `9`
+
+**Canonical correct mapping (the unique solution modulo outer-1↔outer-2 and outer-6↔outer-7 swaps):**
+
+| Slot ID | Colour | Pool value | Contributes to |
+|---------|--------|-----------:|----------------|
+| `inner-1` | blue | `25` | T1 |
+| `inner-2` | blue | `5` | T1, T2 |
+| `inner-3` | blue | `30` | T2 |
+| `inner-4` | blue | `15` | T2, T3 |
+| `inner-5` | blue | `35` | T3 |
+| `inner-6` | blue | `10` | T1, T3 |
+| `outer-1` | white | `1` | T1 |
+| `outer-2` | white | `6` | T1 |
+| `outer-3` | white | `3` | T1, T2 |
+| `outer-4` | white | `8` | T2 |
+| `outer-5` | white | `4` | T2, T3 |
+| `outer-6` | white | `2` | T3 |
+| `outer-7` | white | `9` | T3 |
+
+**Sum verification:**
+- T1 = 25 + 5 + 10 + 1 + 6 + 3 = **50** ✓
+- T2 = 5 + 30 + 15 + 3 + 8 + 4 = **65** ✓
+- T3 = 15 + 35 + 10 + 4 + 2 + 9 = **75** ✓
+
+**Solvability:** exactly one valid arrangement modulo the outer-1↔outer-2 and outer-6↔outer-7 swaps (verified — exhaustive search yields 4 raw solutions = 1 equivalence class).
+
+### Set C — targets 60, 70, 90
+
+**Pool (13 hexagons, all distinct values):**
+- Blue (6): `10`, `15`, `20`, `25`, `30`, `40`
+- White (7): `1`, `2`, `3`, `4`, `6`, `7`, `9`
+
+**Canonical correct mapping (the unique solution modulo outer-1↔outer-2 and outer-6↔outer-7 swaps):**
+
+| Slot ID | Colour | Pool value | Contributes to |
+|---------|--------|-----------:|----------------|
+| `inner-1` | blue | `25` | T1 |
+| `inner-2` | blue | `10` | T1, T2 |
+| `inner-3` | blue | `30` | T2 |
+| `inner-4` | blue | `20` | T2, T3 |
+| `inner-5` | blue | `40` | T3 |
+| `inner-6` | blue | `15` | T1, T3 |
+| `outer-1` | white | `3` | T1 |
+| `outer-2` | white | `6` | T1 |
+| `outer-3` | white | `1` | T1, T2 |
+| `outer-4` | white | `7` | T2 |
+| `outer-5` | white | `2` | T2, T3 |
+| `outer-6` | white | `4` | T3 |
+| `outer-7` | white | `9` | T3 |
+
+**Sum verification:**
+- T1 = 25 + 10 + 15 + 3 + 6 + 1 = **60** ✓
+- T2 = 10 + 30 + 20 + 1 + 7 + 2 = **70** ✓
+- T3 = 20 + 40 + 15 + 2 + 4 + 9 = **90** ✓
+
+**Solvability:** exactly one valid arrangement modulo the outer-1↔outer-2 and outer-6↔outer-7 swaps (verified — exhaustive search yields 4 raw solutions = 1 equivalence class).
+
+### Preview-screen content
+
+- `previewInstruction` (HTML):
+
+  ```html
+  <p><strong>Hexa Numbers</strong></p>
+  <p>Drag the numbered hexagons into the empty slots so the <strong>six hexagons around each target number</strong> add up to that target.</p>
+  <p><strong>Blue</strong> hexagons go in <strong>blue</strong> slots; <strong>white</strong> hexagons go in <strong>white</strong> slots. Tap <strong>CHECK</strong> when every slot is filled.</p>
+  ```
+
+- `previewAudioText` (plain text, used at deploy time to generate `previewAudio` TTS):
+
+  > "Welcome to Hexa Numbers. Drag the numbered hexagons into the slots so the six hexagons around each target add up to that target's number. Blue hexagons go in blue slots. White hexagons go in white slots. Tap CHECK when every slot is filled."
+
+- `showGameOnPreview`: `false` (board geometry is novel; preview overlay should not show the game state because the colour rule needs explanation first).
+
+### Misconception tags
+
+Because the puzzle has a single canonical solution per set rather than a list of distractor options, misconception tags are attached to **failure modes** rather than to enumerated wrong answers. The build step records the failure mode the student exhibited at CHECK time and tags `recordAttempt` with one of:
+
+| `misconception_tag` | Trigger condition at CHECK time |
+|---------------------|--------------------------------|
+| `place-value-misread` | At least one target's ring sum is off by an exact factor-of-10 difference (e.g., a tens-digit pool value placed where a ones-digit pool value was needed, or vice versa via the available pool). |
+| `additive-shared-blindness` | A shared-slot blue hexagon (`inner-2`, `inner-4`, or `inner-6`) is placed in a shared position but with a value that satisfies only one of the two adjacent targets (the student treated the shared slot as belonging to only one ring). |
+| `colour-rule-violated-then-corrected` | The student attempted ≥3 wrong-colour drops during the round (telemetry signal — does not block CHECK because the colour rule auto-rejects, but flags incomplete uptake of the constraint). |
+| `single-target-tunnel-vision` | Exactly one target passes and the other two fail — the student locked one ring early and could not balance the others. |
+| `whole-board-mismatch` | All three targets fail and no clear pattern matches above — generic "did not converge" tag. |
+
+The `misconception_tags` field on each round object lists the *possible* tags for that round; the runtime selects the matching one(s) at CHECK time and includes them in the `recordAttempt` payload.
+
+### Round answer payload (PART-051)
+
+Each round's `answer` payload is the canonical mapping for that round's set. The shape:
+
+```js
+answer: {
+  targets: { T1: <int>, T2: <int>, T3: <int> },
+  placement: {
+    'inner-1': <int>, 'inner-2': <int>, 'inner-3': <int>,
+    'inner-4': <int>, 'inner-5': <int>, 'inner-6': <int>,
+    'outer-1': <int>, 'outer-2': <int>, 'outer-3': <int>,
+    'outer-4': <int>, 'outer-5': <int>, 'outer-6': <int>,
+    'outer-7': <int>
+  },
+  rings: {
+    T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+    T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+    T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+  }
+}
+```
+
+`renderAnswerForRound(round, container)` renders the solved board (every slot filled with its canonical pool value, every target showing a green tick) — NOT the input pool tray and NOT the drag affordances.
+
+### `fallbackContent` object
 
 ```js
 const fallbackContent = {
-  previewInstruction:
-    '<p><b>Hexa Numbers!</b><br>' +
-    'Arrange all the hexagons so their sum equals the target in the centre.<br>' +
-    '1⃣ Drag the <b>blue</b> hexagons into <b>blue</b> slots.<br>' +
-    '2⃣ Drag the <b>white</b> hexagons into <b>white</b> slots.<br>' +
-    'Each hexagon can be used only once. Tap <b>CHECK</b> when all slots are filled.</p>',
-  previewAudioText:
-    'Arrange the hexagons so their sums equal each target. Blue hexagons go in blue slots, white hexagons in white slots. Each hexagon is used only once. Then tap CHECK.',
-  previewAudio: null,
+  // Preview (PART-039)
+  previewInstruction: '<p><strong>Hexa Numbers</strong></p><p>Drag the numbered hexagons into the empty slots so the <strong>six hexagons around each target number</strong> add up to that target.</p><p><strong>Blue</strong> hexagons go in <strong>blue</strong> slots; <strong>white</strong> hexagons go in <strong>white</strong> slots. Tap <strong>CHECK</strong> when every slot is filled.</p>',
+  previewAudioText: "Welcome to Hexa Numbers. Drag the numbered hexagons into the slots so the six hexagons around each target add up to that target's number. Blue hexagons go in blue slots. White hexagons go in white slots. Tap CHECK when every slot is filled.",
+  previewAudio: null,            // patched at deploy time by TTS pipeline
   showGameOnPreview: false,
+
+  // Session config
+  totalRounds: 3,                // 3 rounds per session (per set)
+  totalLives: 0,                 // No lives — Board Puzzle one-shot CHECK
+  timer: false,                  // No timer
+
+  // Geometry shared by every round
+  geometry: {
+    targets: ['T1', 'T2', 'T3'],
+    innerSlots: ['inner-1','inner-2','inner-3','inner-4','inner-5','inner-6'],
+    outerSlots: ['outer-1','outer-2','outer-3','outer-4','outer-5','outer-6','outer-7'],
+    slotColour: {
+      'inner-1':'blue','inner-2':'blue','inner-3':'blue','inner-4':'blue','inner-5':'blue','inner-6':'blue',
+      'outer-1':'white','outer-2':'white','outer-3':'white','outer-4':'white','outer-5':'white','outer-6':'white','outer-7':'white'
+    },
+    rings: {
+      T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+      T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+      T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+    }
+  },
+
   rounds: [
-    // ==============================================================
-    // SET A — canonical source values: 4279, 7248, 9346
-    // Three rounds (B1/B2/B3 cosmetic variants) sharing identical
-    // geometry, identical target values, identical solution.
-    // First puzzle the student plays. Try Again rotates to Set B.
-    // ==============================================================
-
-    // ==============================================================
-    // SET A — ROUND 1 — Variant B1 — dark teal-grey targets, 1⃣ / 2⃣ glyphs
-    // Targets T1=4279 (top-left), T2=7248 (top-right), T3=9346 (bottom-centre)
-    //
-    // SLOTS:
-    //   Blue (inner, shared):   s1..s6
-    //     s1 = shared by T1 & T2 (top-middle, between T1 and T2)
-    //     s2 = shared by T1 & T3 (left-middle, between T1 and T3)
-    //     s3 = shared by T2 & T3 (right-middle, between T2 and T3)
-    //     s4 = belongs to T1 only (between T1 outer ring and the shared centre)
-    //     s5 = belongs to T2 only
-    //     s6 = belongs to T3 only
-    //   White (outer halo, unique per target):
-    //     s7, s8 = T1 outer (top-left + left)
-    //     s9, s10 = T2 outer (top-right + right)
-    //     s11, s12, s13 = T3 outer (bottom-left, bottom, bottom-right)
-    //
-    // Membership (each target's 6-slot ring):
-    //   T1 ring = [s1, s2, s4, s7, s8, s13]   (s13 borrowed as 6th member;
-    //                                           geometry allows a corner hex
-    //                                           to touch both T1 + T3 outer)
-    //   T2 ring = [s1, s3, s5, s9, s10, s11]  (s11 borrowed similarly)
-    //   T3 ring = [s2, s3, s6, s11, s12, s13]
-    //
-    // 6 blue slots (s1..s6) + 7 white slots (s7..s13) = 13 total. ✓
-    //
-    // The illustrative pool values below may NOT arithmetically sum to the
-    // declared targets — the authoring pipeline regenerates pool values at
-    // build time so each target's ring sum equals its declared value.
-    // See "Puzzle authoring invariant" below.
-    // ==============================================================
+    // ───────────── Set A — 3 rounds, same puzzle, B1/B2/B3 cosmetic skin ─────────────
     {
       set: 'A',
-      id: 'A_r1_b1_4279_7248_9346',
+      id: 'A_r1_hexa',
       round: 1,
       stage: 1,
-      type: 'A',
+      type: 'hexa-board',
       variant: 'B1',
-      targetColor: 'dark-teal-grey', // #2F5F61
-      ruleGlyph: '1⃣/2⃣',
-      slots: [
-        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-        { id: 's4', color: 'blue',  position: 't1-only' },
-        { id: 's5', color: 'blue',  position: 't2-only' },
-        { id: 's6', color: 'blue',  position: 't3-only' },
-        { id: 's7', color: 'white', position: 't1-outer-a' },
-        { id: 's8', color: 'white', position: 't1-outer-b' },
-        { id: 's9', color: 'white', position: 't2-outer-a' },
-        { id: 's10', color: 'white', position: 't2-outer-b' },
-        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-        { id: 's12', color: 'white', position: 't3-outer-a' },
-        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-      ],
-      targets: [
-        { id: 't1', value: 4279, ring: ['s1','s2','s4','s7','s8','s13'] },
-        { id: 't2', value: 7248, ring: ['s1','s3','s5','s9','s10','s11'] },
-        { id: 't3', value: 9346, ring: ['s2','s3','s6','s11','s12','s13'] }
-      ],
-      pool: [
-        { id: 'b1', color: 'blue',  value: 2 },
-        { id: 'b2', color: 'blue',  value: 3 },
-        { id: 'b3', color: 'blue',  value: 40 },
-        { id: 'b4', color: 'blue',  value: 34 },
-        { id: 'b5', color: 'blue',  value: 5 },
-        { id: 'b6', color: 'blue',  value: 1 },
-        { id: 'w1', color: 'white', value: 4000 },
-        { id: 'w2', color: 'white', value: 200 },
-        { id: 'w3', color: 'white', value: 5000 },
-        { id: 'w4', color: 'white', value: 2000 },
-        { id: 'w5', color: 'white', value: 100 },
-        { id: 'w6', color: 'white', value: 300 },
-        { id: 'w7', color: 'white', value: 30 }
-      ],
-      solution: {
-        s1: 'b1', s2: 'b2', s3: 'b3',
-        s4: 'b4', s5: 'b5', s6: 'b6',
-        s7: 'w1', s8: 'w2', s9: 'w3',
-        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      skin: { targetColour: 'teal-grey', glyph: 'sun-burst' },
+      targets: { T1: 45, T2: 65, T3: 60 },
+      pool: {
+        blue:  [5, 10, 15, 20, 25, 30],
+        white: [1, 2, 3, 4, 6, 7, 8]
       },
-      // Pool values shipped here are illustrative; the builder regenerates
-      // them so each target's ring sum equals its declared target value.
+      correctPlacement: {
+        'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+        'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+        'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+        'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
+      },
+      answer: {
+        targets: { T1: 45, T2: 65, T3: 60 },
+        placement: {
+          'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+          'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+          'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+          'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
+        },
+        rings: {
+          T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+          T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+          T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+        }
+      },
       misconception_tags: {
-        'color-mismatch':        'Student attempts to place a blue hexagon in a white slot (or vice versa). Blocked by UI but the attempt is telemetry-logged.',
-        'ignore-shared-slots':   'Student picks values for one target without considering that shared slots contribute to two target sums.',
-        'single-target-fix':     'Student fixes one target at the expense of another (solves T1 but leaves T2 and T3 mis-summed).',
-        'decomposition-error':   "Student decomposes a target incorrectly (e.g. treats 4279 as 4000+200+79, ignoring that 79 isn't a pool value)."
+        'place-value-misread': 'place-value-misread',
+        'additive-shared-blindness': 'additive-shared-blindness',
+        'colour-rule-violated-then-corrected': 'colour-rule-violated-then-corrected',
+        'single-target-tunnel-vision': 'single-target-tunnel-vision',
+        'whole-board-mismatch': 'whole-board-mismatch'
       }
     },
-
-    // ==============================================================
-    // SET A — ROUND 2 — Variant B2 — dark green targets, plain 1./2. glyphs
-    // Same geometry, same target values, same solution as A_r1. Cosmetic refresh only.
-    // ==============================================================
     {
       set: 'A',
-      id: 'A_r2_b2_4279_7248_9346',
+      id: 'A_r2_hexa',
       round: 2,
       stage: 2,
-      type: 'A',
+      type: 'hexa-board',
       variant: 'B2',
-      targetColor: 'dark-green', // #27666D
-      ruleGlyph: '1./2.',
-      slots: [
-        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-        { id: 's4', color: 'blue',  position: 't1-only' },
-        { id: 's5', color: 'blue',  position: 't2-only' },
-        { id: 's6', color: 'blue',  position: 't3-only' },
-        { id: 's7', color: 'white', position: 't1-outer-a' },
-        { id: 's8', color: 'white', position: 't1-outer-b' },
-        { id: 's9', color: 'white', position: 't2-outer-a' },
-        { id: 's10', color: 'white', position: 't2-outer-b' },
-        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-        { id: 's12', color: 'white', position: 't3-outer-a' },
-        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-      ],
-      targets: [
-        { id: 't1', value: 4279, ring: ['s1','s2','s4','s7','s8','s13'] },
-        { id: 't2', value: 7248, ring: ['s1','s3','s5','s9','s10','s11'] },
-        { id: 't3', value: 9346, ring: ['s2','s3','s6','s11','s12','s13'] }
-      ],
-      pool: [
-        { id: 'b1', color: 'blue',  value: 2 },
-        { id: 'b2', color: 'blue',  value: 3 },
-        { id: 'b3', color: 'blue',  value: 40 },
-        { id: 'b4', color: 'blue',  value: 34 },
-        { id: 'b5', color: 'blue',  value: 5 },
-        { id: 'b6', color: 'blue',  value: 1 },
-        { id: 'w1', color: 'white', value: 4000 },
-        { id: 'w2', color: 'white', value: 200 },
-        { id: 'w3', color: 'white', value: 5000 },
-        { id: 'w4', color: 'white', value: 2000 },
-        { id: 'w5', color: 'white', value: 100 },
-        { id: 'w6', color: 'white', value: 300 },
-        { id: 'w7', color: 'white', value: 30 }
-      ],
-      solution: {
-        s1: 'b1', s2: 'b2', s3: 'b3',
-        s4: 'b4', s5: 'b5', s6: 'b6',
-        s7: 'w1', s8: 'w2', s9: 'w3',
-        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      skin: { targetColour: 'green', glyph: 'leaf' },
+      targets: { T1: 45, T2: 65, T3: 60 },
+      pool: {
+        blue:  [5, 10, 15, 20, 25, 30],
+        white: [1, 2, 3, 4, 6, 7, 8]
       },
-      // Pool values illustrative; builder regenerates to satisfy target sums.
+      correctPlacement: {
+        'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+        'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+        'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+        'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
+      },
+      answer: {
+        targets: { T1: 45, T2: 65, T3: 60 },
+        placement: {
+          'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+          'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+          'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+          'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
+        },
+        rings: {
+          T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+          T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+          T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+        }
+      },
       misconception_tags: {
-        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
-        'ignore-shared-slots':   'Ignores that shared slots contribute to two targets.',
-        'single-target-fix':     'Fixes one target at the expense of others.',
-        'decomposition-error':   'Decomposes a target using parts that are not available in the pool palette.'
+        'place-value-misread': 'place-value-misread',
+        'additive-shared-blindness': 'additive-shared-blindness',
+        'colour-rule-violated-then-corrected': 'colour-rule-violated-then-corrected',
+        'single-target-tunnel-vision': 'single-target-tunnel-vision',
+        'whole-board-mismatch': 'whole-board-mismatch'
       }
     },
-
-    // ==============================================================
-    // SET A — ROUND 3 — Variant B3 — dark green targets, 1️⃣ / 2️⃣ emoji glyphs
-    // Same geometry, same target values, same solution as A_r1/A_r2. Cosmetic refresh only.
-    // ==============================================================
     {
       set: 'A',
-      id: 'A_r3_b3_4279_7248_9346',
+      id: 'A_r3_hexa',
       round: 3,
       stage: 3,
-      type: 'A',
+      type: 'hexa-board',
       variant: 'B3',
-      targetColor: 'dark-green', // #27666D
-      ruleGlyph: '1️⃣/2️⃣',
-      slots: [
-        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-        { id: 's4', color: 'blue',  position: 't1-only' },
-        { id: 's5', color: 'blue',  position: 't2-only' },
-        { id: 's6', color: 'blue',  position: 't3-only' },
-        { id: 's7', color: 'white', position: 't1-outer-a' },
-        { id: 's8', color: 'white', position: 't1-outer-b' },
-        { id: 's9', color: 'white', position: 't2-outer-a' },
-        { id: 's10', color: 'white', position: 't2-outer-b' },
-        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-        { id: 's12', color: 'white', position: 't3-outer-a' },
-        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-      ],
-      targets: [
-        { id: 't1', value: 4279, ring: ['s1','s2','s4','s7','s8','s13'] },
-        { id: 't2', value: 7248, ring: ['s1','s3','s5','s9','s10','s11'] },
-        { id: 't3', value: 9346, ring: ['s2','s3','s6','s11','s12','s13'] }
-      ],
-      pool: [
-        { id: 'b1', color: 'blue',  value: 2 },
-        { id: 'b2', color: 'blue',  value: 3 },
-        { id: 'b3', color: 'blue',  value: 40 },
-        { id: 'b4', color: 'blue',  value: 34 },
-        { id: 'b5', color: 'blue',  value: 5 },
-        { id: 'b6', color: 'blue',  value: 1 },
-        { id: 'w1', color: 'white', value: 4000 },
-        { id: 'w2', color: 'white', value: 200 },
-        { id: 'w3', color: 'white', value: 5000 },
-        { id: 'w4', color: 'white', value: 2000 },
-        { id: 'w5', color: 'white', value: 100 },
-        { id: 'w6', color: 'white', value: 300 },
-        { id: 'w7', color: 'white', value: 30 }
-      ],
-      solution: {
-        s1: 'b1', s2: 'b2', s3: 'b3',
-        s4: 'b4', s5: 'b5', s6: 'b6',
-        s7: 'w1', s8: 'w2', s9: 'w3',
-        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      skin: { targetColour: 'green', glyph: 'star' },
+      targets: { T1: 45, T2: 65, T3: 60 },
+      pool: {
+        blue:  [5, 10, 15, 20, 25, 30],
+        white: [1, 2, 3, 4, 6, 7, 8]
       },
-      // Pool values illustrative; builder regenerates to satisfy target sums.
+      correctPlacement: {
+        'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+        'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+        'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+        'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
+      },
+      answer: {
+        targets: { T1: 45, T2: 65, T3: 60 },
+        placement: {
+          'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+          'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+          'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+          'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
+        },
+        rings: {
+          T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+          T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+          T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+        }
+      },
       misconception_tags: {
-        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
-        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
-        'single-target-fix':     'Fixes one target at expense of others.',
-        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+        'place-value-misread': 'place-value-misread',
+        'additive-shared-blindness': 'additive-shared-blindness',
+        'colour-rule-violated-then-corrected': 'colour-rule-violated-then-corrected',
+        'single-target-tunnel-vision': 'single-target-tunnel-vision',
+        'whole-board-mismatch': 'whole-board-mismatch'
       }
     },
 
-    // ==============================================================
-    // SET B — Try Again rotation 1 — fresh puzzle, targets 5318, 6427, 8259
-    // Three rounds (B1/B2/B3 cosmetic variants) sharing identical
-    // geometry, identical target values, identical solution.
-    // The pool below is illustrative — builder regenerates per Set B targets.
-    // ==============================================================
+    // ───────────── Set B — 3 rounds, same puzzle, B1/B2/B3 cosmetic skin ─────────────
     {
       set: 'B',
-      id: 'B_r1_b1_5318_6427_8259',
+      id: 'B_r1_hexa',
       round: 1,
       stage: 1,
-      type: 'A',
+      type: 'hexa-board',
       variant: 'B1',
-      targetColor: 'dark-teal-grey', // #2F5F61
-      ruleGlyph: '1⃣/2⃣',
-      slots: [
-        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-        { id: 's4', color: 'blue',  position: 't1-only' },
-        { id: 's5', color: 'blue',  position: 't2-only' },
-        { id: 's6', color: 'blue',  position: 't3-only' },
-        { id: 's7', color: 'white', position: 't1-outer-a' },
-        { id: 's8', color: 'white', position: 't1-outer-b' },
-        { id: 's9', color: 'white', position: 't2-outer-a' },
-        { id: 's10', color: 'white', position: 't2-outer-b' },
-        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-        { id: 's12', color: 'white', position: 't3-outer-a' },
-        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-      ],
-      targets: [
-        { id: 't1', value: 5318, ring: ['s1','s2','s4','s7','s8','s13'] },
-        { id: 't2', value: 6427, ring: ['s1','s3','s5','s9','s10','s11'] },
-        { id: 't3', value: 8259, ring: ['s2','s3','s6','s11','s12','s13'] }
-      ],
-      pool: [
-        { id: 'b1', color: 'blue',  value: 4 },
-        { id: 'b2', color: 'blue',  value: 7 },
-        { id: 'b3', color: 'blue',  value: 20 },
-        { id: 'b4', color: 'blue',  value: 18 },
-        { id: 'b5', color: 'blue',  value: 5 },
-        { id: 'b6', color: 'blue',  value: 9 },
-        { id: 'w1', color: 'white', value: 5000 },
-        { id: 'w2', color: 'white', value: 300 },
-        { id: 'w3', color: 'white', value: 6000 },
-        { id: 'w4', color: 'white', value: 400 },
-        { id: 'w5', color: 'white', value: 200 },
-        { id: 'w6', color: 'white', value: 1000 },
-        { id: 'w7', color: 'white', value: 50 }
-      ],
-      solution: {
-        s1: 'b1', s2: 'b2', s3: 'b3',
-        s4: 'b4', s5: 'b5', s6: 'b6',
-        s7: 'w1', s8: 'w2', s9: 'w3',
-        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      skin: { targetColour: 'teal-grey', glyph: 'sun-burst' },
+      targets: { T1: 50, T2: 65, T3: 75 },
+      pool: {
+        blue:  [5, 10, 15, 25, 30, 35],
+        white: [1, 2, 3, 4, 6, 8, 9]
       },
-      // Pool values illustrative; builder regenerates to satisfy target sums (5318, 6427, 8259).
+      correctPlacement: {
+        'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+        'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+        'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+        'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
+      },
+      answer: {
+        targets: { T1: 50, T2: 65, T3: 75 },
+        placement: {
+          'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+          'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+          'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+          'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
+        },
+        rings: {
+          T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+          T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+          T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+        }
+      },
       misconception_tags: {
-        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
-        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
-        'single-target-fix':     'Fixes one target at the expense of others.',
-        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+        'place-value-misread': 'place-value-misread',
+        'additive-shared-blindness': 'additive-shared-blindness',
+        'colour-rule-violated-then-corrected': 'colour-rule-violated-then-corrected',
+        'single-target-tunnel-vision': 'single-target-tunnel-vision',
+        'whole-board-mismatch': 'whole-board-mismatch'
       }
     },
-
-    // ==============================================================
-    // SET B — ROUND 2 — Variant B2 — dark green targets, plain 1./2. glyphs
-    // Same geometry, same target values (5318, 6427, 8259), same solution as B_r1.
-    // ==============================================================
     {
       set: 'B',
-      id: 'B_r2_b2_5318_6427_8259',
+      id: 'B_r2_hexa',
       round: 2,
       stage: 2,
-      type: 'A',
+      type: 'hexa-board',
       variant: 'B2',
-      targetColor: 'dark-green', // #27666D
-      ruleGlyph: '1./2.',
-      slots: [
-        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-        { id: 's4', color: 'blue',  position: 't1-only' },
-        { id: 's5', color: 'blue',  position: 't2-only' },
-        { id: 's6', color: 'blue',  position: 't3-only' },
-        { id: 's7', color: 'white', position: 't1-outer-a' },
-        { id: 's8', color: 'white', position: 't1-outer-b' },
-        { id: 's9', color: 'white', position: 't2-outer-a' },
-        { id: 's10', color: 'white', position: 't2-outer-b' },
-        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-        { id: 's12', color: 'white', position: 't3-outer-a' },
-        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-      ],
-      targets: [
-        { id: 't1', value: 5318, ring: ['s1','s2','s4','s7','s8','s13'] },
-        { id: 't2', value: 6427, ring: ['s1','s3','s5','s9','s10','s11'] },
-        { id: 't3', value: 8259, ring: ['s2','s3','s6','s11','s12','s13'] }
-      ],
-      pool: [
-        { id: 'b1', color: 'blue',  value: 4 },
-        { id: 'b2', color: 'blue',  value: 7 },
-        { id: 'b3', color: 'blue',  value: 20 },
-        { id: 'b4', color: 'blue',  value: 18 },
-        { id: 'b5', color: 'blue',  value: 5 },
-        { id: 'b6', color: 'blue',  value: 9 },
-        { id: 'w1', color: 'white', value: 5000 },
-        { id: 'w2', color: 'white', value: 300 },
-        { id: 'w3', color: 'white', value: 6000 },
-        { id: 'w4', color: 'white', value: 400 },
-        { id: 'w5', color: 'white', value: 200 },
-        { id: 'w6', color: 'white', value: 1000 },
-        { id: 'w7', color: 'white', value: 50 }
-      ],
-      solution: {
-        s1: 'b1', s2: 'b2', s3: 'b3',
-        s4: 'b4', s5: 'b5', s6: 'b6',
-        s7: 'w1', s8: 'w2', s9: 'w3',
-        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      skin: { targetColour: 'green', glyph: 'leaf' },
+      targets: { T1: 50, T2: 65, T3: 75 },
+      pool: {
+        blue:  [5, 10, 15, 25, 30, 35],
+        white: [1, 2, 3, 4, 6, 8, 9]
       },
-      // Pool values illustrative; builder regenerates to satisfy Set B target sums.
+      correctPlacement: {
+        'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+        'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+        'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+        'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
+      },
+      answer: {
+        targets: { T1: 50, T2: 65, T3: 75 },
+        placement: {
+          'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+          'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+          'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+          'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
+        },
+        rings: {
+          T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+          T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+          T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+        }
+      },
       misconception_tags: {
-        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
-        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
-        'single-target-fix':     'Fixes one target at the expense of others.',
-        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+        'place-value-misread': 'place-value-misread',
+        'additive-shared-blindness': 'additive-shared-blindness',
+        'colour-rule-violated-then-corrected': 'colour-rule-violated-then-corrected',
+        'single-target-tunnel-vision': 'single-target-tunnel-vision',
+        'whole-board-mismatch': 'whole-board-mismatch'
       }
     },
-
-    // ==============================================================
-    // SET B — ROUND 3 — Variant B3 — dark green targets, 1️⃣ / 2️⃣ emoji glyphs
-    // Same geometry, same target values (5318, 6427, 8259), same solution as B_r1/B_r2.
-    // ==============================================================
     {
       set: 'B',
-      id: 'B_r3_b3_5318_6427_8259',
+      id: 'B_r3_hexa',
       round: 3,
       stage: 3,
-      type: 'A',
+      type: 'hexa-board',
       variant: 'B3',
-      targetColor: 'dark-green', // #27666D
-      ruleGlyph: '1️⃣/2️⃣',
-      slots: [
-        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-        { id: 's4', color: 'blue',  position: 't1-only' },
-        { id: 's5', color: 'blue',  position: 't2-only' },
-        { id: 's6', color: 'blue',  position: 't3-only' },
-        { id: 's7', color: 'white', position: 't1-outer-a' },
-        { id: 's8', color: 'white', position: 't1-outer-b' },
-        { id: 's9', color: 'white', position: 't2-outer-a' },
-        { id: 's10', color: 'white', position: 't2-outer-b' },
-        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-        { id: 's12', color: 'white', position: 't3-outer-a' },
-        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-      ],
-      targets: [
-        { id: 't1', value: 5318, ring: ['s1','s2','s4','s7','s8','s13'] },
-        { id: 't2', value: 6427, ring: ['s1','s3','s5','s9','s10','s11'] },
-        { id: 't3', value: 8259, ring: ['s2','s3','s6','s11','s12','s13'] }
-      ],
-      pool: [
-        { id: 'b1', color: 'blue',  value: 4 },
-        { id: 'b2', color: 'blue',  value: 7 },
-        { id: 'b3', color: 'blue',  value: 20 },
-        { id: 'b4', color: 'blue',  value: 18 },
-        { id: 'b5', color: 'blue',  value: 5 },
-        { id: 'b6', color: 'blue',  value: 9 },
-        { id: 'w1', color: 'white', value: 5000 },
-        { id: 'w2', color: 'white', value: 300 },
-        { id: 'w3', color: 'white', value: 6000 },
-        { id: 'w4', color: 'white', value: 400 },
-        { id: 'w5', color: 'white', value: 200 },
-        { id: 'w6', color: 'white', value: 1000 },
-        { id: 'w7', color: 'white', value: 50 }
-      ],
-      solution: {
-        s1: 'b1', s2: 'b2', s3: 'b3',
-        s4: 'b4', s5: 'b5', s6: 'b6',
-        s7: 'w1', s8: 'w2', s9: 'w3',
-        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      skin: { targetColour: 'green', glyph: 'star' },
+      targets: { T1: 50, T2: 65, T3: 75 },
+      pool: {
+        blue:  [5, 10, 15, 25, 30, 35],
+        white: [1, 2, 3, 4, 6, 8, 9]
       },
-      // Pool values illustrative; builder regenerates to satisfy Set B target sums.
+      correctPlacement: {
+        'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+        'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+        'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+        'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
+      },
+      answer: {
+        targets: { T1: 50, T2: 65, T3: 75 },
+        placement: {
+          'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+          'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+          'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+          'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
+        },
+        rings: {
+          T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+          T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+          T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+        }
+      },
       misconception_tags: {
-        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
-        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
-        'single-target-fix':     'Fixes one target at the expense of others.',
-        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+        'place-value-misread': 'place-value-misread',
+        'additive-shared-blindness': 'additive-shared-blindness',
+        'colour-rule-violated-then-corrected': 'colour-rule-violated-then-corrected',
+        'single-target-tunnel-vision': 'single-target-tunnel-vision',
+        'whole-board-mismatch': 'whole-board-mismatch'
       }
     },
 
-    // ==============================================================
-    // SET C — Try Again rotation 2 — fresh puzzle, targets 3147, 8624, 9135
-    // Three rounds (B1/B2/B3 cosmetic variants) sharing identical
-    // geometry, identical target values, identical solution.
-    // ==============================================================
+    // ───────────── Set C — 3 rounds, same puzzle, B1/B2/B3 cosmetic skin ─────────────
     {
       set: 'C',
-      id: 'C_r1_b1_3147_8624_9135',
+      id: 'C_r1_hexa',
       round: 1,
       stage: 1,
-      type: 'A',
+      type: 'hexa-board',
       variant: 'B1',
-      targetColor: 'dark-teal-grey', // #2F5F61
-      ruleGlyph: '1⃣/2⃣',
-      slots: [
-        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-        { id: 's4', color: 'blue',  position: 't1-only' },
-        { id: 's5', color: 'blue',  position: 't2-only' },
-        { id: 's6', color: 'blue',  position: 't3-only' },
-        { id: 's7', color: 'white', position: 't1-outer-a' },
-        { id: 's8', color: 'white', position: 't1-outer-b' },
-        { id: 's9', color: 'white', position: 't2-outer-a' },
-        { id: 's10', color: 'white', position: 't2-outer-b' },
-        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-        { id: 's12', color: 'white', position: 't3-outer-a' },
-        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-      ],
-      targets: [
-        { id: 't1', value: 3147, ring: ['s1','s2','s4','s7','s8','s13'] },
-        { id: 't2', value: 8624, ring: ['s1','s3','s5','s9','s10','s11'] },
-        { id: 't3', value: 9135, ring: ['s2','s3','s6','s11','s12','s13'] }
-      ],
-      pool: [
-        { id: 'b1', color: 'blue',  value: 1 },
-        { id: 'b2', color: 'blue',  value: 5 },
-        { id: 'b3', color: 'blue',  value: 24 },
-        { id: 'b4', color: 'blue',  value: 12 },
-        { id: 'b5', color: 'blue',  value: 7 },
-        { id: 'b6', color: 'blue',  value: 9 },
-        { id: 'w1', color: 'white', value: 3000 },
-        { id: 'w2', color: 'white', value: 100 },
-        { id: 'w3', color: 'white', value: 8000 },
-        { id: 'w4', color: 'white', value: 600 },
-        { id: 'w5', color: 'white', value: 70 },
-        { id: 'w6', color: 'white', value: 900 },
-        { id: 'w7', color: 'white', value: 40 }
-      ],
-      solution: {
-        s1: 'b1', s2: 'b2', s3: 'b3',
-        s4: 'b4', s5: 'b5', s6: 'b6',
-        s7: 'w1', s8: 'w2', s9: 'w3',
-        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      skin: { targetColour: 'teal-grey', glyph: 'sun-burst' },
+      targets: { T1: 60, T2: 70, T3: 90 },
+      pool: {
+        blue:  [10, 15, 20, 25, 30, 40],
+        white: [1, 2, 3, 4, 6, 7, 9]
       },
-      // Pool values illustrative; builder regenerates to satisfy Set C target sums (3147, 8624, 9135).
+      correctPlacement: {
+        'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+        'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+        'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+        'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
+      },
+      answer: {
+        targets: { T1: 60, T2: 70, T3: 90 },
+        placement: {
+          'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+          'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+          'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+          'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
+        },
+        rings: {
+          T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+          T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+          T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+        }
+      },
       misconception_tags: {
-        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
-        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
-        'single-target-fix':     'Fixes one target at the expense of others.',
-        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+        'place-value-misread': 'place-value-misread',
+        'additive-shared-blindness': 'additive-shared-blindness',
+        'colour-rule-violated-then-corrected': 'colour-rule-violated-then-corrected',
+        'single-target-tunnel-vision': 'single-target-tunnel-vision',
+        'whole-board-mismatch': 'whole-board-mismatch'
       }
     },
-
-    // ==============================================================
-    // SET C — ROUND 2 — Variant B2 — dark green targets, plain 1./2. glyphs
-    // Same geometry, same target values (3147, 8624, 9135), same solution as C_r1.
-    // ==============================================================
     {
       set: 'C',
-      id: 'C_r2_b2_3147_8624_9135',
+      id: 'C_r2_hexa',
       round: 2,
       stage: 2,
-      type: 'A',
+      type: 'hexa-board',
       variant: 'B2',
-      targetColor: 'dark-green', // #27666D
-      ruleGlyph: '1./2.',
-      slots: [
-        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-        { id: 's4', color: 'blue',  position: 't1-only' },
-        { id: 's5', color: 'blue',  position: 't2-only' },
-        { id: 's6', color: 'blue',  position: 't3-only' },
-        { id: 's7', color: 'white', position: 't1-outer-a' },
-        { id: 's8', color: 'white', position: 't1-outer-b' },
-        { id: 's9', color: 'white', position: 't2-outer-a' },
-        { id: 's10', color: 'white', position: 't2-outer-b' },
-        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-        { id: 's12', color: 'white', position: 't3-outer-a' },
-        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-      ],
-      targets: [
-        { id: 't1', value: 3147, ring: ['s1','s2','s4','s7','s8','s13'] },
-        { id: 't2', value: 8624, ring: ['s1','s3','s5','s9','s10','s11'] },
-        { id: 't3', value: 9135, ring: ['s2','s3','s6','s11','s12','s13'] }
-      ],
-      pool: [
-        { id: 'b1', color: 'blue',  value: 1 },
-        { id: 'b2', color: 'blue',  value: 5 },
-        { id: 'b3', color: 'blue',  value: 24 },
-        { id: 'b4', color: 'blue',  value: 12 },
-        { id: 'b5', color: 'blue',  value: 7 },
-        { id: 'b6', color: 'blue',  value: 9 },
-        { id: 'w1', color: 'white', value: 3000 },
-        { id: 'w2', color: 'white', value: 100 },
-        { id: 'w3', color: 'white', value: 8000 },
-        { id: 'w4', color: 'white', value: 600 },
-        { id: 'w5', color: 'white', value: 70 },
-        { id: 'w6', color: 'white', value: 900 },
-        { id: 'w7', color: 'white', value: 40 }
-      ],
-      solution: {
-        s1: 'b1', s2: 'b2', s3: 'b3',
-        s4: 'b4', s5: 'b5', s6: 'b6',
-        s7: 'w1', s8: 'w2', s9: 'w3',
-        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      skin: { targetColour: 'green', glyph: 'leaf' },
+      targets: { T1: 60, T2: 70, T3: 90 },
+      pool: {
+        blue:  [10, 15, 20, 25, 30, 40],
+        white: [1, 2, 3, 4, 6, 7, 9]
       },
-      // Pool values illustrative; builder regenerates to satisfy Set C target sums.
+      correctPlacement: {
+        'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+        'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+        'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+        'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
+      },
+      answer: {
+        targets: { T1: 60, T2: 70, T3: 90 },
+        placement: {
+          'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+          'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+          'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+          'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
+        },
+        rings: {
+          T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+          T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+          T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+        }
+      },
       misconception_tags: {
-        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
-        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
-        'single-target-fix':     'Fixes one target at the expense of others.',
-        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+        'place-value-misread': 'place-value-misread',
+        'additive-shared-blindness': 'additive-shared-blindness',
+        'colour-rule-violated-then-corrected': 'colour-rule-violated-then-corrected',
+        'single-target-tunnel-vision': 'single-target-tunnel-vision',
+        'whole-board-mismatch': 'whole-board-mismatch'
       }
     },
-
-    // ==============================================================
-    // SET C — ROUND 3 — Variant B3 — dark green targets, 1️⃣ / 2️⃣ emoji glyphs
-    // Same geometry, same target values (3147, 8624, 9135), same solution as C_r1/C_r2.
-    // ==============================================================
     {
       set: 'C',
-      id: 'C_r3_b3_3147_8624_9135',
+      id: 'C_r3_hexa',
       round: 3,
       stage: 3,
-      type: 'A',
+      type: 'hexa-board',
       variant: 'B3',
-      targetColor: 'dark-green', // #27666D
-      ruleGlyph: '1️⃣/2️⃣',
-      slots: [
-        { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-        { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-        { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-        { id: 's4', color: 'blue',  position: 't1-only' },
-        { id: 's5', color: 'blue',  position: 't2-only' },
-        { id: 's6', color: 'blue',  position: 't3-only' },
-        { id: 's7', color: 'white', position: 't1-outer-a' },
-        { id: 's8', color: 'white', position: 't1-outer-b' },
-        { id: 's9', color: 'white', position: 't2-outer-a' },
-        { id: 's10', color: 'white', position: 't2-outer-b' },
-        { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-        { id: 's12', color: 'white', position: 't3-outer-a' },
-        { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-      ],
-      targets: [
-        { id: 't1', value: 3147, ring: ['s1','s2','s4','s7','s8','s13'] },
-        { id: 't2', value: 8624, ring: ['s1','s3','s5','s9','s10','s11'] },
-        { id: 't3', value: 9135, ring: ['s2','s3','s6','s11','s12','s13'] }
-      ],
-      pool: [
-        { id: 'b1', color: 'blue',  value: 1 },
-        { id: 'b2', color: 'blue',  value: 5 },
-        { id: 'b3', color: 'blue',  value: 24 },
-        { id: 'b4', color: 'blue',  value: 12 },
-        { id: 'b5', color: 'blue',  value: 7 },
-        { id: 'b6', color: 'blue',  value: 9 },
-        { id: 'w1', color: 'white', value: 3000 },
-        { id: 'w2', color: 'white', value: 100 },
-        { id: 'w3', color: 'white', value: 8000 },
-        { id: 'w4', color: 'white', value: 600 },
-        { id: 'w5', color: 'white', value: 70 },
-        { id: 'w6', color: 'white', value: 900 },
-        { id: 'w7', color: 'white', value: 40 }
-      ],
-      solution: {
-        s1: 'b1', s2: 'b2', s3: 'b3',
-        s4: 'b4', s5: 'b5', s6: 'b6',
-        s7: 'w1', s8: 'w2', s9: 'w3',
-        s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+      skin: { targetColour: 'green', glyph: 'star' },
+      targets: { T1: 60, T2: 70, T3: 90 },
+      pool: {
+        blue:  [10, 15, 20, 25, 30, 40],
+        white: [1, 2, 3, 4, 6, 7, 9]
       },
-      // Pool values illustrative; builder regenerates to satisfy Set C target sums.
+      correctPlacement: {
+        'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+        'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+        'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+        'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
+      },
+      answer: {
+        targets: { T1: 60, T2: 70, T3: 90 },
+        placement: {
+          'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+          'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+          'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+          'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
+        },
+        rings: {
+          T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+          T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+          T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+        }
+      },
       misconception_tags: {
-        'color-mismatch':        'Attempts blue-into-white placement (blocked by UI).',
-        'ignore-shared-slots':   'Ignores shared-slot contribution to two targets.',
-        'single-target-fix':     'Fixes one target at the expense of others.',
-        'decomposition-error':   'Uses a decomposition not representable in the pool palette.'
+        'place-value-misread': 'place-value-misread',
+        'additive-shared-blindness': 'additive-shared-blindness',
+        'colour-rule-violated-then-corrected': 'colour-rule-violated-then-corrected',
+        'single-target-tunnel-vision': 'single-target-tunnel-vision',
+        'whole-board-mismatch': 'whole-board-mismatch'
       }
     }
   ]
 };
 ```
 
-### Puzzle authoring invariant (CRITICAL for builder)
-
-The builder generating `index.html` MUST guarantee, for **every round in every set** (all 9 round objects: A_r1/A_r2/A_r3, B_r1/B_r2/B_r3, C_r1/C_r2/C_r3):
-
-1. Every slot declared in `slots[]` appears exactly once as a key in `solution`.
-2. Every pool-hex id appears exactly once as a value in `solution`.
-3. For each `target` in `targets[]`, the sum of `pool.find(p => p.id === solution[slotId]).value` across `slotId ∈ target.ring` equals `target.value`.
-4. For each `slot.color`, the corresponding `pool[solution[slot.id]].color` matches.
-
-If these invariants fail at build time, the builder MUST regenerate the pool values (keeping target values fixed) using a constraint-solver pass before shipping the HTML.
-
-**Per-set regeneration (CRITICAL):** Set A targets are 4279/7248/9346, Set B targets are 5318/6427/8259, Set C targets are 3147/8624/9135. The builder MUST run the constraint-solver pass independently for each of the three sets so each set's pool sums to its own target triple. The illustrative pool values shipped in `fallbackContent` for ANY round (A, B, or C) may not arithmetically sum to that round's declared targets — this is per spec, not a typo, and applies uniformly across all 9 rounds. Within a set, all 3 rounds share the same regenerated pool + solution (only cosmetic fields differ).
-
-A runtime self-check MAY additionally be embedded (see game-building code: `verifyPuzzleSolvability()` helper) that logs a warning if any round's solution fails validation — this guards against content-set drift.
-
----
+**Round-set cycling check:** `rounds.length === 9 === totalRounds (3) × 3 sets`. Every round has a `set` key (`'A' | 'B' | 'C'`). All `id` values are globally unique (`A_r1_hexa` through `C_r3_hexa`). Set A's R1 ≈ Set B's R1 ≈ Set C's R1 in difficulty (all are the same puzzle archetype, 2-digit targets in the 40–90 range, 13 same-shape pool hexagons). Validator `GEN-ROUNDSETS-MIN-3` passes.
 
 ## Defaults Applied
+- **Bloom Level:** creator specified L4 Analyze (no default applied).
+- **Lives:** creator specified 0 — overrides the L4 default of "None or 5" with explicit `0` (no penalty mechanic at all).
+- **Timer:** creator specified None (no default applied).
+- **Rounds count:** creator specified 3 (overrides Board Puzzle default of 3 — coincidentally the same).
+- **Star thresholds:** creator specified 3/2/1/0 first-CHECK solves → 3★/2★/1★/0★ (no default applied).
+- **Round-set cycling sets:** creator specified Sets A / B / C with explicit target triples; intra-set values (pool numbers + canonical placement) defaulted by spec author to satisfy the colour-gated unique-solution constraint (creator did not specify pool composition, only target sums).
+- **Slot ID schema (`inner-1..6`, `outer-1..7`) and per-target ring memberships:** creator described the geometry in prose ("6 inner blue", "7 outer white", "some inner shared between two adjacent targets", "a few corners shared between two outer halos"); spec author defaulted the exact slot IDs and ring assignments to a concrete topology consistent with the prose and with 3 × 6 = 18 ring memberships.
+- **Misconception tag taxonomy:** creator did not enumerate misconceptions; spec author defaulted to a 5-tag taxonomy keyed to failure-mode telemetry signals (`place-value-misread`, `additive-shared-blindness`, `colour-rule-violated-then-corrected`, `single-target-tunnel-vision`, `whole-board-mismatch`).
+- **Cosmetic skins (B1/B2/B3 colour + glyph):** creator specified colours (dark teal-grey for B1; dark green for B2 + B3) and glyph labels (A/B/C); spec author defaulted glyph identities to `sun-burst`, `leaf`, `star` (concrete iconography for the build step).
+- **Reveal animation duration:** creator described "brief reveal of the correct arrangement"; spec author defaulted to ~2.5 s glide animation.
+- **Failed-CHECK SFX:** creator described a "soft buzz" for wrong-colour drops; spec author defaulted the all-fail CHECK to `sound_life_lost` (CASE 7-style) since lives = 0 makes "life lost" a cosmetic SFX, not a state mutation.
+- **`previewScreen: true`** (PART-039 default; creator did not opt out).
+- **`showGameOnPreview: false`** (board geometry novel; preview should explain colour rule before showing the board).
+- **`autoShowStar: true`** (default).
+- **`previewAudioText`:** spec author drafted; will be patched into `previewAudio` at deploy time.
+- **NCERT chapter alignment:** creator named only Class 4–6 grade band; spec author mapped to Class 4 / 5 NCERT place-value & addition chapters.
 
-- **Class/Grade:** defaulted to **Class 4–6**. Source concept silent; puzzle uses 4-digit sums suitable for Class 4 / 5 "Knowing our numbers" + Class 6 "Whole numbers" curricula.
-- **Bloom Level:** defaulted to **L4 Analyze**. Source silent; constraint intersection across 3 sums is analytic reasoning.
-- **Archetype:** **Board Puzzle (#6)**. Construction (#7) was considered but rejected — there is nothing being *built* from parts; fixed pool + fixed slots + validate-whole-board matches Board Puzzle exactly.
-- **Rounds:** defaulted to **3** per session (matches source concept's block_count = 3, one per variant).
-- **Round-sets:** A/B/C with parallel B1/B2/B3 cosmetic progression within each set per validator rule `GEN-ROUNDSETS-MIN-3`. `fallbackContent.rounds.length === 9` (`totalRounds × 3`). Set A targets 4279/7248/9346 (canonical source values), Set B targets 5318/6427/8259, Set C targets 3147/8624/9135 — three distinct puzzles. Try Again rotates `gameState.setIndex` (A → B → C → A) so a student replaying gets a genuinely fresh decomposition challenge each time, not a repeat. **Cross-set difficulty progression is now provided by the three different target triples** (Set A → B → C are parallel-difficulty 4-digit sums but different decompositions); within-set progression remains cosmetic-only per the source concept's B1/B2/B3 mandate.
-- **Lives:** defaulted to **0** per source concept and Board Puzzle archetype default. Flagged in Warnings.
-- **Timer:** defaulted to **None** per Board Puzzle default and L4 default. Source shows a "00:03" elapsed timer cosmetically but no countdown; spec defaults to no countdown.
-- **Input:** Drag-and-drop (P6) per source explicit.
-- **Feedback style:** FeedbackManager + `playDynamicFeedback` on CHECK resolution. Fire-and-forget SFX on per-drop micro-interactions.
-- **Scaffolding:** defaulted to **reveal-correct-arrangement** after wrong CHECK (matches logic-seat-puzzle pattern) because source concept dictates CHECK→NEXT (no retry).
-- **Star thresholds:** 3★ = 3 first-CHECK solves, 2★ = 2 solves, 1★ = 1 solve. Source silent; chose linear thresholds because only 3 rounds.
-- **Game-over path:** **removed entirely** (no lives).
-- **Preview screen:** included (default `previewScreen: true` — PART-039).
-- **Variant rendering order:** B1 → B2 → B3 (canonical source order).
-- **Pool row layout:** 4 rows (4 + 4 + 4 + 1). DECISION-POINT: could also be 3 rows of 4 + 1 row of 1, or a single scrollable row — chose 4 rows to visually match the source screenshot.
-- **Left/right / top/bottom mirroring:** all three variants use the same geometric layout (T1 top-left, T2 top-right, T3 bottom-centre). Source shows the same arrangement for B1; inferred identical for B2/B3.
-
----
+(Per the spec-creation skill, `answerComponent: true` is the silent default and is NOT listed here. Creator did not opt out, so the carousel ships.)
 
 ## Warnings
-
-- **WARNING — No retry on wrong answer.** Source concept's "drag-and-drop each hexagon only once" + CHECK-only-once flow means a wrong first attempt gets no revision chance. Platform norm for L4 allows retry. DECISION-POINT for Education slot: keep strict CHECK→NEXT or add a "retry once, then NEXT" scaffold. Spec currently matches source.
-- **WARNING — Grade level assumed.** Source silent on grade. 4-digit addition with colour-gating is likely Class 4-6. Confirm with Education slot.
-- **WARNING — Only 3 rounds.** Below the default 9 for rounds-based games. Justified by source concept's explicit variant count. Session will be short (~3–5 min). Consider pairing with a companion spec for additional puzzles in future.
-- **WARNING — Within a set, all three rounds are cosmetically differentiated but mechanically identical.** Students who memorise the solution from round 1 of a set can auto-replay rounds 2/3 of the same set without thinking. The Try Again rotation to a different set (A → B → C) is what introduces a fresh puzzle. DECISION-POINT: is the within-set variant progression meaningful pedagogically, or should B2/B3 have different pool values (same target values) to keep cognitive demand? Spec currently mirrors source concept exactly (same values across B1/B2/B3 within a set), with cross-set rotation providing the fresh challenge.
-- **WARNING — Shared-slot / outer-halo asymmetry.** Geometry design: one blue slot (s11) is "shared" between T2 and T3 but is coloured *white* per the source concept's palette rules. The spec classifies slots by their visual colour (blue vs white), not by their sharing status. Builder must respect the colour-only gating for drag validation, not the sharing relation.
-- **WARNING — Pool value authoring (all 9 rounds).** The illustrative pool values in `fallbackContent` for ANY round in ANY set (A, B, or C) may not arithmetically sum to that round's declared targets (a known limitation of hand-edited examples). The builder's `verifyPuzzleSolvability()` step MUST regenerate pool values **independently for each of the three sets** so all three target sums hold simultaneously per set before shipping. Within a set, the regenerated pool + solution is shared across the 3 rounds (only cosmetic fields differ). If the constraint solver cannot find any valid assignment for a given set's target triple, the builder must fall back to adjusting that set's target values (flagging a regression — Set A target values are canonical from the source concept and should remain fixed; Sets B/C may be adjusted as a last resort).
-- **WARNING — Colour-gated drag is custom on top of P6.** Pattern P6 does not natively enforce "only blue hex can land in blue slot". Builder must add a colour-check in the drop handler, rejecting mismatched colours (animate snap-back + soft error SFX), without violating any P6 invariant (R1–R4, V1–V24). Drag-state styling cleanup MUST fire on the colour-rejected path too — this is a new 9th drop path not enumerated in p06-drag-and-drop.md's V1–V7 matrix. Treat as "drop-outside-cancel" equivalent: full `resetDragStyling(el)` call, chip returns to source. See Drag-drop gotchas in report.
-- **WARNING — R4 drag-state styling cleanup.** Recent update to p06-drag-and-drop.md mandates `resetDragStyling(el)` on every drop path including zone-to-bank-return (V5). This is the #1 drag-drop freeze bug. Builder MUST factor styling reset into a single helper and call from: drop-on-empty, drop-on-occupied-evict, drop-on-occupied-swap, zone-to-zone-transfer, **zone-to-bank-return**, drop-outside-cancel, same-zone-no-op, pointercancel, AND (new) colour-mismatch-reject. 9 paths total.
-- **WARNING — 13-hex pool + 13 slots = every hex must be placed.** CHECK button enablement requires all 13 slots filled. With no distractors, if a student mis-colours early, they will hit a dead-end where no valid pool hex matches a remaining slot colour — they must return placements to pool to unblock. This is intentional per source but adds friction; acceptable for L4.
-- **WARNING — Bloom-lives compatibility.** L4 default is lives=0 or lives=5. Spec chose 0 (matches source). Acceptable but unusual for L4 challenges.
-- **WARNING — Per-target badge UI.** Spec adds ✓/✗ badges to each target hexagon on CHECK — a custom UI affordance not part of standard feedback patterns. Builder must ensure these clear cleanly on round reset and during the reveal-solution animation.
-
+- **WARNING — Bloom L4 with no penalty (lives = 0).** The pedagogy table lists "None or 5" lives at L4. This game uses 0 — explicitly creator-chosen ("no lives, no game-over"). Acceptable because the round-set cycling (Sets A→B→C) plus the within-set fluency repeats (B1/B2/B3) provide the iteration cushion that lives normally provide. No change needed; just flagging the deviation.
+- **WARNING — One-shot CHECK with no in-round retry.** Standard L4 Board Puzzle scaffolding allows undo / re-arrange before commit (which this game DOES allow — student can drag placed hexagons back to the pool freely until CHECK is tapped) but no re-CHECK within a round. The creator made this an explicit design choice — the reveal animation IS the scaffold. This is unusual relative to default Board Puzzle behavior; building it requires that the FloatingButton's submit handler set `isProcessing = true` permanently for the round (until auto-advance fires).
+- **WARNING — Solvability uniqueness verified modulo trivial outer-slot symmetry.** Each set's pool was brute-force enumerated at spec-review time over all 6! × 7! = 3,628,800 colour-respecting permutations. Result: each set has **exactly 4 raw solutions** = **1 equivalence class** under the topologically-trivial swaps `outer-1 ↔ outer-2` (both are T1-only outer slots) and `outer-6 ↔ outer-7` (both are T3-only outer slots). These swaps are gameplay-irrelevant: both members of each pair share the same target-ring membership, so swapping their values changes nothing about which targets pass. CHECK is sum-based, so all 4 symmetric variants are accepted as correct, which is the correct runtime behaviour. The build step SHOULD re-run the exhaustive search as a build-time guard and FAIL the build if any set produces more than 4 raw solutions or fewer than 1.
+- **WARNING — Drag-and-drop on cheap Android (P6).** Per CLAUDE.md routing table, Step 4 (Build) MUST run in MAIN CONTEXT for this spec because P6 requires the orchestrator to call `mcp__context7__query-docs` for the `@dnd-kit/dom@beta` API (`https://esm.sh/@dnd-kit/dom@beta`). Mobile rule #22 applies: `touch-action: none` MUST be on draggable hexagons only, NEVER on the board container or pool tray (would kill page scroll). Mobile rule #16 applies: `touch-action: none` MUST NOT be on drop-zones. Validator `GEN-DND-KIT` should pass.
+- **WARNING — Hexagon touch target size on 375 px viewport.** With 13 slot hexagons + 13 pool hexagons all in the lower 60% of a 375-wide viewport, each effective touch target must remain ≥ 44 × 44 CSS px (mobile rule #9, CRITICAL). Build step must lay out the board area (~340 × ~280 px) with hexagons at ~52 px point-to-point so the touch ellipse stays comfortably above 44 px. The pool tray at the bottom needs a 13-tile horizontal strip — with hex tiles at 52 px and ~6 px spacing this overflows 375 px, so the pool tray MUST scroll horizontally OR wrap to two rows of 6+7. Spec recommends two rows in the pool tray (blue row of 6, white row of 7 or vice versa).
+- **WARNING — Cosmetic-only difference between R1, R2, R3 within a set.** A student who solves R1 will solve R2 and R3 trivially (same puzzle, same pool, same answer). This is intentional per the creator ("Students who solved Round 1 demonstrate fluency on Rounds 2/3"), but worth flagging because it makes the final star count strongly bimodal (typical sessions will end at 0★ or 3★, rarely 1★ or 2★ except when a student has a slip-of-the-finger CHECK on R1 then re-thinks for R2). Subjective evaluation should not be alarmed by the bimodal distribution.

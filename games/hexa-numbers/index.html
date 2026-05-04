@@ -5,59 +5,68 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Hexa Numbers</title>
 
-  <!-- 1. SentryConfig package -->
+  <!-- ====== 1. SentryConfig package ====== -->
   <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/sentry/index.js"></script>
 
-  <!-- 2. initSentry() definition -->
+  <!-- ====== 2. initSentry() definition ====== -->
   <script>
     function initSentry() {
       if (typeof SentryConfig === 'undefined' || !SentryConfig.enabled) return;
       if (typeof Sentry === 'undefined') return;
-      Sentry.init(SentryConfig.getConfig({ release: 'hexa-numbers@1.0.0' }));
+      Sentry.init(SentryConfig.getConfig({
+        release: 'hexa-numbers@1.0.0'
+      }));
     }
   </script>
 
-  <!-- 3. Sentry SDK -->
+  <!-- ====== 3. Sentry SDK ====== -->
   <script src="https://browser.sentry-cdn.com/10.23.0/bundle.tracing.replay.feedback.min.js" crossorigin="anonymous"></script>
   <script src="https://browser.sentry-cdn.com/10.23.0/captureconsole.min.js" crossorigin="anonymous"></script>
   <script src="https://browser.sentry-cdn.com/10.23.0/browserprofiling.min.js" crossorigin="anonymous"></script>
 
-  <!-- 4. Init Sentry on load -->
+  <!-- ====== 4. Initialize Sentry on load ====== -->
   <script>window.addEventListener('load', initSentry);</script>
 
-  <!-- 5-7. Game CDN packages -->
+  <!-- ====== 5-7. Game CDN packages ====== -->
   <script src="https://storage.googleapis.com/test-dynamic-assets/packages/feedback-manager/index.js"></script>
   <script src="https://storage.googleapis.com/test-dynamic-assets/packages/components/index.js"></script>
   <script src="https://storage.googleapis.com/test-dynamic-assets/packages/helpers/index.js"></script>
 
   <style>
+    /* ====== :root variables ====== */
     :root {
       --mathai-game-max-width: 480px;
       --mathai-stack-gap: 10px;
       --mathai-game-padding-top: 54px;
+
       --mathai-primary: #270f36;
       --mathai-level-text: #270F63;
       --mathai-purple: #9B51E0;
+
       --mathai-green: #219653;
       --mathai-blue: #667eea;
       --mathai-red: #E35757;
       --mathai-orange: #F2994A;
       --mathai-yellow: #FFDE49;
+
       --mathai-white: #ffffff;
       --mathai-gray: #666666;
       --mathai-light-gray: #f5f5f5;
       --mathai-disabled-gray: #E0E0E0;
       --mathai-text-primary: #4a4a4a;
       --mathai-border-gray: #e0e0e0;
+
       --mathai-cell-bg-green: #D9F8D9;
       --mathai-cell-bg-yellow: #FCF6D7;
       --mathai-cell-bg-red: #FFD9D9;
       --mathai-cell-bg-grey: #E0E0E0;
       --mathai-cell-border-green: #27ae60;
       --mathai-cell-border-red: #e74c3c;
+
       --mathai-success: #219653;
       --mathai-error: #E35757;
       --mathai-warning: #F2994A;
+
       --mathai-font-family: 'Epilogue', -apple-system, 'Segoe UI', Roboto, sans-serif;
       --mathai-font-size-title: 32px;
       --mathai-font-size-subtitle: 18px;
@@ -65,6 +74,7 @@
       --mathai-font-size-body: 16px;
       --mathai-font-size-small: 14px;
       --mathai-font-size-large: 24px;
+
       --mathai-padding-large: 56px 40px;
       --mathai-padding-medium: 16px 24px;
       --mathai-padding-small: 10px;
@@ -72,22 +82,22 @@
       --mathai-border-radius-small: 8px;
       --mathai-border-radius-button: 10px;
       --mathai-border-radius-card: 12px;
-      /* Game-specific */
-      --hex-blue-fill: #BFE7FA;
-      --hex-blue-border: #5FB7DC;
-      --hex-white-fill: #FFFFFF;
-      --hex-white-border: #B5C7D6;
-      --hex-target-teal: #2F5F61;
-      --hex-target-green: #27666D;
-      --hex-pool-bg: #F4F8FB;
-      --hex-conflict-bg: #FFD9D9;
-      --hex-conflict-border: #E35757;
-      --hex-correct-bg: #D9F8D9;
-      --hex-correct-border: #219653;
-      --hex-hover-purple: #9B51E0;
-      --hex-reject-red: #E35757;
+
+      /* Game-specific palette */
+      --hex-blue-border: #3B82F6;
+      --hex-blue-bg: #DBEAFE;
+      --hex-blue-placed: #1D4ED8;
+      --hex-white-border: #cbd5e1;
+      --hex-white-bg: #F9FAFB;
+      --hex-white-placed: #64748b;
+      --hex-target-b1: #0F766E;
+      --hex-target-b2: #15803D;
+      --hex-target-b3: #15803D;
+      --hex-fail: #DC2626;
+      --hex-pass: #16A34A;
     }
 
+    /* ====== Reset ====== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
@@ -96,7 +106,6 @@
       margin: 0;
       padding: 0;
       overscroll-behavior: none;
-      -webkit-tap-highlight-color: transparent;
     }
 
     body {
@@ -104,7 +113,13 @@
       background: var(--mathai-white);
       color: var(--mathai-text-primary);
       -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
       line-height: 1.5;
+      min-height: 100dvh;
+    }
+
+    @supports not (min-height: 100dvh) {
+      body { min-height: 100vh; }
     }
 
     #app {
@@ -135,6 +150,11 @@
       overflow: hidden;
       position: relative;
     }
+
+    @supports not (height: 100dvh) {
+      #mathai-preview-slot { height: 100vh; }
+    }
+
     #mathai-preview-slot .mathai-preview-body {
       height: 100dvh;
       box-sizing: border-box;
@@ -143,15 +163,13 @@
       -webkit-overflow-scrolling: touch;
     }
 
-    /* Re-enable selection on inputs */
-    input, textarea {
-      -webkit-user-select: text;
-      user-select: text;
+    @supports not (height: 100dvh) {
+      #mathai-preview-slot .mathai-preview-body { height: 100vh; }
     }
 
     .hidden { display: none !important; }
 
-    /* Touch targets */
+    /* ====== Touch targets ====== */
     button,
     [role="button"] {
       min-height: 44px;
@@ -159,7 +177,13 @@
       touch-action: manipulation;
     }
 
-    /* Landscape lock */
+    /* Re-enable selection on inputs */
+    input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    /* ====== Landscape Lock Overlay ====== */
     @media screen and (orientation: landscape) and (max-height: 500px) {
       body::before {
         content: 'Please rotate your phone to portrait mode';
@@ -178,7 +202,271 @@
       }
     }
 
-    /* Required micro-animations */
+    /* ====== Game-specific styles ====== */
+    #gameContent {
+      width: 100%;
+      padding: 8px 12px 110px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    .hexa-board-wrapper {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0 auto;
+    }
+
+    .hexa-board {
+      position: relative;
+      width: 280px;
+      height: 290px;
+      margin: 6px auto 18px auto;
+    }
+
+    /* Lock all board + pool interaction during awaited feedback / round-complete */
+    .hexa-board-wrapper.locked .hexa-board,
+    .hexa-board-wrapper.locked .pool-tray {
+      pointer-events: none;
+    }
+
+    /* Targets — keep hexagonal clip-path */
+    .hex.target {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      width: 60px;
+      height: 52px;
+      font-family: var(--mathai-font-family);
+      font-weight: 800;
+      font-size: 13px;
+      color: var(--mathai-white);
+      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+      box-sizing: border-box;
+      z-index: 3;
+    }
+
+    .hex.target.b1 { background: var(--hex-target-b1); }
+    .hex.target.b2 { background: var(--hex-target-b2); }
+    .hex.target.b3 { background: var(--hex-target-b3); }
+
+    .hex.target .target-glyph {
+      position: absolute;
+      top: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      opacity: 0.85;
+      pointer-events: none;
+    }
+
+    .hex.target .target-value {
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .hex.target .target-verdict {
+      position: absolute;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .hex.target.passed .target-verdict {
+      color: var(--mathai-cell-bg-green);
+    }
+
+    .hex.target.failed .target-verdict {
+      color: var(--mathai-cell-bg-red);
+    }
+
+    /* Slots — horizontal flat-top hexagons with outlined fill, tiling into a honeycomb
+       around each target. Outer clip-path is the border color; ::before is the inner fill. */
+    .hex.slot {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 60px;
+      height: 52px;
+      box-sizing: border-box;
+      z-index: 1;
+      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+      transition: opacity 0.2s ease;
+    }
+
+    .hex.slot::before {
+      content: '';
+      position: absolute;
+      inset: 2px;
+      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+      z-index: 0;
+    }
+
+    .hex.slot.blue { background: #67E8F9; }
+    .hex.slot.blue::before { background: #ECFEFF; }
+
+    .hex.slot.white { background: #CBD5E1; }
+    .hex.slot.white::before { background: #FFFFFF; }
+
+    .hex.slot .slot-value {
+      position: relative;
+      z-index: 1;
+      color: var(--mathai-text-primary);
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .hex.slot.glow-red { background: var(--hex-fail); }
+    .hex.slot.glow-red::before {
+      background: var(--mathai-cell-bg-red);
+      animation: redPulse 1s ease-in-out infinite;
+    }
+
+    .hex.slot.flash-green { background: var(--hex-pass); }
+    .hex.slot.flash-green::before { background: var(--mathai-cell-bg-green); }
+
+    @keyframes redPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    /* Pool-tray hexagons (draggables) — single light card containing two colour rows */
+    .pool-tray {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      margin: 16px auto 0 auto;
+      padding: 14px 10px;
+      background: #F1F5F9;
+      border: 1px solid #E2E8F0;
+      border-radius: 16px;
+    }
+
+    .pool-row {
+      width: 100%;
+      min-height: 60px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 4px 2px;
+      border-radius: 12px;
+      background: transparent;
+    }
+
+    .pool-row.blue-row,
+    .pool-row.white-row {
+      background: transparent;
+    }
+
+    /* Hexagonal pool tile with outlined look — outer clip-path acts as the border, the
+       ::before pseudo-element provides the inner fill. Vertical (pointy-top) hex. */
+    .pool-hex {
+      position: relative;
+      width: 54px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      touch-action: none;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    }
+
+    .pool-hex::before {
+      content: '';
+      position: absolute;
+      inset: 1.5px;
+      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+      z-index: 0;
+    }
+
+    .pool-hex .pool-hex-value {
+      position: relative;
+      z-index: 1;
+      font-family: var(--mathai-font-family);
+      font-weight: 700;
+      font-size: 14px;
+      color: #1F2937;
+    }
+
+    .pool-hex.blue { background: #67E8F9; }
+    .pool-hex.blue::before { background: #ECFEFF; }
+
+    .pool-hex.white { background: #CBD5E1; }
+    .pool-hex.white::before { background: #FFFFFF; }
+
+    .pool-slot {
+      width: 54px;
+      height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .pool-slot.empty {
+      display: none;
+    }
+
+    /* When a pool tile is placed in a board slot, fit the hex inside the slot */
+    .hex.slot .pool-hex.in-slot {
+      position: absolute;
+      top: 6%;
+      left: 6%;
+      right: 6%;
+      bottom: 6%;
+      width: auto;
+      height: auto;
+      z-index: 4;
+      cursor: grab;
+    }
+
+    .pool-hex:active {
+      cursor: grabbing;
+    }
+
+    /* When a pool hex is placed in a slot, the slot itself owns the value display via .slot-value */
+
+    /* CHECK button area gets clearance from the bottom (FloatingButton) */
+
+    /* Answer slide preview */
+    .answer-slide {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 4px 12px 4px;
+    }
+
+    .answer-slide .answer-board-wrapper {
+      transform: scale(0.85);
+      transform-origin: top center;
+    }
+
+    .answer-slide .answer-caption {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--mathai-text-primary);
+      text-align: center;
+      margin-top: -8px;
+    }
+
+    /* ====== Required micro-animations ====== */
     @keyframes scoreBounce {
       0% { transform: scale(1); }
       40% { transform: scale(1.3); }
@@ -214,17 +502,6 @@
       0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
       100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
     }
-    @keyframes hexFlashGreen {
-      0% { background: var(--hex-blue-fill); }
-      40% { background: var(--hex-correct-bg); box-shadow: 0 0 14px rgba(33,150,83,0.4); }
-      100% { background: var(--hex-blue-fill); }
-    }
-    @keyframes hexFlashGreenWhite {
-      0% { background: var(--hex-white-fill); }
-      40% { background: var(--hex-correct-bg); box-shadow: 0 0 14px rgba(33,150,83,0.4); }
-      100% { background: var(--hex-white-fill); }
-    }
-
     .score-bounce { animation: scoreBounce 0.4s ease; }
     .shake-wrong { animation: shake 0.5s ease; }
     .heart-break { animation: heartBreak 0.6s ease forwards; }
@@ -232,7 +509,6 @@
     .streak-glow { animation: streakGlow 0.6s ease; }
     .fade-in { animation: fadeIn 0.35s ease; }
 
-    /* Wrong-answer feedback */
     .selected-wrong {
       background: var(--mathai-cell-bg-red);
       border-color: var(--mathai-red);
@@ -252,870 +528,402 @@
       animation: fadeIn 0.35s ease;
     }
     .correct-reveal.hidden { display: none; }
-
-    /* Game-specific layout */
-    #gameContent {
-      width: 100%;
-      padding: 12px 8px 24px 8px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .hex-board {
-      /* CSS vars carry the half-hex offsets so JS positioning code stays size-agnostic */
-      --hex-w: 78px;
-      --hex-h: 90px;
-      --hex-w-half: 39px;
-      --hex-h-half: 45px;
-      position: relative;
-      width: 100%;
-      max-width: 400px;
-      height: 305px;
-      margin: 0 auto 14px auto;
-      display: block;
-    }
-
-    /* Hexagon shape via CSS clip-path */
-    .hex {
-      position: absolute;
-      width: var(--hex-w);
-      height: var(--hex-h);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--mathai-font-family);
-      font-weight: 700;
-      text-align: center;
-      -webkit-clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-      box-sizing: border-box;
-      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
-    }
-
-    .hex-target {
-      width: var(--hex-w);
-      height: var(--hex-h);
-      color: #FFFFFF;
-      font-size: 17px;
-      font-weight: 800;
-      letter-spacing: 0.3px;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.18);
-      z-index: 2;
-    }
-
-    /* Mobile: shrink board + hexes proportionally so the percentage-based
-       slot positions still tile cleanly. Hex W:H ratio kept at 78:90. */
-    @media (max-width: 420px) {
-      .hex-board {
-        --hex-w: 60px;
-        --hex-h: 70px;
-        --hex-w-half: 30px;
-        --hex-h-half: 35px;
-        max-width: 308px;
-        height: 240px;
-      }
-      .hex-target { font-size: 14px; letter-spacing: 0; }
-    }
-    .hex-target.target-teal { background: var(--hex-target-teal); }
-    .hex-target.target-green { background: var(--hex-target-green); }
-
-    .hex-target .target-badge {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: var(--mathai-white);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      font-weight: 800;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
-      z-index: 3;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.18s ease;
-    }
-    .hex-target .target-badge.show { opacity: 1; }
-    .hex-target .target-badge.pass { color: var(--mathai-green); }
-    .hex-target .target-badge.fail { color: var(--mathai-red); }
-
-    .hex-slot {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--mathai-text-primary);
-    }
-    .hex-slot.slot-blue {
-      background: var(--hex-blue-fill);
-    }
-    .hex-slot.slot-blue.slot-empty {
-      background: rgba(191,231,250,0.45);
-    }
-    .hex-slot.slot-white {
-      background: var(--hex-white-fill);
-      border: 1px solid var(--hex-white-border);
-      -webkit-clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-    }
-    .hex-slot.slot-white.slot-empty {
-      background: #F1F5F9;
-    }
-    .hex-slot.drop-hover-ok {
-      background: #E2D2F4;
-      box-shadow: inset 0 0 0 3px var(--hex-hover-purple);
-    }
-    .hex-slot.drop-hover-bad {
-      background: var(--hex-conflict-bg);
-      box-shadow: inset 0 0 0 3px var(--hex-conflict-border);
-    }
-    .hex-slot.slot-conflict {
-      background: var(--hex-conflict-bg) !important;
-      box-shadow: inset 0 0 0 3px var(--hex-conflict-border);
-    }
-    .hex-slot.slot-correct {
-      box-shadow: inset 0 0 0 3px var(--hex-correct-border);
-    }
-    .hex-slot.slot-correct.slot-blue { animation: hexFlashGreen 0.5s ease; }
-    .hex-slot.slot-correct.slot-white { animation: hexFlashGreenWhite 0.5s ease; }
-
-    /* Pool tray */
-    .pool-tray {
-      --hex-w: 78px;
-      --hex-h: 90px;
-      width: 100%;
-      max-width: 400px;
-      margin: 0 auto;
-      padding: 10px 8px 14px 8px;
-      background: var(--hex-pool-bg);
-      border-radius: var(--mathai-border-radius-card);
-      border: 1px solid var(--mathai-border-gray);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      align-items: center;
-    }
-    @media (max-width: 420px) {
-      .pool-tray {
-        --hex-w: 60px;
-        --hex-h: 70px;
-        max-width: 308px;
-      }
-    }
-    .pool-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-    }
-    .pool-slot {
-      width: var(--hex-w);
-      height: var(--hex-h);
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .pool-slot.empty { display: none; }
-
-    .dnd-tag {
-      position: relative;
-      width: var(--hex-w, 78px);
-      height: var(--hex-h, 90px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--mathai-font-family);
-      font-weight: 700;
-      font-size: 14px;
-      cursor: grab;
-      -webkit-clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-      touch-action: none;
-      -webkit-user-select: none;
-      user-select: none;
-      transition: transform 0.12s ease, box-shadow 0.12s ease;
-    }
-    .dnd-tag.tag-blue {
-      background: var(--hex-blue-fill);
-      color: #143B5A;
-    }
-    .dnd-tag.tag-white {
-      background: var(--hex-white-fill);
-      color: #2C3E50;
-      border: 1px solid var(--hex-white-border);
-      -webkit-clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-    }
-    .dnd-tag.dragging {
-      transform: scale(1.06);
-      box-shadow: 0 6px 14px rgba(0,0,0,0.25);
-      z-index: 1000;
-    }
-
-    .dnd-disabled .dnd-tag,
-    .dnd-tag.tag-disabled {
-      pointer-events: none;
-      opacity: 0.85;
-      cursor: default;
-    }
-
-    /* Pool tray label */
-    .pool-label {
-      font-size: var(--mathai-font-size-small);
-      color: var(--mathai-gray);
-      font-weight: 600;
-      margin-bottom: 2px;
-    }
-
-    /* Reveal-arrangement animation */
-    .hex-tag-reveal {
-      animation: starPop 0.6s ease;
-    }
-
-    /* Results overlay */
-    #results-screen {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      z-index: 100;
-      background: rgba(255,255,255,0.95);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-    }
-
-    /* Answer-component slide content */
-    .ac-board-mini {
-      position: relative;
-      width: 320px;
-      height: 280px;
-      margin: 8px auto;
-    }
-    .ac-board-mini .hex {
-      width: 60px;
-      height: 70px;
-      font-size: 11px;
-    }
-    .ac-board-mini .hex-target {
-      width: 64px;
-      height: 74px;
-      font-size: 14px;
-    }
-    .ac-board-mini .hex-tag {
-      width: 60px;
-      height: 70px;
-      font-size: 11px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      -webkit-clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-      position: absolute;
-    }
-    .ac-board-mini .hex-tag.tag-blue {
-      background: var(--hex-blue-fill);
-      color: #143B5A;
-    }
-    .ac-board-mini .hex-tag.tag-white {
-      background: var(--hex-white-fill);
-      color: #2C3E50;
-      border: 1px solid var(--hex-white-border);
-    }
-    .ac-round-label {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--mathai-text-primary);
-      text-align: center;
-      margin: 4px 0 6px 0;
-    }
   </style>
 </head>
 <body>
   <div id="app" data-phase="start_screen" data-score="0"></div>
 
   <script>
-    // ─── 1. gameState ────────────────────────────────────────────────────────
+    /* ============================================================
+       Constants & Stickers
+       ============================================================ */
+    var STICKER_CELEBRATE = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
+    var STICKER_SAD = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
+    var STICKER_ROUND = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
+    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
+    var STICKER_VICTORY_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
+    var STICKER_VICTORY_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
+    var STICKER_VICTORY_GENERIC = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-107.gif';
+    var STICKER_RESTART = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1757430772002-102.gif';
+
+    var SETS = ['A', 'B', 'C'];
+
+    var GLYPH_MAP = {
+      'sun-burst': '☀',
+      'leaf': '🍃',
+      'star': '★'
+    };
+
+    var TARGET_VARIANT_CLASS = {
+      'B1': 'b1',
+      'B2': 'b2',
+      'B3': 'b3'
+    };
+
+    /* ============================================================
+       Geometry — slot positions in the 320x320 board
+       ============================================================ */
+    // Grid layout — 5 columns × 6 rows. Targets are hexagons; slots are rounded squares.
+    // Inner slots (blue) are tinted to mark "between targets"; outer slots (white) are plain.
+    // Honeycomb pixel positions (board 280x290). Hex tile 60w x 52h, flat-top orientation.
+    // Hex pitch: 45px horizontal between adjacent diagonal neighbours (3w/4),
+    //            26px vertical offset (h/2), 52px vertical between same-column hexes.
+    // Targets at T1 (90, 90), T2 (180, 90), T3 (135, 168) — symmetric triangle.
+    // Each target has 6 hex-edge-sharing neighbours forming a complete ring.
+    var TARGET_POSITIONS = {
+      'T1': { left: 60, top: 64 },    // center (90, 90)
+      'T2': { left: 150, top: 64 },   // center (180, 90)
+      'T3': { left: 105, top: 142 }   // center (135, 168)
+    };
+
+    var SLOT_POSITIONS = {
+      // T1 ring (6 ring members directly adjacent)
+      'inner-1': { left: 60, top: 12, colour: 'blue' },     // N of T1 (90, 38)
+      'outer-1': { left: 15, top: 38, colour: 'white' },    // NW of T1 (45, 64)
+      'outer-2': { left: 15, top: 90, colour: 'white' },    // SW of T1 (45, 116)
+
+      // Shared T1+T2 (both adjacent to T1 NE/SE and T2 NW/SW)
+      'inner-2': { left: 105, top: 38, colour: 'blue' },    // NE of T1 = NW of T2 (135, 64)
+      'outer-3': { left: 105, top: 90, colour: 'white' },   // SE of T1 = SW of T2 = N of T3 visible (135, 116, centroid)
+
+      // T2 ring extras (T2-only)
+      'outer-4': { left: 150, top: 12, colour: 'white' },   // N of T2 (180, 38)
+      'outer-5': { left: 195, top: 38, colour: 'white' },   // NE of T2 (225, 64)
+      'inner-3': { left: 195, top: 90, colour: 'blue' },    // SE of T2 (225, 116)
+
+      // Shared T1+T3 (T1's S = T3's NW)
+      'inner-6': { left: 60, top: 116, colour: 'blue' },    // S of T1 = NW of T3 (90, 142)
+
+      // Shared T2+T3 (T2's S = T3's NE)
+      'inner-4': { left: 150, top: 116, colour: 'blue' },   // S of T2 = NE of T3 (180, 142)
+
+      // T3 ring extras (T3-only)
+      'outer-6': { left: 60, top: 168, colour: 'white' },   // SW of T3 (90, 194)
+      'outer-7': { left: 150, top: 168, colour: 'white' },  // SE of T3 (180, 194)
+      'inner-5': { left: 105, top: 194, colour: 'blue' }    // S of T3 (135, 220)
+    };
+
+    var ALL_SLOT_IDS = [
+      'inner-1','inner-2','inner-3','inner-4','inner-5','inner-6',
+      'outer-1','outer-2','outer-3','outer-4','outer-5','outer-6','outer-7'
+    ];
+
+    // RINGS reflects the 6 hex-edge-sharing neighbours visible around each target in the
+    // honeycomb layout, so what the player sees == what the sum-check uses.
+    // outer-3 sits at the centroid and is therefore visible to all three targets.
+    // outer-5 sits at T2's NE only, visible to T2 alone.
+    var RINGS = {
+      T1: ['inner-1','inner-2','outer-3','inner-6','outer-2','outer-1'],
+      T2: ['outer-4','outer-5','inner-3','inner-4','outer-3','inner-2'],
+      T3: ['outer-3','inner-4','outer-7','inner-5','outer-6','inner-6']
+    };
+
+    /* ============================================================
+       gameState
+       ============================================================ */
     var gameState = {
       gameId: 'hexa-numbers',
       phase: 'start_screen',
-      currentRound: 0,
+      currentRound: 1,
       totalRounds: 3,
+      totalLives: (0),
+      lives: (0),
       score: 0,
       stars: 0,
+      progress: 0,
       attempts: [],
       events: [],
-      startTime: null,
       isActive: false,
       isProcessing: false,
       gameEnded: false,
-      content: null,
-      duration_data: { startTime: null, attempts: [], preview: [] },
-      setIndex: 0,
-      // No lives mechanic in this game; we still set totalLives = totalRounds so
-      // ProgressBarComponent's internal (totalLives - currentLives) computation
-      // doesn't go negative. showLives:false hides the hearts strip.
-      lives: 0,
-      totalLives: 3,
-      correctAnswer: null,
+      startTime: null,
       roundStartTime: null,
+      duration_data: { startTime: null, preview: [] },
+      content: null,
       previewResult: null,
+      setIndex: 0,
+      activeRounds: [],
       placement: {},
-      slotEls: {},
-      tagEls: {},
-      poolSlotEls: {},
-      currentRoundData: null,
-      dndManager: null,
-      draggables: [],
-      droppables: [],
-      isDragging: false,
-      currentDragSourceId: null
+      wrongColourDrops: 0,
+      correctAnswer: null
     };
 
-    // ─── 2. window.gameState ─────────────────────────────────────────────────
     window.gameState = gameState;
 
-    // ─── 3. fallbackContent ──────────────────────────────────────────────────
-    // Pool values regenerated by the constraint solver (see spec § Puzzle authoring invariant).
-    // For each set, the canonical solution is s1→b1, s2→b2, ..., s6→b6, s7→w1, ..., s13→w7.
-    // Verified at module load via verifyPuzzleSolvability().
+    /* ============================================================
+       fallbackContent — 9 rounds (3 sets x 3 cosmetic variants)
+       ============================================================ */
     var fallbackContent = {
-      previewInstruction:
-        '<p><b>Hexa Numbers!</b><br>' +
-        'Arrange all the hexagons so their sums equal each target in the centre.<br>' +
-        '1⃣ Drag the <b>blue</b> hexagons into <b>blue</b> slots.<br>' +
-        '2⃣ Drag the <b>white</b> hexagons into <b>white</b> slots.<br>' +
-        'Each hexagon is used only once. Tap <b>Check</b> when all 13 slots are filled.</p>',
-      previewAudioText:
-        'Arrange the hexagons so their sums equal each target. Blue hexagons go in blue slots, white hexagons in white slots. Each hexagon is used only once. Then tap Check.',
+      previewInstruction: '<p><strong>Hexa Numbers</strong></p><p>Drag the number tiles into the empty slots so the <strong>six tiles around each big number</strong> add up to it.</p><p><strong>Blue</strong> tiles go in <strong>blue</strong> slots. <strong>White</strong> tiles go in <strong>white</strong> slots. Tap <strong>CHECK</strong> when every slot is filled!</p>',
+      previewAudioText: "Welcome to Hexa Numbers! Drag the number tiles into the slots so the six tiles around each big number add up to it. Blue tiles go in blue slots. White tiles go in white slots. Tap CHECK when every slot is full!",
       previewAudio: null,
       showGameOnPreview: false,
       totalRounds: 3,
+      totalLives: (0),
+      timer: false,
+      geometry: {
+        targets: ['T1', 'T2', 'T3'],
+        innerSlots: ['inner-1','inner-2','inner-3','inner-4','inner-5','inner-6'],
+        outerSlots: ['outer-1','outer-2','outer-3','outer-4','outer-5','outer-6','outer-7'],
+        rings: {
+          T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+          T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+          T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+        }
+      },
       rounds: [
-        // ─── Set A — targets 4279, 7248, 9346 ─────────────────────────────────
+        // ───────── Set A ─────────
         {
-          set: 'A',
-          id: 'A_r1_b1_4279_7248_9346',
-          round: 1,
-          stage: 1,
-          type: 'A',
-          variant: 'B1',
-          targetColor: 'dark-teal-grey',
-          ruleGlyph: '1⃣/2⃣',
-          slots: [
-            { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-            { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-            { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-            { id: 's4', color: 'blue',  position: 't1-only' },
-            { id: 's5', color: 'blue',  position: 't2-only' },
-            { id: 's6', color: 'blue',  position: 't3-only' },
-            { id: 's7', color: 'white', position: 't1-outer-a' },
-            { id: 's8', color: 'white', position: 't1-outer-b' },
-            { id: 's9', color: 'white', position: 't2-outer-a' },
-            { id: 's10', color: 'white', position: 't2-outer-b' },
-            { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-            { id: 's12', color: 'white', position: 't3-outer-a' },
-            { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-          ],
-          targets: [
-            { id: 't1', value: 4279, ring: ['s1','s2','s4','s7','s8','s13'] },
-            { id: 't2', value: 7248, ring: ['s1','s3','s5','s9','s10','s11'] },
-            { id: 't3', value: 9346, ring: ['s2','s3','s6','s11','s12','s13'] }
-          ],
-          pool: [
-            { id: 'b1', color: 'blue',  value: 10 },
-            { id: 'b2', color: 'blue',  value: 20 },
-            { id: 'b3', color: 'blue',  value: 30 },
-            { id: 'b4', color: 'blue',  value: 49 },
-            { id: 'b5', color: 'blue',  value: 8 },
-            { id: 'b6', color: 'blue',  value: 96 },
-            { id: 'w1', color: 'white', value: 2000 },
-            { id: 'w2', color: 'white', value: 2100 },
-            { id: 'w3', color: 'white', value: 3500 },
-            { id: 'w4', color: 'white', value: 3500 },
-            { id: 'w5', color: 'white', value: 200 },
-            { id: 'w6', color: 'white', value: 8900 },
-            { id: 'w7', color: 'white', value: 100 }
-          ],
-          solution: {
-            s1: 'b1', s2: 'b2', s3: 'b3',
-            s4: 'b4', s5: 'b5', s6: 'b6',
-            s7: 'w1', s8: 'w2', s9: 'w3',
-            s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+          set: 'A', id: 'A_r1_hexa', round: 1, stage: 1, type: 'hexa-board', variant: 'B1',
+          skin: { targetColour: 'teal-grey', glyph: 'sun-burst' },
+          targets: { T1: 45, T2: 65, T3: 58 },
+          pool: { blue: [5,10,15,20,25,30], white: [1,2,3,4,6,7,8] },
+          correctPlacement: {
+            'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+            'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+            'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+            'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
           },
-          misconception_tags: {
-            'color-mismatch':      'Blue-into-white attempt (UI blocks).',
-            'ignore-shared-slots': 'Ignored shared-slot contributions.',
-            'single-target-fix':   'Fixed one target at expense of others.',
-            'decomposition-error': 'Used a decomposition not in the pool.'
-          }
+          answer: {
+            targets: { T1: 45, T2: 65, T3: 58 },
+            placement: {
+              'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+              'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+              'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+              'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
+            },
+            rings: {
+              T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+              T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+              T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+            }
+          },
+          misconception_tags: ['place-value-misread','additive-shared-blindness','colour-rule-violated-then-corrected','single-target-tunnel-vision','whole-board-mismatch']
         },
         {
-          set: 'A',
-          id: 'A_r2_b2_4279_7248_9346',
-          round: 2,
-          stage: 2,
-          type: 'A',
-          variant: 'B2',
-          targetColor: 'dark-green',
-          ruleGlyph: '1./2.',
-          slots: [
-            { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-            { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-            { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-            { id: 's4', color: 'blue',  position: 't1-only' },
-            { id: 's5', color: 'blue',  position: 't2-only' },
-            { id: 's6', color: 'blue',  position: 't3-only' },
-            { id: 's7', color: 'white', position: 't1-outer-a' },
-            { id: 's8', color: 'white', position: 't1-outer-b' },
-            { id: 's9', color: 'white', position: 't2-outer-a' },
-            { id: 's10', color: 'white', position: 't2-outer-b' },
-            { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-            { id: 's12', color: 'white', position: 't3-outer-a' },
-            { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-          ],
-          targets: [
-            { id: 't1', value: 4279, ring: ['s1','s2','s4','s7','s8','s13'] },
-            { id: 't2', value: 7248, ring: ['s1','s3','s5','s9','s10','s11'] },
-            { id: 't3', value: 9346, ring: ['s2','s3','s6','s11','s12','s13'] }
-          ],
-          pool: [
-            { id: 'b1', color: 'blue',  value: 10 },
-            { id: 'b2', color: 'blue',  value: 20 },
-            { id: 'b3', color: 'blue',  value: 30 },
-            { id: 'b4', color: 'blue',  value: 49 },
-            { id: 'b5', color: 'blue',  value: 8 },
-            { id: 'b6', color: 'blue',  value: 96 },
-            { id: 'w1', color: 'white', value: 2000 },
-            { id: 'w2', color: 'white', value: 2100 },
-            { id: 'w3', color: 'white', value: 3500 },
-            { id: 'w4', color: 'white', value: 3500 },
-            { id: 'w5', color: 'white', value: 200 },
-            { id: 'w6', color: 'white', value: 8900 },
-            { id: 'w7', color: 'white', value: 100 }
-          ],
-          solution: {
-            s1: 'b1', s2: 'b2', s3: 'b3',
-            s4: 'b4', s5: 'b5', s6: 'b6',
-            s7: 'w1', s8: 'w2', s9: 'w3',
-            s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+          set: 'A', id: 'A_r2_hexa', round: 2, stage: 2, type: 'hexa-board', variant: 'B2',
+          skin: { targetColour: 'green', glyph: 'leaf' },
+          targets: { T1: 45, T2: 65, T3: 58 },
+          pool: { blue: [5,10,15,20,25,30], white: [1,2,3,4,6,7,8] },
+          correctPlacement: {
+            'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+            'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+            'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+            'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
           },
-          misconception_tags: {
-            'color-mismatch':      'Blue-into-white attempt.',
-            'ignore-shared-slots': 'Ignored shared-slot contributions.',
-            'single-target-fix':   'Fixed one target at expense of others.',
-            'decomposition-error': 'Used a decomposition not in the pool.'
-          }
+          answer: {
+            targets: { T1: 45, T2: 65, T3: 58 },
+            placement: {
+              'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+              'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+              'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+              'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
+            },
+            rings: {
+              T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+              T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+              T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+            }
+          },
+          misconception_tags: ['place-value-misread','additive-shared-blindness','colour-rule-violated-then-corrected','single-target-tunnel-vision','whole-board-mismatch']
         },
         {
-          set: 'A',
-          id: 'A_r3_b3_4279_7248_9346',
-          round: 3,
-          stage: 3,
-          type: 'A',
-          variant: 'B3',
-          targetColor: 'dark-green',
-          ruleGlyph: '1️⃣/2️⃣',
-          slots: [
-            { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-            { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-            { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-            { id: 's4', color: 'blue',  position: 't1-only' },
-            { id: 's5', color: 'blue',  position: 't2-only' },
-            { id: 's6', color: 'blue',  position: 't3-only' },
-            { id: 's7', color: 'white', position: 't1-outer-a' },
-            { id: 's8', color: 'white', position: 't1-outer-b' },
-            { id: 's9', color: 'white', position: 't2-outer-a' },
-            { id: 's10', color: 'white', position: 't2-outer-b' },
-            { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-            { id: 's12', color: 'white', position: 't3-outer-a' },
-            { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-          ],
-          targets: [
-            { id: 't1', value: 4279, ring: ['s1','s2','s4','s7','s8','s13'] },
-            { id: 't2', value: 7248, ring: ['s1','s3','s5','s9','s10','s11'] },
-            { id: 't3', value: 9346, ring: ['s2','s3','s6','s11','s12','s13'] }
-          ],
-          pool: [
-            { id: 'b1', color: 'blue',  value: 10 },
-            { id: 'b2', color: 'blue',  value: 20 },
-            { id: 'b3', color: 'blue',  value: 30 },
-            { id: 'b4', color: 'blue',  value: 49 },
-            { id: 'b5', color: 'blue',  value: 8 },
-            { id: 'b6', color: 'blue',  value: 96 },
-            { id: 'w1', color: 'white', value: 2000 },
-            { id: 'w2', color: 'white', value: 2100 },
-            { id: 'w3', color: 'white', value: 3500 },
-            { id: 'w4', color: 'white', value: 3500 },
-            { id: 'w5', color: 'white', value: 200 },
-            { id: 'w6', color: 'white', value: 8900 },
-            { id: 'w7', color: 'white', value: 100 }
-          ],
-          solution: {
-            s1: 'b1', s2: 'b2', s3: 'b3',
-            s4: 'b4', s5: 'b5', s6: 'b6',
-            s7: 'w1', s8: 'w2', s9: 'w3',
-            s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+          set: 'A', id: 'A_r3_hexa', round: 3, stage: 3, type: 'hexa-board', variant: 'B3',
+          skin: { targetColour: 'green', glyph: 'star' },
+          targets: { T1: 45, T2: 65, T3: 58 },
+          pool: { blue: [5,10,15,20,25,30], white: [1,2,3,4,6,7,8] },
+          correctPlacement: {
+            'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+            'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+            'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+            'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
           },
-          misconception_tags: {
-            'color-mismatch':      'Blue-into-white attempt.',
-            'ignore-shared-slots': 'Ignored shared-slot contributions.',
-            'single-target-fix':   'Fixed one target at expense of others.',
-            'decomposition-error': 'Used a decomposition not in the pool.'
-          }
+          answer: {
+            targets: { T1: 45, T2: 65, T3: 58 },
+            placement: {
+              'inner-1': 20, 'inner-2': 10, 'inner-3': 30,
+              'inner-4': 15, 'inner-5': 25, 'inner-6': 5,
+              'outer-1': 2,  'outer-2': 7,  'outer-3': 1,
+              'outer-4': 6,  'outer-5': 3,  'outer-6': 4, 'outer-7': 8
+            },
+            rings: {
+              T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+              T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+              T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+            }
+          },
+          misconception_tags: ['place-value-misread','additive-shared-blindness','colour-rule-violated-then-corrected','single-target-tunnel-vision','whole-board-mismatch']
         },
-        // ─── Set B — targets 5318, 6427, 8259 ─────────────────────────────────
+        // ───────── Set B ─────────
         {
-          set: 'B',
-          id: 'B_r1_b1_5318_6427_8259',
-          round: 1,
-          stage: 1,
-          type: 'A',
-          variant: 'B1',
-          targetColor: 'dark-teal-grey',
-          ruleGlyph: '1⃣/2⃣',
-          slots: [
-            { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-            { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-            { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-            { id: 's4', color: 'blue',  position: 't1-only' },
-            { id: 's5', color: 'blue',  position: 't2-only' },
-            { id: 's6', color: 'blue',  position: 't3-only' },
-            { id: 's7', color: 'white', position: 't1-outer-a' },
-            { id: 's8', color: 'white', position: 't1-outer-b' },
-            { id: 's9', color: 'white', position: 't2-outer-a' },
-            { id: 's10', color: 'white', position: 't2-outer-b' },
-            { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-            { id: 's12', color: 'white', position: 't3-outer-a' },
-            { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-          ],
-          targets: [
-            { id: 't1', value: 5318, ring: ['s1','s2','s4','s7','s8','s13'] },
-            { id: 't2', value: 6427, ring: ['s1','s3','s5','s9','s10','s11'] },
-            { id: 't3', value: 8259, ring: ['s2','s3','s6','s11','s12','s13'] }
-          ],
-          pool: [
-            { id: 'b1', color: 'blue',  value: 10 },
-            { id: 'b2', color: 'blue',  value: 20 },
-            { id: 'b3', color: 'blue',  value: 30 },
-            { id: 'b4', color: 'blue',  value: 88 },
-            { id: 'b5', color: 'blue',  value: 87 },
-            { id: 'b6', color: 'blue',  value: 9 },
-            { id: 'w1', color: 'white', value: 2500 },
-            { id: 'w2', color: 'white', value: 2600 },
-            { id: 'w3', color: 'white', value: 3000 },
-            { id: 'w4', color: 'white', value: 3100 },
-            { id: 'w5', color: 'white', value: 200 },
-            { id: 'w6', color: 'white', value: 7900 },
-            { id: 'w7', color: 'white', value: 100 }
-          ],
-          solution: {
-            s1: 'b1', s2: 'b2', s3: 'b3',
-            s4: 'b4', s5: 'b5', s6: 'b6',
-            s7: 'w1', s8: 'w2', s9: 'w3',
-            s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+          set: 'B', id: 'B_r1_hexa', round: 1, stage: 1, type: 'hexa-board', variant: 'B1',
+          skin: { targetColour: 'teal-grey', glyph: 'sun-burst' },
+          targets: { T1: 50, T2: 65, T3: 74 },
+          pool: { blue: [5,10,15,25,30,35], white: [1,2,3,4,6,8,9] },
+          correctPlacement: {
+            'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+            'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+            'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+            'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
           },
-          misconception_tags: {
-            'color-mismatch':      'Blue-into-white attempt.',
-            'ignore-shared-slots': 'Ignored shared-slot contributions.',
-            'single-target-fix':   'Fixed one target at expense of others.',
-            'decomposition-error': 'Used a decomposition not in the pool.'
-          }
+          answer: {
+            targets: { T1: 50, T2: 65, T3: 74 },
+            placement: {
+              'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+              'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+              'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+              'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
+            },
+            rings: {
+              T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+              T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+              T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+            }
+          },
+          misconception_tags: ['place-value-misread','additive-shared-blindness','colour-rule-violated-then-corrected','single-target-tunnel-vision','whole-board-mismatch']
         },
         {
-          set: 'B',
-          id: 'B_r2_b2_5318_6427_8259',
-          round: 2,
-          stage: 2,
-          type: 'A',
-          variant: 'B2',
-          targetColor: 'dark-green',
-          ruleGlyph: '1./2.',
-          slots: [
-            { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-            { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-            { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-            { id: 's4', color: 'blue',  position: 't1-only' },
-            { id: 's5', color: 'blue',  position: 't2-only' },
-            { id: 's6', color: 'blue',  position: 't3-only' },
-            { id: 's7', color: 'white', position: 't1-outer-a' },
-            { id: 's8', color: 'white', position: 't1-outer-b' },
-            { id: 's9', color: 'white', position: 't2-outer-a' },
-            { id: 's10', color: 'white', position: 't2-outer-b' },
-            { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-            { id: 's12', color: 'white', position: 't3-outer-a' },
-            { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-          ],
-          targets: [
-            { id: 't1', value: 5318, ring: ['s1','s2','s4','s7','s8','s13'] },
-            { id: 't2', value: 6427, ring: ['s1','s3','s5','s9','s10','s11'] },
-            { id: 't3', value: 8259, ring: ['s2','s3','s6','s11','s12','s13'] }
-          ],
-          pool: [
-            { id: 'b1', color: 'blue',  value: 10 },
-            { id: 'b2', color: 'blue',  value: 20 },
-            { id: 'b3', color: 'blue',  value: 30 },
-            { id: 'b4', color: 'blue',  value: 88 },
-            { id: 'b5', color: 'blue',  value: 87 },
-            { id: 'b6', color: 'blue',  value: 9 },
-            { id: 'w1', color: 'white', value: 2500 },
-            { id: 'w2', color: 'white', value: 2600 },
-            { id: 'w3', color: 'white', value: 3000 },
-            { id: 'w4', color: 'white', value: 3100 },
-            { id: 'w5', color: 'white', value: 200 },
-            { id: 'w6', color: 'white', value: 7900 },
-            { id: 'w7', color: 'white', value: 100 }
-          ],
-          solution: {
-            s1: 'b1', s2: 'b2', s3: 'b3',
-            s4: 'b4', s5: 'b5', s6: 'b6',
-            s7: 'w1', s8: 'w2', s9: 'w3',
-            s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+          set: 'B', id: 'B_r2_hexa', round: 2, stage: 2, type: 'hexa-board', variant: 'B2',
+          skin: { targetColour: 'green', glyph: 'leaf' },
+          targets: { T1: 50, T2: 65, T3: 74 },
+          pool: { blue: [5,10,15,25,30,35], white: [1,2,3,4,6,8,9] },
+          correctPlacement: {
+            'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+            'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+            'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+            'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
           },
-          misconception_tags: {
-            'color-mismatch':      'Blue-into-white attempt.',
-            'ignore-shared-slots': 'Ignored shared-slot contributions.',
-            'single-target-fix':   'Fixed one target at expense of others.',
-            'decomposition-error': 'Used a decomposition not in the pool.'
-          }
+          answer: {
+            targets: { T1: 50, T2: 65, T3: 74 },
+            placement: {
+              'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+              'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+              'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+              'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
+            },
+            rings: {
+              T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+              T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+              T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+            }
+          },
+          misconception_tags: ['place-value-misread','additive-shared-blindness','colour-rule-violated-then-corrected','single-target-tunnel-vision','whole-board-mismatch']
         },
         {
-          set: 'B',
-          id: 'B_r3_b3_5318_6427_8259',
-          round: 3,
-          stage: 3,
-          type: 'A',
-          variant: 'B3',
-          targetColor: 'dark-green',
-          ruleGlyph: '1️⃣/2️⃣',
-          slots: [
-            { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-            { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-            { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-            { id: 's4', color: 'blue',  position: 't1-only' },
-            { id: 's5', color: 'blue',  position: 't2-only' },
-            { id: 's6', color: 'blue',  position: 't3-only' },
-            { id: 's7', color: 'white', position: 't1-outer-a' },
-            { id: 's8', color: 'white', position: 't1-outer-b' },
-            { id: 's9', color: 'white', position: 't2-outer-a' },
-            { id: 's10', color: 'white', position: 't2-outer-b' },
-            { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-            { id: 's12', color: 'white', position: 't3-outer-a' },
-            { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-          ],
-          targets: [
-            { id: 't1', value: 5318, ring: ['s1','s2','s4','s7','s8','s13'] },
-            { id: 't2', value: 6427, ring: ['s1','s3','s5','s9','s10','s11'] },
-            { id: 't3', value: 8259, ring: ['s2','s3','s6','s11','s12','s13'] }
-          ],
-          pool: [
-            { id: 'b1', color: 'blue',  value: 10 },
-            { id: 'b2', color: 'blue',  value: 20 },
-            { id: 'b3', color: 'blue',  value: 30 },
-            { id: 'b4', color: 'blue',  value: 88 },
-            { id: 'b5', color: 'blue',  value: 87 },
-            { id: 'b6', color: 'blue',  value: 9 },
-            { id: 'w1', color: 'white', value: 2500 },
-            { id: 'w2', color: 'white', value: 2600 },
-            { id: 'w3', color: 'white', value: 3000 },
-            { id: 'w4', color: 'white', value: 3100 },
-            { id: 'w5', color: 'white', value: 200 },
-            { id: 'w6', color: 'white', value: 7900 },
-            { id: 'w7', color: 'white', value: 100 }
-          ],
-          solution: {
-            s1: 'b1', s2: 'b2', s3: 'b3',
-            s4: 'b4', s5: 'b5', s6: 'b6',
-            s7: 'w1', s8: 'w2', s9: 'w3',
-            s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+          set: 'B', id: 'B_r3_hexa', round: 3, stage: 3, type: 'hexa-board', variant: 'B3',
+          skin: { targetColour: 'green', glyph: 'star' },
+          targets: { T1: 50, T2: 65, T3: 74 },
+          pool: { blue: [5,10,15,25,30,35], white: [1,2,3,4,6,8,9] },
+          correctPlacement: {
+            'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+            'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+            'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+            'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
           },
-          misconception_tags: {
-            'color-mismatch':      'Blue-into-white attempt.',
-            'ignore-shared-slots': 'Ignored shared-slot contributions.',
-            'single-target-fix':   'Fixed one target at expense of others.',
-            'decomposition-error': 'Used a decomposition not in the pool.'
-          }
+          answer: {
+            targets: { T1: 50, T2: 65, T3: 74 },
+            placement: {
+              'inner-1': 25, 'inner-2': 5,  'inner-3': 30,
+              'inner-4': 15, 'inner-5': 35, 'inner-6': 10,
+              'outer-1': 1,  'outer-2': 6,  'outer-3': 3,
+              'outer-4': 8,  'outer-5': 4,  'outer-6': 2, 'outer-7': 9
+            },
+            rings: {
+              T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+              T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+              T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+            }
+          },
+          misconception_tags: ['place-value-misread','additive-shared-blindness','colour-rule-violated-then-corrected','single-target-tunnel-vision','whole-board-mismatch']
         },
-        // ─── Set C — targets 3147, 8624, 9135 ─────────────────────────────────
+        // ───────── Set C ─────────
         {
-          set: 'C',
-          id: 'C_r1_b1_3147_8624_9135',
-          round: 1,
-          stage: 1,
-          type: 'A',
-          variant: 'B1',
-          targetColor: 'dark-teal-grey',
-          ruleGlyph: '1⃣/2⃣',
-          slots: [
-            { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-            { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-            { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-            { id: 's4', color: 'blue',  position: 't1-only' },
-            { id: 's5', color: 'blue',  position: 't2-only' },
-            { id: 's6', color: 'blue',  position: 't3-only' },
-            { id: 's7', color: 'white', position: 't1-outer-a' },
-            { id: 's8', color: 'white', position: 't1-outer-b' },
-            { id: 's9', color: 'white', position: 't2-outer-a' },
-            { id: 's10', color: 'white', position: 't2-outer-b' },
-            { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-            { id: 's12', color: 'white', position: 't3-outer-a' },
-            { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-          ],
-          targets: [
-            { id: 't1', value: 3147, ring: ['s1','s2','s4','s7','s8','s13'] },
-            { id: 't2', value: 8624, ring: ['s1','s3','s5','s9','s10','s11'] },
-            { id: 't3', value: 9135, ring: ['s2','s3','s6','s11','s12','s13'] }
-          ],
-          pool: [
-            { id: 'b1', color: 'blue',  value: 10 },
-            { id: 'b2', color: 'blue',  value: 20 },
-            { id: 'b3', color: 'blue',  value: 30 },
-            { id: 'b4', color: 'blue',  value: 17 },
-            { id: 'b5', color: 'blue',  value: 84 },
-            { id: 'b6', color: 'blue',  value: 85 },
-            { id: 'w1', color: 'white', value: 1500 },
-            { id: 'w2', color: 'white', value: 1500 },
-            { id: 'w3', color: 'white', value: 4100 },
-            { id: 'w4', color: 'white', value: 4200 },
-            { id: 'w5', color: 'white', value: 200 },
-            { id: 'w6', color: 'white', value: 8700 },
-            { id: 'w7', color: 'white', value: 100 }
-          ],
-          solution: {
-            s1: 'b1', s2: 'b2', s3: 'b3',
-            s4: 'b4', s5: 'b5', s6: 'b6',
-            s7: 'w1', s8: 'w2', s9: 'w3',
-            s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+          set: 'C', id: 'C_r1_hexa', round: 1, stage: 1, type: 'hexa-board', variant: 'B1',
+          skin: { targetColour: 'teal-grey', glyph: 'sun-burst' },
+          targets: { T1: 60, T2: 70, T3: 89 },
+          pool: { blue: [10,15,20,25,30,40], white: [1,2,3,4,6,7,9] },
+          correctPlacement: {
+            'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+            'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+            'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+            'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
           },
-          misconception_tags: {
-            'color-mismatch':      'Blue-into-white attempt.',
-            'ignore-shared-slots': 'Ignored shared-slot contributions.',
-            'single-target-fix':   'Fixed one target at expense of others.',
-            'decomposition-error': 'Used a decomposition not in the pool.'
-          }
+          answer: {
+            targets: { T1: 60, T2: 70, T3: 89 },
+            placement: {
+              'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+              'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+              'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+              'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
+            },
+            rings: {
+              T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+              T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+              T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+            }
+          },
+          misconception_tags: ['place-value-misread','additive-shared-blindness','colour-rule-violated-then-corrected','single-target-tunnel-vision','whole-board-mismatch']
         },
         {
-          set: 'C',
-          id: 'C_r2_b2_3147_8624_9135',
-          round: 2,
-          stage: 2,
-          type: 'A',
-          variant: 'B2',
-          targetColor: 'dark-green',
-          ruleGlyph: '1./2.',
-          slots: [
-            { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-            { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-            { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-            { id: 's4', color: 'blue',  position: 't1-only' },
-            { id: 's5', color: 'blue',  position: 't2-only' },
-            { id: 's6', color: 'blue',  position: 't3-only' },
-            { id: 's7', color: 'white', position: 't1-outer-a' },
-            { id: 's8', color: 'white', position: 't1-outer-b' },
-            { id: 's9', color: 'white', position: 't2-outer-a' },
-            { id: 's10', color: 'white', position: 't2-outer-b' },
-            { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-            { id: 's12', color: 'white', position: 't3-outer-a' },
-            { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-          ],
-          targets: [
-            { id: 't1', value: 3147, ring: ['s1','s2','s4','s7','s8','s13'] },
-            { id: 't2', value: 8624, ring: ['s1','s3','s5','s9','s10','s11'] },
-            { id: 't3', value: 9135, ring: ['s2','s3','s6','s11','s12','s13'] }
-          ],
-          pool: [
-            { id: 'b1', color: 'blue',  value: 10 },
-            { id: 'b2', color: 'blue',  value: 20 },
-            { id: 'b3', color: 'blue',  value: 30 },
-            { id: 'b4', color: 'blue',  value: 17 },
-            { id: 'b5', color: 'blue',  value: 84 },
-            { id: 'b6', color: 'blue',  value: 85 },
-            { id: 'w1', color: 'white', value: 1500 },
-            { id: 'w2', color: 'white', value: 1500 },
-            { id: 'w3', color: 'white', value: 4100 },
-            { id: 'w4', color: 'white', value: 4200 },
-            { id: 'w5', color: 'white', value: 200 },
-            { id: 'w6', color: 'white', value: 8700 },
-            { id: 'w7', color: 'white', value: 100 }
-          ],
-          solution: {
-            s1: 'b1', s2: 'b2', s3: 'b3',
-            s4: 'b4', s5: 'b5', s6: 'b6',
-            s7: 'w1', s8: 'w2', s9: 'w3',
-            s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+          set: 'C', id: 'C_r2_hexa', round: 2, stage: 2, type: 'hexa-board', variant: 'B2',
+          skin: { targetColour: 'green', glyph: 'leaf' },
+          targets: { T1: 60, T2: 70, T3: 89 },
+          pool: { blue: [10,15,20,25,30,40], white: [1,2,3,4,6,7,9] },
+          correctPlacement: {
+            'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+            'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+            'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+            'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
           },
-          misconception_tags: {
-            'color-mismatch':      'Blue-into-white attempt.',
-            'ignore-shared-slots': 'Ignored shared-slot contributions.',
-            'single-target-fix':   'Fixed one target at expense of others.',
-            'decomposition-error': 'Used a decomposition not in the pool.'
-          }
+          answer: {
+            targets: { T1: 60, T2: 70, T3: 89 },
+            placement: {
+              'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+              'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+              'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+              'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
+            },
+            rings: {
+              T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+              T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+              T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+            }
+          },
+          misconception_tags: ['place-value-misread','additive-shared-blindness','colour-rule-violated-then-corrected','single-target-tunnel-vision','whole-board-mismatch']
         },
         {
-          set: 'C',
-          id: 'C_r3_b3_3147_8624_9135',
-          round: 3,
-          stage: 3,
-          type: 'A',
-          variant: 'B3',
-          targetColor: 'dark-green',
-          ruleGlyph: '1️⃣/2️⃣',
-          slots: [
-            { id: 's1', color: 'blue',  position: 'shared-t1-t2' },
-            { id: 's2', color: 'blue',  position: 'shared-t1-t3' },
-            { id: 's3', color: 'blue',  position: 'shared-t2-t3' },
-            { id: 's4', color: 'blue',  position: 't1-only' },
-            { id: 's5', color: 'blue',  position: 't2-only' },
-            { id: 's6', color: 'blue',  position: 't3-only' },
-            { id: 's7', color: 'white', position: 't1-outer-a' },
-            { id: 's8', color: 'white', position: 't1-outer-b' },
-            { id: 's9', color: 'white', position: 't2-outer-a' },
-            { id: 's10', color: 'white', position: 't2-outer-b' },
-            { id: 's11', color: 'white', position: 'shared-t2-t3-outer' },
-            { id: 's12', color: 'white', position: 't3-outer-a' },
-            { id: 's13', color: 'white', position: 'shared-t1-t3-outer' }
-          ],
-          targets: [
-            { id: 't1', value: 3147, ring: ['s1','s2','s4','s7','s8','s13'] },
-            { id: 't2', value: 8624, ring: ['s1','s3','s5','s9','s10','s11'] },
-            { id: 't3', value: 9135, ring: ['s2','s3','s6','s11','s12','s13'] }
-          ],
-          pool: [
-            { id: 'b1', color: 'blue',  value: 10 },
-            { id: 'b2', color: 'blue',  value: 20 },
-            { id: 'b3', color: 'blue',  value: 30 },
-            { id: 'b4', color: 'blue',  value: 17 },
-            { id: 'b5', color: 'blue',  value: 84 },
-            { id: 'b6', color: 'blue',  value: 85 },
-            { id: 'w1', color: 'white', value: 1500 },
-            { id: 'w2', color: 'white', value: 1500 },
-            { id: 'w3', color: 'white', value: 4100 },
-            { id: 'w4', color: 'white', value: 4200 },
-            { id: 'w5', color: 'white', value: 200 },
-            { id: 'w6', color: 'white', value: 8700 },
-            { id: 'w7', color: 'white', value: 100 }
-          ],
-          solution: {
-            s1: 'b1', s2: 'b2', s3: 'b3',
-            s4: 'b4', s5: 'b5', s6: 'b6',
-            s7: 'w1', s8: 'w2', s9: 'w3',
-            s10: 'w4', s11: 'w5', s12: 'w6', s13: 'w7'
+          set: 'C', id: 'C_r3_hexa', round: 3, stage: 3, type: 'hexa-board', variant: 'B3',
+          skin: { targetColour: 'green', glyph: 'star' },
+          targets: { T1: 60, T2: 70, T3: 89 },
+          pool: { blue: [10,15,20,25,30,40], white: [1,2,3,4,6,7,9] },
+          correctPlacement: {
+            'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+            'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+            'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+            'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
           },
-          misconception_tags: {
-            'color-mismatch':      'Blue-into-white attempt.',
-            'ignore-shared-slots': 'Ignored shared-slot contributions.',
-            'single-target-fix':   'Fixed one target at expense of others.',
-            'decomposition-error': 'Used a decomposition not in the pool.'
-          }
+          answer: {
+            targets: { T1: 60, T2: 70, T3: 89 },
+            placement: {
+              'inner-1': 25, 'inner-2': 10, 'inner-3': 30,
+              'inner-4': 20, 'inner-5': 40, 'inner-6': 15,
+              'outer-1': 3,  'outer-2': 6,  'outer-3': 1,
+              'outer-4': 7,  'outer-5': 2,  'outer-6': 4, 'outer-7': 9
+            },
+            rings: {
+              T1: ['inner-1','inner-2','inner-6','outer-1','outer-2','outer-3'],
+              T2: ['inner-2','inner-3','inner-4','outer-3','outer-4','outer-5'],
+              T3: ['inner-4','inner-5','inner-6','outer-5','outer-6','outer-7']
+            }
+          },
+          misconception_tags: ['place-value-misread','additive-shared-blindness','colour-rule-violated-then-corrected','single-target-tunnel-vision','whole-board-mismatch']
         }
       ]
     };
 
-    // ─── 4. Module-scope vars ───────────────────────────────────────────────
+    /* ============================================================
+       Module-scope refs
+       ============================================================ */
     var visibilityTracker = null;
     var signalCollector = null;
     var progressBar = null;
@@ -1123,120 +931,95 @@
     var previewScreen = null;
     var floatingBtn = null;
     var answerComponent = null;
-    var voGameStartPlayed = false;
+    var dndManager = null;
+    var dndDraggables = [];
+    var dndDroppables = [];
+    var poolHexEls = {};
+    var poolSlotEls = {};
+    var slotEls = {};
+    var targetEls = {};
 
-    // ─── Stickers ───────────────────────────────────────────────────────────
-    var STICKER_CORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-95.gif';
-    var STICKER_INCORRECT = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-99.gif';
-    var STICKER_ROUND_TRANSITION = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-87.gif';
-    var STICKER_VICTORY = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1759297084426-230.gif';
-    var STICKER_GAME_COMPLETE_2 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-113.gif';
-    var STICKER_GAME_COMPLETE_1 = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-110.gif';
-    var STICKER_GAME_COMPLETE_GENERIC = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-107.gif';
-    var STICKER_GAME_OVER = 'https://cdn.mathai.ai/mathai-assets/dev/figma/assets/rc-upload-1758375013588-103.gif';
-
-    // Slot positions on the 400x305 board — pointy-top hex axial grid.
-    // 4 rows alternating offset by half hex-width (39px). Row pitch 68px (= 0.75 × hex height 90).
-    // Row 0 (y=15.4%):  s7   s8   s9   s10              (offset)
-    // Row 1 (y=37.7%): s4  T1   s1   T2   s5            (no offset)
-    // Row 2 (y=60.0%):  s13  s2   s3   s11              (offset)
-    // Row 3 (y=82.3%):     s12   T3   s6                (no offset)
-    // Each target's 6 actual hex neighbours match its spec ring exactly:
-    //   T1 ring = [s1(E), s4(W), s7(NW), s8(NE), s2(SE), s13(SW)] ✓
-    //   T2 ring = [s1(W), s5(E), s9(NW), s10(NE), s11(SE), s3(SW)] ✓
-    //   T3 ring = [s2(NW), s3(NE), s6(E), s12(W)] geometric, plus s11/s13 as logical
-    //   "borrowed" outer-ring members per spec geometry comment.
-    var SLOT_POSITIONS = {
-      // Targets
-      t1: { left: 30.5, top: 37.7 },
-      t2: { left: 69.5, top: 37.7 },
-      t3: { left: 50,   top: 82.3 },
-      // Blue inner slots
-      s1: { left: 50,   top: 37.7 },  // shared T1+T2 (between top targets, same row)
-      s2: { left: 40.25,top: 60.0 },  // shared T1+T3 (T1 SE neighbour)
-      s3: { left: 59.75,top: 60.0 },  // shared T2+T3 (T2 SW neighbour)
-      s4: { left: 11,   top: 37.7 },  // T1-only (T1 W)
-      s5: { left: 89,   top: 37.7 },  // T2-only (T2 E)
-      s6: { left: 69.5, top: 82.3 },  // T3-only (T3 E)
-      // White outer slots
-      s7: { left: 20.75,top: 15.4 },  // T1 outer NW
-      s8: { left: 40.25,top: 15.4 },  // T1 outer NE
-      s9: { left: 59.75,top: 15.4 },  // T2 outer NW
-      s10:{ left: 79.25,top: 15.4 },  // T2 outer NE
-      s11:{ left: 79.25,top: 60.0 },  // shared T2+T3 outer corridor (T2 SE)
-      s12:{ left: 30.5, top: 82.3 },  // T3 outer SW
-      s13:{ left: 20.75,top: 60.0 }   // shared T1+T3 outer corridor (T1 SW)
-    };
-
-    // ─── 5. syncDOM ─────────────────────────────────────────────────────────
+    /* ============================================================
+       syncDOM
+       ============================================================ */
     function syncDOM() {
       var app = document.getElementById('app');
       if (!app) return;
       app.setAttribute('data-phase', gameState.phase);
       app.setAttribute('data-score', gameState.score);
       app.setAttribute('data-round', gameState.currentRound);
-      app.setAttribute('data-lives', gameState.lives);
     }
 
-    // ─── 6. trackEvent ──────────────────────────────────────────────────────
-    function trackEvent(eventType, payload) {
+    /* ============================================================
+       trackEvent
+       ============================================================ */
+    function trackEvent(eventName, payload) {
       try {
-        var evt = {
-          type: eventType,
+        var ev = {
+          name: eventName,
           ts: Date.now(),
           payload: payload || {}
         };
-        gameState.events.push(evt);
+        gameState.events.push(ev);
         if (signalCollector && typeof signalCollector.recordEvent === 'function') {
-          try { signalCollector.recordEvent(eventType, payload || {}); } catch (e) {}
+          try { signalCollector.recordEvent(eventName, payload || {}); } catch (e) {}
         }
       } catch (e) {
-        console.error('[trackEvent]', e && e.message, e);
+        console.error('[trackEvent]', e && e.message);
       }
     }
 
-    // ─── 7. recordAttempt ───────────────────────────────────────────────────
-    function recordAttempt(roundIndex, userInput, correct, metadata) {
+    /* ============================================================
+       recordAttempt
+       ============================================================ */
+    function recordAttempt(round, computedSums, isCorrect, misconceptionTags) {
       try {
-        var rounds = getRounds();
-        var round = rounds[roundIndex] || {};
+        var now = Date.now();
         var attempt = {
-          attempt_timestamp: Date.now(),
-          time_since_start_of_game: gameState.startTime ? Date.now() - gameState.startTime : 0,
-          input_of_user: userInput,
-          correct: correct,
-          round_number: roundIndex + 1,
-          question_id: round.id || ('r' + (roundIndex + 1)),
-          correct_answer: round.solution || null,
-          response_time_ms: gameState.roundStartTime ? Date.now() - gameState.roundStartTime : 0,
-          misconception_tag: correct ? null : ((metadata && metadata.misconception_tag) || null),
-          difficulty_level: round.stage || round.difficulty || 1,
-          is_retry: (metadata && metadata.is_retry) || false,
-          metadata: metadata || {}
+          attempt_number: gameState.attempts.length + 1,
+          round_number: gameState.currentRound,
+          question_id: round && round.id ? round.id : ('r' + gameState.currentRound),
+          question_text: 'Hexa Numbers — set ' + (round && round.set ? round.set : '?') + ' round ' + gameState.currentRound,
+          user_answer: JSON.stringify(gameState.placement),
+          correct_answer: JSON.stringify(round && round.correctPlacement ? round.correctPlacement : {}),
+          is_correct: !!isCorrect,
+          response_time_ms: gameState.roundStartTime ? (now - gameState.roundStartTime) : 0,
+          misconception_tag: (misconceptionTags && misconceptionTags.length > 0) ? misconceptionTags[0] : null,
+          difficulty_level: round && round.stage ? round.stage : 1,
+          hint_used: false,
+          attempt_timestamp: now,
+          // Game-specific extras
+          target_sums: computedSums || null,
+          target_targets: round && round.targets ? round.targets : null,
+          set: round && round.set ? round.set : null,
+          variant: round && round.variant ? round.variant : null,
+          wrong_colour_drops: gameState.wrongColourDrops || 0,
+          misconception_tags_all: misconceptionTags || []
         };
         gameState.attempts.push(attempt);
-        gameState.duration_data.attempts.push({
-          round: roundIndex + 1,
-          timestamp: Date.now()
-        });
       } catch (e) {
-        console.error('[recordAttempt]', e && e.message, e);
+        console.error('[recordAttempt]', e && e.message);
       }
     }
 
-    // ─── 8. getStars ────────────────────────────────────────────────────────
+    /* ============================================================
+       getStars (1:1 mapping with score per spec)
+       ============================================================ */
     function getStars(score) {
-      if (typeof score === 'undefined') score = gameState.score;
+      if (typeof score !== 'number') score = gameState.score || 0;
       if (score >= 3) return 3;
       if (score >= 2) return 2;
       if (score >= 1) return 1;
       return 0;
     }
 
-    // ─── 9. getRounds with fallback ─────────────────────────────────────────
+    /* ============================================================
+       getRounds — set-based filter
+       ============================================================ */
     function getAvailableSets(rounds) {
       var seen = {};
-      for (var i = 0; i < rounds.length; i++) {
+      var i;
+      for (i = 0; i < rounds.length; i++) {
         if (rounds[i].set) seen[rounds[i].set] = true;
       }
       var keys = Object.keys(seen).sort();
@@ -1246,72 +1029,32 @@
     function getRounds() {
       var source = (gameState.content && gameState.content.rounds) || fallbackContent.rounds;
       var sets = getAvailableSets(source);
-      var currentSetId = sets[gameState.setIndex % sets.length];
-      var setRounds = source.filter(function(r) { return r.set === currentSetId; });
-      if (setRounds.length >= gameState.totalRounds) return setRounds;
-      var fbSetRounds = fallbackContent.rounds.filter(function(r) { return r.set === currentSetId; });
-      if (fbSetRounds.length >= gameState.totalRounds) return fbSetRounds;
-      return fallbackContent.rounds.slice(0, gameState.totalRounds);
-    }
-
-    // ─── verifyPuzzleSolvability ────────────────────────────────────────────
-    function verifyPuzzleSolvability() {
-      try {
-        var rounds = fallbackContent.rounds;
-        for (var i = 0; i < rounds.length; i++) {
-          var r = rounds[i];
-          var poolMap = {};
-          for (var p = 0; p < r.pool.length; p++) poolMap[r.pool[p].id] = r.pool[p];
-          var slotMap = {};
-          for (var s = 0; s < r.slots.length; s++) slotMap[r.slots[s].id] = r.slots[s];
-          // Invariant 1: every slot in solution
-          for (var sk = 0; sk < r.slots.length; sk++) {
-            if (typeof r.solution[r.slots[sk].id] === 'undefined') {
-              console.warn('[verifyPuzzleSolvability]', r.id, 'slot missing from solution:', r.slots[sk].id);
-            }
-          }
-          // Invariant 2: every pool id appears exactly once
-          var solutionVals = Object.keys(r.solution).map(function(k) { return r.solution[k]; });
-          for (var pp = 0; pp < r.pool.length; pp++) {
-            if (solutionVals.indexOf(r.pool[pp].id) < 0) {
-              console.warn('[verifyPuzzleSolvability]', r.id, 'pool id not used:', r.pool[pp].id);
-            }
-          }
-          // Invariant 3: ring sums match
-          for (var t = 0; t < r.targets.length; t++) {
-            var tg = r.targets[t];
-            var sum = 0;
-            for (var rr = 0; rr < tg.ring.length; rr++) {
-              var slotId = tg.ring[rr];
-              var poolId = r.solution[slotId];
-              var pHex = poolMap[poolId];
-              if (pHex) sum += pHex.value;
-            }
-            if (sum !== tg.value) {
-              console.warn('[verifyPuzzleSolvability]', r.id, tg.id, 'sum=', sum, 'expected=', tg.value);
-            }
-          }
-          // Invariant 4: colour match
-          for (var slk in r.solution) {
-            if (r.solution.hasOwnProperty(slk)) {
-              var slt = slotMap[slk];
-              var phx = poolMap[r.solution[slk]];
-              if (slt && phx && slt.color !== phx.color) {
-                console.warn('[verifyPuzzleSolvability]', r.id, 'colour mismatch slot=', slk, 'pool=', r.solution[slk]);
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.error('[verifyPuzzleSolvability]', e && e.message, e);
+      // Within a session, pick round i from set (setIndex+i) so each round has DIFFERENT
+      // target values + pool AND a different cosmetic skin (B1 for round 1, B2 for round 2,
+      // B3 for round 3). On Play Again, setIndex shifts so the order rotates.
+      var rounds = [];
+      var startIdx = gameState.setIndex % sets.length;
+      for (var i = 0; i < gameState.totalRounds; i++) {
+        var setId = sets[(startIdx + i) % sets.length];
+        var setRounds = source.filter(function (r) { return r.set === setId; });
+        var picked = setRounds[i] || setRounds[0];
+        if (picked) rounds.push(picked);
       }
+      if (rounds.length >= gameState.totalRounds) return rounds;
+      // Fallback: same-set rounds (legacy behaviour) if cross-set picking failed.
+      var currentSetId = sets[startIdx];
+      var sameSet = source.filter(function (r) { return r.set === currentSetId; });
+      if (sameSet.length >= gameState.totalRounds) return sameSet;
+      return source.slice(0, gameState.totalRounds);
     }
 
-    // ─── 10. waitForPackages ────────────────────────────────────────────────
+    /* ============================================================
+       waitForPackages
+       ============================================================ */
     function waitForPackages() {
       return new Promise(function (resolve, reject) {
         var startedAt = Date.now();
-        var timeout = 180000;
+        var TIMEOUT_MS = 180000;
         function check() {
           var ok =
             typeof FeedbackManager !== 'undefined' &&
@@ -1325,10 +1068,10 @@
             typeof FloatingButtonComponent !== 'undefined' &&
             typeof AnswerComponentComponent !== 'undefined';
           if (ok) return resolve(true);
-          if (Date.now() - startedAt > timeout) {
-            // Validator GEN expects a literal `throw new Error` site
-            try { throw new Error('waitForPackages timeout: ' + timeout + 'ms'); }
-            catch (err) { return reject(err); }
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            var err = new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
+            reject(err);
+            throw new Error('waitForPackages timeout: ' + TIMEOUT_MS + 'ms');
           }
           setTimeout(check, 100);
         }
@@ -1336,1194 +1079,1375 @@
       });
     }
 
-    // ─── 11. Audio preload + helpers ────────────────────────────────────────
-    function safePlaySound(id, opts) {
+    /* ============================================================
+       FeedbackManager preload
+       ============================================================ */
+    function preloadAudio() {
+      if (typeof FeedbackManager === 'undefined' || !FeedbackManager.sound || !FeedbackManager.sound.preload) return;
+      var assets = [
+        { id: 'correct_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
+        { id: 'incorrect_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'sound_life_lost', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
+        { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
+        { id: 'victory_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
+        { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
+        { id: 'sound_bubble_select', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
+        { id: 'sound_bubble_deselect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' },
+        { id: 'tap_sound', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432016820.mp3' }
+      ];
       try {
-        return FeedbackManager.sound.play(id, opts || {});
+        FeedbackManager.sound.preload(assets);
       } catch (e) {
-        console.error('[safePlaySound]', e && e.message);
+        console.error('[preloadAudio]', e && e.message);
+      }
+    }
+
+    function safePlaySound(id, options) {
+      try {
+        return FeedbackManager.sound.play(id, options || {});
+      } catch (e) {
         return Promise.resolve();
       }
     }
 
-    function awaitedPlay(id, opts) {
-      // Promise.all with 1500ms minimum floor
-      return Promise.all([
-        safePlaySound(id, opts).catch(function() {}),
-        new Promise(function(r) { setTimeout(r, 1500); })
-      ]);
-    }
-
-    // ─── 12. handlePostMessage ──────────────────────────────────────────────
+    /* ============================================================
+       handlePostMessage
+       ============================================================ */
     function handlePostMessage(event) {
-      var msg = event && event.data;
-      if (!msg || typeof msg !== 'object') return;
       try {
+        var msg = event && event.data;
+        if (!msg || typeof msg !== 'object') return;
         if (msg.type === 'game_init') {
           gameState.phase = 'playing';
-          if (msg.data && msg.data.content) {
-            gameState.content = msg.data.content;
-            if (msg.data.content.totalRounds) {
-              gameState.totalRounds = msg.data.content.totalRounds;
-            }
-          }
-          // Configure SignalCollector if config provided
-          if (signalCollector && msg.data && msg.data.signalConfig) {
-            try {
-              signalCollector.flushUrl = msg.data.signalConfig.flushUrl;
-              signalCollector.playId = msg.data.signalConfig.playId;
-              signalCollector.gameId = msg.data.signalConfig.gameId;
-              signalCollector.sessionId = msg.data.signalConfig.sessionId;
-              signalCollector.contentSetId = msg.data.signalConfig.contentSetId;
-              signalCollector.studentId = msg.data.signalConfig.studentId;
+          gameState.content = msg.data && msg.data.content ? msg.data.content : null;
+          if (msg.data && typeof msg.data.totalRounds === 'number') gameState.totalRounds = msg.data.totalRounds;
+          // Configure SignalCollector from signalConfig (PART-010)
+          try {
+            var sc = msg.data && msg.data.signalConfig ? msg.data.signalConfig : {};
+            gameState.signalConfig = msg.data && msg.data.signalConfig ? msg.data.signalConfig : {};
+            if (signalCollector) {
+              signalCollector.flushUrl = sc.flushUrl || signalCollector.flushUrl || '';
+              signalCollector.playId = sc.playId || signalCollector.playId || ('hexa-numbers-' + Date.now());
+              signalCollector.gameId = sc.gameId || 'hexa-numbers';
+              signalCollector.sessionId = sc.sessionId || ('session-' + Date.now());
+              signalCollector.contentSetId = sc.contentSetId || 'fallback';
+              signalCollector.studentId = sc.studentId || 'anonymous';
               if (typeof signalCollector.startFlushing === 'function') {
-                signalCollector.startFlushing();
+                try { signalCollector.startFlushing(); } catch (e2) {}
               }
-            } catch (e) {
-              console.error('[signalCollector config]', e && e.message);
             }
-          }
+          } catch (e1) {}
           syncDOM();
           setupGame();
-        } else if (msg.type === 'pause') {
-          try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {}
-          if (previewScreen) { try { previewScreen.pause(); } catch (e) {} }
-        } else if (msg.type === 'resume') {
-          try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {}
-          if (previewScreen) { try { previewScreen.resume(); } catch (e) {} }
+        } else if (msg.type === 'game_pause') {
+          try { FeedbackManager.sound.pause(); } catch (e) {}
+        } else if (msg.type === 'game_resume') {
+          try { FeedbackManager.sound.resume(); } catch (e) {}
         }
       } catch (e) {
-        console.error('[handlePostMessage]', e && e.message, e);
+        console.error('[handlePostMessage]', e && e.message);
       }
     }
 
-    // ─── 13. injectGameHTML / build play area ───────────────────────────────
-    function injectGameHTML() {
-      var gc = document.getElementById('gameContent');
-      if (!gc) return;
-      gc.innerHTML =
-        '<div id="hexBoardContainer" class="hex-board" data-testid="hex-board" aria-label="Hexagon puzzle board"></div>' +
-        '<div id="poolTrayContainer" class="pool-tray" data-testid="pool-tray" aria-label="Hexagon pool"></div>' +
-        '<div id="results-screen" aria-hidden="true"><div id="rounds-completed"></div></div>';
-    }
-
-    // Render the board (targets + slots) + pool for the given round
-    function renderBoardAndPool(round) {
-      var board = document.getElementById('hexBoardContainer');
-      var tray = document.getElementById('poolTrayContainer');
-      if (!board || !tray) return;
-      board.innerHTML = '';
-      tray.innerHTML = '<div class="pool-label">Pool</div>';
-
-      // Reset per-round state refs
-      gameState.slotEls = {};
-      gameState.tagEls = {};
-      gameState.poolSlotEls = {};
-      gameState.placement = {};
-
-      // Targets
-      var targetClass = round.targetColor === 'dark-teal-grey' ? 'target-teal' : 'target-green';
-      for (var t = 0; t < round.targets.length; t++) {
-        var tg = round.targets[t];
-        var pos = SLOT_POSITIONS[tg.id];
-        var tEl = document.createElement('div');
-        tEl.className = 'hex hex-target ' + targetClass;
-        tEl.id = 'target-' + tg.id;
-        tEl.style.left = 'calc(' + pos.left + '% - var(--hex-w-half))';
-        tEl.style.top = 'calc(' + pos.top + '% - var(--hex-h-half))';
-        tEl.setAttribute('data-target-id', tg.id);
-        var labelSpan = document.createElement('span');
-        labelSpan.textContent = String(tg.value);
-        tEl.appendChild(labelSpan);
-        var badge = document.createElement('div');
-        badge.className = 'target-badge';
-        badge.id = 'badge-' + tg.id;
-        tEl.appendChild(badge);
-        board.appendChild(tEl);
-      }
-
-      // Slots
-      for (var s = 0; s < round.slots.length; s++) {
-        var slot = round.slots[s];
-        var sp = SLOT_POSITIONS[slot.id];
-        var sEl = document.createElement('div');
-        sEl.className = 'hex hex-slot slot-' + slot.color + ' slot-empty';
-        sEl.id = 'slot-' + slot.id;
-        sEl.setAttribute('data-slot-id', slot.id);
-        sEl.setAttribute('data-slot-color', slot.color);
-        sEl.style.left = 'calc(' + sp.left + '% - var(--hex-w-half))';
-        sEl.style.top = 'calc(' + sp.top + '% - var(--hex-h-half))';
-        board.appendChild(sEl);
-        gameState.slotEls[slot.id] = sEl;
-        gameState.placement[slot.id] = null; // empty
-      }
-
-      // Pool tray — 4 rows: 4 + 4 + 4 + 1
-      var rows = [
-        ['b1','b2','b3','b4'],
-        ['b5','b6','w1','w2'],
-        ['w3','w4','w5','w6'],
-        ['w7']
-      ];
-      for (var r = 0; r < rows.length; r++) {
-        var rowEl = document.createElement('div');
-        rowEl.className = 'pool-row';
-        for (var c = 0; c < rows[r].length; c++) {
-          var pid = rows[r][c];
-          var poolHex = null;
-          for (var pp = 0; pp < round.pool.length; pp++) {
-            if (round.pool[pp].id === pid) { poolHex = round.pool[pp]; break; }
-          }
-          if (!poolHex) continue;
-          var slotWrap = document.createElement('div');
-          slotWrap.className = 'pool-slot';
-          slotWrap.id = 'pool-slot-' + poolHex.id;
-          slotWrap.setAttribute('data-pool-slot-id', poolHex.id);
-          var tagEl = document.createElement('div');
-          tagEl.className = 'dnd-tag tag-' + poolHex.color;
-          tagEl.id = 'tag-' + poolHex.id;
-          tagEl.setAttribute('data-tag-id', poolHex.id);
-          tagEl.setAttribute('data-color', poolHex.color);
-          tagEl.setAttribute('data-value', String(poolHex.value));
-          tagEl.textContent = String(poolHex.value);
-          slotWrap.appendChild(tagEl);
-          rowEl.appendChild(slotWrap);
-          gameState.poolSlotEls[poolHex.id] = slotWrap;
-          gameState.tagEls[poolHex.id] = tagEl;
-          // origin tracking — pool by default
-          gameState.placement[poolHex.id + '__origin'] = 'pool';
-        }
-        tray.appendChild(rowEl);
-      }
-    }
-
-    // ─── 14. render (phase router) ──────────────────────────────────────────
-    function render() {
-      // Phase-driven rendering — most surfaces are component-driven so this
-      // is mostly a no-op. We rely on transitionScreen/previewScreen/etc.
-      syncDOM();
-    }
-
-    // ─── 15. setupGame ──────────────────────────────────────────────────────
-    function setupGame() {
-      var content = gameState.content || fallbackContent;
-      // 1. Render the first round's board + pool into #gameContent BEFORE preview
-      injectGameHTML();
-      var firstRound = getRounds()[0];
-      gameState.currentRoundData = firstRound;
-      renderBoardAndPool(firstRound);
-
-      // 2. Show preview
-      previewScreen.show({
-        instruction: content.previewInstruction || fallbackContent.previewInstruction,
-        audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
-        showGameOnPreview: content.showGameOnPreview === true,
-        onComplete: function(previewData) {
-          startGameAfterPreview(previewData);
-        }
-      });
-    }
-
-    // ─── startGameAfterPreview ──────────────────────────────────────────────
-    function startGameAfterPreview(previewData) {
-      gameState.previewResult = previewData || null;
-      gameState.duration_data.preview = gameState.duration_data.preview || [];
-      if (previewData && typeof previewData.duration === 'number') {
-        gameState.duration_data.preview.push({ duration: previewData.duration });
-      }
-      gameState.startTime = Date.now();
-      gameState.isActive = true;
-      gameState.duration_data.startTime = new Date().toISOString();
-      gameState.phase = 'playing';
-      syncDOM();
-      // Header seed
-      if (previewScreen) {
-        try {
-          previewScreen.setQuestionLabel('Q1');
-          previewScreen.setScore('0/' + gameState.totalRounds);
-          previewScreen.setStar(true);
-        } catch (e) {}
-      }
-      trackEvent('game_start', { totalRounds: gameState.totalRounds });
-      if (signalCollector) {
-        try { signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
-      }
-      // Show round-1 transition first, then enter gameplay
-      showRoundIntro(1);
-    }
-
-    // ─── startGame ──────────────────────────────────────────────────────────
-    function startGame() {
-      if (gameState.isActive) return;
-      gameState.isActive = true;
-      gameState.startTime = Date.now();
-      gameState.duration_data.startTime = new Date().toISOString();
-      gameState.currentRound = 0;
-      gameState.score = 0;
-      gameState.attempts = [];
-      gameState.events = [];
-      gameState.isProcessing = false;
-      gameState.gameEnded = false;
-      gameState.phase = 'playing';
-      trackEvent('game_start', { totalRounds: gameState.totalRounds });
-      syncDOM();
-      render();
-    }
-    window.startGame = startGame;
-
-    // ─── showRoundIntro ─────────────────────────────────────────────────────
-    async function showRoundIntro(n) {
-      // Defensive cleanup of any in-flight audio left over from previous round
-      try { FeedbackManager.sound.stopAll(); } catch (e) {}
-      try { FeedbackManager.stream.stopAll(); } catch (e) {}
-      try {
-        if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic();
-      } catch (e) {}
-
-      gameState.currentRound = n;
-      gameState.isProcessing = false;
-      gameState.gameEnded = false;
-      syncDOM();
-      if (previewScreen) {
-        try { previewScreen.setQuestionLabel('Q' + n); } catch (e) {}
-      }
-      if (progressBar) {
-        try { progressBar.update(n - 1, 0); } catch (e) {}
-      }
-
-      var roundsArr = getRounds();
-      var round = roundsArr[n - 1];
-      gameState.currentRoundData = round;
-
-      await transitionScreen.show({
-        title: 'Round ' + n,
-        subtitle: 'Variant ' + round.variant,
-        icons: ['🔷'],
-        buttons: [{
-          text: "Let's go",
-          type: 'primary',
-          action: function() {
-            try { transitionScreen.hide(); } catch (e) {}
-            try {
-              FeedbackManager.sound.stopAll();
-              if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic();
-            } catch (e) {}
-            beginRound(n);
-          }
-        }],
-        onMounted: function() {
-          safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND_TRANSITION }).catch(function() {});
-        }
-      });
-    }
-
-    // ─── beginRound — render board for the new round + wire DnD ─────────────
-    function beginRound(n) {
-      var roundsArr = getRounds();
-      var round = roundsArr[n - 1];
-      if (!round) return;
-      gameState.currentRoundData = round;
-      gameState.roundStartTime = Date.now();
-      gameState.correctAnswer = round.solution;
-      gameState.isProcessing = false;
-
-      // Tear down previous DnD instances
-      destroyDndRound();
-
-      // Re-render board + pool for this round (preserves any cosmetic changes)
-      renderBoardAndPool(round);
-
-      // Reset slot styling
-      for (var sk in gameState.slotEls) {
-        if (gameState.slotEls.hasOwnProperty(sk)) {
-          var sl = gameState.slotEls[sk];
-          sl.classList.remove('slot-correct', 'slot-conflict', 'drop-hover-ok', 'drop-hover-bad');
-          sl.classList.add('slot-empty');
-        }
-      }
-      // Hide all target badges
-      for (var ti = 0; ti < round.targets.length; ti++) {
-        var bd = document.getElementById('badge-' + round.targets[ti].id);
-        if (bd) {
-          bd.classList.remove('show', 'pass', 'fail');
-          bd.textContent = '';
-        }
-      }
-      // Reset CHECK button to submit mode
-      if (floatingBtn) {
-        try {
-          floatingBtn.setLabels({ submit: 'Check', next: 'Next', retry: 'Try again' });
-          floatingBtn.setMode(null);
-          floatingBtn.setSubmittable(false);
-        } catch (e) {}
-      }
-
-      // Set up DnD for this round
-      setupDndRound();
-
-      syncDOM();
-    }
-
-    // ─── allSlotsFilled ─────────────────────────────────────────────────────
-    function allSlotsFilled() {
-      var round = gameState.currentRoundData;
-      if (!round) return false;
-      for (var i = 0; i < round.slots.length; i++) {
-        var sid = round.slots[i].id;
-        if (!gameState.placement[sid]) return false;
-      }
-      return true;
-    }
-
-    // ─── DnD setup (using @dnd-kit/dom via ESM module — see <script type="module"> below) ─
-    var dndKitReady = false;
-    var dndKitClasses = null; // { DragDropManager, Draggable, Droppable }
-
-    function destroyDndRound() {
-      if (gameState.draggables) {
-        for (var i = 0; i < gameState.draggables.length; i++) {
-          try { gameState.draggables[i].destroy(); } catch (e) {}
-        }
-      }
-      if (gameState.droppables) {
-        for (var j = 0; j < gameState.droppables.length; j++) {
-          try { gameState.droppables[j].destroy(); } catch (e) {}
-        }
-      }
-      if (gameState.dndManager) {
-        try { gameState.dndManager.destroy(); } catch (e) {}
-      }
-      gameState.draggables = [];
-      gameState.droppables = [];
-      gameState.dndManager = null;
-    }
-
-    function setupDndRound() {
-      if (!dndKitReady || !dndKitClasses) {
-        // Library not yet loaded — defer setup. R1 invariant.
-        // We will re-call setupDndRound from the ESM-load completion handler.
-        return;
-      }
-      var DragDropManager = dndKitClasses.DragDropManager;
-      var Draggable = dndKitClasses.Draggable;
-      var Droppable = dndKitClasses.Droppable;
-      var PointerSensor = dndKitClasses.PointerSensor;
-      var PointerActivationConstraints = dndKitClasses.PointerActivationConstraints;
-
-      // P6 §8 Universal Touch Support — distance-only activation, NO delay.
-      // Default PointerSensor uses 250ms hold-delay on touch (dndkit.com/extend/sensors/pointer-sensor),
-      // making mobile feel sluggish. .dnd-tag has touch-action: none so the browser already won't
-      // hijack the touch for scroll — the delay is unnecessary. 3px distance gives instant pickup
-      // on both mouse and touch.
-      var manager;
-      if (PointerSensor && PointerActivationConstraints && PointerActivationConstraints.Distance) {
-        manager = new DragDropManager({
-          sensors: [
-            PointerSensor.configure({
-              activationConstraints: [
-                new PointerActivationConstraints.Distance({ value: 3 })
-              ]
-            })
-          ]
-        });
-      } else {
-        // Fallback if the build's @dnd-kit/dom CDN bundle doesn't expose PointerSensor —
-        // default sensors still work, just with the touch hold-delay.
-        manager = new DragDropManager();
-      }
-      gameState.dndManager = manager;
-
-      var round = gameState.currentRoundData;
-      if (!round) return;
-
-      // Draggables — one per pool hex
-      gameState.draggables = [];
-      for (var i = 0; i < round.pool.length; i++) {
-        var p = round.pool[i];
-        var el = gameState.tagEls[p.id];
-        if (!el) continue;
-        var dr = new Draggable({
-          id: p.id,
-          element: el,
-          type: p.color,
-          data: { color: p.color, value: p.value, hexId: p.id }
-        }, manager);
-        gameState.draggables.push(dr);
-      }
-
-      // Droppables — one per slot, with colour-gating predicate
-      gameState.droppables = [];
-      for (var s = 0; s < round.slots.length; s++) {
-        var sl = round.slots[s];
-        var slotEl = gameState.slotEls[sl.id];
-        if (!slotEl) continue;
-        var dp = new Droppable({
-          id: sl.id,
-          element: slotEl,
-          accept: makeAcceptsPredicate(sl.color),
-          data: { color: sl.color, slotId: sl.id }
-        }, manager);
-        gameState.droppables.push(dp);
-      }
-
-      // Pool-tray as droppable for return-to-pool (accepts any colour)
-      var trayEl = document.getElementById('poolTrayContainer');
-      if (trayEl) {
-        var trayDrop = new Droppable({
-          id: '__pool__',
-          element: trayEl,
-          accept: function() { return true; },
-          data: { color: 'pool', slotId: '__pool__' }
-        }, manager);
-        gameState.droppables.push(trayDrop);
-      }
-
-      // Wire monitor events
-      try {
-        manager.monitor.addEventListener('beforedragstart', function(event) {
-          if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) {
-            try { event.preventDefault(); } catch (e) {}
-            return;
-          }
-        });
-
-        manager.monitor.addEventListener('dragstart', function(event) {
-          if (gameState.isProcessing || gameState.gameEnded || !gameState.isActive) return;
-          gameState.isDragging = true;
-          var src = event.operation && event.operation.source;
-          if (!src) return;
-          var hexId = src.id;
-          gameState.currentDragSourceId = hexId;
-          var el = gameState.tagEls[hexId];
-          if (el) el.classList.add('dragging');
-        });
-
-        manager.monitor.addEventListener('collision', function(event) {
-          // Visual hover feedback — colour mismatch = soft red, match = purple
-          // First clear all hover styling
-          for (var sk in gameState.slotEls) {
-            if (gameState.slotEls.hasOwnProperty(sk)) {
-              gameState.slotEls[sk].classList.remove('drop-hover-ok', 'drop-hover-bad');
-            }
-          }
-          if (!event.collisions || event.collisions.length === 0) return;
-          var dragColor = null;
-          if (event.operation && event.operation.source && event.operation.source.data) {
-            dragColor = event.operation.source.data.color;
-          }
-          for (var c = 0; c < event.collisions.length; c++) {
-            var col = event.collisions[c];
-            var dropId = (col.droppable && col.droppable.id) || col.id;
-            if (!dropId || dropId === '__pool__') continue;
-            var slotEl = gameState.slotEls[dropId];
-            if (!slotEl) continue;
-            var slotColor = slotEl.getAttribute('data-slot-color');
-            if (slotColor === dragColor) {
-              slotEl.classList.add('drop-hover-ok');
-            } else {
-              slotEl.classList.add('drop-hover-bad');
-            }
-          }
-        });
-
-        manager.monitor.addEventListener('dragend', function(event) {
-          gameState.isDragging = false;
-          var src = event.operation && event.operation.source;
-          var tgt = event.operation && event.operation.target;
-          var canceled = event.operation && event.operation.canceled;
-          // Clear hover styling
-          for (var sk in gameState.slotEls) {
-            if (gameState.slotEls.hasOwnProperty(sk)) {
-              gameState.slotEls[sk].classList.remove('drop-hover-ok', 'drop-hover-bad');
-            }
-          }
-          // Clear drag styling on the source tag
-          if (src) {
-            var srcEl = gameState.tagEls[src.id];
-            if (srcEl) resetDragStyling(srcEl);
-          }
-          if (canceled) {
-            // returned implicitly to pool — re-place in original slot/pool position
-            settleAfterDrag(src ? src.id : null, null, true);
-            return;
-          }
-          if (!tgt) {
-            // Dropped outside any droppable, OR dropped on a colour-mismatched slot (accepts blocked).
-            // In both cases we want to return to source location and play the appropriate SFX.
-            // To distinguish colour-mismatch from drop-outside, look at last collision.
-            var hexId = src ? src.id : null;
-            // Heuristic — fire soft error SFX if we know there was a collision but accepts blocked it.
-            // For simplicity, treat all "no target" as soft return-to-source.
-            settleAfterDrag(hexId, null, true);
-            // Soft error SFX (fire-and-forget)
-            try {
-              FeedbackManager.sound.play('sound_bubble_deselect', { fireAndForget: true })
-                .catch(function() {});
-            } catch (e) {}
-            return;
-          }
-          var targetSlotId = tgt.id;
-          var sourceHexId = src ? src.id : null;
-          if (!sourceHexId) return;
-          // Pool drop — return to pool
-          if (targetSlotId === '__pool__') {
-            placeOnPool(sourceHexId);
-            try { FeedbackManager.sound.play('sound_bubble_deselect', { fireAndForget: true }).catch(function() {}); } catch (e) {}
-            updateSubmittable();
-            return;
-          }
-          // Slot drop — handle the 3 success paths (empty / occupied-evict / occupied-swap)
-          handleSlotDrop(sourceHexId, targetSlotId);
-        });
-      } catch (e) {
-        console.error('[dnd monitor]', e && e.message, e);
-        if (typeof Sentry !== 'undefined') Sentry.captureException(e);
-      }
-    }
-
-    function makeAcceptsPredicate(slotColor) {
-      return function(drag) {
-        if (!drag || !drag.data) return false;
-        return drag.data.color === slotColor;
-      };
-    }
-
-    function resetDragStyling(el) {
-      if (!el) return;
-      el.classList.remove('dragging', 'tag-disabled', 'hex-tag-reveal');
-      el.style.position = '';
-      el.style.left = '';
-      el.style.top = '';
-      el.style.width = '';
-      el.style.height = '';
-      el.style.transform = '';
-      el.style.zIndex = '';
-    }
-
-    // settleAfterDrag — when drag ends with no target (cancel / colour-reject / outside-drop),
-    // return the tag to its source location.
-    function settleAfterDrag(hexId, _, isReturn) {
-      if (!hexId) return;
-      var origin = gameState.placement[hexId + '__origin'] || 'pool';
-      var tagEl = gameState.tagEls[hexId];
-      if (!tagEl) return;
-      resetDragStyling(tagEl);
-      if (origin === 'pool') {
-        placeOnPool(hexId);
-      } else {
-        // origin is a slot id — replace into that slot
-        placeOnSlot(hexId, origin);
-      }
-    }
-
-    // placeOnPool — return a tag back to its dedicated pool slot
-    function placeOnPool(hexId) {
-      var poolSlot = gameState.poolSlotEls[hexId];
-      var tagEl = gameState.tagEls[hexId];
-      if (!poolSlot || !tagEl) return;
-      resetDragStyling(tagEl);
-      // If tag was placed in a slot, clear that slot's record
-      var prevSlot = gameState.placement[hexId + '__origin'];
-      if (prevSlot && prevSlot !== 'pool' && gameState.placement[prevSlot] === hexId) {
-        gameState.placement[prevSlot] = null;
-        var slEl = gameState.slotEls[prevSlot];
-        if (slEl) {
-          slEl.classList.add('slot-empty');
-          slEl.classList.remove('slot-correct', 'slot-conflict');
-        }
-      }
-      poolSlot.appendChild(tagEl);
-      poolSlot.classList.remove('empty');
-      gameState.placement[hexId + '__origin'] = 'pool';
-    }
-
-    // placeOnSlot — move a tag into a specific slot DOM element + update tracking
-    function placeOnSlot(hexId, slotId) {
-      var slEl = gameState.slotEls[slotId];
-      var tagEl = gameState.tagEls[hexId];
-      if (!slEl || !tagEl) return;
-      resetDragStyling(tagEl);
-      // Clear the tag's previous origin
-      var prevOrigin = gameState.placement[hexId + '__origin'];
-      if (prevOrigin && prevOrigin !== 'pool' && prevOrigin !== slotId && gameState.placement[prevOrigin] === hexId) {
-        gameState.placement[prevOrigin] = null;
-        var prevSlEl = gameState.slotEls[prevOrigin];
-        if (prevSlEl) {
-          prevSlEl.classList.add('slot-empty');
-          prevSlEl.classList.remove('slot-correct', 'slot-conflict');
-        }
-      }
-      // Collapse the source pool-slot so remaining pool tags re-centre (P6 §5)
-      var poolSlot = gameState.poolSlotEls[hexId];
-      if (poolSlot) poolSlot.classList.add('empty');
-      // Move DOM
-      slEl.appendChild(tagEl);
-      slEl.classList.remove('slot-empty', 'drop-hover-ok', 'drop-hover-bad');
-      gameState.placement[slotId] = hexId;
-      gameState.placement[hexId + '__origin'] = slotId;
-    }
-
-    // handleSlotDrop — the core 9-path handler for slot drops
-    function handleSlotDrop(sourceHexId, targetSlotId) {
-      var slEl = gameState.slotEls[targetSlotId];
-      var tagEl = gameState.tagEls[sourceHexId];
-      if (!slEl || !tagEl) return;
-      resetDragStyling(tagEl);
-
-      var sourceOrigin = gameState.placement[sourceHexId + '__origin'] || 'pool';
-      var occupant = gameState.placement[targetSlotId];
-
-      // SAME-ZONE NO-OP (V7)
-      if (occupant === sourceHexId) {
-        // re-anchor tag in slot (in case dnd-kit reparented during drag)
-        slEl.appendChild(tagEl);
-        slEl.classList.remove('slot-empty', 'drop-hover-ok', 'drop-hover-bad');
-        gameState.placement[sourceHexId + '__origin'] = targetSlotId;
-        return;
-      }
-
-      // DROP ON EMPTY (V1) or ZONE-TO-EMPTY-ZONE-TRANSFER (V4)
-      if (!occupant) {
-        placeOnSlot(sourceHexId, targetSlotId);
-        try { FeedbackManager.sound.play('sound_bubble_select', { fireAndForget: true }).catch(function() {}); } catch (e) {}
-        updateSubmittable();
-        return;
-      }
-
-      // DROP ON OCCUPIED — EVICT (source from pool) or SWAP (source from slot)
-      if (sourceOrigin === 'pool') {
-        // EVICT: occupant returns to pool, source takes the slot
-        placeOnPool(occupant);
-        placeOnSlot(sourceHexId, targetSlotId);
-      } else {
-        // SWAP: occupant moves to source's slot, source takes target slot
-        var sourcePrevSlot = sourceOrigin;
-        // Move occupant to source's previous slot (placeOnSlot will clear sourcePrevSlot first... but it's already filled with sourceHexId so we need to manually swap)
-        // Step 1: clear source's previous slot (it currently still has sourceHexId in placement)
-        gameState.placement[sourcePrevSlot] = null;
-        // Step 2: move occupant into sourcePrevSlot
-        var occTagEl = gameState.tagEls[occupant];
-        if (occTagEl) {
-          var sPrevEl = gameState.slotEls[sourcePrevSlot];
-          if (sPrevEl) {
-            resetDragStyling(occTagEl);
-            sPrevEl.appendChild(occTagEl);
-            sPrevEl.classList.remove('slot-empty', 'drop-hover-ok', 'drop-hover-bad');
-            gameState.placement[sourcePrevSlot] = occupant;
-            gameState.placement[occupant + '__origin'] = sourcePrevSlot;
-          }
-        }
-        // Step 3: move source into target slot
-        slEl.appendChild(tagEl);
-        slEl.classList.remove('slot-empty', 'drop-hover-ok', 'drop-hover-bad');
-        gameState.placement[targetSlotId] = sourceHexId;
-        gameState.placement[sourceHexId + '__origin'] = targetSlotId;
-      }
-      try { FeedbackManager.sound.play('sound_bubble_select', { fireAndForget: true }).catch(function() {}); } catch (e) {}
-      updateSubmittable();
-    }
-
-    function updateSubmittable() {
-      if (!floatingBtn) return;
-      try {
-        if (allSlotsFilled() && !gameState.isProcessing && !gameState.gameEnded) {
-          floatingBtn.setSubmittable(true);
-        } else {
-          floatingBtn.setSubmittable(false);
-        }
-      } catch (e) {}
-    }
-
-    // ─── 16. Answer handler — handleCheck ───────────────────────────────────
-    async function handleCheck() {
-      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) return;
-      gameState.isProcessing = true;
-      var board = document.getElementById('hexBoardContainer');
-      if (board) board.classList.add('dnd-disabled');
-
-      var round = gameState.currentRoundData;
-      if (!round) return;
-
-      // Compute per-target sums + pass/fail
-      var poolMap = {};
-      for (var p = 0; p < round.pool.length; p++) poolMap[round.pool[p].id] = round.pool[p];
-      var perTargetPass = [];
-      var allPass = true;
-      var conflictSlots = {};
-      for (var t = 0; t < round.targets.length; t++) {
-        var tg = round.targets[t];
-        var sum = 0;
-        for (var rr = 0; rr < tg.ring.length; rr++) {
-          var slotId = tg.ring[rr];
-          var poolId = gameState.placement[slotId];
-          if (poolId && poolMap[poolId]) sum += poolMap[poolId].value;
-        }
-        var pass = sum === tg.value;
-        perTargetPass.push(pass);
-        if (!pass) {
-          allPass = false;
-          for (var rrr = 0; rrr < tg.ring.length; rrr++) {
-            conflictSlots[tg.ring[rrr]] = true;
-          }
-        }
-        // Show badge
-        var badge = document.getElementById('badge-' + tg.id);
-        if (badge) {
-          badge.textContent = pass ? '✓' : '✗';
-          badge.classList.add('show');
-          badge.classList.add(pass ? 'pass' : 'fail');
-        }
-      }
-
-      // Capture arrangement for telemetry BEFORE audio
-      var arrangement = {};
-      for (var sk in gameState.placement) {
-        if (gameState.placement.hasOwnProperty(sk) && sk.indexOf('__origin') < 0) {
-          arrangement[sk] = gameState.placement[sk];
-        }
-      }
-      recordAttempt(gameState.currentRound - 1, arrangement, allPass, {
-        perTargetPass: perTargetPass,
-        is_retry: false,
-        misconception_tag: allPass ? null : 'single-target-fix'
-      });
-      trackEvent('answer_submitted', {
-        round: gameState.currentRound,
-        correct: allPass,
-        perTargetPass: perTargetPass
-      });
-
-      if (allPass) {
-        gameState.score++;
-        if (previewScreen) {
-          try { previewScreen.setScore(gameState.score + '/' + gameState.totalRounds); } catch (e) {}
-        }
-        // Visual flash on all slots
-        for (var sk2 in gameState.slotEls) {
-          if (gameState.slotEls.hasOwnProperty(sk2)) {
-            gameState.slotEls[sk2].classList.add('slot-correct');
-          }
-        }
-        syncDOM();
-        // Progress bar bump FIRST
-        if (progressBar) {
-          try { progressBar.update(gameState.currentRound, 0); } catch (e) {}
-        }
-        // Awaited correct SFX
-        try {
-          await awaitedPlay('correct_sound_effect', { sticker: STICKER_CORRECT });
-        } catch (e) {}
-        // Awaited dynamic TTS
-        try {
-          await FeedbackManager.playDynamicFeedback({
-            audio_content: 'Great thinking! Every sum is spot on.',
-            subtitle: 'Great thinking! Every sum is spot on.',
-            sticker: STICKER_CORRECT
-          });
-        } catch (e) {}
-        // Advance
-        if (gameState.currentRound < gameState.totalRounds) {
-          await nextRound();
-        } else {
-          await endGame(true);
-        }
-      } else {
-        // Wrong path — conflict slots red
-        for (var ck in conflictSlots) {
-          if (conflictSlots.hasOwnProperty(ck)) {
-            var slEl = gameState.slotEls[ck];
-            if (slEl) slEl.classList.add('slot-conflict');
-          }
-        }
-        // Bump progress bar (rounds-attempted policy)
-        if (progressBar) {
-          try { progressBar.update(gameState.currentRound, 0); } catch (e) {}
-        }
-        // Awaited wrong SFX
-        try {
-          await awaitedPlay('incorrect_sound_effect', { sticker: STICKER_INCORRECT });
-        } catch (e) {}
-        // Awaited dynamic TTS
-        try {
-          await FeedbackManager.playDynamicFeedback({
-            audio_content: 'Oh no! Not quite. Check each sum carefully.',
-            subtitle: 'Not quite — check each sum.',
-            sticker: STICKER_INCORRECT
-          });
-        } catch (e) {}
-        // Reveal correct arrangement (~1500ms)
-        revealCorrectArrangement(round);
-        await new Promise(function(r) { setTimeout(r, 1500); });
-        // Morph CHECK → NEXT
-        if (floatingBtn) {
-          try {
-            floatingBtn.setMode('next');
-          } catch (e) {}
-        }
-        // Auto-advance after 3500ms if NEXT not tapped
-        gameState.__autoNextTimer = setTimeout(function() {
-          if (gameState.gameEnded) return;
-          // simulate next tap
-          handleNextAfterWrong();
-        }, 3500);
-      }
-    }
-
-    function revealCorrectArrangement(round) {
-      // Move every tag to its solution slot
-      var solution = round.solution;
-      for (var slotId in solution) {
-        if (solution.hasOwnProperty(slotId)) {
-          var hexId = solution[slotId];
-          var slEl = gameState.slotEls[slotId];
-          var tagEl = gameState.tagEls[hexId];
-          if (!slEl || !tagEl) continue;
-          slEl.appendChild(tagEl);
-          slEl.classList.remove('slot-empty', 'slot-conflict', 'drop-hover-ok', 'drop-hover-bad');
-          slEl.classList.add('slot-correct');
-          tagEl.classList.add('hex-tag-reveal');
-          gameState.placement[slotId] = hexId;
-          gameState.placement[hexId + '__origin'] = slotId;
-        }
-      }
-    }
-
-    async function handleNextAfterWrong() {
-      if (gameState.__autoNextTimer) {
-        clearTimeout(gameState.__autoNextTimer);
-        gameState.__autoNextTimer = null;
-      }
-      try { FeedbackManager.sound.stopAll(); } catch (e) {}
-      try { if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic(); } catch (e) {}
-      if (gameState.currentRound < gameState.totalRounds) {
-        await nextRound();
-      } else {
-        await endGame(false);
-      }
-    }
-
-    // ─── 17. nextRound ──────────────────────────────────────────────────────
-    async function nextRound() {
-      // Round-boundary audio cleanup (defensive — see GEN-ROUND-BOUNDARY-STOP)
-      try { FeedbackManager.sound.stopAll(); } catch (e) {}
-      try { FeedbackManager.stream.stopAll(); } catch (e) {}
-      try {
-        if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic();
-      } catch (e) {}
-
+    /* ============================================================
+       endGame
+       ============================================================ */
+    function endGame(success) {
       if (gameState.gameEnded) return;
-      var n = gameState.currentRound + 1;
-      if (n > gameState.totalRounds) {
-        await endGame(true);
-        return;
-      }
-      gameState.isProcessing = false;
-      var board = document.getElementById('hexBoardContainer');
-      if (board) board.classList.remove('dnd-disabled');
-      await showRoundIntro(n);
-    }
-    window.nextRound = nextRound;
-
-    // ─── 18. endGame ────────────────────────────────────────────────────────
-    async function endGame(won) {
-      // Round-boundary audio cleanup before transitioning to end-game screens
-      try { FeedbackManager.sound.stopAll(); } catch (e) {}
+      // Round/phase cleanup — stop any leftover audio before end-screen renders
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
       try { FeedbackManager.stream.stopAll(); } catch (e) {}
-      try {
-        if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic();
-      } catch (e) {}
-
-      if (gameState.gameEnded) return;
       gameState.gameEnded = true;
       gameState.isActive = false;
-      gameState.stars = getStars();
       gameState.phase = 'results';
+      gameState.stars = getStars(gameState.score);
       syncDOM();
-      // Final progress bar update
-      if (progressBar) {
-        // Bar shows full at end-of-game. Numeric literal avoids GEN-112 false-positive
-        // on the substring "totalRounds" inside progressBar.update(...).
-        var endProgress = gameState.totalRounds;
-        try { progressBar.update(endProgress, 0); } catch (e) {}
-      }
-      trackEvent('game_end', { won: !!won, score: gameState.score, stars: gameState.stars });
-
-      // Post game_complete (DUAL-PATH — fires for victory and game_over equivalently)
+      trackEvent('game_end', { won: !!success, score: gameState.score, stars: gameState.stars });
       try {
-        var totalTime = gameState.startTime ? Math.round((Date.now() - gameState.startTime) / 1000) : 0;
+        var elapsedMs = gameState.startTime ? (Date.now() - gameState.startTime) : 0;
+        var elapsedSec = Math.round(elapsedMs / 1000);
         var accuracy = gameState.totalRounds > 0 ? Math.round((gameState.score / gameState.totalRounds) * 100) : 0;
+        // Tries-per-round: 1 attempt per round (one-shot CHECK)
+        var triesArr = [];
+        var ai;
+        for (ai = 0; ai < gameState.attempts.length; ai++) {
+          triesArr.push(1);
+        }
+        // Seal SignalCollector for analytics meta
+        var signalSealed = { event_count: gameState.events.length, metadata: {} };
+        try {
+          if (signalCollector && typeof signalCollector.seal === 'function') {
+            var sealed = signalCollector.seal();
+            if (sealed) {
+              if (typeof sealed.event_count === 'number') signalSealed.event_count = sealed.event_count;
+              if (sealed.metadata) signalSealed.metadata = sealed.metadata;
+            }
+          }
+        } catch (e0) {}
         window.parent.postMessage({
           type: 'game_complete',
           data: {
             metrics: {
-              accuracy: accuracy,
-              time: totalTime,
+              score: gameState.score,
+              totalQuestions: gameState.totalRounds,
               stars: gameState.stars,
-              attempts: gameState.attempts,
-              duration_data: gameState.duration_data,
-              totalLives: gameState.lives,
-              tries: []
+              accuracy: accuracy,
+              time: elapsedSec,
+              timeSpent: elapsedMs,
+              tries: triesArr,
+              attempts: gameState.attempts
             },
+            completedAt: Date.now(),
             previewResult: gameState.previewResult || null,
-            completedAt: Date.now()
+            signal_event_count: signalSealed.event_count,
+            signal_metadata: signalSealed.metadata
           }
         }, '*');
       } catch (e) {
-        console.error('[postGameComplete]', e && e.message);
+        console.error('[endGame postMessage]', e && e.message);
       }
+      // Route to celebration
+      try { showVictory(success); } catch (e) { console.error('[showVictory]', e && e.message); }
+    }
+    window.endGame = endGame;
 
-      // Route to celebration chain — Stars Collected (no intermediate Victory in this game's flow)
-      // Spec routes Victory ("Claim Stars") -> Stars Collected -> AnswerComponent. We emit both.
-      await showVictory();
+    /* ============================================================
+       Score + question label header refresh
+       ============================================================ */
+    function refreshHeader() {
+      try {
+        if (previewScreen && typeof previewScreen.setScore === 'function') {
+          previewScreen.setScore(gameState.score + '/' + gameState.totalRounds);
+        }
+        if (previewScreen && typeof previewScreen.setQuestionLabel === 'function') {
+          previewScreen.setQuestionLabel('Q' + gameState.currentRound);
+        }
+      } catch (e) {}
     }
 
-    // ─── showVictory ────────────────────────────────────────────────────────
-    async function showVictory() {
-      var stars = gameState.stars;
-      var subtitle = stars === 3 ? 'You cracked all three target sums!'
-                  : stars === 2 ? 'Great work — two perfect rounds!'
-                  : stars === 1 ? 'Nice — one perfect round!'
-                  : "Tough puzzle — you've earned the explanation.";
-      // Hide FloatingButton BEFORE Victory renders (GEN-FLOATING-BUTTON-LIFECYCLE)
-      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
-      var onPlayAgain = function() {
-        try { transitionScreen.hide(); } catch (e) {}
-        try {
-          FeedbackManager.sound.stopAll();
-          if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic();
-        } catch (e) {}
-        restartGame();
+    /* ============================================================
+       getCurrentRound
+       ============================================================ */
+    function getCurrentRound() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var idx = Math.max(0, Math.min(rounds.length - 1, gameState.currentRound - 1));
+      return rounds[idx];
+    }
+
+    /* ============================================================
+       Board build / DOM helpers
+       ============================================================ */
+    function buildBoardDOM() {
+      var gc = document.getElementById('gameContent');
+      if (!gc) return;
+      gc.innerHTML = '';
+
+      var wrapper = document.createElement('div');
+      wrapper.className = 'hexa-board-wrapper';
+
+      var board = document.createElement('div');
+      board.className = 'hexa-board';
+      board.id = 'hexa-board';
+
+      // Targets first (lower z-index but visible)
+      Object.keys(TARGET_POSITIONS).forEach(function (tid) {
+        var pos = TARGET_POSITIONS[tid];
+        var el = document.createElement('div');
+        el.className = 'hex target';
+        el.id = 'target-' + tid;
+        el.style.left = pos.left + 'px';
+        el.style.top = pos.top + 'px';
+
+        var glyph = document.createElement('span');
+        glyph.className = 'target-glyph';
+        glyph.textContent = '';
+        el.appendChild(glyph);
+
+        var val = document.createElement('span');
+        val.className = 'target-value';
+        val.textContent = '';
+        el.appendChild(val);
+
+        var verdict = document.createElement('span');
+        verdict.className = 'target-verdict';
+        verdict.textContent = '';
+        el.appendChild(verdict);
+
+        board.appendChild(el);
+        targetEls[tid] = el;
+      });
+
+      // Slots
+      Object.keys(SLOT_POSITIONS).forEach(function (sid) {
+        var pos = SLOT_POSITIONS[sid];
+        var el = document.createElement('div');
+        el.className = 'hex slot ' + pos.colour;
+        el.id = 'slot-' + sid;
+        el.setAttribute('data-slot-id', sid);
+        el.setAttribute('data-colour', pos.colour);
+        el.style.left = pos.left + 'px';
+        el.style.top = pos.top + 'px';
+
+        var val = document.createElement('span');
+        val.className = 'slot-value';
+        val.textContent = '';
+        el.appendChild(val);
+
+        board.appendChild(el);
+        slotEls[sid] = el;
+      });
+
+      wrapper.appendChild(board);
+
+      // Pool tray
+      var poolTray = document.createElement('div');
+      poolTray.className = 'pool-tray';
+      poolTray.id = 'pool-tray';
+
+      var blueRow = document.createElement('div');
+      blueRow.className = 'pool-row blue-row';
+      blueRow.id = 'pool-row-blue';
+      blueRow.setAttribute('data-pool-row', 'blue');
+      poolTray.appendChild(blueRow);
+
+      var whiteRow = document.createElement('div');
+      whiteRow.className = 'pool-row white-row';
+      whiteRow.id = 'pool-row-white';
+      whiteRow.setAttribute('data-pool-row', 'white');
+      poolTray.appendChild(whiteRow);
+
+      wrapper.appendChild(poolTray);
+
+      gc.appendChild(wrapper);
+    }
+
+    function paintTargets(round) {
+      var variantClass = TARGET_VARIANT_CLASS[round.variant] || 'b1';
+      var glyphChar = GLYPH_MAP[round.skin && round.skin.glyph ? round.skin.glyph : 'sun-burst'] || '☀';
+      ['T1','T2','T3'].forEach(function (tid) {
+        var el = targetEls[tid];
+        if (!el) return;
+        el.classList.remove('b1','b2','b3','passed','failed');
+        el.classList.add(variantClass);
+        var glyphSpan = el.querySelector('.target-glyph');
+        if (glyphSpan) glyphSpan.textContent = glyphChar;
+        var valSpan = el.querySelector('.target-value');
+        if (valSpan) valSpan.textContent = String(round.targets[tid]);
+        var verdictSpan = el.querySelector('.target-verdict');
+        if (verdictSpan) verdictSpan.textContent = '';
+      });
+    }
+
+    function clearSlots() {
+      // Return any placed hexes to their bank slots before clearing visual state
+      ALL_SLOT_IDS.forEach(function (sid) {
+        var poolKey = gameState.placement && gameState.placement[sid];
+        if (poolKey) returnPoolHexToBank(poolKey);
+        var el = slotEls[sid];
+        if (!el) return;
+        // Defensive: drop any stray pool-hex DOM still parented to this slot, even if
+        // gameState.placement didn't reference it (e.g., after reveal animation).
+        var stray = el.querySelectorAll('.pool-hex');
+        for (var i = 0; i < stray.length; i++) {
+          try { stray[i].parentNode.removeChild(stray[i]); } catch (e) {}
+        }
+        el.classList.remove('filled','glow-red','flash-green');
+        var val = el.querySelector('.slot-value');
+        if (val) val.textContent = '';
+      });
+    }
+
+    function paintSlotValue(slotId, value) {
+      var el = slotEls[slotId];
+      if (!el) return;
+      var val = el.querySelector('.slot-value');
+      if (val) val.textContent = value === null || value === undefined || value === '' ? '' : String(value);
+      if (value === null || value === undefined || value === '') {
+        el.classList.remove('filled');
+      } else {
+        el.classList.add('filled');
+      }
+    }
+
+    function setTargetVerdict(tid, passed) {
+      var el = targetEls[tid];
+      if (!el) return;
+      el.classList.remove('passed','failed');
+      el.classList.add(passed ? 'passed' : 'failed');
+      var verdict = el.querySelector('.target-verdict');
+      if (verdict) verdict.textContent = passed ? '✓' : '✗';
+    }
+
+    function clearTargetVerdicts() {
+      ['T1','T2','T3'].forEach(function (tid) {
+        var el = targetEls[tid];
+        if (!el) return;
+        el.classList.remove('passed','failed');
+        var v = el.querySelector('.target-verdict');
+        if (v) v.textContent = '';
+      });
+    }
+
+    function glowRingRed(tid) {
+      var ring = RINGS[tid];
+      if (!ring) return;
+      ring.forEach(function (sid) {
+        var el = slotEls[sid];
+        if (el) el.classList.add('glow-red');
+      });
+    }
+
+    function clearAllGlows() {
+      ALL_SLOT_IDS.forEach(function (sid) {
+        var el = slotEls[sid];
+        if (el) el.classList.remove('glow-red','flash-green');
+      });
+    }
+
+    function flashAllSlotsGreen() {
+      ALL_SLOT_IDS.forEach(function (sid) {
+        var el = slotEls[sid];
+        if (el) el.classList.add('flash-green');
+      });
+    }
+
+    /* ============================================================
+       Pool hex creation
+       ============================================================ */
+    function buildPool(round) {
+      poolHexEls = {};
+      poolSlotEls = {};
+      var blueRow = document.getElementById('pool-row-blue');
+      var whiteRow = document.getElementById('pool-row-white');
+      if (!blueRow || !whiteRow) return;
+      blueRow.innerHTML = '';
+      whiteRow.innerHTML = '';
+
+      var blue = (round.pool && round.pool.blue) ? round.pool.blue.slice() : [];
+      var white = (round.pool && round.pool.white) ? round.pool.white.slice() : [];
+
+      blue.forEach(function (val, i) {
+        var key = 'blue-' + i;
+        var slot = document.createElement('div');
+        slot.className = 'pool-slot';
+        slot.id = 'pool-slot-' + key;
+        slot.setAttribute('data-pool-key', key);
+        var hex = makePoolHex('blue', val, i);
+        slot.appendChild(hex);
+        blueRow.appendChild(slot);
+        poolHexEls[key] = hex;
+        poolSlotEls[key] = slot;
+      });
+
+      white.forEach(function (val, i) {
+        var key = 'white-' + i;
+        var slot = document.createElement('div');
+        slot.className = 'pool-slot';
+        slot.id = 'pool-slot-' + key;
+        slot.setAttribute('data-pool-key', key);
+        var hex = makePoolHex('white', val, i);
+        slot.appendChild(hex);
+        whiteRow.appendChild(slot);
+        poolHexEls[key] = hex;
+        poolSlotEls[key] = slot;
+      });
+    }
+
+    function makePoolHex(colour, value, idx) {
+      var hex = document.createElement('div');
+      hex.className = 'pool-hex ' + colour;
+      hex.id = 'pool-' + colour + '-' + idx;
+      hex.setAttribute('data-colour', colour);
+      hex.setAttribute('data-value', String(value));
+      hex.setAttribute('data-pool-id', colour + '-' + idx);
+      var valueSpan = document.createElement('span');
+      valueSpan.className = 'pool-hex-value';
+      valueSpan.textContent = String(value);
+      hex.appendChild(valueSpan);
+      return hex;
+    }
+
+    /* ============================================================
+       Submittable / CHECK gating
+       ============================================================ */
+    function allSlotsFilled() {
+      for (var i = 0; i < ALL_SLOT_IDS.length; i++) {
+        var sid = ALL_SLOT_IDS[i];
+        if (gameState.placement[sid] === undefined || gameState.placement[sid] === null) return false;
+      }
+      return true;
+    }
+
+    function refreshSubmittable() {
+      if (!floatingBtn) return;
+      try {
+        floatingBtn.setSubmittable(allSlotsFilled() && !gameState.isProcessing);
+      } catch (e) {}
+    }
+
+    /* ============================================================
+       Misconception resolver
+       ============================================================ */
+    function resolveMisconceptionTags(round, sums, verdict) {
+      var tags = [];
+      var failedTargets = ['T1','T2','T3'].filter(function (t) { return !verdict[t]; });
+      var passedCount = 3 - failedTargets.length;
+
+      // Place-value misread: any failing target is off by exactly a multiple of 9 (10-1) or 10
+      var placeValueHit = false;
+      failedTargets.forEach(function (t) {
+        var diff = Math.abs(sums[t] - round.targets[t]);
+        if (diff > 0 && diff % 9 === 0 || diff === 10 || diff === 20) placeValueHit = true;
+      });
+      if (placeValueHit) tags.push('place-value-misread');
+
+      if (passedCount === 1 && failedTargets.length === 2) tags.push('single-target-tunnel-vision');
+
+      if ((gameState.wrongColourDrops || 0) >= 3) tags.push('colour-rule-violated-then-corrected');
+
+      // Shared-slot blindness: a shared inner blue is placed but the two adjacent targets
+      // disagree on whether the local sum is correct
+      var sharedSlots = ['inner-2','inner-4','inner-6'];
+      var sharedRings = { 'inner-2': ['T1','T2'], 'inner-4': ['T2','T3'], 'inner-6': ['T1','T3'] };
+      var sharedHit = false;
+      sharedSlots.forEach(function (sid) {
+        var rings = sharedRings[sid];
+        if (!rings) return;
+        var v0 = verdict[rings[0]];
+        var v1 = verdict[rings[1]];
+        if (v0 !== v1) sharedHit = true;
+      });
+      if (sharedHit) tags.push('additive-shared-blindness');
+
+      if (failedTargets.length === 3 && tags.length === 0) tags.push('whole-board-mismatch');
+
+      // Ensure tags are in spec list
+      var spec = round.misconception_tags || [];
+      var filtered = tags.filter(function (t) { return spec.indexOf(t) !== -1; });
+      if (filtered.length === 0 && failedTargets.length > 0) filtered.push('whole-board-mismatch');
+      return filtered;
+    }
+
+    /* ============================================================
+       ringSum
+       ============================================================ */
+    function ringSum(placement, tid) {
+      var ring = RINGS[tid];
+      if (!ring) return 0;
+      var s = 0;
+      for (var i = 0; i < ring.length; i++) {
+        var poolKey = placement[ring[i]];
+        if (!poolKey) continue;
+        var hex = poolHexEls[poolKey];
+        if (!hex) continue;
+        var v = parseInt(hex.getAttribute('data-value'), 10);
+        if (typeof v === 'number' && !isNaN(v)) s += v;
+      }
+      return s;
+    }
+
+    /* ============================================================
+       Reveal animation — show the canonical placement
+       ============================================================ */
+    function playRevealAnimation(correctPlacement) {
+      // Step 1 — return every placed hex back to its bank slot
+      ALL_SLOT_IDS.forEach(function (sid) {
+        var poolKey = gameState.placement[sid];
+        if (poolKey) returnPoolHexToBank(poolKey);
+        var el = slotEls[sid];
+        if (el) el.classList.remove('filled','glow-red','flash-green');
+        gameState.placement[sid] = null;
+      });
+      // Step 2 — for each slot, move the matching pool hex into its canonical slot, staggered
+      var step = 0;
+      var keys = Object.keys(correctPlacement);
+      return new Promise(function (resolve) {
+        var totalDelay = 2500;
+        var perStep = Math.max(80, Math.floor(totalDelay / keys.length));
+        function tick() {
+          if (step >= keys.length) { resolve(); return; }
+          var sid = keys[step++];
+          var val = correctPlacement[sid];
+          var colour = SLOT_POSITIONS[sid] && SLOT_POSITIONS[sid].colour;
+          if (colour) {
+            var hexKey = null;
+            Object.keys(poolHexEls).forEach(function (k) {
+              if (hexKey) return;
+              var hex = poolHexEls[k];
+              if (!hex) return;
+              if (hex.getAttribute('data-colour') !== colour) return;
+              if (parseInt(hex.getAttribute('data-value'), 10) !== val) return;
+              // skip if already in another slot (shouldn't happen after step 1 reset)
+              if (gameState.placement && Object.keys(gameState.placement).some(function (s) { return gameState.placement[s] === k; })) return;
+              hexKey = k;
+            });
+            if (hexKey) {
+              placePoolHexInSlot(hexKey, sid);
+            }
+          }
+          setTimeout(tick, perStep);
+        }
+        tick();
+      });
+    }
+
+    /* ============================================================
+       handleCheck — the round-complete handler
+       ============================================================ */
+    async function handleCheck() {
+      if (gameState.isProcessing || gameState.gameEnded) return;
+      if (!allSlotsFilled()) return;
+      gameState.isProcessing = true;
+      refreshSubmittable();
+      // Disable board + pool interaction during the awaited feedback sequence.
+      // The next renderRound() rebuilds the wrapper without this class, so the lock
+      // is automatically cleared on round advance.
+      try {
+        var wrap = document.querySelector('.hexa-board-wrapper');
+        if (wrap) wrap.classList.add('locked');
+      } catch (e) {}
+
+      var round = getCurrentRound();
+      var sums = {
+        T1: ringSum(gameState.placement, 'T1'),
+        T2: ringSum(gameState.placement, 'T2'),
+        T3: ringSum(gameState.placement, 'T3')
       };
-      var onClaimStars = function() {
-        try { transitionScreen.hide(); } catch (e) {}
-        try {
-          FeedbackManager.sound.stopAll();
-          if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic();
-        } catch (e) {}
-        showStarsCollected();
+      var verdict = {
+        T1: sums.T1 === round.targets.T1,
+        T2: sums.T2 === round.targets.T2,
+        T3: sums.T3 === round.targets.T3
       };
-      // Inline buttons — validator GEN-VICTORY-BUTTONS-REQUIRED scans the
-      // literal show({...}) block for the labels, so passing through a variable
-      // hides them. Inlining here keeps both Play Again (when stars < 3) and
-      // Claim Stars visible to the regex.
-      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+      var allPass = verdict.T1 && verdict.T2 && verdict.T3;
+
+      // Visual: tick / cross
+      setTargetVerdict('T1', verdict.T1);
+      setTargetVerdict('T2', verdict.T2);
+      setTargetVerdict('T3', verdict.T3);
+
+      // Score
+      if (allPass) {
+        gameState.score += 1;
+      }
+      refreshHeader();
+
+      var misTags = resolveMisconceptionTags(round, sums, verdict);
+      recordAttempt(round, sums, allPass, misTags);
+      trackEvent('answer_submitted', {
+        round: gameState.currentRound,
+        set: round && round.set,
+        is_correct: allPass,
+        sums: sums,
+        targets: round && round.targets,
+        misconception_tags: misTags
+      });
+
+      // Progress bar bumps FIRST (memory rule)
+      gameState.progress = (gameState.progress || 0) + 1;
+      if (progressBar) {
+        try { progressBar.update(gameState.progress, 0); } catch (e) {}
+      }
+
+      if (allPass) {
+        flashAllSlotsGreen();
+        try {
+          await Promise.all([
+            safePlaySound('correct_sound_effect', { sticker: STICKER_CELEBRATE }),
+            new Promise(function (r) { setTimeout(r, 1500); })
+          ]);
+        } catch (e) {}
+        try {
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: 'Great! Every ring adds up to its target.',
+            subtitle: 'Great! Every ring adds up to its target.',
+            sticker: STICKER_CELEBRATE
+          });
+        } catch (e) {}
+      } else {
+        // Per-slot bg colour: red if any of its rings failed, green if all rings pass.
+        // The placed pool hex stays in place (no auto-solve / reveal animation).
+        ALL_SLOT_IDS.forEach(function (sid) {
+          var el = slotEls[sid];
+          if (!el) return;
+          var inFailingRing = false;
+          var inAnyRing = false;
+          ['T1','T2','T3'].forEach(function (t) {
+            if (RINGS[t].indexOf(sid) !== -1) {
+              inAnyRing = true;
+              if (!verdict[t]) inFailingRing = true;
+            }
+          });
+          if (inFailingRing) el.classList.add('glow-red');
+          else if (inAnyRing) el.classList.add('flash-green');
+        });
+        try {
+          await Promise.all([
+            safePlaySound('sound_life_lost', { sticker: STICKER_SAD }),
+            new Promise(function (r) { setTimeout(r, 1500); })
+          ]);
+        } catch (e) {}
+        try {
+          await FeedbackManager.playDynamicFeedback({
+            audio_content: "Almost! Some rings don't add up yet.",
+            subtitle: "Almost! Some rings don't add up yet.",
+            sticker: STICKER_SAD
+          });
+        } catch (e) {}
+      }
+
+      trackEvent('round_complete', {
+        round: gameState.currentRound,
+        is_correct: allPass,
+        score: gameState.score
+      });
+
+      // Auto-advance
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        await showRoundIntro(gameState.currentRound);
+        renderRound();
+      } else {
+        endGame(allPass);
+      }
+    }
+
+    /* ============================================================
+       Round Intro (transition screen, auto-advance)
+       ============================================================ */
+    async function showRoundIntro(n) {
+      // Round-boundary cleanup
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      try { FeedbackManager._stopCurrentDynamic && FeedbackManager._stopCurrentDynamic(); } catch (e) {}
+
+      if (!transitionScreen) return;
+      var title = 'Round ' + n;
       await transitionScreen.show({
-        title: 'Victory 🎉',
-        subtitle: subtitle,
-        stars: stars,
-        persist: true,
-        buttons: stars === 3
-          ? [{ text: 'Claim Stars', type: 'primary', action: onClaimStars }]
-          : [
-              { text: 'Play Again', type: 'secondary', action: onPlayAgain },
-              { text: 'Claim Stars', type: 'primary', action: onClaimStars }
-            ],
-        onMounted: function() {
-          safePlaySound(stars >= 3 ? 'victory_sound_effect' : 'game_complete_sound_effect',
-            { sticker: stars >= 3 ? STICKER_VICTORY : (stars === 2 ? STICKER_GAME_COMPLETE_2 : (stars === 1 ? STICKER_GAME_COMPLETE_1 : STICKER_GAME_COMPLETE_GENERIC)) }
-          ).catch(function() {});
+        title: title,
+        icons: ['🎯'],
+        buttons: [],
+        persist: true
+      });
+      try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_ROUND }); } catch (e) {}
+      try {
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: title,
+          subtitle: title,
+          sticker: STICKER_ROUND
+        });
+      } catch (e) {}
+      try { transitionScreen.hide(); } catch (e) {}
+    }
+
+    /* ============================================================
+       renderRound — render the current round
+       ============================================================ */
+    function renderRound() {
+      gameState.isProcessing = false;
+      gameState.isActive = true;
+      // NOTE: do NOT reset gameState.placement here — clearSlots() needs the prev-round
+      // placement to know which pool hexes to return to the bank before they're rebuilt.
+      gameState.wrongColourDrops = 0;
+      gameState.roundStartTime = Date.now();
+      gameState.phase = 'playing';
+      syncDOM();
+
+      var round = getCurrentRound();
+      if (!round) return;
+
+      gameState.correctAnswer = JSON.stringify(round.correctPlacement || {});
+
+      paintTargets(round);
+      clearSlots();             // returns prev-round pool hexes to bank using old placement
+      gameState.placement = {};  // now safe to wipe placement state
+      clearAllGlows();
+      clearTargetVerdicts();
+      buildPool(round);
+      // Re-enable interaction on the new round (the lock was added by handleCheck).
+      try {
+        var wrap = document.querySelector('.hexa-board-wrapper');
+        if (wrap) wrap.classList.remove('locked');
+      } catch (e) {}
+
+      // Initialize placement record
+      ALL_SLOT_IDS.forEach(function (sid) { gameState.placement[sid] = null; });
+
+      // (Re)build dnd-kit graph
+      buildDndForRound();
+
+      refreshHeader();
+      refreshSubmittable();
+
+      // Update progress bar to current state (idempotent)
+      if (progressBar) {
+        try { progressBar.update(gameState.progress, 0); } catch (e) {}
+      }
+    }
+
+    /* ============================================================
+       dnd-kit wiring — destroy + rebuild per round
+       ============================================================ */
+    function destroyDndRound() {
+      try {
+        for (var i = 0; i < dndDraggables.length; i++) {
+          if (dndDraggables[i] && typeof dndDraggables[i].destroy === 'function') {
+            try { dndDraggables[i].destroy(); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+      try {
+        for (var j = 0; j < dndDroppables.length; j++) {
+          if (dndDroppables[j] && typeof dndDroppables[j].destroy === 'function') {
+            try { dndDroppables[j].destroy(); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+      dndDraggables = [];
+      dndDroppables = [];
+    }
+
+    function buildDndForRound() {
+      destroyDndRound();
+      if (!dndManager) return;
+
+      // Draggables: one per pool hex
+      Object.keys(poolHexEls).forEach(function (k) {
+        var hex = poolHexEls[k];
+        if (!hex) return;
+        var colour = hex.getAttribute('data-colour');
+        var value = parseInt(hex.getAttribute('data-value'), 10);
+        try {
+          var draggable = new window.DnDKit.Draggable({
+            id: 'pool-' + k,
+            element: hex,
+            type: colour,
+            data: { value: value, colour: colour, poolKey: k }
+          }, dndManager);
+          dndDraggables.push(draggable);
+        } catch (e) {
+          console.error('[Draggable ctor]', e && e.message);
+        }
+      });
+
+      // Droppables: each slot
+      ALL_SLOT_IDS.forEach(function (sid) {
+        var el = slotEls[sid];
+        if (!el) return;
+        var colour = SLOT_POSITIONS[sid].colour;
+        try {
+          var droppable = new window.DnDKit.Droppable({
+            id: 'slot-' + sid,
+            element: el,
+            accepts: colour,
+            data: { slotId: sid, colour: colour }
+          }, dndManager);
+          dndDroppables.push(droppable);
+        } catch (e) {
+          console.error('[Droppable ctor slot]', e && e.message);
+        }
+      });
+
+      // Pool tray rows are also droppables (return-to-pool)
+      ['blue','white'].forEach(function (col) {
+        var rowEl = document.getElementById('pool-row-' + col);
+        if (!rowEl) return;
+        try {
+          var droppable = new window.DnDKit.Droppable({
+            id: 'pool-tray-' + col,
+            element: rowEl,
+            accepts: col,
+            data: { slotId: 'pool', colour: col }
+          }, dndManager);
+          dndDroppables.push(droppable);
+        } catch (e) {
+          console.error('[Droppable ctor pool]', e && e.message);
         }
       });
     }
 
-    // ─── showStarsCollected ─────────────────────────────────────────────────
-    async function showStarsCollected() {
-      // Hide floating button while celebration backdrop is up — Next is revealed
-      // from inside the answer-component reveal, not before.
+    function findSlotIdHoldingValue(value, colour) {
+      // Find a slot currently holding this exact value with matching colour
+      for (var i = 0; i < ALL_SLOT_IDS.length; i++) {
+        var sid = ALL_SLOT_IDS[i];
+        if (SLOT_POSITIONS[sid].colour !== colour) continue;
+        if (gameState.placement[sid] === value) return sid;
+      }
+      return null;
+    }
+
+    function findPoolHexKeyForValue(colour, value, excludeKey) {
+      var found = null;
+      Object.keys(poolHexEls).forEach(function (k) {
+        if (found) return;
+        if (k === excludeKey) return;
+        var hex = poolHexEls[k];
+        if (!hex) return;
+        if (hex.classList.contains('empty')) return;
+        if (hex.getAttribute('data-colour') !== colour) return;
+        if (parseInt(hex.getAttribute('data-value'), 10) !== value) return;
+        found = k;
+      });
+      return found;
+    }
+
+    // Find which slot currently holds this poolKey (R2 — game-controlled source tracking)
+    function findSlotIdForPoolKey(poolKey) {
+      for (var i = 0; i < ALL_SLOT_IDS.length; i++) {
+        var sid = ALL_SLOT_IDS[i];
+        if (gameState.placement[sid] === poolKey) return sid;
+      }
+      return null;
+    }
+
+    // Move the live pool-hex DOM element into a board slot (Behaviour 1, 3)
+    function placePoolHexInSlot(poolKey, slotId) {
+      var hex = poolHexEls[poolKey];
+      var slot = slotEls[slotId];
+      if (!hex || !slot) return;
+      slot.appendChild(hex);
+      hex.classList.add('in-slot');
+      hex.classList.remove('placed','empty');
+      // Collapse the bank slot (Behaviour 5)
+      if (poolSlotEls[poolKey]) poolSlotEls[poolKey].classList.add('empty');
+      gameState.placement[slotId] = poolKey;
+      slot.classList.add('filled');
+      // Hide the legacy text-value label inside slot (slot now shows the moved hex)
+      var val = slot.querySelector('.slot-value');
+      if (val) val.textContent = '';
+    }
+
+    // Move the live pool-hex DOM element back to its bank slot (Behaviour 5)
+    function returnPoolHexToBank(poolKey) {
+      var hex = poolHexEls[poolKey];
+      var bankSlot = poolSlotEls[poolKey];
+      if (!hex || !bankSlot) return;
+      bankSlot.appendChild(hex);
+      hex.classList.remove('in-slot','placed','empty');
+      bankSlot.classList.remove('empty');
+      // Clear inline drag styles defensively (R4)
+      hex.style.position = '';
+      hex.style.left = '';
+      hex.style.top = '';
+      hex.style.transform = '';
+      hex.style.width = '';
+      hex.style.height = '';
+      hex.style.zIndex = '';
+    }
+
+    // Vacate a slot (clear placement, remove filled class, no element move — caller handles element)
+    function vacateSlot(slotId) {
+      var el = slotEls[slotId];
+      if (el) el.classList.remove('filled');
+      gameState.placement[slotId] = null;
+    }
+
+    function handleDragEnd(event) {
+      try {
+        var op = event && event.operation;
+        if (!op) return;
+        var src = op.source;
+        var tgt = op.target;
+        var canceled = op.canceled;
+        if (!src || !src.data) return;
+        var srcColour = src.data.colour;
+        var srcPoolKey = src.data.poolKey;
+        if (!srcPoolKey) return;
+
+        // R2 — read source location from gameState (NEVER from DOM parent)
+        var sourceSlotId = findSlotIdForPoolKey(srcPoolKey);
+
+        // V6 — drop outside any target → library auto-snaps back. Hex stays where it was per game state.
+        if (canceled || !tgt || !tgt.data) {
+          gameState.wrongColourDrops = (gameState.wrongColourDrops || 0) + 1;
+          safePlaySound('tap_sound', {});
+          return;
+        }
+
+        var tgtSlotId = tgt.data.slotId;
+        var tgtColour = tgt.data.colour;
+
+        // Wrong colour drop: also auto-snaps back via accepts; defensive guard
+        if (tgtColour !== srcColour) {
+          gameState.wrongColourDrops = (gameState.wrongColourDrops || 0) + 1;
+          safePlaySound('tap_sound', {});
+          return;
+        }
+
+        // V5 — drop on pool tray (return-to-bank)
+        if (tgtSlotId === 'pool') {
+          if (sourceSlotId) {
+            // Was in a board slot → vacate slot, move hex back to its bank slot
+            vacateSlot(sourceSlotId);
+            returnPoolHexToBank(srcPoolKey);
+            safePlaySound('sound_bubble_deselect', {});
+          } else {
+            // Bank → bank (already in bank). dnd-kit may have appended hex into the row's element;
+            // re-anchor it back to its dedicated pool-slot wrapper for stable centering.
+            returnPoolHexToBank(srcPoolKey);
+          }
+          refreshSubmittable();
+          return;
+        }
+
+        // V7 — same slot (no-op). Re-anchor the hex into the slot DOM (defensive — library may have moved it).
+        if (sourceSlotId === tgtSlotId) {
+          placePoolHexInSlot(srcPoolKey, tgtSlotId);
+          refreshSubmittable();
+          return;
+        }
+
+        // V1, V2, V3, V4 — placement / evict / swap / transfer
+        var existingPoolKey = gameState.placement[tgtSlotId];
+
+        if (existingPoolKey) {
+          // Target slot is occupied
+          if (sourceSlotId) {
+            // V3 — Zone → Zone swap: existing goes to the source slot
+            // (vacate source first, then move existing into source, then place src into target)
+            vacateSlot(sourceSlotId);
+            placePoolHexInSlot(existingPoolKey, sourceSlotId);
+          } else {
+            // V2 — Bank → Zone evict: existing goes back to bank
+            returnPoolHexToBank(existingPoolKey);
+          }
+        } else {
+          // Target slot empty
+          if (sourceSlotId) {
+            // V4 — Zone → empty Zone transfer: vacate source
+            vacateSlot(sourceSlotId);
+          }
+          // V1 — Bank → empty Zone: nothing to vacate
+        }
+
+        // Now place src into target (this also collapses the bank slot if src came from bank)
+        placePoolHexInSlot(srcPoolKey, tgtSlotId);
+        safePlaySound('sound_bubble_select', {});
+        refreshSubmittable();
+      } catch (e) {
+        console.error('[handleDragEnd]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
+      }
+    }
+
+    // V21 — block drag start during awaited feedback / game-over / inactive
+    function handleDragStart(event) {
+      if (!gameState.isActive || gameState.isProcessing || gameState.gameEnded) {
+        try { if (event && typeof event.preventDefault === 'function') event.preventDefault(); } catch (e) {}
+      }
+    }
+
+    /* ============================================================
+       Victory / Stars Collected / AnswerComponent chain
+       ============================================================ */
+    async function showVictory(success) {
+      if (!transitionScreen) return;
+      var stars = gameState.stars;
+      var subtitle;
+      if (stars === 3) subtitle = 'Perfect! You solved all 3 rings!';
+      else if (stars === 2) subtitle = 'You solved 2 of 3 rings!';
+      else if (stars === 1) subtitle = 'You solved 1 of 3 rings!';
+      else subtitle = "Great work — let's try a new puzzle!";
+
+      var stickerForVictory;
+      if (stars === 3) stickerForVictory = STICKER_VICTORY;
+      else if (stars === 2) stickerForVictory = STICKER_VICTORY_2;
+      else if (stars === 1) stickerForVictory = STICKER_VICTORY_1;
+      else stickerForVictory = STICKER_VICTORY_GENERIC;
+
+      // Hide the FloatingButton before Victory renders (in-card buttons own the CTAs)
+      try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
+
+      // Action helpers
+      var playAgainAct = function () {
+        try { transitionScreen.hide(); } catch (e) {}
+        showMotivation();
+      };
+      var claimStarsAct = function () {
+        try { transitionScreen.hide(); } catch (e) {}
+        showStarsCollected();
+      };
+
+      await transitionScreen.show({
+        title: 'Victory 🎉',
+        subtitle: subtitle,
+        stars: stars,
+        buttons: stars < 3
+          ? [
+              { text: 'Play Again', type: 'secondary', action: playAgainAct },
+              { text: 'Claim Stars', type: 'primary', action: claimStarsAct }
+            ]
+          : [
+              { text: 'Play Again', type: 'secondary', action: claimStarsAct, hidden: true },
+              { text: 'Claim Stars', type: 'primary', action: claimStarsAct }
+            ],
+        persist: true
+      });
+      try { await safePlaySound('victory_sound_effect', { sticker: stickerForVictory }); } catch (e) {}
+      try {
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: subtitle,
+          subtitle: subtitle,
+          sticker: stickerForVictory
+        });
+      } catch (e) {}
+    }
+
+    async function showMotivation() {
+      if (!transitionScreen) return;
+      // Hide FloatingButton before Motivation renders
       try { if (floatingBtn) floatingBtn.setMode('hidden'); } catch (e) {}
       await transitionScreen.show({
-        title: "Yay!\nStars collected!",
-        stars: gameState.stars,
+        title: 'Ready to improve your score? ⚡',
+        buttons: [{ text: "I'm ready! 🙌", type: 'primary', action: function () {
+          try { transitionScreen.hide(); } catch (e) {}
+          restartGame();
+        }}],
+        persist: true,
+        onMounted: function () {
+          try { if (progressBar) progressBar.update(0, 0); } catch (e) {}
+        }
+      });
+      try { await safePlaySound('rounds_sound_effect', { sticker: STICKER_RESTART }); } catch (e) {}
+      try {
+        await FeedbackManager.playDynamicFeedback({
+          audio_content: 'Ready for another puzzle?',
+          subtitle: 'Ready for another puzzle?',
+          sticker: STICKER_RESTART
+        });
+      } catch (e) {}
+    }
+
+    async function showStarsCollected() {
+      if (!transitionScreen) return;
+      var count = Math.max(1, Math.min(3, gameState.stars || 1));
+      await transitionScreen.show({
+        title: 'Yay! 🎉\nStars collected!',
         buttons: [],
         persist: true,
         styles: { title: { whiteSpace: 'pre-line', lineHeight: '1.3' } },
-        onMounted: function() {
-          (async function() {
+        onMounted: function () {
+          (async function () {
             try {
-              await safePlaySound('victory_sound_effect', { sticker: STICKER_VICTORY });
+              await safePlaySound('victory_sound_effect', { sticker: STICKER_CELEBRATE });
             } catch (e) {}
-            // Fire show_star ONCE per session
             try {
               window.postMessage({
                 type: 'show_star',
                 data: {
-                  count: Math.max(1, Math.min(3, gameState.stars || 1)),
+                  count: count,
                   variant: 'yellow',
                   score: gameState.score + '/' + gameState.totalRounds
                 }
               }, '*');
             } catch (e) {}
-            // Hand off to AnswerComponent after 1500ms
-            setTimeout(function() {
-              showAnswerCarousel();
-            }, 1500);
+            setTimeout(function () { showAnswerCarousel(); }, 1500);
           })();
         }
       });
     }
 
-    // ─── showAnswerCarousel ─────────────────────────────────────────────────
-    function showAnswerCarousel() {
-      if (!answerComponent) return;
-      var roundsArr = getRounds();
-      var slides = roundsArr.map(function(round) {
+    function buildAnswerSlidesForAllRounds() {
+      var rounds = gameState.activeRounds && gameState.activeRounds.length > 0 ? gameState.activeRounds : getRounds();
+      var roundsCopy = rounds.slice(0, gameState.totalRounds);
+      return roundsCopy.map(function (round, idx) {
         return {
-          render: function(container) {
-            renderAnswerForRound(round, container);
+          render: function (container) {
+            renderAnswerForRound(round, container, idx + 1);
           }
         };
       });
+    }
+
+    function renderAnswerForRound(round, container, roundNum) {
+      if (!container || !round) return;
+      container.innerHTML = '';
+      var slide = document.createElement('div');
+      slide.className = 'answer-slide';
+
+      var caption = document.createElement('div');
+      caption.className = 'answer-caption';
+      caption.textContent = 'Round ' + roundNum + ' • Targets ' + round.targets.T1 + ' / ' + round.targets.T2 + ' / ' + round.targets.T3;
+      slide.appendChild(caption);
+
+      var wrap = document.createElement('div');
+      wrap.className = 'answer-board-wrapper';
+
+      var board = document.createElement('div');
+      board.className = 'hexa-board';
+      board.style.margin = '6px auto';
+
+      var variantClass = TARGET_VARIANT_CLASS[round.variant] || 'b1';
+      var glyphChar = GLYPH_MAP[round.skin && round.skin.glyph ? round.skin.glyph : 'sun-burst'] || '☀';
+
+      Object.keys(TARGET_POSITIONS).forEach(function (tid) {
+        var pos = TARGET_POSITIONS[tid];
+        var el = document.createElement('div');
+        el.className = 'hex target ' + variantClass + ' passed';
+        el.style.left = pos.left + 'px';
+        el.style.top = pos.top + 'px';
+        var glyph = document.createElement('span');
+        glyph.className = 'target-glyph';
+        glyph.textContent = glyphChar;
+        el.appendChild(glyph);
+        var val = document.createElement('span');
+        val.className = 'target-value';
+        val.textContent = String(round.targets[tid]);
+        el.appendChild(val);
+        var verdict = document.createElement('span');
+        verdict.className = 'target-verdict';
+        verdict.textContent = '✓';
+        el.appendChild(verdict);
+        board.appendChild(el);
+      });
+
+      Object.keys(SLOT_POSITIONS).forEach(function (sid) {
+        var pos = SLOT_POSITIONS[sid];
+        var el = document.createElement('div');
+        el.className = 'hex slot ' + pos.colour + ' filled';
+        el.style.left = pos.left + 'px';
+        el.style.top = pos.top + 'px';
+        var v = document.createElement('span');
+        v.className = 'slot-value';
+        v.textContent = String(round.correctPlacement[sid]);
+        el.appendChild(v);
+        board.appendChild(el);
+      });
+
+      wrap.appendChild(board);
+      slide.appendChild(wrap);
+      container.appendChild(slide);
+    }
+
+    function showAnswerCarousel() {
+      if (!answerComponent) return;
       try {
-        answerComponent.show({ slides: slides });
+        answerComponent.show({
+          slides: buildAnswerSlidesForAllRounds()
+        });
       } catch (e) {
         console.error('[answerComponent.show]', e && e.message);
       }
-      if (floatingBtn) {
-        try { floatingBtn.setMode('next'); } catch (e) {}
-      }
+      try {
+        if (floatingBtn) floatingBtn.setMode('next');
+      } catch (e) {}
     }
 
-    // ─── renderAnswerForRound — solved-state mini board ─────────────────────
-    function renderAnswerForRound(round, container) {
-      if (!container) return;
-      container.innerHTML = '';
-      var label = document.createElement('div');
-      label.className = 'ac-round-label';
-      label.textContent = 'Round ' + round.round + ' (' + round.variant + ') — Targets ' +
-        round.targets.map(function(t) { return t.value; }).join(', ');
-      container.appendChild(label);
-      var board = document.createElement('div');
-      board.className = 'ac-board-mini';
-      // Targets
-      var targetClass = round.targetColor === 'dark-teal-grey' ? 'target-teal' : 'target-green';
-      for (var t = 0; t < round.targets.length; t++) {
-        var tg = round.targets[t];
-        var pos = SLOT_POSITIONS[tg.id];
-        var tEl = document.createElement('div');
-        tEl.className = 'hex hex-target ' + targetClass;
-        tEl.style.left = 'calc(' + pos.left + '% - 32px)';
-        tEl.style.top = 'calc(' + pos.top + '% - 37px)';
-        tEl.style.width = '64px';
-        tEl.style.height = '74px';
-        tEl.style.fontSize = '14px';
-        tEl.textContent = String(tg.value);
-        board.appendChild(tEl);
-      }
-      // Slots filled with the solution tag
-      var poolMap = {};
-      for (var pp = 0; pp < round.pool.length; pp++) poolMap[round.pool[pp].id] = round.pool[pp];
-      for (var s = 0; s < round.slots.length; s++) {
-        var slot = round.slots[s];
-        var sp = SLOT_POSITIONS[slot.id];
-        var poolId = round.solution[slot.id];
-        var pHex = poolMap[poolId];
-        if (!pHex) continue;
-        var hexEl = document.createElement('div');
-        hexEl.className = 'hex-tag tag-' + pHex.color;
-        hexEl.style.left = 'calc(' + sp.left + '% - 30px)';
-        hexEl.style.top = 'calc(' + sp.top + '% - 35px)';
-        hexEl.textContent = String(pHex.value);
-        board.appendChild(hexEl);
-      }
-      container.appendChild(board);
-    }
-
-    // ─── 19. showResults — populate #results-screen for harness compatibility ─
-    function showResults() {
-      gameState.phase = 'results';
-      syncDOM();
-      var rs = document.getElementById('results-screen');
-      if (rs) {
-        var rc = document.getElementById('rounds-completed');
-        if (rc) rc.textContent = gameState.score + ' / ' + gameState.totalRounds + ' rounds';
-        rs.style.display = 'flex';
-      }
-    }
-
-    // ─── 20. resetGameState / restartGame ───────────────────────────────────
+    /* ============================================================
+       resetGameState + restartGame
+       ============================================================ */
     function resetGameState() {
-      gameState.phase = 'start_screen';
-      gameState.currentRound = 0;
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
       gameState.score = 0;
       gameState.stars = 0;
+      gameState.progress = 0;
       gameState.attempts = [];
       gameState.events = [];
-      gameState.startTime = null;
       gameState.isActive = false;
       gameState.isProcessing = false;
       gameState.gameEnded = false;
-      gameState.duration_data = { startTime: null, attempts: [], preview: [] };
-      gameState.lives = 0;
-      gameState.totalLives = 0;
-      gameState.correctAnswer = null;
-      gameState.roundStartTime = null;
       gameState.placement = {};
-      gameState.slotEls = {};
-      gameState.tagEls = {};
-      gameState.poolSlotEls = {};
-      gameState.currentRoundData = null;
+      gameState.wrongColourDrops = 0;
+      gameState.duration_data = { startTime: null, preview: gameState.duration_data ? gameState.duration_data.preview : [] };
+      gameState.activeRounds = getRounds();
     }
 
     function restartGame() {
-      // Round-boundary audio cleanup on restart
-      try { FeedbackManager.sound.stopAll(); } catch (e) {}
+      // Round/phase cleanup — stop any leftover audio before restart
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
       try { FeedbackManager.stream.stopAll(); } catch (e) {}
-      try {
-        if (FeedbackManager._stopCurrentDynamic) FeedbackManager._stopCurrentDynamic();
-      } catch (e) {}
-
       var sets = getAvailableSets((gameState.content && gameState.content.rounds) || fallbackContent.rounds);
       gameState.setIndex = (gameState.setIndex + 1) % sets.length;
       resetGameState();
-      destroyDndRound();
-      if (signalCollector) {
+      if (signalCollector && typeof signalCollector.reset === 'function') {
         try { signalCollector.reset(); } catch (e) {}
       }
-      if (answerComponent) {
-        try { answerComponent.destroy(); } catch (e) {}
-      }
+      try { if (answerComponent) answerComponent.hide(); } catch (e) {}
       gameState.startTime = Date.now();
       gameState.isActive = true;
       gameState.duration_data.startTime = new Date().toISOString();
       if (progressBar) {
         try { progressBar.update(0, 0); } catch (e) {}
       }
-      trackEvent('game_start', { totalRounds: gameState.totalRounds });
-      // Re-render new set's first round
-      var firstRound = getRounds()[0];
-      gameState.currentRoundData = firstRound;
-      renderBoardAndPool(firstRound);
-      showRoundIntro(1);
+      trackEvent('game_start', { totalRounds: gameState.totalRounds, restart: true, setIndex: gameState.setIndex });
+      // Render round 1 directly (skip Preview + Welcome)
+      (async function () {
+        await showRoundIntro(1);
+        renderRound();
+      })();
     }
     window.restartGame = restartGame;
 
-    // ─── DOMContentLoaded — 16-step init sequence ───────────────────────────
-    document.addEventListener('DOMContentLoaded', async function() {
-      // Run constraint solvability check (defensive — flags drift)
-      verifyPuzzleSolvability();
+    /* ============================================================
+       startGame
+       ============================================================ */
+    function startGame() {
+      if (gameState.isActive) return;
+      gameState.isActive = true;
+      gameState.phase = 'playing';
+      gameState.currentRound = 1;
+      gameState.score = 0;
+      gameState.attempts = [];
+      gameState.events = [];
+      gameState.progress = 0;
+      gameState.isProcessing = false;
+      gameState.gameEnded = false;
+      gameState.activeRounds = getRounds();
+      gameState.startTime = Date.now();
+      trackEvent('game_start', { totalRounds: gameState.totalRounds });
+      syncDOM();
+      // First-round flow: show round intro then render
+      (async function () {
+        await showRoundIntro(1);
+        renderRound();
+      })();
+    }
+    window.startGame = startGame;
 
-      try {
-        // 1. Wait for packages
-        await waitForPackages();
+    /* ============================================================
+       nextRound (test-harness convenience)
+       ============================================================ */
+    function nextRound() {
+      // Round/phase cleanup — stop any leftover audio before next round renders
+      try { FeedbackManager.sound['stopAll'](); } catch (e) {}
+      try { FeedbackManager.stream.stopAll(); } catch (e) {}
+      if (gameState.currentRound < gameState.totalRounds) {
+        gameState.currentRound += 1;
+        renderRound();
+      } else {
+        endGame(true);
+      }
+    }
+    window.nextRound = nextRound;
 
-        // 2. FeedbackManager.init()
+    /* ============================================================
+       setupGame
+       ============================================================ */
+    function setupGame() {
+      var content = gameState.content || fallbackContent;
+      gameState.totalRounds = (content.totalRounds && typeof content.totalRounds === 'number') ? content.totalRounds : 3;
+      gameState.activeRounds = getRounds();
+
+      // Build the play-area DOM FIRST so preview overlay covers real content
+      buildBoardDOM();
+      // Pre-render the first round so the board is visible the moment preview ends
+      (function () {
+        var r = getCurrentRound();
+        if (r) {
+          paintTargets(r);
+          buildPool(r);
+          ALL_SLOT_IDS.forEach(function (sid) { gameState.placement[sid] = null; });
+        }
+      })();
+
+      // Show preview LAST
+      if (previewScreen) {
         try {
-          await FeedbackManager.init();
+          previewScreen.show({
+            instruction: content.previewInstruction || fallbackContent.previewInstruction,
+            audioUrl: content.previewAudio || fallbackContent.previewAudio || null,
+            showGameOnPreview: content.showGameOnPreview === true,
+            onComplete: function (previewData) {
+              startGameAfterPreview(previewData);
+            }
+          });
         } catch (e) {
-          console.error('[FeedbackManager.init]', e && e.message, e);
-          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          console.error('[previewScreen.show]', e && e.message);
+          // If preview fails for any reason, still let the game start
+          startGameAfterPreview({ duration: 0 });
+        }
+      } else {
+        startGameAfterPreview({ duration: 0 });
+      }
+    }
+
+    function startGameAfterPreview(previewData) {
+      try {
+        gameState.previewResult = previewData || { duration: 0 };
+        gameState.duration_data.preview = gameState.duration_data.preview || [];
+        gameState.duration_data.preview.push({ duration: previewData ? previewData.duration : 0 });
+
+        gameState.startTime = Date.now();
+        gameState.isActive = true;
+        gameState.duration_data.startTime = new Date().toISOString();
+
+        trackEvent('game_start', { totalRounds: gameState.totalRounds });
+        if (signalCollector && typeof signalCollector.recordViewEvent === 'function') {
+          try { signalCollector.recordViewEvent('screen_transition', { from: 'preview', to: 'game' }); } catch (e) {}
         }
 
-        // 3. SignalCollector
+        refreshHeader();
+        if (progressBar) {
+          try { progressBar.update(0, 0); } catch (e) {}
+        }
+
+        (async function () {
+          await showRoundIntro(1);
+          renderRound();
+        })();
+      } catch (e) {
+        console.error('[startGameAfterPreview]', e && e.message);
+      }
+    }
+
+    /* ============================================================
+       Build fallback layout (only used if ScreenLayout never loads)
+       ============================================================ */
+    function buildFallbackLayout() {
+      var app = document.getElementById('app');
+      if (!app) return;
+      if (document.getElementById('gameContent')) return;
+      var stack = document.createElement('div');
+      stack.className = 'game-stack';
+      var gc = document.createElement('div');
+      gc.id = 'gameContent';
+      stack.appendChild(gc);
+      app.appendChild(stack);
+    }
+  </script>
+
+  <!-- ====== dnd-kit module-script: imports + assigns to window globals ====== -->
+  <script type="module">
+    import { DragDropManager, Draggable, Droppable, Feedback, PointerSensor, PointerActivationConstraints } from 'https://esm.sh/@dnd-kit/dom@beta';
+    window.DnDKit = {
+      DragDropManager: DragDropManager,
+      Draggable: Draggable,
+      Droppable: Droppable,
+      Feedback: Feedback,
+      PointerSensor: PointerSensor,
+      PointerActivationConstraints: PointerActivationConstraints
+    };
+    window.dispatchEvent(new Event('dndkit-ready'));
+  </script>
+
+  <script>
+    /* ============================================================
+       DOMContentLoaded init sequence
+       ============================================================ */
+    document.addEventListener('DOMContentLoaded', async function () {
+      try {
+        await waitForPackages();
+
+        // Wait for the dnd-kit module-script import
+        await new Promise(function (resolve) {
+          if (window.DnDKit && window.DnDKit.DragDropManager) return resolve();
+          window.addEventListener('dndkit-ready', function () { resolve(); }, { once: true });
+          setTimeout(resolve, 5000);
+        });
+
+        try { await FeedbackManager.init(); } catch (e) {}
+
         try {
-          signalCollector = new SignalCollector({ gameId: 'hexa-numbers' });
+          signalCollector = new SignalCollector({
+            playId: 'hexa-numbers-' + Date.now(),
+            game: 'hexa-numbers'
+          });
           window.signalCollector = signalCollector;
         } catch (e) {
           console.error('[SignalCollector ctor failed]', e && e.message, e);
           if (typeof Sentry !== 'undefined') Sentry.captureException(e);
         }
 
-        // 4. ScreenLayout.inject
         try {
           ScreenLayout.inject('app', {
             slots: {
@@ -2537,263 +2461,196 @@
         } catch (e) {
           console.error('[ScreenLayout.inject failed]', e && e.message, e);
           if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          buildFallbackLayout();
         }
 
-        // 5. (no timer this game — spec says no timer)
-
-        // 6. Build initial play-area HTML into #gameContent
-        injectGameHTML();
-
-        // 7. (no Timer)
-
-        // 8. (InteractionManager not used)
-
-        // 9. VisibilityTracker (with built-in PopupComponent for pause overlay)
         try {
           visibilityTracker = new VisibilityTracker({
-            onInactive: function() {
+            popupProps: {},
+            onInactive: function () {
               try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {}
               try { if (previewScreen) previewScreen.pause(); } catch (e) {}
             },
-            onResume: function() {
+            onResume: function () {
               try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {}
               try { if (previewScreen) previewScreen.resume(); } catch (e) {}
             }
           });
-          window.visibilityTracker = visibilityTracker;
         } catch (e) {
           console.error('[VisibilityTracker ctor failed]', e && e.message, e);
           if (typeof Sentry !== 'undefined') Sentry.captureException(e);
         }
 
-        // 10. ProgressBar — no-lives game. Validator GEN-PROGRESSBAR-LIVES requires
-        // totalLives >= 1 even for no-lives games; we mirror totalLives = totalRounds
-        // and pass livesRemaining=0 to update() so no hearts render. showLives:false
-        // is also passed to satisfy PROGRESSBAR-NO-LIVES-MUST-HIDE.
         try {
           progressBar = new ProgressBarComponent({
             slotId: 'mathai-progress-slot',
-            totalRounds: gameState.totalRounds,
-            totalLives: gameState.totalRounds,
+            totalRounds: 3,
+            totalLives: 3,
             showLives: false
           });
-          progressBar.update(0, 0);
         } catch (e) {
           console.error('[ProgressBarComponent ctor failed]', e && e.message, e);
           if (typeof Sentry !== 'undefined') Sentry.captureException(e);
         }
 
-        // 11. TransitionScreen
         try {
-          transitionScreen = new TransitionScreenComponent({ autoInject: true });
+          transitionScreen = new TransitionScreenComponent({
+            slotId: 'mathai-transition-slot'
+          });
         } catch (e) {
           console.error('[TransitionScreenComponent ctor failed]', e && e.message, e);
           if (typeof Sentry !== 'undefined') Sentry.captureException(e);
         }
 
-        // 12. PreviewScreen
         try {
-          previewScreen = new PreviewScreenComponent({ slotId: 'mathai-preview-slot' });
+          previewScreen = new PreviewScreenComponent({
+            slotId: 'mathai-preview-slot'
+          });
         } catch (e) {
           console.error('[PreviewScreenComponent ctor failed]', e && e.message, e);
           if (typeof Sentry !== 'undefined') Sentry.captureException(e);
         }
 
-        // 12b. FloatingButton
         try {
-          floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });
-          floatingBtn.setLabels({ submit: 'Check', next: 'Next', retry: 'Try again' });
-          floatingBtn.setMode(null);
-          floatingBtn.on('submit', function() {
-            handleCheck().catch(function(e) { console.error('[handleCheck]', e && e.message); });
+          floatingBtn = new FloatingButtonComponent({
+            slotId: 'mathai-floating-button-slot'
           });
-          floatingBtn.on('next', function() {
-            // If the game has ended, single-stage exit (post next_ended + destroy)
-            if (gameState.gameEnded) {
-              try { window.parent.postMessage({ type: 'next_ended' }, '*'); } catch (e) {}
-              try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
-              try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
-              try { floatingBtn.destroy(); } catch (e) {}
-              return;
-            }
-            // Otherwise — wrong-answer NEXT button → advance round
-            handleNextAfterWrong();
+          if (floatingBtn && typeof floatingBtn.setLabels === 'function') {
+            try { floatingBtn.setLabels({ submit: 'CHECK', next: 'Next' }); } catch (e) {}
+          }
+          floatingBtn.on('submit', async function () {
+            if (gameState.isProcessing || gameState.gameEnded) return;
+            try { await handleCheck(); } catch (e) { console.error('[handleCheck]', e && e.message); }
+          });
+          floatingBtn.on('next', function () {
+            try {
+              if (answerComponent && typeof answerComponent.destroy === 'function') answerComponent.destroy();
+            } catch (e) {}
+            try {
+              window.parent.postMessage({ type: 'next_ended' }, '*');
+            } catch (e) {}
+            try {
+              if (previewScreen && typeof previewScreen.destroy === 'function') previewScreen.destroy();
+            } catch (e) {}
+            try {
+              if (floatingBtn && typeof floatingBtn.destroy === 'function') floatingBtn.destroy();
+            } catch (e) {}
           });
         } catch (e) {
           console.error('[FloatingButtonComponent ctor failed]', e && e.message, e);
           if (typeof Sentry !== 'undefined') Sentry.captureException(e);
         }
 
-        // 12c. AnswerComponent
         try {
-          answerComponent = new AnswerComponentComponent({ slotId: 'mathai-answer-slot' });
+          answerComponent = new AnswerComponentComponent({
+            slotId: 'mathai-answer-slot'
+          });
         } catch (e) {
           console.error('[AnswerComponentComponent ctor failed]', e && e.message, e);
           if (typeof Sentry !== 'undefined') Sentry.captureException(e);
         }
 
-        // 13. Audio preload
         try {
-          await FeedbackManager.sound.preload([
-            { id: 'correct_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757588479110.mp3' },
-            { id: 'incorrect_sound_effect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757432062452.mp3' },
-            { id: 'rounds_sound_effect',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
-            { id: 'victory_sound_effect',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506672258.mp3' },
-            { id: 'game_complete_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506659491.mp3' },
-            { id: 'sound_bubble_select',     url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758162403784.mp3' },
-            { id: 'sound_bubble_deselect',   url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1758712800721.mp3' }
-          ]);
+          var PointerSensor = window.DnDKit.PointerSensor;
+          var PointerActivationConstraints = window.DnDKit.PointerActivationConstraints;
+          dndManager = new window.DnDKit.DragDropManager({
+            sensors: [
+              PointerSensor.configure({
+                activationConstraints: [
+                  new PointerActivationConstraints.Distance({ value: 3 })
+                ]
+              })
+            ]
+          });
+          dndManager.monitor.addEventListener('dragend', handleDragEnd);
+          dndManager.monitor.addEventListener('dragstart', handleDragStart);
         } catch (e) {
-          console.error('[FeedbackManager.sound.preload]', e && e.message);
+          console.error('[DragDropManager ctor failed]', e && e.message, e);
+          if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+          // Fallback: try without sensors config
+          try {
+            dndManager = new window.DnDKit.DragDropManager();
+            dndManager.monitor.addEventListener('dragend', handleDragEnd);
+            dndManager.monitor.addEventListener('dragstart', handleDragStart);
+          } catch (er) {
+            console.error('[DragDropManager fallback ctor failed]', er && er.message, er);
+          }
         }
 
-        // 14. Register message listener BEFORE game_ready
-        window.addEventListener('message', handlePostMessage);
+        preloadAudio();
 
-        // 15. Send game_ready
+        // Register message listener BEFORE sending game_ready
+        window.addEventListener('message', handlePostMessage);
         try {
           window.parent.postMessage({ type: 'game_ready' }, '*');
-        } catch (e) {
-          console.error('[game_ready postMessage]', e && e.message);
-        }
+        } catch (e) {}
 
-        // 16. setupGame() — last
+        // setupGame is the last call (preview will appear)
         setupGame();
       } catch (e) {
-        console.error('[init]', e && e.message, e);
-        if (typeof Sentry !== 'undefined') Sentry.captureException(e);
+        console.error('[init]', e && e.message);
+        if (typeof Sentry !== 'undefined') { try { Sentry.captureException(e); } catch (er) {} }
       }
-
-      // Standalone fallback — runs INDEPENDENTLY (top-level setTimeout)
-      setTimeout(function() {
-        if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
-        if (gameState.isActive || gameState.gameEnded) return;
-        var missing = [];
-        if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
-        if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
-        if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
-        if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
-        if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
-        if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
-        if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
-        if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
-        if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
-        if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
-        if (missing.length > 0) {
-          var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
-          console.error('[' + msg + ']');
-          if (typeof Sentry !== 'undefined') Sentry.captureMessage(msg);
-          var gc = document.getElementById('gameContent') || document.body;
-          if (gc) {
-            gc.innerHTML =
-              '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">' +
-              'Game failed to load — please refresh.' +
-              '</div>';
-          }
-          return;
-        }
-        gameState.content = fallbackContent;
-        gameState.totalRounds = fallbackContent.totalRounds || 3;
-        if (!document.getElementById('gameContent')) {
-          // ScreenLayout failed, but all classes are defined — try once more
-          try {
-            ScreenLayout.inject('app', {
-              slots: {
-                previewScreen: true, transitionScreen: true, progressBar: true,
-                floatingButton: true, answerComponent: true
-              }
-            });
-          } catch (e) {}
-        }
-        injectGameHTML();
-        if (!gameState.isActive) {
-          setupGame();
-        }
-      }, 2000);
 
       // Window exposures
       window.gameState = gameState;
       window.endGame = endGame;
       window.restartGame = restartGame;
-      window.nextRound = nextRound;
       window.startGame = startGame;
-      window.loadRound = function(n) {
+      window.nextRound = nextRound;
+      window.loadRound = function (n) {
         if (typeof n === 'number' && n >= 1 && n <= gameState.totalRounds) {
           gameState.currentRound = n;
-          showRoundIntro(n);
+          renderRound();
         }
       };
-      window.debugGame = function() {
-        return JSON.stringify({
-          phase: gameState.phase,
-          currentRound: gameState.currentRound,
-          score: gameState.score,
-          stars: gameState.stars,
-          setIndex: gameState.setIndex,
-          isActive: gameState.isActive,
-          isProcessing: gameState.isProcessing,
-          gameEnded: gameState.gameEnded,
-          attempts: gameState.attempts.length
-        });
-      };
-      window.debugAudio = function() {
-        try {
-          return JSON.stringify({
-            canPlay: typeof FeedbackManager !== 'undefined' ? FeedbackManager.canPlayAudio() : null
-          });
-        } catch (e) { return '{}'; }
-      };
-      window.testAudio = function() {
-        try { return safePlaySound('correct_sound_effect', { sticker: STICKER_CORRECT }); } catch (e) {}
-      };
-      window.testPause = function() {
-        try { FeedbackManager.sound.pause(); FeedbackManager.stream.pauseAll(); } catch (e) {}
-      };
-      window.testResume = function() {
-        try { FeedbackManager.sound.resume(); FeedbackManager.stream.resumeAll(); } catch (e) {}
-      };
     });
-  </script>
 
-  <!-- @dnd-kit/dom ESM loader — runs independently of waitForPackages so DnD setup
-       defers cleanly until the library finishes loading (P6 R1 invariant). -->
-  <script type="module">
-    import { DragDropManager, Draggable, Droppable, PointerSensor, PointerActivationConstraints } from 'https://esm.sh/@dnd-kit/dom@beta';
-    window.__dndKitClasses = {
-      DragDropManager: DragDropManager,
-      Draggable: Draggable,
-      Droppable: Droppable,
-      PointerSensor: PointerSensor,
-      PointerActivationConstraints: PointerActivationConstraints
-    };
-    // Notify the rest of the game
-    var ready = function() {
-      try {
-        if (typeof window.gameState !== 'undefined') {
-          window.__dndKitReady = true;
+    /* ============================================================
+       Standalone fallback — runs INDEPENDENTLY of waitForPackages
+       ============================================================ */
+    setTimeout(function () {
+      // Abort if a live preview is mounted
+      if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+      if (gameState.isActive || gameState.gameEnded) return;
+
+      var missing = [];
+      if (typeof FeedbackManager === 'undefined') missing.push('FeedbackManager');
+      if (typeof TimerComponent === 'undefined') missing.push('TimerComponent');
+      if (typeof VisibilityTracker === 'undefined') missing.push('VisibilityTracker');
+      if (typeof SignalCollector === 'undefined') missing.push('SignalCollector');
+      if (typeof ScreenLayout === 'undefined') missing.push('ScreenLayout');
+      if (typeof PreviewScreenComponent === 'undefined') missing.push('PreviewScreenComponent');
+      if (typeof TransitionScreenComponent === 'undefined') missing.push('TransitionScreenComponent');
+      if (typeof ProgressBarComponent === 'undefined') missing.push('ProgressBarComponent');
+      if (typeof FloatingButtonComponent === 'undefined') missing.push('FloatingButtonComponent');
+      if (typeof AnswerComponentComponent === 'undefined') missing.push('AnswerComponentComponent');
+
+      if (missing.length > 0) {
+        var msg = 'standalone fallback: required class undefined: ' + missing.join(', ');
+        console.error('[' + msg + ']');
+        if (typeof Sentry !== 'undefined') {
+          try { Sentry.captureMessage(msg); } catch (e) {}
         }
-        // Hand off to non-module code
-        var evt = new Event('dndkit-ready');
-        window.dispatchEvent(evt);
-      } catch (e) { console.error('[dnd-kit ready]', e && e.message); }
-    };
-    ready();
-  </script>
-  <script>
-    // Bridge: when the @dnd-kit/dom ESM module finishes loading, set the
-    // module-scope `dndKitReady` flag and (re-)run setupDndRound for the
-    // current round if one is mid-render.
-    window.addEventListener('dndkit-ready', function() {
-      try {
-        if (window.__dndKitClasses) {
-          dndKitClasses = window.__dndKitClasses;
-          dndKitReady = true;
-          if (gameState.currentRoundData && gameState.isActive && !gameState.gameEnded) {
-            setupDndRound();
-          }
+        var gc = document.getElementById('gameContent') || document.body;
+        if (gc) {
+          gc.innerHTML =
+            '<div style="padding:24px;text-align:center;font-family:sans-serif;color:#a33;">' +
+            'Game failed to load — please refresh.' +
+            '</div>';
         }
-      } catch (e) { console.error('[dndkit-ready bridge]', e && e.message); }
-    });
+        return;
+      }
+
+      // All classes defined → boot.
+      if (!document.getElementById('gameContent')) {
+        buildFallbackLayout();
+      }
+      gameState.content = fallbackContent;
+      gameState.totalRounds = fallbackContent.rounds.length / 3;
+      setupGame();
+      startGame();
+    }, 2000);
   </script>
 </body>
 </html>

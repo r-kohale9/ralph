@@ -27,6 +27,13 @@ class TimerComponent {
       ...config,
     };
 
+    // Infer count-up mode when caller omits endTime and startTime is 0:
+    // there is no meaningful decreasing range, so treat as an open-ended count-up.
+    if (config.endTime === undefined && (config.startTime === undefined || config.startTime === 0)) {
+      this.config.timerType = "increase";
+      this.config.endTime = Number.MAX_SAFE_INTEGER;
+    }
+
     // State
     this.currentSeconds = this.config.startTime;
     this.isRunning = false;

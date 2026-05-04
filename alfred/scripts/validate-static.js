@@ -89,11 +89,12 @@ const specContext = (function readSpecContext() {
     }
 
     // totalRounds: `**Rounds:** 1`, `Rounds: 1`, `totalRounds: 1`.
-    // Colon is REQUIRED to avoid matching stage headers like "(Rounds 1–3)".
+    // Colon is REQUIRED — without it "Rounds 1-5" inside a stage heading like
+    // `### Stage 1: Easy doubles (Rounds 1-5)` would falsely match totalRounds=1.
     const roundsMatch = spec.match(/(?:\*\*)?(?:total)?[Rr]ounds(?:\*\*)?\s*:\s*\*?\*?\s*(\d+)/);
     if (roundsMatch) out.totalRounds = parseInt(roundsMatch[1], 10);
 
-    // totalLives: same shape.
+    // totalLives: same shape — colon required for the same reason.
     const livesMatch = spec.match(/(?:\*\*)?(?:total)?[Ll]ives(?:\*\*)?\s*:\s*\*?\*?\s*(\d+)/);
     if (livesMatch) out.totalLives = parseInt(livesMatch[1], 10);
 
@@ -441,6 +442,143 @@ if (hasDndKitImport) {
         'forbidden by P6 §8 Universal Touch Support. The Delay constraint forces the player to hold ' +
         'before drag activates, making mobile feel laggy. .dnd-tag has touch-action: none so the browser ' +
         'will not hijack the touch for scroll — the delay is unnecessary. Use Distance-only activation.',
+    );
+  }
+
+  // ─── GEN-DND-MOVE-ELEMENT — P6 §B1, §B3, §R4, F7 — placed tags must remain pickable ───
+  // The placement function MUST move the actual draggable DOM element into the drop zone via
+  // .appendChild(...), NOT hide-and-paint (classList.add('placed','empty') + slot text label).
+  // The hide-and-paint shortcut breaks Behaviour 1 (pick up from anywhere) because the original
+  // Draggable instance is hidden and the slot is just a Droppable — the slot can't be picked up.
+  // Detection heuristic: in any file using @dnd-kit/dom, look for a "draggable-shaped" variable
+  // being appendChild'd into a slot/zone/cell-shaped container. Variable name must match a
+  // common drag element token (hex|tag|chip|tile|piece|draggable|el|item|card|brick|block).
+  const movesDraggableIntoZone = /\.appendChild\s*\(\s*(hex|tag|chip|tile|piece|draggable|item|card|brick|block|drag\w*)\b/i.test(html);
+  // If @dnd-kit is used and there's NO appendChild-of-draggable anywhere, the placement is
+  // almost certainly hide-and-paint. Even one such call at any placement site is enough to pass.
+  if (!movesDraggableIntoZone) {
+    errors.push(
+      'GEN-DND-MOVE-ELEMENT: @dnd-kit/dom used but placement function does not move the draggable ' +
+        'element into the drop zone. Per P6 §B1 (Pick Up & Move Anywhere) and Failure F7, the ' +
+        'placement function MUST call `zoneEl.appendChild(tagEl)` so the same Draggable instance ' +
+        'remains pickable from inside the zone. Hiding the original (`classList.add(\'placed\',' +
+        '\'empty\')`) and painting a text label on the slot is FORBIDDEN — it makes placed tags ' +
+        'unpickable and breaks zone→zone swap (V3), zone→empty-zone transfer (V4), and ' +
+        'zone→bank return (V5). Required shape: ' +
+        '`function placeTagInZone(tagId, zoneId) { zoneEl.appendChild(tagEl); ... }`.',
+    );
+  }
+
+  // ─── GEN-DND-SOURCE-FROM-STATE — P6 §R2, F1 — game-controlled tag source tracking ───
+  // The dragend handler MUST resolve the source's prior location from a game-controlled data
+  // structure (gameState.placement, state.tagLocations, etc.), NOT from DOM inspection
+  // (parentElement, parentNode, closest()). DOM inspection is unreliable during drag because
+  // dnd-kit reparents/clones elements — every occupied-zone drop degrades to evict-to-bank
+  // (the canonical F1 bug).
+  // Detection: locate the dragend handler body — either an inline arrow/function passed to
+  // addEventListener, or a named function whose name appears as the second arg. Then check
+  // that body for forbidden DOM-inspection patterns AND for a state-map reference.
+  const dragendHandlerName = (html.match(/monitor\s*\.\s*addEventListener\s*\(\s*['"]dragend['"]\s*,\s*(\w+)\s*\)/) || [])[1];
+  let dragendBody = '';
+  if (dragendHandlerName && /^[A-Za-z_$][\w$]*$/.test(dragendHandlerName)) {
+    // Named handler — extract function body
+    const fnMatch = html.match(new RegExp(`function\\s+${dragendHandlerName}\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\s{0,4}\\}`));
+    if (fnMatch) dragendBody = fnMatch[1];
+  } else {
+    // Inline handler: capture the body of the arrow/function passed to addEventListener
+    const inlineMatch = html.match(/monitor\s*\.\s*addEventListener\s*\(\s*['"]dragend['"]\s*,\s*(?:function\s*\([^)]*\)\s*|\([^)]*\)\s*=>\s*)\{([\s\S]*?)\n\s{0,4}\}\s*\)/);
+    if (inlineMatch) dragendBody = inlineMatch[1];
+  }
+  if (dragendBody) {
+    const usesDomInspection = /\b(?:parentElement|parentNode|closest\s*\()/i.test(dragendBody);
+    const usesStateMap = /\b(?:gameState\s*\.\s*placement|state\s*\.\s*(?:placement|tagLocations|positions)|tagLocations|placedTiles|findSlotIdForPoolKey|findSlotForTag|findZoneForTag)\b/i.test(dragendBody);
+    if (usesDomInspection) {
+      errors.push(
+        'GEN-DND-SOURCE-FROM-STATE: The dragend handler resolves source location via DOM inspection ' +
+          '(parentElement / parentNode / closest()). Per P6 §R2 and Failure F1, this is FORBIDDEN — ' +
+          'dnd-kit reparents/clones elements during drag, so DOM-based source tracking is unreliable. ' +
+          'The result: every occupied-zone drop degrades to evict-to-bank, breaking zone→zone swap ' +
+          '(V3). Use a game-controlled state map (gameState.placement[zoneId] = tagId) and resolve ' +
+          'the source via reverse lookup (e.g. findZoneForTag(tagId)).',
+      );
+    }
+    if (!usesStateMap) {
+      errors.push(
+        'GEN-DND-SOURCE-FROM-STATE: The dragend handler does not reference a game-controlled tag ' +
+          'location map. Per P6 §R2, drag source tracking MUST come from gameState ' +
+          '(e.g. gameState.placement[zoneId] = tagId, with a reverse lookup helper to resolve where ' +
+          'the dragged tag came from). Without it, V2 (evict) and V3 (swap) cannot be distinguished, ' +
+          'and every occupied-zone drop falls back to evict (Failure F1).',
+      );
+    }
+  } else if (/monitor\s*\.\s*addEventListener\s*\(\s*['"]dragend['"]/.test(html)) {
+    // dragend listener exists but body extraction failed — emit a softer warning so the
+    // build doesn't false-fire on unusual handler shapes.
+    warnings.push(
+      'GEN-DND-SOURCE-FROM-STATE (advisory): @dnd-kit/dom dragend listener detected but its body ' +
+        'could not be extracted for static analysis. Manually verify the handler resolves source ' +
+        'via gameState (P6 §R2), NOT via parentElement/closest.',
+    );
+  }
+
+  // ─── GEN-DND-DRAGSTART-GUARD — P6 §B9, V21, F6 — input blocked during awaited feedback ───
+  // The dragstart listener MUST check gameState.isProcessing (and isActive / gameEnded) and
+  // call event.preventDefault() to cancel drags initiated mid-feedback. Without this, a student
+  // can drop a tag into a different zone while the round-complete SFX is still playing, mutating
+  // the answer that was just submitted.
+  const hasDragstartListener = /monitor\s*\.\s*addEventListener\s*\(\s*['"]dragstart['"]/.test(html);
+  if (!hasDragstartListener) {
+    errors.push(
+      'GEN-DND-DRAGSTART-GUARD: @dnd-kit/dom used but no dragstart listener registered on ' +
+        'manager.monitor. Per P6 §B9 / V21 / Failure F6, every dnd game MUST register ' +
+        '`dndManager.monitor.addEventListener(\'dragstart\', handler)` where the handler calls ' +
+        '`event.preventDefault()` if `gameState.isProcessing || gameState.gameEnded || ' +
+        '!gameState.isActive`. Without this guard, students can drop tags during awaited feedback ' +
+        'and silently mutate the just-submitted answer (double-scoring / state drift).',
+    );
+  } else {
+    // Extract dragstart handler body and check for the guard contents
+    const dsHandlerName = (html.match(/monitor\s*\.\s*addEventListener\s*\(\s*['"]dragstart['"]\s*,\s*(\w+)\s*\)/) || [])[1];
+    let dsBody = '';
+    if (dsHandlerName && /^[A-Za-z_$][\w$]*$/.test(dsHandlerName)) {
+      const fnMatch = html.match(new RegExp(`function\\s+${dsHandlerName}\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\s{0,4}\\}`));
+      if (fnMatch) dsBody = fnMatch[1];
+    } else {
+      const inlineMatch = html.match(/monitor\s*\.\s*addEventListener\s*\(\s*['"]dragstart['"]\s*,\s*(?:function\s*\([^)]*\)\s*|\([^)]*\)\s*=>\s*)\{([\s\S]*?)\n\s{0,4}\}\s*\)/);
+      if (inlineMatch) dsBody = inlineMatch[1];
+    }
+    if (dsBody) {
+      const checksProcessing = /\bisProcessing\b/.test(dsBody);
+      const callsPreventDefault = /\bpreventDefault\s*\(/.test(dsBody);
+      if (!checksProcessing || !callsPreventDefault) {
+        errors.push(
+          'GEN-DND-DRAGSTART-GUARD: dragstart listener exists but its handler body is missing the ' +
+            `required guard. Found: checks isProcessing: ${checksProcessing}, calls preventDefault(): ${callsPreventDefault}. ` +
+            'Per P6 §B9 / V21 / F6, the handler must check `gameState.isProcessing` (and ideally ' +
+            '`gameState.gameEnded` / `!gameState.isActive`) and call `event.preventDefault()` to ' +
+            'cancel the drag if any of those guards are true. Without both checks, mid-feedback ' +
+            'drops still mutate state.',
+        );
+      }
+    }
+  }
+
+  // ─── GEN-DND-DESTROY-PER-ROUND — P6 §R3, F2 — per-round lifecycle ───
+  // Promote the existing destroy warning to an ERROR for multi-round games. Multi-round games
+  // that don't destroy DnD instances between rounds suffer F2: drag silently stops working from
+  // round 2 onward. Standalone (totalRounds: 1) games can skip this since no round transitions occur.
+  const isMultiRound = !/totalRounds\s*:\s*1\b/.test(html) && /totalRounds\s*:\s*[2-9]\d*/i.test(html);
+  const hasDestroyLogic = /destroyDndRound|dndManager\s*\.\s*destroy\s*\(|draggables\s*\.\s*forEach\s*\([^)]*\.destroy|for\s*\([^)]*draggables[^)]*\)[^}]*\.destroy\s*\(/i.test(html);
+  if (isMultiRound && !hasDestroyLogic) {
+    errors.push(
+      'GEN-DND-DESTROY-PER-ROUND: Multi-round @dnd-kit/dom game has no per-round DnD teardown logic ' +
+        '(no destroyDndRound function, no draggables.forEach(d => d.destroy()), no manager.destroy()). ' +
+        'Per P6 §R3 and Failure F2, every dnd instance from round N must be destroyed before round ' +
+        'N+1\'s instances are created. Without this, drag silently stops working from round 2 onward — ' +
+        'the listeners point at the previous round\'s DOM which has been replaced. Required shape: ' +
+        '`function destroyDndRound() { dndDraggables.forEach(d => d.destroy()); ' +
+        'dndDroppables.forEach(d => d.destroy()); dndDraggables = []; dndDroppables = []; }` ' +
+        'called at the start of buildDndForRound() and from endGame().',
     );
   }
 }

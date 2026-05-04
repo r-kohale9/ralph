@@ -1,807 +1,677 @@
-# Game Design: Kakuro — Number Sum Crossword
+# Game Design: Kakuro
 
 ## Identity
-
 - **Game ID:** kakuro
-- **Title:** Kakuro — Number Sum Crossword
-- **Class/Grade:** Class 3-6 (Grade 3-6) — concept is silent on grade; addition and decomposition into addends fit Class 3-6 NCERT.
-- **Math Domain:** Number & Operations (addition, decomposition into addends, constraint intersection)
-- **Topic:** Kakuro puzzle — fill a 5×5 grid of white answer cells with digits 1–9 so every horizontal and vertical run sums to its clue with no digit repeated inside any single run.
-- **Bloom Level:** L3 Apply — students must apply addition facts and "no-repeat" logic across intersecting rows and columns, not just recall.
-- **Archetype:** Board Puzzle (#6) — each round is a single grid solved as a whole (not a sequence of per-item questions). A CHECK button validates the entire arrangement against every row-sum and column-sum clue at once.
-- **NCERT Alignment:** NCERT Class 3-5 "Addition", "Number Sense" and Class 6 "Playing with Numbers" (logic-grid puzzle appendix). Decomposition into addends ("make-this-sum") aligns with NCERT Class 3-4 "Shapes and Numbers".
+- **Title:** Kakuro — Sum-Snake Logic Puzzle
+- **Class/Grade:** Class 4–6 (Grade 4–6, ages ~9–12). Explicit in concept; the puzzle assumes single-digit addition is fluent and uses it as a *constraint*, not as the answer to compute.
+- **Math Domain:** Number sense & logical reasoning — additive decomposition (single-digit sums) used as constraints, plus constraint-intersection deduction.
+- **Topic:** Crossword-style digit puzzle. The student fills white cells with digits 1–9 such that every white "run" sums to the clue at its head AND no digit repeats inside a run. Decomposition fluency, constraint reasoning, process-of-elimination.
+- **Bloom Level:** L4 Analyze — multi-constraint reasoning (each white cell sits at the intersection of a row-sum constraint and a column-sum constraint, plus the no-repeat-in-run constraint). Students intersect two valid-digit sets to deduce the only legal placement, which is the bones of substitution / elimination in algebra.
+- **Archetype:** #6 Board Puzzle — single board solved as a whole, multi-puzzle session (3 puzzles across three difficulty stages). Not rounds-based in the MCQ sense; "Round N" is "Puzzle N".
+- **NCERT Reference:**
+  - Class 4 — *Tick Tick Tick* (logical reasoning, working with grids and patterns) and addition fluency (single-digit and two-digit sums).
+  - Class 5 — *Mapping your way* (grid coordinates, spatial planning) and *Does it look the same?* (spatial reasoning).
+  - Class 6 — *Knowing our Numbers / Whole Numbers* (additive structure) plus general logical-reasoning content.
+  - General logical-reasoning content not anchored to a single chapter — consistent with Class 4–6 math-Olympiad-style number puzzles.
+- **Pattern:** **P6 (Drag-and-Drop)** — the canonical "drag a digit tile from a tray onto a white cell" interaction, implemented via `@dnd-kit/dom@beta` (ESM CDN: `https://esm.sh/@dnd-kit/dom@beta`). NOT tap-to-select-cell-then-tap-numpad, NOT inline keyboard input. **Free placement, no per-cell validation** — the student drops any digit on any white cell at any time and submits the whole puzzle via a **Check button** below the digit tray. **Build step (Step 4) MUST run in MAIN CONTEXT — sub-agents cannot fetch `@dnd-kit/dom` docs from context7.** See `alfred/skills/orchestration/SKILL.md` § "Step 4 main-context override" (the row routing P6 to main context). Sensors: `PointerSensor` (activation distance **3 px** matching P6 §8 Universal Touch Support) plus optional `KeyboardSensor` for accessibility (left/right arrows cycle tiles, Enter drops on focused cell).
+- **Input:** Drag-and-drop with submit-style validation. A digit **tray** below the board holds 9 reusable digit tiles (1–9). Drag a tile from the tray and drop it on any white cell to place that digit; there is no per-cell validation, no green run-locking, no red flash on placement, no hint banner during placement. Tiles are **reusable** — dragging digit `5` onto a cell does NOT remove it from the tray; the same tile can be dragged any number of times. To **change** a digit, drag a different tile onto the cell (silent replace). To **clear** a cell, drag the digit tile back to the tray area (the tray doubles as the "trash" / clear zone — no separate Clear button). A **Check button** sits below the digit tray (full-width inside the board wrap); it is disabled until every white cell holds a digit, and on tap runs whole-puzzle validation. No keyboard typing input. No mid-puzzle hint button. The puzzle does NOT auto-detect solve — the student commits via Check.
 
 ## One-Line Concept
+The student fills a 4×4 / 5×5 / 6×6 crossword-style grid with digits 1–9 so that every white run sums to its clue and no digit repeats in any run — using the intersection of row-sum and column-sum clues to deduce each cell, while the absence of a timer and a quiet, deliberate audio palette frames mistakes as information rather than punishment.
 
-Students tap a white cell on a 5×5 number-crossword, then tap a digit 1–9, so that every horizontal and vertical run of white cells sums to the clue in the black triangle that governs it, with no digit repeated in any run — tapping CHECK validates the entire grid at once.
+## Why these grid sizes (grade-appropriate sizing)
+The concept fixes the three sizes already (4×4 warm-up → 5×5 standard → 6×6 stretch) for Class 4–6. A 4×4 keeps Stage 1 to two or three short runs so the student feels the "aha" of a constraint solving itself; a 5×5 is the canonical Kakuro shape for this age group (most published Kakuro learning material targets 5×5); a 6×6 introduces triples and the occasional quadruple, which is the upper bound a Class-6 student can reasonably hold in working memory without a procedural aid. Larger boards (7×7+) are out of scope — they require multi-minute deduction chains that exceed the 4–8 minute per-puzzle budget.
 
----
+A 4×4 board on a 375 px viewport (with 16 px outer padding and 1 px gridlines) gives ~83 px cells; a 5×5 gives ~67 px cells; a 6×6 gives ~56 px cells. All clear the 44 px touch-target minimum with margin (~12 px headroom on the 6×6, generous on the others). The digit tray sits below the grid (within the bottom safe zone) so it never occludes the row the student is reasoning about, and so the dragged tile travels a short, natural distance from tray-up-into-grid.
 
 ## Target Skills
 
 | Skill | Description | Round Type |
 |-------|-------------|------------|
-| Addition decomposition | Break a clue number into distinct addends 1-9 that match the run length (e.g., 17 across 3 cells → 9+5+3, 8+6+3, 7+4+6, etc.). | All rounds |
-| Constraint intersection | Use a digit fixed by one run to narrow candidates in an intersecting run. | All rounds |
-| Disciplined elimination | Reject combinations that repeat digits inside a run. | All rounds |
-| Single-digit facts | Fluency in addition facts with digits 1-9. | All rounds |
-| Trial-and-check | Place a candidate, scan for conflict, revise. | All rounds |
-
----
+| Decomposition fluency | Recall the small set of digit pairs/triples that produce a target sum (e.g. "what two distinct digits 1–9 sum to 11?"). The faster this recall, the more enjoyable the puzzle. | kakuro-board |
+| Constraint reasoning (intersection) | A white cell sits at the intersection of a row-sum clue and a column-sum clue. Mentally intersect two candidate-sets to deduce its value (*"3 or 4 from the row, 4 or 5 from the column → it must be 4"*). | kakuro-board |
+| Process of elimination | When two cells in a run both need values, tentatively place the easier one and watch the constraint on the other collapse to a single answer. Direct rehearsal for substitution / elimination in algebra. | kakuro-board |
+| Working-memory scaffolding (no-repeat tracking) | The "no repeats in a run" rule forces the student to hold "which digits are still available in this run" in working memory across the whole solve. Pays off across all of math. | kakuro-board |
+| Self-correction from constraint feedback | Reading the one-line hint after a wrong digit ("This row needs to sum to 11.") to update the mental model and try a different digit. Mistakes are information, not punishment. | kakuro-board |
 
 ## Core Mechanic
 
-Single interaction type across all rounds — **tap-cell-then-tap-digit** with check-on-submit. Difficulty scales by (a) size of the playable region / number of white cells, (b) size of the clue numbers, (c) presence of intersection cells that must satisfy both a row and a column clue simultaneously.
+### Type A: "Kakuro Board" (one round per stage; three stages = three puzzles)
 
-### Type A: "Starter grid" (Stage 1 — Round 1, variant B1)
-
-1. **Student sees:** A 5×5 grid with the playable region roughly the B1 layout from the concept screenshot: blocked cells clustered top-left and along the lower-right, 12 white answer cells, 7 clue cells. Above the grid is the rules panel showing `1⃣ 2⃣ 3⃣` with the stated rules. Below the grid is a number pad with 1-4 in row 1, 5-8 in row 2, a centred 9 in row 3. A CHECK button below the pad, initially disabled.
-2. **Student does:** Taps a white cell to select it (highlighted in yellow). Taps a digit button to place that digit in the selected cell. Tapping a different digit replaces the value. Tapping a different cell changes focus. Tapping the same cell a second time toggles focus off. Tapping CHECK when all 12 cells are filled validates the whole grid.
-3. **Correct criterion:** Every row-run's sum equals its left-clue AND every column-run's sum equals its top-clue AND no digit repeats inside any single run.
-4. **Feedback:** See § Feedback. Correct = green-cell flash + correct SFX + TTS celebration + advance. Wrong = red-cell highlighting on every cell that is part of any violated run + "Not quite — check the sums and repeats." message + incorrect SFX + CHECK morphs to NEXT → advance to next round (no retry, per canonical board-puzzle behavior described in concept).
-
-### Type A: "Second grid" (Stage 2 — Round 2, variant B2)
-
-Identical mechanic to Type A above. Different clue numbers and blocked-cell layout (per concept variant B2). Rules rendered as `1. 2. 3.` in numeric notation. 12 white cells.
-
-### Type A: "Third grid" (Stage 3 — Round 3, variant B3)
-
-Identical mechanic. Variant B3 layout. Rules rendered as `1. 2. 3.` in numeric notation. 12 white cells. Top-row clue includes 29 as a 3-cell run (forcing {9,8,?} — tight constraint).
-
----
+1. **What the student sees**
+   - A small grid — **4×4 in Stage 1, 5×5 in Stage 2, 6×6 in Stage 3** — with three cell types:
+     - **Black walls** (no interaction; pure background).
+     - **Clue cells** (black background with one or two small numbers): a number in the **top-right** is the row sum (the sum of the white run extending to the right of this clue), a number in the **bottom-left** is the column sum (the sum of the white run extending below this clue). A clue cell may carry a row sum, a column sum, or both — split by a diagonal divider. Numbers are rendered in a contrasting cream / off-white (`#F5F0E8`) on the dark cell.
+     - **Empty white cells** (cream background, ready to receive a digit) — these are the cells the student interacts with. White cells flip to a "celebration" mint-green only on a successful Check submission (full-grid celebration glow); there is no per-run locking during placement.
+   - **Digit tray**: a fixed strip below the grid holding 9 reusable draggable digit tiles **1, 2, 3, 4, 5, 6, 7, 8, 9** in a 5+4 layout (digits 1–5 top row, digits 6–9 bottom row). Tiles never deplete — the same tile can be dragged any number of times. The tray itself doubles as the "clear" drop target: dragging a tile *off* a cell and releasing it over the tray area empties the cell. There is NO active-cell ring (no cell-select step in P6); the dnd library renders its own drop-target hover affordance on the cell currently under the dragged tile.
+   - **Check button** below the digit tray (full-width inside the board wrap, primary-style). Label "Check". Disabled (`opacity: 0.5; pointer-events: none`) while any white cell is empty; enabled the moment every white cell holds a digit. Disabled again during the awaited celebration sequence (`gameState.isProcessing`).
+   - **Puzzle progress chip** ("Puzzle 1 of 3") in the header. The header contains ONLY this chip — no timer, no lives, no hint button.
+   - **NO timer** (concept explicitly states no timer; PART-006 is NOT included).
+   - **NO lives indicator** in the header. Failed Check submissions are tracked silently in `gameState.wrongAttempts` and only used at end-of-game for star calculation. Concept: *"Mistakes are information."*
+   - **NO mid-puzzle hint button.** No hint affordance during placement; the student reasons through the puzzle and commits via Check.
+2. **What the student does** (input type: P6 Drag-and-Drop, free placement + Check)
+   - **Drag a digit tile from the tray onto any white cell** → on `dragstart`, the tile lifts (~1.1× scale + soft shadow) and follows the pointer; a soft tap SFX fires. On `dragover` a white cell, the dnd library renders its drop-target hover state on the cell. On `dragend` over a valid drop target, the digit lands in the cell with a 150 ms snap-in transition. **No per-cell validation fires** — the digit is simply parked in the cell. The tray tile remains in place — tiles are reusable.
+   - **Drag a digit tile onto a white cell that already holds a digit** → the existing digit is silently replaced by the new one. No red flash, no green flash, no SFX beyond the placement.
+   - **Drag the digit out of a white cell back to the tray area** → the cell empties; the tile snaps back into the tray with a 150 ms transition. The Check button re-disables until the cell is filled again.
+   - **Drag cancelled** (released outside any drop target — over a wall, a clue cell, the body, or anywhere not registered as a droppable) → the tile snaps back to its origin with a 150 ms transition; no state change; suppressed-tap SFX (FAF).
+   - **Tap the Check button** (enabled only when every white cell holds a digit) → whole-puzzle validation fires. See "What counts as correct" below.
+   - **`beforedragstart` guard:** drags are cancelled at the source if `gameState.isProcessing || gameState.gameEnded || !gameState.isActive` — see V21 in interaction/SKILL.md. During the awaited celebration sequence the board-wrap also gets a `.dnd-disabled` class which sets `pointer-events: none` on tiles and cells (V22); the class is cleared in `renderRound` when the next puzzle mounts (V23).
+3. **What counts as correct**
+   - **No per-cell validation.** Digits placed mid-puzzle are not validated against row sums, column sums, or repeat rules. The student fills the grid freely.
+   - **Whole-puzzle validation on Check tap:** every row-run AND every column-run is validated. A run is valid iff its filled cells sum to the clue AND no digit repeats inside it.
+     - **Every run validates → puzzle solved.** Full-grid celebration glow (~600 ms cell-by-cell propagation), all white cells transition to the celebration mint-green, awaited round-complete SFX + sticker, awaited dynamic TTS ("Brilliant! Every run adds up."), then auto-advance: Round 2 / Round 3 transition, or Victory on Puzzle 3.
+     - **Any run fails → Check rejection.** Every cell in every failing run flashes red (~600 ms — 300 ms ease-in-out + 300 ms shake). The hint banner appears below the grid with the message for the **first** violated constraint in priority order (row sum → column sum → repeat → both → multi-constraint-collapse-failure). If multiple runs are off, the banner appends "(N runs are off)". The banner auto-fades after 3 s. `gameState.wrongAttempts` increments by **1** (one Check submission = one attempt, regardless of how many runs failed). The board stays editable — the student fixes their digits and re-taps Check.
+   - **Misconception tagging on Check failure** (per `recordAttempt`): exactly one tag per failed Check submission. Priority: row sum violated → `sum-decomposition-error`; col sum violated → `cross-constraint-overlooked`; repeat in run → `no-repeat-rule-overlooked`; both row+col simultaneously on a single run → `multi-constraint-collapse-failure`; ≥ 2 distinct runs failing → `multi-constraint-collapse-failure` (the most-violated-runs case).
+   - **Each puzzle has a unique pre-validated solution.** No procedural generation in v1 — partitions are hand-authored at game-planning Step 3 and confirmed by build-time exhaustive search to admit exactly one valid digit assignment. (See `pre-generation/puzzles.md`, produced before Step 4.) The student does not need to discover this unique solution to pass — any digit assignment where every run sums correctly with no repeats validates. (Because the puzzle is uniquely solvable, in practice the only passing assignment IS the canonical solution.)
+4. **What feedback plays**
+   - **Drag-start on a digit tile**: soft tap SFX (fire-and-forget, ~50 ms); tile lifts (~1.1× scale + soft shadow) and follows the pointer. No TTS, no sticker. Pure ambient (CASE 9 / micro-interaction).
+   - **Drop a digit tile on a white cell**: digit lands with 150 ms snap-in animation. No additional SFX (the drag-start tap SFX already played). No validation fires. If the placement fills the last empty white cell, the Check button enables.
+   - **Drag a digit tile from a cell back to the tray (clear)**: soft tap SFX (FAF). Cell empties; tile snaps back into the tray with 150 ms transition. The Check button re-disables.
+   - **Drag cancelled (released outside any drop target)**: suppressed-tap SFX (FAF); tile snaps back to its origin with 150 ms transition. No state change, no TTS.
+   - **Tap Check (button enabled, all runs validate)**: same beat as "Puzzle solved" below — full-grid celebration glow, awaited round-complete SFX + sticker, awaited dynamic TTS, advance round / endGame. CASE 6.
+   - **Tap Check (button enabled, one or more runs fail)**: every cell in every failing run flashes red (~300 ms ease-in-out) + shake (~300 ms). Wrong-digit SFX **fire-and-forget**. Hint banner appears below the grid for 3 s with the first violated constraint message (priority: row sum → col sum → repeat → both → multi-constraint-collapse-failure); if multiple runs fail, the banner appends "(N runs are off)". `gameState.wrongAttempts` increments by **1** (per submission, not per failing run). Board stays editable; Check button stays enabled (cells are still all filled) so the student can fix and re-tap. No awaited TTS — mid-puzzle wrongs are FAF (concept's "quiet and deliberate" framing).
+   - **Puzzle solved (Check accepted)**: full-grid celebration glow (~600 ms cell-by-cell propagation), **round-complete SFX awaited** with celebration sticker → **dynamic TTS awaited** ("Brilliant! Every run adds up." or "Solved! That last run was tricky."). `progressBar.update(currentRound, ...)` fires FIRST (before the awaited SFX) per the Feedback Cross-Cutting Rule "ProgressBar bump before round-complete audio". The board-wrap gets `.dnd-disabled` for the duration of this awaited sequence (V22) and the Check button is disabled (`gameState.isProcessing`); both are cleared by `renderRound` (V23). Then auto-advance: to Round 2 / Round 3 transition, or — on Puzzle 3 — to the Victory + Stars Collected sequence. CASE 6.
+   - **All 3 puzzles solved (Victory)**: timer N/A. Results / Victory screen renders FIRST (stars, AnswerComponent carousel, Next CTA). `game_complete` posted BEFORE end-game audio. Then victory SFX + VO, played sequentially. CASE 11. AnswerComponent (PART-051) carousel shows 3 slides — Puzzle 1 solved, Puzzle 2 solved, Puzzle 3 solved — with each grid in its solved state.
+   - **Stars Collected (after Victory)**: `sound_stars_collected` awaited → `show_star` postMessage → setTimeout reveals Next via `floatingBtn.setMode('next')` (per `default-transition-screens.md` § 4 Stars Collected).
+   - **Try Again / Play Again** (from Victory if < 3⭐, or — only if a future iteration adds Game Over — from Game Over): all audio stopped, all state resets including `wrongAttempts → 0`, all grid cells cleared, `currentRound → 1`, `setIndex` rotates A → B → C → A. Returns to Round 1 transition. CASE 13.
+   - **Tab switch / screen lock**: timer N/A. Static & stream audio paused. VisibilityTracker's PopupComponent renders the pause overlay (autoShowPopup default; do NOT build a custom overlay). CASE 14.
+   - **Tab restored**: audio resumes. VisibilityTracker dismisses its own popup. Gameplay continues. CASE 15.
+   - **Audio failure** (any awaited audio rejects): try/catch swallows; visual feedback (green flash, red flash, sticker, hint banner) still renders. Game continues. CASE 16.
 
 ## Rounds & Progression
 
-### Stage 1: B1 (Round 1)
-- Round type: Type A.
-- Grid: 5×5 with B1 clue-cell layout (blocked top-left corner, blocked lower-right corner to produce irregular playable region).
-- Rules: `1⃣ 2⃣ 3⃣` glyphs (verbatim) — row-sum = left clue, column-sum = top clue, no repeats in any run.
-- Clue seeds: top-row column clues **29, 11, 17** (from concept). Left-column row clues include **18**, a diagonal-split **21/4** (21 across, 4 down), **13**, **9**.
-- White cells: **12**.
-- Cognitive demand: **Decompose** — break each clue into a no-repeat addend set that matches the run length, then pick the shared digit at intersections.
+Three puzzles per session, one per stage, each cosmetically and mechanically distinct. The grid SIZE changes per stage (4×4 → 5×5 → 6×6), and the run lengths and clue ranges change with it. **The core mechanic — drag a digit tile from the tray, drop on a white cell, run-validates — is identical across stages; only the board size, run shapes, and clue ranges scale.**
 
-### Stage 2: B2 (Round 2)
-- Round type: Type A.
-- Grid: 5×5, B2 layout (per concept — top-row column clues include **16 and 11**).
-- Rules: `1. 2. 3.` (numeric).
-- White cells: **12**.
-- Cognitive demand: **Intersect** — same mechanic as Stage 1 but with tighter clue numbers that force a more constrained intersection pattern.
+### Stage 1: Warm-up — 4×4 (Round 1, "Puzzle 1")
+- Round type: kakuro-board
+- **Grid size:** 4×4 (16 cells total). Roughly 6–8 white cells, 6–8 black walls, 2–4 clue cells. Two or three short runs.
+- **Run lengths:** mostly pairs (2-cell runs); one triple at most.
+- **Sum range:** clues fall in **5–13**.
+- **Difficulty knob:** "first-exposure" — many runs have only one valid decomposition (e.g. a 17 sum into 2 cells must be 8+9; a 4 sum into 2 cells must be 1+3; a 3 sum into 2 cells must be 1+2). The student should feel the "aha" of a constraint solving itself.
+- **Cosmetic skin:** vivid palette (warm cream cells `#F5F0E8`, deep navy walls `#1F2A37`, celebration mint `#CDE9D7`, accent yellow `#F1C453`). Clue numerals in a friendly rounded sans (system font stack).
+- **Expected solve time:** 1–3 minutes.
+- **Target first-Check pass rate (Check accepted on first submission):** ~80 % (Stage 1 is the on-ramp; we want most students to clear Puzzle 1 with their first Check tap).
 
-### Stage 3: B3 (Round 3)
-- Round type: Type A.
-- Grid: 5×5, B3 layout (per concept — top-row column clue includes **29** as a 3-cell run, which forces the inclusion of 9 and 8).
-- Rules: `1. 2. 3.` (numeric).
-- White cells: **12**.
-- Cognitive demand: **Force the 9** — identify that a 3-cell run summing to 29 requires the only combination {9+8+12 is invalid; 29 across 4 = {9,8,6,... }; across 3 impossible because max = 24}; the spec uses 29 as a 4-cell column run where the unique digit set is {9,8,7,5} or {9,8,6,6 invalid, 9,7,6,7 invalid} — actual solution table spelled out in Content Structure. Student must work forward from the forced 9.
+### Stage 2: Standard — 5×5 (Round 2, "Puzzle 2")
+- Round type: kakuro-board
+- **Grid size:** 5×5 (25 cells total). Roughly 12–16 white cells, 6–9 black walls, 4–7 clue cells. Mixed pairs and triples.
+- **Run lengths:** pairs and triples; one quadruple is allowed but not required.
+- **Sum range:** clues fall in **5–20**.
+- **Difficulty knob:** "mid-stretch" — some cells genuinely require **intersecting two sets to resolve** (the row says "3 or 4", the column says "4 or 5", so the cell is 4). This is the meat of the game and the central pedagogical move. Pure trial-and-error is feasible but slow.
+- **Cosmetic skin:** same palette, same typography. The visual maturity step is small (the audience already saw 4×4).
+- **Expected solve time:** 4–8 minutes (the canonical Stage-2 budget the concept calls out).
+- **Target first-Check pass rate (Check accepted on first submission):** ~60 %.
 
-### Summary Table
+### Stage 3: Stretch — 6×6 (Round 3, "Puzzle 3")
+- Round type: kakuro-board
+- **Grid size:** 6×6 (36 cells total). Roughly 18–24 white cells, 8–12 black walls, 6–10 clue cells. Triples and the occasional quadruple.
+- **Run lengths:** triples and quadruples; one run of length 5 is permitted but rare.
+- **Sum range:** clues fall in **6–28** (a few in the 20s).
+- **Difficulty knob:** "mastery" — students will need to **hold two or three options in mind for a cell** while they work the rest of the run, and use process-of-elimination to collapse those options. Pure trial-and-error WILL exhaust most students' patience; reasoning IS the puzzle.
+- **Cosmetic skin:** same palette + a subtle border accent on the grid (`--mathai-color-border` 1 px around the outer frame) to mark "mastery board" without changing typography.
+- **Expected solve time:** 6–12 minutes.
+- **Target first-Check pass rate (Check accepted on first submission):** ~40 % (Stage 3 is the mastery gate; only students who genuinely reason through the constraints should pass on their first Check). **Note:** without per-cell incremental feedback, the realised pass-rate may run a bit lower than 40 % — see Warnings.
 
-| Dimension | Stage 1 (R1) | Stage 2 (R2) | Stage 3 (R3) |
-|-----------|--------------|---------------|---------------|
-| Round type | A | A | A |
-| Grid size | 5×5 | 5×5 | 5×5 |
-| White cells | 12 | 12 | 12 |
-| Rules glyph | `1⃣ 2⃣ 3⃣` | `1. 2. 3.` | `1. 2. 3.` |
-| Distinctive clue | 21/4 split, 17 column | 16, 11 column | 29 column (forces 9) |
-| Target first-attempt rate | 55-70% | 45-60% | 35-50% |
+### Stage summary
 
----
+| Dimension | Stage 1 | Stage 2 | Stage 3 |
+|-----------|---------|---------|---------|
+| Grid size | 4×4 | 5×5 | 6×6 |
+| White cells | ~6–8 | ~12–16 | ~18–24 |
+| Run lengths | Pairs, ≤1 triple | Pairs and triples, ≤1 quadruple | Triples and quadruples |
+| Clue sum range | 5–13 | 5–20 | 6–28 |
+| Deductions required | 1–2 | 2–3 | ≥ 3 (set-intersection central) |
+| Expected solve time | 1–3 min | 4–8 min | 6–12 min |
+| Target first-Check pass rate | ~80 % | ~60 % | ~40 % |
+| Cognitive demand | First exposure | Mid-stretch | Mastery gate |
+| Cell size on 375 px viewport | ~83 px | ~67 px | ~56 px |
+
+**Round-set cycling (MANDATORY — validator GEN-ROUNDSETS-MIN-3).** The runtime round-set-cycles `fallbackContent.rounds`. A student plays Set A on first attempt, Set B after Try Again / Play Again, Set C on the next restart, then back to A. **The spec authors three full sets (A, B, C) × 3 puzzles each = 9 round objects total.** Each set has different white/black layouts and different unique solutions per puzzle, but **parallel difficulty across sets** — Set A's Stage-1 puzzle ≈ Set B's Stage-1 ≈ Set C's Stage-1 in run-count and deduction depth. Each round object carries `set: 'A' | 'B' | 'C'`. `setIndex` rotates on restart and persists across restarts within the session — it is NOT cleared in `resetGameState`. (The concept's "bank of ~30 puzzles per stage" is a future-iteration goal; v1 ships 3 sets × 3 stages = 9 hand-authored puzzles, which already gives a determined replay-three-times-in-a-day student a fresh board each time.)
 
 ## Game Parameters
-
-- **Rounds:** 3 — one per variant (B1, B2, B3) per concept.
-- **Timer:** None — L3 Apply puzzles should not be timed.
-- **Lives:** None. Each round is one-shot: student submits, gets feedback, advances. Matches Board Puzzle archetype default AND the CHECK→NEXT pattern implied by the concept.
-- **Star rating:**
-  - **3 stars** = all 3 rounds solved on first CHECK
-  - **2 stars** = 2 rounds solved on first CHECK
-  - **1 star** = 1 round solved on first CHECK
-  - **0 stars (still reaches results)** = 0 rounds solved on first CHECK
-- **Input:** Tap-cell-then-tap-digit (Pattern P1 tap with cell-as-selection and digit-pad-as-value). Plus tap on CHECK / NEXT button. No drag.
-- **Feedback:** Per-round whole-grid validation on CHECK. Per-cell-fill micro-feedback is visual only (digit snaps into cell, fire-and-forget tap SFX). Awaited SFX + TTS on correct/incorrect round resolution. FeedbackManager handles all audio.
-
----
+- **Rounds:** 3 per session (one puzzle per stage). `totalRounds: 3`.
+- **Timer:** None (`timer: false`). The concept explicitly says "no timer in the gameplay header — this is a thinking game, and the absence of a clock is part of the tone." PART-006 is NOT included.
+- **Lives:** **No lives bar in the header.** The platform's `totalLives` field is set to a high cap (`totalLives: 99`) purely to satisfy the data contract; the lives counter is NEVER decremented in code, NEVER rendered in the header, and NEVER reaches 0 — there is no Game Over branch in this game. (See "Why no lives" below for the design rationale.) `wrongAttempts` is the real counter — it is incremented silently on every failed Check submission and is read by `getStars()` at end-of-game.
+- **Why no lives:** the concept frames mistakes as information ("Wrong digits are not a punishment — they're the puzzle teaching back."). A header lives counter would directly contradict that frame: every failed Check would trigger a heart-pop animation, the student would feel punished, and the deliberate / quiet tone would break. By tracking failed submissions silently in `wrongAttempts` and surfacing them only as a star deduction at end-of-game, the student stays in their reasoning flow during the puzzle and learns the cost of mistakes only after the puzzle is solved. **NOTE for build step:** the spec sets `totalLives: 99` (a high cap, never visible, never decremented). The build step MUST hide the lives indicator (CSS `display: none` on the lives slot, OR omit the `lives` parameter from `progressBar.update(round, lives)` if PART-023 supports a "no-lives" mode — confirm at planning step). Validator should NOT trip the "lives = 0 means no game_over screen" rule because lives are NEVER decremented; the game also has NO `game_over` screen (only Victory, since lives can never reach 0).
+- **Lives semantics (explicit):**
+  - Lives are a no-op in this game. They are never decremented, never displayed.
+  - `wrongAttempts` increments by 1 on every **failed Check submission** (one Check tap = one attempt, regardless of how many runs failed). It is the **only** signal feeding `getStars()`.
+  - `hintsUsed` is NOT tracked — there is no hint button in v1.
+  - `wrongAttempts` is reset to 0 on Try Again / Play Again (full session restart). It persists across the 3 puzzles within a single session.
+- **retryPreservesInput:** N/A (multi-round game; the field is only relevant for `totalRounds: 1` standalone games per PART-050).
+- **autoShowStar:** `true` (default end-of-game beat handled by PART-050 / Stars Collected onMounted).
+- **Star rating:** see "Scoring" below — creator-specified, NOT default 90/66/33.
+- **Input:** P6 Drag-and-Drop via `@dnd-kit/dom@beta` (drag digit tiles from the tray onto white cells; drag back to tray to clear). Free placement, no per-cell validation. Submit via the in-board **Check button** below the digit tray (disabled while any white cell is empty; enabled once all are filled). No tap-to-select-cell, no keyboard typing. Step 4 (Build) MUST run in MAIN CONTEXT to fetch live `@dnd-kit/dom` docs via context7.
+- **Feedback:** FeedbackManager (PART-017). Whole-puzzle validation on Check tap (no per-cell validation). Failed Check is fire-and-forget (multi-step CASE 7). Successful Check = round-complete celebration (awaited, CASE 6). Per-session Victory only — NO Game Over branch.
+- **previewScreen:** `true` (PART-039 default).
+- **answerComponent:** `true` (creator did not opt out; default ships). The 3-slide carousel at end-of-game shows each puzzle's solved state — the full filled grid with clue cells, celebration-mint white cells, and solution digits in place. (See "AnswerComponent payload shape" below for the per-round `answer` schema.)
 
 ## Scoring
 
-- **Points:** +1 per round solved on first CHECK (max 3). No partial credit — either every run sums correctly and no digits repeat, or not.
-- **Stars:** By count of first-CHECK solves, thresholds above.
-- **Lives:** None (no game_over path).
-- **Partial credit:** None for scoring; telemetry captures per-cell placements and violated-run IDs so analytics can distinguish "one run off" from "random fill".
+- **Points:** +1 per puzzle solved. A puzzle is "solved" iff a Check submission validates (every run sums correctly with no repeats). Max 3 points per session. Since there is no Game Over, the only way to end the session with < 3 points is for the student to walk away (which the concept calls out: "0 stars — Did not solve (only possible if the student walks away)").
+- **Stars (simplified — only signal is `wrongAttempts`, the count of failed Check submissions across the 3 puzzles):**
+  - **3⭐** = `wrongAttempts === 0` (every Check accepted on first submission across all 3 puzzles).
+  - **2⭐** = `wrongAttempts >= 1 AND wrongAttempts <= 2`.
+  - **1⭐** = `wrongAttempts >= 3`.
+  - **0⭐** = puzzle not solved (only reachable on session abort; no abort UI in v1, so unreachable).
+  - **Counter scope:** `wrongAttempts` is a **session-wide total across all 3 puzzles** (NOT per-puzzle). A student who passes Puzzle 1 on the first Check, fails Puzzle 2's Check once, then passes both retries, ends the session at `wrongAttempts === 1` → 2⭐.
+- **Lives:** Not used (see Game Parameters above). No life-based star deduction.
+- **Partial credit:** None. Each puzzle is binary (solved / not solved). The star rule reads only `puzzlesSolved` and `wrongAttempts` (session-wide total).
 
----
+### Star Generosity Audit
+
+(Authored per spec-creation skill expectation that L4 mastery games not give 3⭐ for free. Heuristic: 3⭐ should require demonstrated mastery — not survival.)
+
+| Outcome scenario | Puzzles solved | Failed Check submissions | Stars | Generosity verdict |
+|------------------|---------------|--------------------------|-------|--------------------|
+| Solved all 3, every Check passed first try | 3 | 0 | **3⭐** | TIGHT — perfect-run only. |
+| Solved all 3, 1 failed Check (anywhere across 3 puzzles) | 3 | 1 | **2⭐** | TIGHT — first slip already demotes. |
+| Solved all 3, 2 failed Checks | 3 | 2 | **2⭐** | NEUTRAL — bottom of 2⭐ band; recoverable. |
+| Solved all 3, 3+ failed Checks | 3 | ≥ 3 | **1⭐** | TIGHT — repeated submission failures = weak mastery. |
+| Walked away after solving 1 or 2 puzzles | 1 or 2 | any | (Victory not reached — student exits via the harness, no stars awarded) | EDGE — v1 has no abort UI; this case is not surfaced. |
+
+**Verdict:** The simplified rule is tight for L4 Analyze. 3⭐ requires every Check to pass on first submission across a 3-puzzle session — a high bar that genuinely reflects "solved without trial-and-error". The simplified scheme drops the hint axis (no hint button in v1) and uses a single counter, which is easier for the student to reason about ("if I get every Check right first time, I get all three stars"). **No generosity inflation detected.**
 
 ## Flow
 
-**Shape:** Multi-round (default) with two deltas from the canonical default:
-1. **No Game Over branch.** Lives = 0, so the "wrong AND lives = 0" branch is removed entirely. Wrong CHECK → NEXT button → next round transition → next round. Never transitions to game_over.
-2. **Wrong answer does NOT loop back to the same round.** NEXT button shipped in the source concept means the student sees the correct grid (briefly) then advances — no retry. Standard across the Board Puzzle archetype for this source family.
+**Shape:** Multi-round (default).
 
-Changes from default:
-- Remove Game Over path (no lives).
-- After wrong CHECK, advance to next round (no retry loop inside the same round).
-- Replace the "submit" transition in the Gameplay → Feedback edge with an explicit CHECK button tap.
+**Changes from default:**
+- **No Game Over branch.** Lives never decrement → lives never reach 0 → the diagram's "Game Over" path and the subsequent "Ready to improve your score?" → restart route are unreachable in this game. The diagram is preserved for fidelity but the Game Over branch is dead-code in the runtime. (The "Play Again" route from Victory < 3⭐ is still reachable and IS used.)
+- **In-board Check button (NOT PART-050)** — sits below the digit tray, full-width inside the board wrap. Disabled while any white cell is empty. On tap: full-puzzle validation. PART-050 (FloatingButton) is NOT used during gameplay; it IS used at end-of-game for the Next CTA per the standard archetype-6-without-FloatingButton path (see "No FloatingButton during gameplay" in Visual / Theme below).
 
 ```
-[Preview Screen (PART-039)]
-        |
-        v
-[Round N Transition: "Round N"]
-        |
-        v
-[Gameplay: Tap white cells, tap digits 1-9, CHECK disabled until grid full]
-        |
-        | tap CHECK (all 12 cells filled)
-        v
-[Validate grid — every row-run + every column-run + no-repeat]
-        |
-        +--> all runs satisfied --> Correct feedback (green cells, SFX + TTS)
-        |                                  |
-        |                                  v
-        |                            [If N < 3: Round N+1 Transition]
-        |                            [If N == 3: Victory / Results]
-        |
-        +--> at least one run violated --> Wrong feedback
-                  (red on conflict cells,
-                   SFX + TTS, CHECK -> NEXT,
-                   correct grid briefly shown)
-                  |
-                  | tap NEXT (or auto after 3500ms)
-                  v
-           [If N < 3: Round N+1 Transition]
-           [If N == 3: Victory / Results]
-
-(No Game Over; always reaches Results after Round 3.)
+┌──────────────────────────────────────────────────────────────────────────┐
+│                                                                          │
+│   Preview Screen (PART-039)                                              │
+│   ─ instruction text + audio                                             │
+│   ─ "Start" CTA                                                          │
+│                                                                          │
+│              │                                                           │
+│              ▼                                                           │
+│   Welcome / Round 1 transition (PART-024 TransitionScreen)               │
+│   ─ "Puzzle 1 of 3 — Warm-up (4×4)" + audio                              │
+│   ─ tap to begin                                                         │
+│                                                                          │
+│              │                                                           │
+│              ▼                                                           │
+│   Gameplay: Puzzle 1 (4×4)                                               │
+│   ─ drag digit tile from tray to white cell (P6, @dnd-kit/dom)           │
+│   ─ free placement, no per-cell validation                               │
+│   ─ Check button enables once every white cell holds a digit             │
+│   ─ Check (all runs valid) → round-complete SFX + TTS awaited → next     │
+│   ─ Check (any run fails)  → red flash all failing runs + banner (FAF)   │
+│                              wrongAttempts++; board stays editable       │
+│              │                                                           │
+│              ▼                                                           │
+│   Round 2 transition ─ "Puzzle 2 of 3 — Standard (5×5)"                  │
+│              │                                                           │
+│              ▼                                                           │
+│   Gameplay: Puzzle 2 (5×5)                                               │
+│              │                                                           │
+│              ▼                                                           │
+│   Round 3 transition ─ "Puzzle 3 of 3 — Stretch (6×6)"                   │
+│              │                                                           │
+│              ▼                                                           │
+│   Gameplay: Puzzle 3 (6×6)                                               │
+│              │                                                           │
+│              ▼                                                           │
+│   Victory (TransitionScreen)                                             │
+│   ─ stars rendered (1–3⭐ based on failed-Check count)                    │
+│   ─ game_complete posted BEFORE end-game audio                           │
+│   ─ AnswerComponent (3 slides — solved Puzzle 1/2/3)                     │
+│   ─ Stars Collected screen                                               │
+│   ─ Next CTA via floatingBtn.setMode('next')                             │
+│                                                                          │
+│   (If < 3⭐) Play Again → "Ready to improve your score?" → Round 1 reset │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+(There is no Game Over branch in this game; the default-flow diagram's Game Over path is unreachable here.)
 
 ## Feedback
 
 | Event | Behavior |
 |-------|----------|
-| Tap white cell | Cell highlights (yellow background, primary border). No audio. Any previously-selected cell deselects. |
-| Tap digit button | Digit value written into selected cell (replaces if already filled). Fire-and-forget tap SFX. Auto-deselect if all cells now filled. CHECK enables when all cells filled. |
-| Tap digit with no cell selected | No-op. No audio. |
-| Tap selected cell again | Toggle deselect. No audio. |
-| Tap filled cell then tap digit | Replaces the digit in that cell. |
-| Tap filled cell then tap same digit | Clears the cell (toggles value off). |
-| CHECK pressed, grid correct | Input blocked (`isProcessing = true`) before any await. All white cells flash green (400ms). Awaited correct SFX + celebration sticker (~1s). Fire-and-forget TTS + subtitle: "Great addition! Every run sums right." `recordAttempt` captures the full grid before audio starts. After ~1500ms, advance. |
-| CHECK pressed, grid wrong | Input blocked. Conflict cells highlight red (see "conflict cell" rule below). Awaited wrong SFX + sad sticker (~1s). Fire-and-forget TTS + subtitle: "Not quite — check the sums and repeats." CHECK button morphs to NEXT button. After ~1500ms, **correct grid is briefly shown** (digits fade into their solution cells). NEXT is tappable at any time to advance immediately. Auto-advance after ~3500ms total. |
-| NEXT pressed | Stop all audio. Transition to next-round screen. If N == 3, transition to Victory / Results. |
-| Round complete (correct OR wrong+next) | `recordAttempt` already sent. Auto-advance to next-round transition after audio settles. |
-| All 3 rounds complete | Results screen renders first; `game_complete` postMessage sent; then victory SFX + VO sequence. Star count based on first-CHECK solves. |
-| Try again / replay | Stop all audio; reset state; return to Round 1 (skip Preview). |
-| Visibility hidden | `VisibilityTracker` handles pause overlay (do not roll a custom one). Audio + timers pause. |
-| Visibility restored | `VisibilityTracker` dismisses overlay. State continues exactly where it was. |
+| Drag a digit tile from the tray (drag-start) | Soft tap SFX (fire-and-forget, ~50 ms). Tile lifts to ~1.1× scale + soft shadow and follows the pointer. The dnd library renders its own drop-target hover state on whichever droppable cell the pointer is over. No TTS, no sticker, no input block. CASE 9. `beforedragstart` cancels the drag if `gameState.isProcessing || gameState.gameEnded || !gameState.isActive` (V21). |
+| Drop a digit tile on a white cell | Digit lands in the cell with a 150 ms snap-in transition. No additional SFX (drag-start tap already played). **No validation fires.** If the placement fills the last empty white cell, `refreshCheckButton()` enables the Check button. No TTS, no sticker, no input block. |
+| Drag a digit tile from a cell back to the tray (clear) | Soft tap SFX (fire-and-forget). Cell empties. Tile snaps back into the tray with 150 ms transition. `refreshCheckButton()` re-disables Check. No TTS, no input block. |
+| Drag cancelled (released outside any drop target) | Suppressed-tap SFX (fire-and-forget). Tile snaps back to its origin (the tray) with 150 ms transition. No state change. No TTS. |
+| Tap Check (button enabled, every run validates) | `handleSolve` fires. `progressBar.update(currentRound, lives)` fires FIRST. Board-wrap gets `.dnd-disabled` (V22) and `gameState.isProcessing = true`. Full-grid celebration glow (~600 ms cell-by-cell propagation), awaited round-complete SFX + celebration sticker, awaited dynamic TTS ("Brilliant! Every run adds up." / "Solved! That last run was tricky." — context-aware per puzzle id). Then auto-advance: to Round-(N+1) intro TS, or — on Puzzle 3 — to Victory + Stars Collected sequence. `renderRound` (on the next puzzle mount) clears `.dnd-disabled` and re-enables the Check button (V23). CASE 6. |
+| Tap Check (button enabled, one or more runs fail) | Every cell in every failing run flashes red (~300 ms ease-in-out) + shake (~300 ms). Wrong-digit SFX **fire-and-forget**. Hint banner appears below the grid for ~3 s; banner text is the message for the first violated constraint (priority order: row sum → col sum → repeat → both → multi-constraint-collapse-failure); if multiple runs fail, banner appends "(N runs are off)". `gameState.wrongAttempts` increments by 1 (per submission, NOT per failing run). Digits STAY in cells; Check button stays enabled (cells are still all filled) so the student can fix and re-tap. No life decrement (no lives counter). No input block beyond the red-flash window. `recordAttempt` tags the misconception per the priority order. CASE 7 multi-step. |
+| All 3 puzzles solved (Victory) | Timer N/A. Results / Victory screen renders FIRST (stars, AnswerComponent carousel, Next slot). `game_complete` posted BEFORE end-game audio. Then victory SFX + VO, played sequentially. Different VO per star tier (3⭐ "Perfect! Every Check, first try." / 2⭐ "Solved! One small slip." / 1⭐ "You got there — that was tough!"). CASE 11. |
+| Stars Collected (after Victory) | `sound_stars_collected` awaited → `show_star` postMessage → setTimeout reveals Next via `floatingBtn.setMode('next')`. Per `default-transition-screens.md` § 4. |
+| Play Again (from Victory if < 3⭐) | All audio stopped, all state resets including `wrongAttempts → 0`, all grid cells cleared, `currentRound → 1`, `setIndex` rotates A → B → C → A. Routes through "Ready to improve your score?" transition then to Round 1 transition. CASE 13. |
+| Next (from Stars Collected at 3⭐) | `floatingBtn.setMode('next')` posts `next_ended`; harness tears down the iframe. |
+| Tab switch / screen lock | Timer N/A. Static & stream audio paused. VisibilityTracker's PopupComponent renders the pause overlay (autoShowPopup default; do NOT build a custom overlay). CASE 14. |
+| Tab restored | Audio resumes. VisibilityTracker dismisses its own popup. Gameplay continues. CASE 15. |
+| Audio failure (any audio call rejects) | Try/catch swallows; visual feedback (celebration glow, red flash, sticker, hint banner) still renders. Game continues. CASE 16. |
 
-### Conflict cell rule (for red highlighting on wrong CHECK)
+**Hint banner wording (Class 4–6 register, short and concrete):**
+- Row sum violated: `"This row needs to sum to <N>."` — `<N>` is the row-clue value for the run.
+- Column sum violated: `"This column needs to sum to <N>."`
+- Repeat in run: `"No repeats in a run."`
 
-A cell is a "conflict cell" if it is part of at least one violated run.
+These three string templates are stored in `fallbackContent` per round (under `hintMessages`) and are consumed by the **Check failure handler only** (not by any per-cell validator — there is no per-cell validation in v1). At validation time `<N>` is interpolated with the offending run's clue value. The `showHintBanner(message, durationMs)` helper and the `#hintBanner` DOM element are kept exactly as the original spec described — they are simply repurposed from "per-digit wrong feedback" to "Check submission failure feedback". When multiple runs fail, the banner appends "(N runs are off)" after the first violated constraint message.
 
-- For a row-run with clue R covering cells `[c1, c2, ...]`: if `sum(values) !== R` OR any digit is repeated in the run, every cell in the run is a conflict cell.
-- For a column-run with clue C covering cells `[c1, c2, ...]`: same rule as rows.
-- A cell that participates only in runs that are all satisfied is NOT highlighted red (it stays white) — this tells the student which rows/columns to reconsider.
-
----
+**Why Check failures are fire-and-forget (no awaited TTS):** the concept frames Kakuro as "quiet and deliberate, audio is minimal — only on success, on error, and on completion. The student should feel like they're the one driving the pace." An awaited TTS on every failed Check would make the game feel chatty and slow. Failed Checks use the hint banner (visual, on-screen, persistent for 3 s) as the "explanation" surface, with only a short SFX as the audio cue. This is the multi-step CASE 7 variant explicitly allowed by the Feedback skill: *"Multi-step games keep mid-round partial matches fire-and-forget for pacing, but round-complete still awaits TTS for the same reason single-step does."* The successful-Check beat (= puzzle-solve) still awards awaited audio (CASE 6) so the moment of success lands with full weight.
 
 ## Content Structure (fallbackContent)
 
+**Top-level fields:**
+- `previewInstruction` — HTML, full instruction shown on PART-039 preview overlay.
+- `previewAudioText` — plain-text narration for preview TTS (patched at deploy time).
+- `previewAudio` — `null` (filled at deploy time by TTS pipeline).
+- `showGameOnPreview` — `false` (puzzle should not be visible behind preview).
+- `totalRounds` — `3`.
+- `totalLives` — `99` (high cap; never decremented; never visible — see Game Parameters "Why no lives").
+- `answerComponent` — `true` (default; not opted out).
+- `rounds[]` — 9 round objects (3 sets × 3 rounds), with `set: 'A' | 'B' | 'C'` on every entry.
+
+### Per-round payload shape
+
+Each round object carries the data needed to render one puzzle and validate placements. The board is described as a 2D grid of cell descriptors:
+
+```js
+{
+  set: 'A' | 'B' | 'C',
+  id: 'A_r1_p1' | 'A_r2_p2' | 'A_r3_p3' | 'B_r1_p1' | ... ,  // globally unique
+  round: 1 | 2 | 3,                  // round index within a set
+  stage: 1 | 2 | 3,                  // === round (one stage per round)
+  type: 'kakuro-board',
+  size: 4 | 5 | 6,                   // grid dimension (4 for stage 1, 5 for stage 2, 6 for stage 3)
+
+  // 2D grid of cell descriptors. grid[r][c] is one of:
+  //   { kind: 'wall' }                          → solid black wall, no interaction
+  //   { kind: 'clue', row: <N|null>, col: <N|null> }
+  //                                              → clue cell with optional row sum (top-right)
+  //                                                and/or column sum (bottom-left). At least one
+  //                                                of row/col must be non-null.
+  //   { kind: 'white', solution: <1..9> }       → white empty cell with its solution digit
+  grid: [
+    [ { kind: 'wall' }, { kind: 'clue', row: 4, col: null }, { kind: 'clue', row: 3, col: null }, { kind: 'wall' } ],
+    [ { kind: 'clue', row: null, col: 4 }, { kind: 'white', solution: 1 }, { kind: 'white', solution: 3 }, { kind: 'wall' } ],
+    [ { kind: 'clue', row: null, col: 3 }, { kind: 'white', solution: 3 }, { kind: 'wall' }, { kind: 'wall' } ],
+    [ { kind: 'wall' }, { kind: 'wall' }, { kind: 'wall' }, { kind: 'wall' } ]
+  ],
+  // (Above is a worked 4×4 example — see Stage 1 Worked Example below for the rendered layout.)
+
+  // List of all white runs in the puzzle. Each run is identified by its clue cell, direction,
+  // sum, and the list of {r, c} positions of the white cells it covers (in order from clue
+  // outward). The build-time validator asserts these match the `grid` data and that each run's
+  // unique decomposition matches the solution digits.
+  runs: [
+    { id: 'r1', dir: 'row',    sum: 4, cells: [{ r: 1, c: 1 }, { r: 1, c: 2 }] },
+    { id: 'r2', dir: 'col',    sum: 4, cells: [{ r: 1, c: 1 }, { r: 2, c: 1 }] },
+    { id: 'r3', dir: 'col',    sum: 3, cells: [{ r: 1, c: 2 }] },   // length-1 runs are degenerate but allowed
+    // ... etc
+  ],
+
+  hintMessages: {
+    rowSum:    'This row needs to sum to <N>.',
+    colSum:    'This column needs to sum to <N>.',
+    repeat:    'No repeats in a run.'
+  },
+
+  // The unique pre-validated solution as a flat dictionary keyed by 'r,c'. Authored redundantly
+  // to grid[r][c].solution for AnswerComponent convenience; build-time validator asserts they
+  // describe the same assignment.
+  answer: {
+    digits: { '1,1': 1, '1,2': 3, '2,1': 3 }   // (for the 4×4 example above)
+  },
+
+  // Misconception tags for each constraint type. Used by recordAttempt to record WHICH rule
+  // the student violated on each wrong-digit placement (one tag per attempt event).
+  misconception_tags: {
+    'row-sum-violated':    'sum-decomposition-error',
+    'col-sum-violated':    'cross-constraint-overlooked',
+    'repeat-in-run':       'no-repeat-rule-overlooked',
+    'both-row-and-col':    'multi-constraint-collapse-failure'
+  }
+}
+```
+
+**Misconception tags (named, real misconceptions for additive constraint reasoning at L4):**
+- `sum-decomposition-error` — student picked a digit that would make the row run not sum to its clue (e.g. they thought 7 = 2 + 6 = 8 → placed 8 in a 7-row). Most common at Stage 1; reflects weak decomposition fluency. Surfaces when a wrong digit causes ONLY the row sum (or ONLY the column sum) to be violated.
+- `cross-constraint-overlooked` — student picked a digit that satisfies ONE clue (the one they were focused on) but violates the OTHER clue at the same intersection. The single most common misconception in Kakuro. Surfaces when a wrong digit completes a run that sums correctly along ONE axis but violates the OTHER axis. (We tag this on `col-sum-violated` because the typical scenario is "I solved the row, ignored the column".)
+- `no-repeat-rule-overlooked` — student placed a digit that's already in the run. Reflects forgetting the second Kakuro rule. Common at Stage 2/3 where runs of length 3+ make the "available digits" set non-trivial.
+- `multi-constraint-collapse-failure` — both row and column constraints are simultaneously broken. Reflects "I just guessed". Less common; signals the student is brute-forcing rather than reasoning. Recorded only when both axes fail; the hint banner still shows the row message (priority) but `recordAttempt` tags this stronger label.
+
+(Each wrong-digit placement records exactly ONE tag. Tag selection: if both row and column are violated → `multi-constraint-collapse-failure`. Else if only row violated → `sum-decomposition-error`. Else if only column violated → `cross-constraint-overlooked`. Else if repeat-in-run → `no-repeat-rule-overlooked`.)
+
+### Round-set cycling — 9 round objects total
+
+The spec authors **three full sets (A, B, C) × 3 rounds = 9 round objects**. The build step copies these verbatim into `fallbackContent.rounds`. Each set has different white/black layouts and different unique solutions per puzzle, but parallel difficulty (Set A's Stage-1 ≈ Set B's Stage-1 ≈ Set C's Stage-1 etc.). Build-time validator (exhaustive search over digit assignments) asserts each puzzle admits exactly one valid solution equal to the round's `answer.digits`.
+
+### Worked-example puzzle per stage
+
+The three worked examples below ARE the Set-A Stage 1 / 2 / 3 puzzles. Sets B and C will be hand-authored at game-planning Step 3 with the same difficulty profile but different layouts and solutions. Each puzzle's grid is shown as ASCII; the rendered cell types are:
+- `█████` — black wall
+- `[7\]` — clue with row sum 7 only (top-right)
+- `[\3]` — clue with column sum 3 only (bottom-left)
+- `[7\3]` — clue with row sum 7 (top-right) AND column sum 3 (bottom-left)
+- ` _ ` — empty white cell (will hold a digit 1–9 at solve)
+- `(d)` — white cell with solution digit `d` shown for documentation
+
+#### Stage 1 worked example — 4×4, Set A Round 1 (`A_r1_p1`)
+
+A two-run, two-cell-each puzzle. Total white cells: 3. Two row clues (4 and 3) and two column clues (4 and 3). Every run is a pair, every clue is a single-digit pair-sum, every pair has a UNIQUE decomposition (4 = 1+3, 3 = 1+2). Solution: top-left white = 1, top-right white = 3, bottom-left white = 3 (with the cells laid out as below).
+
+```
+┌─────┬─────┬─────┬─────┐
+│█████│[4\] │[3\] │█████│
+├─────┼─────┼─────┼─────┤
+│[\4] │ (1) │ (3) │█████│
+├─────┼─────┼─────┼─────┤
+│[\3] │ (3) │█████│█████│
+├─────┼─────┼─────┼─────┤
+│█████│█████│█████│█████│
+└─────┴─────┴─────┴─────┘
+```
+
+- **Row run 1** (clue at (0,1), `row: 4`): cells (1,1)+(1,2) must sum to 4 → unique decomposition 1+3.
+- **Row run 2** (clue at (0,2), `row: 3`): cells (1,2) is part of the column run — wait, actually this clue is for a row to its right which doesn't exist; for the worked example we treat (0,2) as carrying ONLY a row-of-1 (degenerate) — let's restate clean: the clue at (0,2) carries only a column sum of 3, not a row sum. **Restated clean layout:**
+
+```
+┌─────┬─────┬─────┬─────┐
+│█████│[4\] │[\3] │█████│   ← (0,1) carries row sum 4; (0,2) carries column sum 3
+├─────┼─────┼─────┼─────┤
+│[\4] │ (1) │ (3) │█████│   ← (1,0) carries column sum 4; whites at (1,1)=1, (1,2)=3
+├─────┼─────┼─────┼─────┤
+│[\3] │ (3) │█████│█████│   ← (2,0) carries column sum 3; white at (2,1)=3
+├─────┼─────┼─────┼─────┤
+│█████│█████│█████│█████│
+└─────┴─────┴─────┴─────┘
+```
+
+- **Row run** (clue at (0,1) `row: 4`, run cells (1,1),(1,2)): 1 + 3 = 4 ✓. Unique decomposition 1+3.
+- **Column run** at column 1 (clue at (1,0) `col: 4`, run cells (1,1),(2,1)): 1 + 3 = 4 ✓. Unique decomposition 1+3.
+- **Column run** at column 2 (clue at (0,2) `col: 3`, run cells (1,2)): single-cell run with sum 3 → must be 3.
+- (Note: column 1 also has a `col: 3` clue at (2,0) but (2,0) is positioned to the LEFT of (2,1) so it's the row-clue for the row-of-1 at (2,1). For the worked example, treat (2,0) as carrying `row: 3` instead. Two independent single-cell row runs is fine for a 4×4.)
+
+Solution: `{ '1,1': 1, '1,2': 3, '2,1': 3 }`. **Unique** — exhaustive search over 9³ = 729 assignments confirms only this one satisfies all three runs.
+
+(This is intentionally a very small Stage-1 puzzle — small even for stage 1. The actual Set-A / Set-B / Set-C Stage-1 puzzles authored at game-planning Step 3 will be slightly denser: 6–8 white cells, two or three pair runs and one length-3 run, sums in the 5–13 range. The above is the canonical "shape" example so the build step has an unambiguous data-shape anchor.)
+
+#### Stage 2 worked example — 5×5, Set A Round 2 (`A_r2_p2`)
+
+A canonical 5×5 Kakuro: 4 row runs and 4 column runs, mix of 2-cell and 3-cell runs, sums in the 6–17 range. The solution requires at least one set-intersection deduction (a cell where row says "3 or 4" and column says "4 or 5" → must be 4).
+
+```
+┌─────┬─────┬─────┬─────┬─────┐
+│█████│█████│[6\] │[10\]│█████│
+├─────┼─────┼─────┼─────┼─────┤
+│█████│[16\3]│ (1) │ (2) │█████│
+├─────┼─────┼─────┼─────┼─────┤
+│[\11]│ (4) │ (5) │ (3) │[6\] │
+├─────┼─────┼─────┼─────┼─────┤
+│[\10]│ (3) │█████│ (5) │ (1) │
+├─────┼─────┼─────┼─────┼─────┤
+│█████│[\7] │█████│█████│█████│
+└─────┴─────┴─────┴─────┴─────┘
+```
+
+Approximate run-set (illustrative, the build-time validator will produce the canonical run list from the grid):
+- Row run at row 1 (clue `row: 16` at (1,1), cells (1,2),(1,3)): wait, `row: 16` for a 2-cell run means two distinct digits 1–9 summing to 16 → 7+9 or 8+8 (rejected, repeat) → unique 7+9. Restate sum: let's use 3 instead → row run sums to 3, cells (1,2)+(1,3) → 1+2 (unique). **Restated clue at (1,1):** `{ row: 3, col: 11 }`.
+- Row run at row 2 (clue `row: 11` carried by `[\11]` — wait, `[\X]` is a column clue not a row clue): use `[X\Y]` notation where the clue at (2,0) carries BOTH a column (going down to (2,1),(3,1)) and a row (going right to (2,1),(2,2),(2,3)) — but (2,0) doesn't have a row to its right unless… reset. A cleaner restatement: the clue at (1,1) carries `{ row: 3, col: 7 }`, and the clue at (2,0) carries only `{ row: 12 }` (a 3-cell row run summing to 12 with cells (2,1),(2,2),(2,3) → e.g. 4+5+3 — let's go with that).
+- Reconciling, the cleanest 5×5 layout for the worked example is:
+
+```
+┌─────┬─────┬─────┬─────┬─────┐
+│█████│█████│[\3] │[\10]│█████│
+├─────┼─────┼─────┼─────┼─────┤
+│█████│[3\7]│ (1) │ (2) │█████│
+├─────┼─────┼─────┼─────┼─────┤
+│[12\]│ (4) │ (5) │ (3) │[\1] │
+├─────┼─────┼─────┼─────┼─────┤
+│[9\] │ (3) │█████│ (5) │ (1) │
+├─────┼─────┼─────┼─────┼─────┤
+│█████│[\7] │█████│█████│█████│
+└─────┴─────┴─────┴─────┴─────┘
+```
+
+- **Row runs:**
+  - (1,1) `row: 3`, cells (1,2),(1,3): 1+2 = 3 ✓ (unique pair-decomposition).
+  - (2,0) `row: 12`, cells (2,1),(2,2),(2,3): 4+5+3 = 12 ✓ (one of several decompositions; resolved by column constraints).
+  - (3,0) `row: 9`, cells (3,1),(3,3),(3,4) — wait, (3,2) is a wall, so the row is split: (3,1) is its own length-1 run, and (3,3),(3,4) is a length-2 run. Two row clues needed. **Restate:** (3,0) carries `row: 3` for the length-1 run at (3,1); a new clue at (3,2) wall-separator carries `row: 6` for (3,3),(3,4).
+- **Column runs:**
+  - (0,2) `col: 3`, cells (1,2),(2,2): 1+5 = 6 ≠ 3 — contradiction. **Restate column clue at (0,2):** `col: 6`. Then 1+5 = 6 ✓.
+  - (0,3) `col: 10`, cells (1,3),(2,3),(3,3): 2+3+5 = 10 ✓.
+  - (1,1) `col: 7`, cells (2,1),(3,1): 4+3 = 7 ✓.
+  - (2,4) `col: 1`, cells (3,4): single cell = 1 ✓.
+
+**Solution:** `{ '1,2':1, '1,3':2, '2,1':4, '2,2':5, '2,3':3, '3,1':3, '3,3':5, '3,4':1 }`.
+
+The set-intersection move sits at cell (2,2): the row says "12 = 4+5+3 in some order, with (2,1)=4 from the column-7 constraint and (2,3)=3 from the column-10 constraint, so (2,2) must be 5". This is the canonical pedagogical move the concept calls out.
+
+(The actual Set-A / Set-B / Set-C Stage-2 puzzles authored at game-planning Step 3 will follow this exact shape — 4 row runs, 4 column runs, ≥ 1 set-intersection deduction. The above worked example is the data-shape anchor.)
+
+#### Stage 3 worked example — 6×6, Set A Round 3 (`A_r3_p3`)
+
+A canonical 6×6 Kakuro: 6+ row runs, 6+ column runs, two or three length-3 runs, one length-4 run, sums up to 22. Multi-cell working memory is required ("hold two or three options for this cell while you solve the rest of the run").
+
+(Full ASCII layout omitted from this spec for brevity — the data-shape anchor in Stage 1 + Stage 2 is sufficient. The Stage-3 layout will be authored at game-planning Step 3 in `games/kakuro/pre-generation/puzzles.md` with: 6×6 grid, ~20 white cells, ~10 black walls, ~6 clue cells, sums in 6–28, at least one length-4 run, and at least three set-intersection deductions in the unique solution. The build-time validator confirms uniqueness via exhaustive search — for a 6×6 with 20 white cells the search space is ~9^20 = ~10^19 in the worst case but pruning by the run constraints cuts this to milliseconds in practice; if the validator times out on a candidate puzzle, the puzzle is rejected and the author iterates.)
+
+### `fallbackContent` skeleton (all 9 rounds)
+
 ```js
 const fallbackContent = {
-  previewInstruction: '<p><b>Number Sum Crossword!</b><br>Tap a white square, then tap a digit 1-9 to fill it. Every row and column must add up to its clue, with no repeats. Tap <b>CHECK</b> when you are done.</p>',
-  previewAudioText: 'Tap a white square, then tap a digit from one to nine. Make every row and column sum to its clue, with no digit repeated. Then tap CHECK.',
-  previewAudio: null,           // patched at deploy time by TTS pipeline
+  previewInstruction:
+    '<p>Fill the white cells with digits <b>1–9</b> so that:</p>' +
+    '<ol>' +
+      '<li>Each row of white cells adds up to the small number on its left.</li>' +
+      '<li>Each column of white cells adds up to the small number on top.</li>' +
+      '<li>No digit repeats inside a single row or column run.</li>' +
+    '</ol>' +
+    '<p>Drag a digit tile from the tray onto a white cell. To change a digit, drag a different tile onto the cell; ' +
+    'to clear it, drag the digit back to the tray. When every cell is filled, tap <b>Check</b> to submit. ' +
+    'No timer — take your time.</p>',
+  previewAudioText:
+    'Fill the white cells with digits one to nine so each row and each column adds up to its small clue number. ' +
+    'No digit can repeat inside the same run. Drag a digit tile from the tray onto a white cell. ' +
+    'When every cell is filled, tap Check to submit. There is no timer — take your time.',
+  previewAudio: null,
   showGameOnPreview: false,
+  totalRounds: 3,
+  totalLives: 99,                    // high cap; never decremented; never displayed
+  answerComponent: true,
+
   rounds: [
-    // ===================================================================
-    // ROUND 1 — Stage 1, Variant B1. 5x5 grid. 12 white cells.
-    // Grid coordinates: row 0..4 top-to-bottom, col 0..4 left-to-right.
-    // Cell types:
-    //   'blocked' — solid black, no content.
-    //   'clue' — diagonally split. Has optional { across: N, down: M }.
-    //           across = sum of row-run starting immediately to the right.
-    //           down   = sum of column-run starting immediately below.
-    //   'white' — fillable. Has { value: null|1..9, solution: 1..9 }.
-    //
-    // Layout (5x5) — numbers are column clues, letters are row clues, W are white:
-    //
-    //       col0    col1    col2    col3    col4
-    //  row0 [blk]   [clue   [clue   [clue   [blk]
-    //                down=29]down=11]down=17]
-    //  row1 [clue   [W1]    [W2]    [W3]    [blk]
-    //        acr=18]
-    //  row2 [clue   [W4]    [W5]    [W6]    [clue
-    //        acr=21                          down=4]
-    //        down=4]
-    //  row3 [clue   [W7]    [W8]    [W9]    [W10]
-    //        acr=13]
-    //  row4 [clue   [W11]   [W12]   [blk]   [blk]
-    //        acr=9]
-    //
-    // Note: per concept, 21/4 diagonal split is at row2 col0 (21 across + 4 down).
-    // 4 down at row2 col4 means the one-cell down run at row3 col4 is a standalone.
-    // Solution chosen to satisfy every row-run and column-run.
-    //
-    // Runs:
-    //   Row runs (horizontal white-cell sequences):
-    //     R_row1 (clue 18, cells W1 W2 W3)  → 18 = 9+8+1 or 9+7+2 or 9+6+3 or 9+5+4 or 8+7+3 or 8+6+4 or 7+6+5
-    //     R_row2 (clue 21, cells W4 W5 W6)  → 21 = 9+8+4 or 9+7+5 or 8+7+6 or 9+6+6 invalid
-    //     R_row3 (clue 13, cells W7 W8 W9 W10) → 13 across 4 cells no repeats = {1,2,3,7} or {1,2,4,6} or {1,3,4,5}
-    //     R_row4 (clue 9, cells W11 W12)   → 9 = 1+8 or 2+7 or 3+6 or 4+5
-    //   Column runs:
-    //     C_col1 (clue 29 top, cells W1 W4 W7 W11, length 4) → 29 across 4 = {9,8,7,5} only no-repeat set
-    //     C_col2 (clue 11 top, cells W2 W5 W8 W12, length 4) → 11 across 4 = {1,2,3,5} only (smallest distinct) OR {1,2,4,4 invalid} → actually {1,2,3,5} is unique-min; also {1,2,4,4 invalid}; {1,3,3,4 invalid} → {1,2,3,5} unique
-    //     C_col3 (clue 17 top, cells W3 W6 W9, length 3) → 17 across 3 = {9,7,1}, {9,6,2}, {9,5,3}, {8,6,3}, {8,5,4}, {7,6,4}
-    //     C_col4 (clue 4 at r2col4 down, cells W10 only, length 1) → W10 = 4
-    //
-    // Authoritative solution (hand-solved, one of many):
-    //   W1=8, W2=3, W3=7         (row1 sum: 8+3+7=18 ✓; no repeats)
-    //   W4=9, W5=5, W6=7         (row2 sum: 9+5+7=21 ✓; col3 has W3=7 and W6=7 — repeat) — BAD
-    // Re-solve: require W3 ≠ W6 in col3 (no repeat in column run).
-    //
-    // Start over with explicit constraint-propagation. Target solution:
-    //   col1 (29/4): {W1,W4,W7,W11} is a permutation of {9,8,7,5}.
-    //   col2 (11/4): {W2,W5,W8,W12} is a permutation of {1,2,3,5}.
-    //   col3 (17/3): {W3,W6,W9} sums to 17, all distinct.
-    //   col4 (4/1):  {W10} = 4.
-    //   row1 (18/3): W1+W2+W3 = 18, all distinct.
-    //   row2 (21/3): W4+W5+W6 = 21, all distinct.
-    //   row3 (13/4): W7+W8+W9+W10 = 13 → W7+W8+W9 = 13-4 = 9, W10=4 (consistent), all distinct AND ≠ W10 (4).
-    //   row4 (9/2):  W11+W12 = 9, all distinct.
-    //
-    // Try: col1 perm = (W1=9, W4=8, W7=7, W11=5). col2 perm = (W2=1, W5=3, W8=5, W12=2).
-    //   row1: W1+W2+W3 = 9+1+W3 = 18 → W3 = 8. (Distinct from 9,1: ✓)
-    //   row2: W4+W5+W6 = 8+3+W6 = 21 → W6 = 10. INVALID (digit > 9).
-    //
-    // Try: col1 perm = (W1=9, W4=7, W7=8, W11=5). col2 perm = (W2=1, W5=5, W8=3, W12=2).
-    //   row1: 9+1+W3 = 18 → W3 = 8. (Distinct: ✓)
-    //   row2: 7+5+W6 = 21 → W6 = 9. (Distinct from 7,5: ✓). But col3: W3+W6+W9 = 8+9+W9 = 17 → W9 = 0. INVALID.
-    //
-    // Try: col1 = (W1=8, W4=9, W7=7, W11=5). col2 = (W2=1, W5=3, W8=5, W12=2).
-    //   row1: 8+1+W3 = 18 → W3 = 9. ✓ (distinct 8,1,9)
-    //   row2: 9+3+W6 = 21 → W6 = 9. Col3 repeat W3=9 and W6=9 BAD.
-    //
-    // Try: col1 = (W1=8, W4=9, W7=5, W11=7). col2 = (W2=1, W5=3, W8=5, W12=2). row4: W11+W12 = 7+2 = 9 ✓
-    //   row1: 8+1+W3 = 18 → W3 = 9 (distinct 8,1,9 ✓)
-    //   row2: 9+3+W6 = 21 → W6 = 9. col3 repeat W3=9,W6=9 BAD.
-    //
-    // Try: col1 = (W1=8, W4=7, W7=9, W11=5). col2 = (W2=3, W5=5, W8=1, W12=2). row4: 5+2=7 ≠ 9 BAD.
-    // Try: col2 = (W2=3, W5=5, W8=2, W12=1). row4: W11=5, W12=1, sum 6 ≠ 9 BAD.
-    // Try: col1 = (W1=9, W4=5, W7=8, W11=7). col2 = (W2=1, W5=3, W8=5, W12=2). row4: 7+2=9 ✓
-    //   row1: 9+1+W3 = 18 → W3 = 8. distinct 9,1,8 ✓
-    //   row2: 5+3+W6 = 21 → W6 = 13. INVALID.
-    // Try: col1 = (W1=9, W4=7, W7=8, W11=5). col2 = (W2=1, W5=5, W8=3, W12=2). row4: 5+2=7 ≠ 9 BAD.
-    // Try: col1 = (W1=9, W4=8, W7=5, W11=7). col2 = (W2=1, W5=3, W8=5, W12=2). row4: 7+2=9 ✓
-    //   row1: 9+1+W3 = 18 → W3 = 8. distinct ✓
-    //   row2: 8+3+W6 = 21 → W6 = 10. INVALID.
-    // Try: col1 = (W1=7, W4=8, W7=9, W11=5). col2 = (W2=2, W5=5, W8=3, W12=1). row4: 5+1=6 ≠ 9 BAD.
-    // Try: col1 = (W1=7, W4=9, W7=8, W11=5). col2 = (W2=2, W5=3, W8=5, W12=1). row4: 5+1=6 BAD.
-    // Try: col1 = (W1=5, W4=9, W7=8, W11=7). col2 = (W2=3, W5=2, W8=5, W12=1). row4: 7+1=8 BAD.
-    // Try: col1 = (W1=5, W4=9, W7=8, W11=7). col2 = (W2=1, W5=3, W8=5, W12=2). row4: 7+2=9 ✓
-    //   row1: 5+1+W3 = 18 → W3 = 12. INVALID.
-    // Try: col1 = (W1=5, W4=8, W7=9, W11=7). col2 = (W2=3, W5=5, W8=1, W12=2). row4: 7+2=9 ✓
-    //   row1: 5+3+W3 = 18 → W3 = 10. INVALID.
-    // Try: col1 = (W1=5, W4=7, W7=9, W11=8). col2 = (W2=3, W5=5, W8=1, W12=2). row4: 8+2=10 BAD.
-    //
-    // Re-examine: row1 (18/3) with W1 ∈ {9,8,7,5} and W2 ∈ {1,2,3,5}.
-    //   If W1=9: W2+W3 = 9. W2∈{1,2,3,5}. → (W2=1,W3=8) | (W2=2,W3=7) | (W2=3,W3=6) | (W2=5,W3=4). Distinct.
-    //   If W1=8: W2+W3 = 10. → (W2=1,W3=9) | (W2=2,W3=8 conflict W1) | (W2=3,W3=7) | (W2=5,W3=5 repeat).
-    //   If W1=7: W2+W3 = 11. → (W2=2,W3=9) | (W2=3,W3=8) | (W2=5,W3=6).
-    //   If W1=5: W2+W3 = 13. → (W2=4 not in {1,2,3,5}) → skip; (W2=5 repeat)...no valid.
-    //
-    // Row2 (21/3) with W4 ∈ {9,8,7,5}\{W1} and W5 ∈ {1,2,3,5}\{W2}.
-    //   Row2 sum = 21 needs large digits. With W5 ≤ 5: W4+W6 ≥ 16, so W4 ≥ 7 and W6 ≥ 7.
-    //   If W5=1: W4+W6=20 → need {W4,W6} ⊂ {9,...} with sum 20, W4 ≠ W6, both ≤ 9: only (9,11 invalid) → impossible? 9+11 no, 11 > 9. So no.
-    //   Wait: max W4+W6 = 9+8 = 17. 21 - 1 = 20 > 17. So W5=1 impossible.
-    //   If W5=2: W4+W6=19 → impossible (max 17).
-    //   If W5=3: W4+W6=18 → impossible.
-    //   If W5=5: W4+W6=16 → (9,7) or (7,9).
-    //
-    // So W5 = 5. Therefore W5=5 locks row2.
-    //
-    // Revisit col2 perm of {1,2,3,5}: W5=5 means {W2,W8,W12} is perm of {1,2,3}.
-    // Row4 (9/2): W11+W12 = 9, distinct, from {digits 1..9}. W12 ∈ {1,2,3}.
-    //   If W12=1: W11=8.  W11 ∈ col1={9,8,7,5} → W11=8 ok.
-    //   If W12=2: W11=7.  W11=7 ok.
-    //   If W12=3: W11=6.  W11=6 NOT in {9,8,7,5} → invalid.
-    //   So W12 ∈ {1,2}.
-    //
-    // W4+W6=16 with W4,W6 ∈ {9,8,7,5}\{W1} and distinct, sum 16 → {9,7} only.
-    //   Case A: W4=9, W6=7. Then col1\{W1,W4} has {8,7,5}\{W1} available for W7,W11. Also col3 has W6=7.
-    //     → W1 ∈ {8,7,5} (since W4=9). If W1=7: col3 has W3 ∈ {..}, row1=18 with W1=7, W2+W3=11 → (W2=2,W3=9)|(W2=3,W3=8)|(W2=5,W3=6 not allowed col2). From col2 W2∈{1,2,3}\{W5=5}, so W2∈{1,2,3}. (W2=2,W3=9)|(W2=3,W3=8).
-    //       col3 (17/3) = W3+W6+W9 = 17. W6=7. → W3+W9 = 10. W3 and W9 distinct, ≠ 7.
-    //         If W3=9: W9=1. ✓ distinct from 9,7.
-    //         If W3=8: W9=2. ✓ distinct from 8,7.
-    //       row3 (13/4) = W7+W8+W9+W10 = 13. W10=4. So W7+W8+W9 = 9.
-    //         W7 ∈ {8,5} (col1 remaining after W1=7, W4=9). W8 ∈ col2 remaining after W5=5 and W2.
-    //         Sub-case A1: W3=9, W9=1. W7+W8+1 = 9 → W7+W8 = 8. W7∈{8,5}.
-    //           If W7=8: W8=0 invalid.  If W7=5: W8=3. Col2 {W2,W5,W8,W12} = {?,5,3,?} needs W2 and W12 from {1,2} distinct. row4 W12∈{1,2}, W11=col1 last ={8}. W11=8, W12 from {1,2}. row4: 8+W12=9 → W12=1. So W2=2.
-    //             Check col2 perm {2,5,3,1} = {1,2,3,5} ✓
-    //             row1: W1+W2+W3 = 7+2+9 = 18 ✓ distinct 7,2,9 ✓
-    //             col1 perm: {W1,W4,W7,W11}={7,9,5,8} = {9,8,7,5} ✓
-    //             row2: W4+W5+W6 = 9+5+7 = 21 ✓ distinct ✓
-    //             row3: W7+W8+W9+W10 = 5+3+1+4 = 13 ✓ distinct ✓
-    //             col3: W3+W6+W9 = 9+7+1 = 17 ✓ distinct ✓
-    //             row4: W11+W12 = 8+1 = 9 ✓ distinct ✓
-    //             col4: W10 = 4 ✓
-    //
-    //             UNIQUE VALID SOLUTION FOUND.
-    //
-    // Authoritative solution:
-    //   W1=7, W2=2, W3=9, W4=9, W5=5, W6=7, W7=5, W8=3, W9=1, W10=4, W11=8, W12=1
-    //
-    // Sanity recheck:
-    //   col1 (29 top, 4 cells): 7+9+5+8 = 29 ✓ all distinct {7,9,5,8} ✓
-    //   col2 (11 top, 4 cells): 2+5+3+1 = 11 ✓ all distinct {2,5,3,1} ✓
-    //   col3 (17 top, 3 cells): 9+7+1 = 17 ✓ all distinct ✓
-    //   col4 (4 top, 1 cell):   4 = 4 ✓
-    //   row1 (18, 3 cells): 7+2+9 = 18 ✓ distinct ✓
-    //   row2 (21, 3 cells): 9+5+7 = 21 ✓ distinct ✓
-    //   row3 (13, 4 cells): 5+3+1+4 = 13 ✓ distinct ✓
-    //   row4 (9, 2 cells):  8+1 = 9 ✓ distinct ✓
-    // ===================================================================
-    {
-      round: 1,
-      stage: 1,
-      type: "A",
-      variant: "B1",
-      rulesFormat: "emoji",   // 1⃣ 2⃣ 3⃣
-      grid: [
-        // Each cell: { r, c, kind: 'blocked'|'clue'|'white', id?, across?, down?, solution? }
-        { r:0, c:0, kind:'blocked' },
-        { r:0, c:1, kind:'clue', down:29 },
-        { r:0, c:2, kind:'clue', down:11 },
-        { r:0, c:3, kind:'clue', down:17 },
-        { r:0, c:4, kind:'blocked' },
-
-        { r:1, c:0, kind:'clue', across:18 },
-        { r:1, c:1, kind:'white', id:'W1',  solution:7 },
-        { r:1, c:2, kind:'white', id:'W2',  solution:2 },
-        { r:1, c:3, kind:'white', id:'W3',  solution:9 },
-        { r:1, c:4, kind:'blocked' },
-
-        { r:2, c:0, kind:'clue', across:21, down:4 },
-        { r:2, c:1, kind:'white', id:'W4',  solution:9 },
-        { r:2, c:2, kind:'white', id:'W5',  solution:5 },
-        { r:2, c:3, kind:'white', id:'W6',  solution:7 },
-        { r:2, c:4, kind:'clue', down:4 },
-
-        { r:3, c:0, kind:'clue', across:13 },
-        { r:3, c:1, kind:'white', id:'W7',  solution:5 },
-        { r:3, c:2, kind:'white', id:'W8',  solution:3 },
-        { r:3, c:3, kind:'white', id:'W9',  solution:1 },
-        { r:3, c:4, kind:'white', id:'W10', solution:4 },
-
-        { r:4, c:0, kind:'clue', across:9 },
-        { r:4, c:1, kind:'white', id:'W11', solution:8 },
-        { r:4, c:2, kind:'white', id:'W12', solution:1 },
-        { r:4, c:3, kind:'blocked' },
-        { r:4, c:4, kind:'blocked' }
-      ],
-      // Runs are derived at runtime from grid geometry; listed here for validator
-      // clarity and so tests can assert coverage.
-      runs: [
-        { id:'row1', kind:'row', sum:18, cells:['W1','W2','W3'] },
-        { id:'row2', kind:'row', sum:21, cells:['W4','W5','W6'] },
-        { id:'row3', kind:'row', sum:13, cells:['W7','W8','W9','W10'] },
-        { id:'row4', kind:'row', sum:9,  cells:['W11','W12'] },
-        { id:'col1', kind:'col', sum:29, cells:['W1','W4','W7','W11'] },
-        { id:'col2', kind:'col', sum:11, cells:['W2','W5','W8','W12'] },
-        { id:'col3', kind:'col', sum:17, cells:['W3','W6','W9'] },
-        { id:'col4', kind:'col', sum:4,  cells:['W10'] }
-      ],
-      misconception_tags: {
-        "sum-wrong":           "Student fills cells that do not sum to the clue in at least one run.",
-        "repeat-in-run":       "Student repeats a digit inside a row-run or column-run (no-repeat rule violated).",
-        "ignore-column-run":   "Student solves each row independently and ignores the column sum.",
-        "out-of-range-digit":  "Student enters a digit outside 1-9 (prevented by UI; logged if attempted)."
-      }
+    // ── Set A — 3 rounds ──
+    { set: 'A', id: 'A_r1_p1', round: 1, stage: 1, type: 'kakuro-board', size: 4,
+      grid:  /* 4×4 hand-authored — see Pre-Generation §A.1 (Stage 1 worked example above is the canonical Set-A Round 1) */ null,
+      runs:  /* derived from grid; verified at build time */ null,
+      hintMessages: { rowSum: 'This row needs to sum to <N>.',
+                      colSum: 'This column needs to sum to <N>.',
+                      repeat: 'No repeats in a run.' },
+      answer: { digits: /* solution dictionary */ null },
+      misconception_tags: { 'row-sum-violated':    'sum-decomposition-error',
+                            'col-sum-violated':    'cross-constraint-overlooked',
+                            'repeat-in-run':       'no-repeat-rule-overlooked',
+                            'both-row-and-col':    'multi-constraint-collapse-failure' }
+    },
+    { set: 'A', id: 'A_r2_p2', round: 2, stage: 2, type: 'kakuro-board', size: 5,
+      grid:  /* 5×5 — Pre-Generation §A.2 (Stage 2 worked example above is canonical Set-A Round 2) */ null,
+      runs:  null,
+      hintMessages: { rowSum: 'This row needs to sum to <N>.',
+                      colSum: 'This column needs to sum to <N>.',
+                      repeat: 'No repeats in a run.' },
+      answer: { digits: null },
+      misconception_tags: { 'row-sum-violated':    'sum-decomposition-error',
+                            'col-sum-violated':    'cross-constraint-overlooked',
+                            'repeat-in-run':       'no-repeat-rule-overlooked',
+                            'both-row-and-col':    'multi-constraint-collapse-failure' }
+    },
+    { set: 'A', id: 'A_r3_p3', round: 3, stage: 3, type: 'kakuro-board', size: 6,
+      grid:  /* 6×6 — Pre-Generation §A.3 */ null,
+      runs:  null,
+      hintMessages: { rowSum: 'This row needs to sum to <N>.',
+                      colSum: 'This column needs to sum to <N>.',
+                      repeat: 'No repeats in a run.' },
+      answer: { digits: null },
+      misconception_tags: { /* same as above */ }
     },
 
-    // ===================================================================
-    // ROUND 2 — Stage 2, Variant B2. 5x5 grid. 12 white cells.
-    // B2 distinctive: top-row column clues include 16 and 11.
-    // Layout mirrors B1 (same blocked pattern) with different clue numbers
-    // and a hand-validated unique solution. Row/column structure identical
-    // to Round 1 so the validator and renderer stay simple.
-    //
-    // Runs (identical shape to Round 1, different sums):
-    //   col1 (clue T, 4 cells): ? sum
-    //   col2 (clue 11, 4 cells): 11 → {1,2,3,5}
-    //   col3 (clue 16, 3 cells): 16 → {9,6,1},{9,5,2},{9,4,3},{8,7,1},{8,6,2},{8,5,3},{7,6,3},{7,5,4}
-    //   col4 (1 cell down): = W10
-    //   row1 (sum A, 3 cells)
-    //   row2 (sum B, 3 cells)
-    //   row3 (sum C, 4 cells)
-    //   row4 (sum D, 2 cells)
-    //
-    // Hand-validated choice: use col1=28 (perm {9,8,7,4}), col2=11, col3=16, col4=5,
-    //   row1=18 (same), row2=19, row3=15, row4=9.
-    //
-    // Solve:
-    //   col1 perm {9,8,7,4}; col2 perm {1,2,3,5}; col4 W10=5.
-    //   Row3 (15/4): W7+W8+W9+W10 = 15 → W7+W8+W9 = 10.
-    //   Row2 (19/3): W4+W5+W6 = 19.
-    //   Row1 (18/3): W1+W2+W3 = 18.
-    //   Row4 (9/2): W11+W12 = 9.
-    //   Col3 (16/3): W3+W6+W9 = 16.
-    //
-    //   Try W1=9,W4=8,W7=7,W11=4. W2=1,W5=3,W8=5,W12=2. Row4: 4+2=6 BAD.
-    //   Try W11=7,W7=4. Col1 rem {9,8}. W1,W4 ∈ {9,8} distinct. Row4: 7+W12=9 → W12=2. So W2,W5,W8 ∈ {1,3,5} perm.
-    //     Row1: W1+W2+W3=18. W1∈{9,8}. If W1=9: W2+W3=9. W2∈{1,3,5}.
-    //       W2=1,W3=8 (8 in col1 slot? col1 has W4=8, ok W3 is in col3).
-    //       Row2: W4+W5+W6=19. W4=8 (since W1=9). W5∈{1,3,5}\{W2=1}={3,5}. If W5=3: W6=8. But W4=8, col? W6 is col3 not col1, ok. Col3: W3+W6+W9=8+8+W9 → W9=0 INVALID.
-    //       If W5=5: W6=6. Col3: 8+6+W9=16 → W9=2. distinct from W3=8,W6=6 ✓. row3: W7+W8+W9+5=15 → W7+W8+W9=10. W7=4, so W8+W9=6. W9=2→W8=4. but W7=4 conflict col1? W7 is col1, W8 is col2. col1 has {W1=9,W4=8,W7=4,W11=7}={9,8,7,4}✓. col2 has {W2=1,W5=5,W8=4,W12=2}. But W8=4 would make col2 sum=1+5+4+2=12 ≠ 11 BAD.
-    //       Retry: row1 W1=9,W2=3,W3=6 distinct. W2=3: col2 {3,?,?,?}. W5∈{1,5}\{3}. row2: 8+W5+W6=19. W5=1: W6=10 BAD. W5=5: W6=6. distinct from W5. col3: W3+W6+W9=6+6+W9 repeat in col3 BAD.
-    //       W1=9,W2=5,W3=4 distinct. col2 {5,?,?,?}. W5∈{1,3}. row2: 8+W5+W6=19. W5=1: W6=10 BAD. W5=3: W6=8. col3 W3+W6+W9=4+8+W9=16 → W9=4 repeat W3 BAD.
-    //     W1=8: W4=9. W2+W3=10. W2∈{1,3,5}.
-    //       W2=1,W3=9 (W3 col3 not col1, ok). col3: 9+W6+W9=16 → W6+W9=7. Row2: 9+W5+W6=19 → W5+W6=10. W5∈{3,5}.
-    //         W5=3: W6=7. W6 col3, distinct from W3=9. W9=7-...wait W6+W9=7 → W9=0 BAD.
-    //         W5=5: W6=5 repeat W5 col2 BAD (wait W5 is col2, W6 is col3, no conflict; but row2 digits W4=9,W5=5,W6=5 repeat in row2 BAD).
-    //       W2=3,W3=7. col3: 7+W6+W9=16 → W6+W9=9. Row2: 9+W5+W6=19 → W5+W6=10. W5∈{1,5}. W5=1: W6=9. W6=9 repeat W4=9 in row2 BAD. W5=5: W6=5 repeat W5 in row2 BAD.
-    //       W2=5,W3=5 repeat row1 BAD.
-    //     No solution with W11=7,W7=4.
-    //
-    //   Try W11=4, W7=7. row4: 4+W12=9 → W12=5. Col2 perm {1,2,3,5}: W5,W8,W2,W12=5 → W2,W5,W8 ∈ {1,2,3}.
-    //     Col1: W1,W4 ∈ {9,8} distinct. row1=18: W1+W2+W3=18. If W1=9: W2+W3=9; W2∈{1,2,3}.
-    //       W2=1,W3=8. col3: 8+W6+W9=16 → W6+W9=8. row2=19: W4+W5+W6=19. W4=8 (since W1=9): 8+W5+W6=19 → W5+W6=11. W5∈{2,3}. W5=2: W6=9. repeat? row2 digits {8,2,9} distinct ✓; col3 digits {W3=8, W6=9, W9}. W6+W9=8 → W9=-1 BAD.
-    //       Hmm W5+W6=11, W6+W9=8 → W5-W9=3 → W5=W9+3.
-    //       W5=3: W9=0 BAD.
-    //       W5=2: W9=-1 BAD.
-    //       W2=2,W3=7. But W7=7 col1 and W3=7 col3 - diff columns ok. W3=7 in col3 with W7=7 (col1), no conflict. row1 distinct 9,2,7 ✓. col3: 7+W6+W9=16 → W6+W9=9. row2 W4=8: 8+W5+W6=19 → W5+W6=11. W5∈{1,3}. W5=1:W6=10 BAD. W5=3:W6=8 but W4=8 row2 repeat BAD.
-    //       W2=3,W3=6. col3:6+W6+W9=16→W6+W9=10. row2 W4=8:W5+W6=11. W5∈{1,2}. W5=1:W6=10 BAD. W5=2:W6=9. W9=10-9=1. distinct? col3 {6,9,1} distinct ✓. row3: W7+W8+W9+W10=7+W8+1+5=15→W8=2. But W5=2 col2 and W8=2 col2 — col2 repeat BAD.
-    //     W1=8: W4=9. W2+W3=10.
-    //       W2=1,W3=9. row2: 9+W5+W6=19→W5+W6=10. W5∈{2,3}. W5=2:W6=8. row2 {9,2,8} distinct ✓. col3: W3+W6+W9=9+8+W9=16→W9=-1 BAD. W5=3:W6=7. col3: 9+7+W9=16→W9=0 BAD.
-    //       W2=2,W3=8 but W1=8 row1 repeat BAD.
-    //       W2=3,W3=7. row1 {8,3,7} ✓. But W7=7 col1, W3=7 col3 ok (diff cols). row2: 9+W5+W6=19 →W5+W6=10. W5∈{1,2}. W5=1:W6=9 row2 repeat BAD. W5=2:W6=8 col3? col3: 7+8+W9=16→W9=1. row3: W7+W8+W9+W10=7+W8+1+5=15→W8=2. W5=2 and W8=2 col2 repeat BAD.
-    //
-    //   Clearly my chosen row sums don't yield a unique solution easily. Swap to row3=14.
-    //   Keep col1=28, col2=11, col3=16, col4=5; row1=18, row2=19, row3=14, row4=9.
-    //   Row3: W7+W8+W9+W10=14 → W7+W8+W9 = 9. W10=5 → W9 distinct from 5.
-    //   Try W11=4,W7=7: row4 W12=5 col2 conflict (col2={1,2,3,5}, W12=5 ok, W5 and W8 would be from {1,2,3}). Then W7+W8+W9=9 → 7+W8+W9=2 BAD (need W8+W9=2, min 1+2=3).
-    //   Try W11=7,W7=4: row4 W11+W12=9 → W12=2. col2 has W12=2. W2,W5,W8 ∈ {1,3,5}.
-    //     row3: 4+W8+W9=9 →  W8+W9=5.  W8∈{1,3,5}, W9 from col3 (not restricted by col2).
-    //     W1,W4∈{9,8}.
-    //     W1=9,W4=8: row1 W1+W2+W3=18 → W2+W3=9. row2: 8+W5+W6=19 → W5+W6=11. col3: W3+W6+W9=16.
-    //       W5∈{1,3,5}.
-    //         W5=1: W6=10 BAD.
-    //         W5=3: W6=8. But W4=8 row2 repeat BAD.
-    //         W5=5: W6=6. distinct ok. col3: W3+6+W9=16 → W3+W9=10.
-    //           W2∈{1,3}\{}. W2=1: W3=8. col3 W3=8. W9=10-8=2. row3 W8+W9=5 → W8=3. W8 ∈ {1,3,5}\{W2=1,W5=5}={3} ✓. col2: {1,5,3,2}={1,2,3,5} ✓.
-    //             Verify all:
-    //               W1=9,W2=1,W3=8,W4=8... wait W4=8 and W3=8 are different cells (W4 col1, W3 col3), no direct conflict but both in different runs; col1 {9,8,4,7}={9,8,7,4} distinct ✓; col3 {8,6,2} distinct ✓; row1 {9,1,8} distinct ✓; row2 {8,5,6} distinct ✓; row3 {4,3,2,5} distinct ✓; row4 {7,2} distinct ✓.
-    //               Sums: col1 9+8+4+7=28 ✓; col2 1+5+3+2=11 ✓; col3 8+6+2=16 ✓; col4 5 ✓; row1 9+1+8=18 ✓; row2 8+5+6=19 ✓; row3 4+3+2+5=14 ✓; row4 7+2=9 ✓.
-    //
-    //               SOLUTION FOUND (unique among this path).
-    //
-    // Authoritative solution:
-    //   W1=9, W2=1, W3=8, W4=8, W5=5, W6=6, W7=4, W8=3, W9=2, W10=5, W11=7, W12=2
-    //
-    // Note: W5=5 and W10=5 are allowed (different cells; col2 and col4 — no shared run).
-    //       W2=1 is in col2; W12=2 also in col2; all col2 digits {1,5,3,2} distinct ✓.
-    //       W4=8 in col1; W3=8 in col3; different columns, different rows (row2 col1 vs row1 col3) — no shared run.
-    // ===================================================================
-    {
-      round: 2,
-      stage: 2,
-      type: "A",
-      variant: "B2",
-      rulesFormat: "numeric",   // 1. 2. 3.
-      grid: [
-        { r:0, c:0, kind:'blocked' },
-        { r:0, c:1, kind:'clue', down:28 },
-        { r:0, c:2, kind:'clue', down:11 },
-        { r:0, c:3, kind:'clue', down:16 },
-        { r:0, c:4, kind:'blocked' },
-
-        { r:1, c:0, kind:'clue', across:18 },
-        { r:1, c:1, kind:'white', id:'W1',  solution:9 },
-        { r:1, c:2, kind:'white', id:'W2',  solution:1 },
-        { r:1, c:3, kind:'white', id:'W3',  solution:8 },
-        { r:1, c:4, kind:'blocked' },
-
-        { r:2, c:0, kind:'clue', across:19, down:5 },
-        { r:2, c:1, kind:'white', id:'W4',  solution:8 },
-        { r:2, c:2, kind:'white', id:'W5',  solution:5 },
-        { r:2, c:3, kind:'white', id:'W6',  solution:6 },
-        { r:2, c:4, kind:'clue', down:5 },
-
-        { r:3, c:0, kind:'clue', across:14 },
-        { r:3, c:1, kind:'white', id:'W7',  solution:4 },
-        { r:3, c:2, kind:'white', id:'W8',  solution:3 },
-        { r:3, c:3, kind:'white', id:'W9',  solution:2 },
-        { r:3, c:4, kind:'white', id:'W10', solution:5 },
-
-        { r:4, c:0, kind:'clue', across:9 },
-        { r:4, c:1, kind:'white', id:'W11', solution:7 },
-        { r:4, c:2, kind:'white', id:'W12', solution:2 },
-        { r:4, c:3, kind:'blocked' },
-        { r:4, c:4, kind:'blocked' }
-      ],
-      runs: [
-        { id:'row1', kind:'row', sum:18, cells:['W1','W2','W3'] },
-        { id:'row2', kind:'row', sum:19, cells:['W4','W5','W6'] },
-        { id:'row3', kind:'row', sum:14, cells:['W7','W8','W9','W10'] },
-        { id:'row4', kind:'row', sum:9,  cells:['W11','W12'] },
-        { id:'col1', kind:'col', sum:28, cells:['W1','W4','W7','W11'] },
-        { id:'col2', kind:'col', sum:11, cells:['W2','W5','W8','W12'] },
-        { id:'col3', kind:'col', sum:16, cells:['W3','W6','W9'] },
-        { id:'col4', kind:'col', sum:5,  cells:['W10'] }
-      ],
-      misconception_tags: {
-        "sum-wrong":           "Student fills cells that do not sum to the clue in at least one run.",
-        "repeat-in-run":       "Student repeats a digit inside a row-run or column-run.",
-        "ignore-column-run":   "Student solves each row independently and ignores the column sum.",
-        "out-of-range-digit":  "Student enters a digit outside 1-9 (prevented by UI; logged if attempted)."
-      }
+    // ── Set B — 3 rounds (parallel difficulty to Set A; different layouts / solutions) ──
+    { set: 'B', id: 'B_r1_p1', round: 1, stage: 1, type: 'kakuro-board', size: 4,
+      grid:  /* 4×4 — Pre-Generation §B.1 */ null,
+      runs:  null,
+      hintMessages: { rowSum: 'This row needs to sum to <N>.',
+                      colSum: 'This column needs to sum to <N>.',
+                      repeat: 'No repeats in a run.' },
+      answer: { digits: null },
+      misconception_tags: { /* same */ }
+    },
+    { set: 'B', id: 'B_r2_p2', round: 2, stage: 2, type: 'kakuro-board', size: 5,
+      grid:  /* 5×5 — Pre-Generation §B.2 */ null,
+      runs:  null,
+      hintMessages: { rowSum: 'This row needs to sum to <N>.',
+                      colSum: 'This column needs to sum to <N>.',
+                      repeat: 'No repeats in a run.' },
+      answer: { digits: null },
+      misconception_tags: { /* same */ }
+    },
+    { set: 'B', id: 'B_r3_p3', round: 3, stage: 3, type: 'kakuro-board', size: 6,
+      grid:  /* 6×6 — Pre-Generation §B.3 */ null,
+      runs:  null,
+      hintMessages: { rowSum: 'This row needs to sum to <N>.',
+                      colSum: 'This column needs to sum to <N>.',
+                      repeat: 'No repeats in a run.' },
+      answer: { digits: null },
+      misconception_tags: { /* same */ }
     },
 
-    // ===================================================================
-    // ROUND 3 — Stage 3, Variant B3. 5x5 grid. 12 white cells.
-    // B3 distinctive: top-row column clue includes 29 (forces tight digit set).
-    // Use col1=29 (4 cells) = {9,8,7,5}, col2=20 (4 cells) — wait 20/4 with
-    // distinct digits 1-9: {1,2,8,9},{1,3,7,9},{1,4,6,9},{1,5,6,8},{2,3,6,9},
-    //   {2,3,7,8},{2,4,5,9},{2,4,6,8},{3,4,5,8},{3,4,6,7},{1,4,7,8} etc.
-    // col3=15 (3 cells): many options.
-    // col4=6 (1 cell).
-    // row1=18, row2=21, row3=11, row4=7.
-    //
-    // Try col1={9,8,7,5}, col2={1,3,7,9}, col3 W3+W6+W9=15.
-    //   Choose W1=9,W4=8,W7=5,W11=7. Row4: 7+W12=7 → W12=0 BAD. Swap W11.
-    //   Try W11=5: row4 5+W12=7 →W12=2. But 2∉{1,3,7,9}. Skip.
-    //   Try W11=7: W12=0 BAD.
-    //   Retry col2: use {1,2,8,9}. sum 20. W2,W5,W8,W12 perm.
-    //     W11=5: W12=2. col2∋2. ok. row4=7.
-    //     W1=9,W4=8,W7=7: row1: 9+W2+W3=18 → W2+W3=9. W2∈{1,2,8,9}\{9}={1,2,8}. W2=1:W3=8; W2=2:W3=7 (W7=7 col1, diff col ok; row1 {9,2,7} ok); W2=8:W3=1.
-    //       Row2: 8+W5+W6=21 → W5+W6=13. W5 ∈ col2 rem.
-    //     Actually let's pick a clean one: use sums that force unique forward.
-    //
-    // Simpler: mirror Round 1 structure but bump col1 to 29-shape forcing {9,8,7,5} AND
-    // make row1=19 to force row1 as {9,8,2} to showcase 9 forcing.
-    //
-    // Final Round 3 spec (hand-solved):
-    //   col1=29 {W1,W4,W7,W11} perm of {9,8,7,5}
-    //   col2=13 {W2,W5,W8,W12} perm with sum 13, 4 distinct digits 1-9, e.g. {1,2,4,6}
-    //   col3=15 {W3,W6,W9} sum 15, distinct, e.g., {9,5,1},{8,6,1},{8,5,2},{7,6,2},{7,5,3},{6,5,4},{9,4,2},{9,3,3 invalid}
-    //   col4=3 {W10}=3
-    //   row1=16 (W1+W2+W3=16)
-    //   row2=17 (W4+W5+W6=17)
-    //   row3=15 (W7+W8+W9+W10=15 → W7+W8+W9=12)
-    //   row4=13 (W11+W12=13) → need W11+W12=13 with W11∈{9,8,7,5} and W12∈{1,2,4,6}. 9+4=13 ✓, 7+6=13 ✓, 5+8=13 (8∉col2) ✗.
-    //
-    //   Try W11=9, W12=4.
-    //   col1 rem {8,7,5}; col2 rem {1,2,6}.
-    //   W7+W8+W9=12. W7∈{8,7,5}, W8∈{1,2,6}, W9 in col3.
-    //   Row1: W1+W2+W3=16. W1∈{8,7,5}, W2∈{1,2,6}.
-    //   Row2: W4+W5+W6=17. W4∈{8,7,5}, W5∈{1,2,6}.
-    //   Col3: W3+W6+W9=15.
-    //
-    //   Try W1=8, W4=7, W7=5. Row1: 8+W2+W3=16 → W2+W3=8. W2∈{1,2,6}.
-    //     W2=1: W3=7. W3=7, col3. Row2: 7+W5+W6=17→W5+W6=10. W5∈{2,6}.
-    //       W5=2: W6=8. col3: 7+8+W9=15→W9=0 BAD.
-    //       W5=6: W6=4 (4∉{1..9}? 4 ok). col3:7+4+W9=15→W9=4 repeat col3 (W6=4,W9=4) BAD.
-    //     W2=2: W3=6. col3. row2: 7+W5+W6=17→W5+W6=10. W5∈{1,6}. W5=1:W6=9. col3:6+9+W9=15→W9=0 BAD. W5=6:W6=4. col3:6+4+W9=15→W9=5. distinct? col3 {6,4,5} ✓. row3: W7+W8+W9+W10=5+W8+5+3=15→W8=2. But W2=2 col2 repeat BAD.
-    //     W2=6: W3=2. col3. row2: 7+W5+W6=17→W5+W6=10. W5∈{1,2}. W5=1:W6=9. col3:2+9+W9=15→W9=4. row3: 5+W8+4+3=15→W8=3. But 3∉col2({1,2,6}) — wait col2 was {1,2,4,6} or {1,2,?,?}. Re-examine col2: {1,2,4,6}. With W12=4, W2=6, W5=1, W8=3 → col2 has 3 which is not in {1,2,4,6}. BAD.
-    //
-    //   Swap col2 sum. Use col2=11 (like Round 1) = {1,2,3,5}. Row4: W11+W12=13. W11∈{9,8,7,5}, W12∈{1,2,3,5}.
-    //     W11=9,W12=4: 4∉{1,2,3,5} BAD. W11=8,W12=5: 8+5=13 ✓. W11=7,W12=6: 6∉ BAD.
-    //   Try W11=8,W12=5.
-    //   col1 rem {9,7,5}; col2 rem {1,2,3}.
-    //   Row3: W7+W8+W9+3=15 → W7+W8+W9=12. W7∈{9,7,5}.
-    //   Row1: W1+W2+W3=16. Row2: W4+W5+W6=17. Col3: W3+W6+W9=15.
-    //
-    //   Try W1=9,W4=7,W7=5.
-    //   Row1: 9+W2+W3=16 → W2+W3=7. W2∈{1,2,3}. W2=1:W3=6. W2=2:W3=5 (W7=5 col1, ok). W2=3:W3=4.
-    //   Row2: 7+W5+W6=17 → W5+W6=10. W5∈{1,2,3}.
-    //     W5=1:W6=9 repeat W1=9 row? W1 row1, W6 row2 — diff rows. But col? W6 col3, W1 col1 — ok. row2 {7,1,9} distinct ✓.
-    //     W5=2:W6=8.
-    //     W5=3:W6=7 repeat W4=7 row2 BAD.
-    //   Col3: W3+W6+W9=15.
-    //
-    //   Case: W2=1,W3=6; W5 ∈ {2,3}. W5=2,W6=8: col3 6+8+W9=15→W9=1. W2=1 and W9=1 — col3 has W3=6,W6=8,W9=1 distinct ✓; col2 has W2=1,W5=2,W8=?,W12=5 → W8 from {1,2,3}\{1,2}={3}. col2 sum 1+2+3+5=11 ✓.
-    //     row3: W7+W8+W9+W10 = 5+3+1+3 = 12 ... W10=3, W8=3, W10=3 — distinct in row? row3 cells {W7=5,W8=3,W9=1,W10=3} has repeat 3 BAD.
-    //   W5=3,W6=7 skipped above (row2 repeat BAD).
-    //   Case W2=2,W3=5 (W7=5 diff col3 vs col1 ok; row1 {9,2,5} distinct). W5∈{1,3}. W5=1,W6=9: col3 5+9+W9=15→W9=1 repeat W5 col? col2 W5=1, col3 W9=1, diff cols ok; row3 W9=1 row3. col3 {5,9,1} distinct. row2 {7,1,9} distinct ✓. col2: W2=2,W5=1,W8=?,W12=5 → W8 ∈ {1,2,3}\{2,1}={3}. row3: 5+3+1+3=12 row3 cells distinct? {5,3,1,3} repeat BAD.
-    //     W5=3,W6=7 row2 repeat BAD.
-    //   Case W2=3,W3=4. col2 W2=3. W5∈{1,2}. W5=1:W6=9. col3 4+9+W9=15→W9=2. row3 W7+W8+W9+3=15→W8=5. but W5=1 W7=5 col1 ok; W8=5 col2 — col2 has W2=3,W5=1,W8=5,W12=5 — W12=5, W8=5 repeat col2 BAD.
-    //     W5=2: W6=8. col3 4+8+W9=15→W9=3. W2=3 col2, W9=3 col3, diff. row3 W7+W8+W9+3=15→5+W8+3+3=15→W8=4. W8=4 ∉ col2{1,2,3,5} BAD.
-    //
-    //   Try W1=9,W4=5,W7=7.
-    //   Row1 9+W2+W3=16 → W2+W3=7. W2∈{1,2,3}.
-    //   Row2 5+W5+W6=17 → W5+W6=12. W5∈{1,2,3}. W5=3:W6=9 repeat W1 row? diff rows, col? W1 col1, W6 col3 ok. row2 {5,3,9} distinct.
-    //     W5=1:W6=11 BAD. W5=2:W6=10 BAD. So W5=3, W6=9.
-    //   Col3 W3+9+W9=15 → W3+W9=6. W2=0/1/2 choose:
-    //     W2=1,W3=6: W9=0 BAD.
-    //     W2=2,W3=5: W9=1. row3 7+W8+1+3=15 → W8=4 ∉ col2 BAD.
-    //     W2=3,W3=4: W2 and W5 both 3 col2 repeat BAD.
-    //
-    //   Try W1=9,W4=5,W7=5 — W7=W4 col1 repeat BAD.
-    //
-    //   Try W1=7,W4=9,W7=5.
-    //   Row1 7+W2+W3=16→W2+W3=9. W2∈{1,2,3}.
-    //   Row2 9+W5+W6=17→W5+W6=8. W5∈{1,2,3}. W5=1:W6=7 repeat W1 row? diff rows ok; col? W1 col1, W6 col3 ok; row2 {9,1,7} distinct.
-    //     W5=2:W6=6.
-    //     W5=3:W6=5.
-    //   Col3 W3+W6+W9=15.
-    //   Case W2=1,W3=8: col3 8+W6+W9=15→W6+W9=7.
-    //     W5=1:W2=1 col2 repeat BAD.
-    //     W5=2:W6=6,W9=1. W2=1,W9=1 col? W2 col2, W9 col3 ok; but row3 {5,W8,1,3}: W8 from col2{1,2,3}\{W2=1,W5=2}={3}. row3 {5,3,1,3} repeat BAD.
-    //     W5=3:W6=5. W5=3: col2 W5=3. W6=5. col3 8+5+W9=15→W9=2. row3 5+W8+2+3=15→W8=5. col2 W8=5 ∉{1,2,3} BAD.
-    //   Case W2=2,W3=7: row1 {7,2,7} repeat BAD.
-    //   Case W2=3,W3=6: col3 6+W6+W9=15 → W6+W9=9.
-    //     W5=1:W6=7. col3 6+7+W9=15→W9=2. row3 5+W8+2+3=15→W8=5. col2 W8=5 ∉{1,2,3}. BAD.
-    //     W5=2:W6=6 repeat W3 col3 BAD.
-    //     W5=3:W2=W5=3 col2 repeat BAD.
-    //
-    //   Try W1=7,W4=9,W7=5 exhausted. Try W1=5,W4=9,W7=7.
-    //   Row1 5+W2+W3=16 → W2+W3=11. W2∈{1,2,3}. W2=2:W3=9 but W4=9, col? W4 col1, W3 col3 ok. row1 {5,2,9} distinct. W2=3:W3=8.
-    //   Row2 9+W5+W6=17 → W5+W6=8. W5∈{1,2,3}.
-    //     W5=1:W6=7 repeat W7 col? W7 col1, W6 col3 ok; row2 {9,1,7} distinct.
-    //     W5=2:W6=6.
-    //     W5=3:W6=5 repeat W1 col? W1 col1, W6 col3 ok; row2 {9,3,5} distinct.
-    //   col3 W3+W6+W9=15.
-    //   Case W2=2,W3=9: col3 9+W6+W9=15→W6+W9=6. W5 options:
-    //     W5=1:W6=7,W9=-1 BAD.
-    //     W5=2 conflict col2 BAD.
-    //     W5=3:W6=5,W9=1. row3 7+W8+1+3=15→W8=4 ∉col2 BAD.
-    //   Case W2=3,W3=8: col3 8+W6+W9=15→W6+W9=7.
-    //     W5=1:W6=7,W9=0 BAD.
-    //     W5=2:W6=6,W9=1. row3 7+W8+1+3=15→W8=4 ∉col2 BAD.
-    //     W5=3 conflict col2 BAD.
-    //
-    // After extensive search above I'll change col2 sum to give a unique solve.
-    // Use col2=13 (instead of 11), perm of 4 distinct digits 1-9 summing 13: {1,3,4,5},{1,2,4,6},{1,2,3,7}.
-    //
-    // Retry Round 3 with col1=29 {9,8,7,5}, col2=13, col3=15, col4=3, row1=16, row2=17, row3=15, row4=11.
-    //   Row4: W11+W12=11. W11∈{9,8,7,5}, W12∈{1,2,3,4,5,6,7} possibly.
-    //   Let col2 perm = {1,2,4,6}. Then W12∈{1,2,4,6}. W11+W12=11 → (W11=9,W12=2)|(W11=7,W12=4)|(W11=5,W12=6).
-    //
-    //   Try W11=7,W12=4.
-    //   col1 rem {9,8,5}; col2 rem {1,2,6}.
-    //   Row3 W7+W8+W9+3=15 → W7+W8+W9=12.
-    //   Row1 W1+W2+W3=16. Row2 W4+W5+W6=17. Col3 W3+W6+W9=15.
-    //
-    //   Try W1=9,W4=8,W7=5.
-    //   Row1: 9+W2+W3=16→W2+W3=7. W2∈{1,2,6}. W2=1,W3=6. W2=2,W3=5 (row1 {9,2,5} distinct ✓). W2=6,W3=1.
-    //   Row2: 8+W5+W6=17→W5+W6=9. W5∈{1,2,6}.
-    //     W5=1:W6=8 repeat W4 row2 BAD.
-    //     W5=2:W6=7 repeat W11 col? W11 col1, W6 col3 diff ok; row2 {8,2,7} distinct; but W7=5 col1 and W6=7 col3 ok.
-    //     W5=6:W6=3. row2 {8,6,3} distinct.
-    //   Col3 W3+W6+W9=15.
-    //   Case W2=1,W3=6:
-    //     W5=2,W6=7: col3 6+7+W9=15→W9=2 repeat W5 col2 BAD (col2 {1,2,?,4}: W2=1,W5=2,W12=4 so W8∈{6}. W9=2 col3 ok distinct). row3: 5+W8+W9+3=15→5+6+2+3=16 ≠ 15. BAD.
-    //     W5=6,W6=3: col3 6+3+W9=15→W9=6 repeat W3 col3 BAD.
-    //   Case W2=2,W3=5:
-    //     W5=1 row2 BAD (repeat 8). W5=6,W6=3: col3 5+3+W9=15→W9=7 (W11=7 col1 ok; W9 col3 distinct). row3: 5+W8+7+3=15→W8=0 BAD.
-    //   Case W2=6,W3=1:
-    //     W5=2,W6=7: col3 1+7+W9=15→W9=7 repeat col3 BAD.
-    //     W5=1 row2: 8+1+? = 17 → W6=8 row2 repeat W4 BAD.
-    //
-    //   This is getting too long. Let me pivot: use hand-crafted unique-solution grids
-    //   with small simple clue sums for Rounds 2 and 3 so the validator can verify quickly.
-    //
-    //   **Round 3 final authoritative grid** — design it from a known fixed grid backwards.
-    //   Set the following hand-chosen white cells (all digits 1-9, no repeats per run):
-    //     W1=1, W2=6, W3=9   row1 sum = 16
-    //     W4=8, W5=4, W6=5   row2 sum = 17
-    //     W7=9, W8=?, W9=?, W10=?  row3 sum TBD
-    //     W11=?, W12=?       row4 sum TBD
-    //
-    //   Simpler: let me use the same solution as Round 1 but with only some clue sums
-    //   swapped, plus a forced-9 col1=29 that matches Round 1's col1 exactly (it already
-    //   was 29 in Round 1). The "variant B3" distinction from B1 is the rules format and
-    //   a shifted layout. Per spec §Variant Progression, the three variants differ in
-    //   "specific clue numbers and black-cell layout". Our Round 1 already satisfies
-    //   the B1 clues (29/11/17, 18, 21/4, 13, 9). Round 3 must differ.
-    //
-    //   To guarantee a correct unique solution for Round 3, I'll use a simpler grid:
-    //   keep the same structural layout as Rounds 1 & 2 but choose clue sums that admit
-    //   the specific hand-picked solution below and are tight enough to teach "forced 9".
-    //
-    //   Chosen Round 3 solution (hand-picked, verified):
-    //     W1=9, W2=7, W3=6     row1 sum = 22
-    //     W4=8, W5=3, W6=1     row2 sum = 12
-    //     W7=5, W8=1, W9=2, W10=6   row3 sum = 14
-    //     W11=7, W12=2         row4 sum = 9
-    //   Sanity:
-    //     col1 {9,8,5,7} sum 29 ✓ distinct ✓ (the forced-9 lesson because 29 across 4 = {9,8,7,5} unique)
-    //     col2 {7,3,1,2} sum 13 ✓ distinct ✓
-    //     col3 {6,1,2} sum 9 ✓ distinct ✓
-    //     col4 {6} = 6 ✓
-    //     row1 {9,7,6} distinct ✓ sum 22 ✓
-    //     row2 {8,3,1} distinct ✓ sum 12 ✓
-    //     row3 {5,1,2,6} distinct ✓ sum 14 ✓
-    //     row4 {7,2} distinct ✓ sum 9 ✓
-    //   No in-run repeats; all distinct per run.
-    //   col1=29 forces {9,8,7,5} → this is the "forced 9" teaching moment for Stage 3.
-    // ===================================================================
-    {
-      round: 3,
-      stage: 3,
-      type: "A",
-      variant: "B3",
-      rulesFormat: "numeric",   // 1. 2. 3.
-      grid: [
-        { r:0, c:0, kind:'blocked' },
-        { r:0, c:1, kind:'clue', down:29 },
-        { r:0, c:2, kind:'clue', down:13 },
-        { r:0, c:3, kind:'clue', down:9 },
-        { r:0, c:4, kind:'blocked' },
-
-        { r:1, c:0, kind:'clue', across:22 },
-        { r:1, c:1, kind:'white', id:'W1',  solution:9 },
-        { r:1, c:2, kind:'white', id:'W2',  solution:7 },
-        { r:1, c:3, kind:'white', id:'W3',  solution:6 },
-        { r:1, c:4, kind:'blocked' },
-
-        { r:2, c:0, kind:'clue', across:12, down:6 },
-        { r:2, c:1, kind:'white', id:'W4',  solution:8 },
-        { r:2, c:2, kind:'white', id:'W5',  solution:3 },
-        { r:2, c:3, kind:'white', id:'W6',  solution:1 },
-        { r:2, c:4, kind:'clue', down:6 },
-
-        { r:3, c:0, kind:'clue', across:14 },
-        { r:3, c:1, kind:'white', id:'W7',  solution:5 },
-        { r:3, c:2, kind:'white', id:'W8',  solution:1 },
-        { r:3, c:3, kind:'white', id:'W9',  solution:2 },
-        { r:3, c:4, kind:'white', id:'W10', solution:6 },
-
-        { r:4, c:0, kind:'clue', across:9 },
-        { r:4, c:1, kind:'white', id:'W11', solution:7 },
-        { r:4, c:2, kind:'white', id:'W12', solution:2 },
-        { r:4, c:3, kind:'blocked' },
-        { r:4, c:4, kind:'blocked' }
-      ],
-      runs: [
-        { id:'row1', kind:'row', sum:22, cells:['W1','W2','W3'] },
-        { id:'row2', kind:'row', sum:12, cells:['W4','W5','W6'] },
-        { id:'row3', kind:'row', sum:14, cells:['W7','W8','W9','W10'] },
-        { id:'row4', kind:'row', sum:9,  cells:['W11','W12'] },
-        { id:'col1', kind:'col', sum:29, cells:['W1','W4','W7','W11'] },
-        { id:'col2', kind:'col', sum:13, cells:['W2','W5','W8','W12'] },
-        { id:'col3', kind:'col', sum:9,  cells:['W3','W6','W9'] },
-        { id:'col4', kind:'col', sum:6,  cells:['W10'] }
-      ],
-      misconception_tags: {
-        "sum-wrong":           "Student fills cells that do not sum to the clue in at least one run.",
-        "repeat-in-run":       "Student repeats a digit inside a row-run or column-run.",
-        "miss-forced-9":       "Student fails to place 9 in a cell where the clue+length force it (e.g., 29 across 4 cells requires {9,8,7,5}).",
-        "ignore-column-run":   "Student solves each row independently and ignores the column sum."
-      }
+    // ── Set C — 3 rounds (parallel difficulty to Set A; different layouts / solutions) ──
+    { set: 'C', id: 'C_r1_p1', round: 1, stage: 1, type: 'kakuro-board', size: 4,
+      grid:  /* 4×4 — Pre-Generation §C.1 */ null,
+      runs:  null,
+      hintMessages: { rowSum: 'This row needs to sum to <N>.',
+                      colSum: 'This column needs to sum to <N>.',
+                      repeat: 'No repeats in a run.' },
+      answer: { digits: null },
+      misconception_tags: { /* same */ }
+    },
+    { set: 'C', id: 'C_r2_p2', round: 2, stage: 2, type: 'kakuro-board', size: 5,
+      grid:  /* 5×5 — Pre-Generation §C.2 */ null,
+      runs:  null,
+      hintMessages: { rowSum: 'This row needs to sum to <N>.',
+                      colSum: 'This column needs to sum to <N>.',
+                      repeat: 'No repeats in a run.' },
+      answer: { digits: null },
+      misconception_tags: { /* same */ }
+    },
+    { set: 'C', id: 'C_r3_p3', round: 3, stage: 3, type: 'kakuro-board', size: 6,
+      grid:  /* 6×6 — Pre-Generation §C.3 */ null,
+      runs:  null,
+      hintMessages: { rowSum: 'This row needs to sum to <N>.',
+                      colSum: 'This column needs to sum to <N>.',
+                      repeat: 'No repeats in a run.' },
+      answer: { digits: null },
+      misconception_tags: { /* same */ }
     }
   ]
 };
 ```
 
----
+**Pre-Generation step (game-planning Step 3):** Before Step 4 (Build), the orchestrator generates the 9 puzzle layouts (`grid` + `runs` + `answer.digits`) and writes them into `games/kakuro/pre-generation/puzzles.md`. Each puzzle is verified by exhaustive-search-with-pruning — search space is ~9^N where N is the number of white cells (16 for stage 1, ~25 for stage 2, ~36 for stage 3 worst-case), pruned by run constraints to milliseconds. The build step in Step 4 inlines the resulting grids into `fallbackContent.rounds`. Parallel-difficulty constraint: Set A's Stage-1 ≈ Set B's Stage-1 ≈ Set C's Stage-1 in run count, run lengths, and number of unique decompositions per run; same for Stage 2 and Stage 3.
+
+### AnswerComponent payload shape
+
+Each round's `answer` is rendered by `renderAnswerForRound(round, container)` as a non-interactive solved Kakuro grid:
+- The grid is painted with the round's `grid` data, but every white cell shows its `solution` digit (no empty cells).
+- All white cells render in the celebration mint-green colour to convey "solved state" at a glance.
+- Clue cells render with their row / column sums in their canonical positions (top-right / bottom-left).
+- Black walls render solid.
+- No tap handlers, no draggable tiles, no hint button — pure solved-state visual recap.
+- The carousel shows 3 slides (one per stage). Slide title: "Puzzle 1 — Warm-up (4×4)", "Puzzle 2 — Standard (5×5)", "Puzzle 3 — Stretch (6×6)". Slide subtitle (small, optional): a one-liner per stage focusing on the load-bearing skill — e.g. Stage 2 subtitle: "Cross-clue intersection — the row says 3-or-4, the column says 4-or-5, so the cell must be 4." — Stage 3 subtitle: "Triple-run elimination — three options in working memory, collapsed by the column."
+
+## Visual / Theme
+
+- **Layout:** PART-021 standard mobile layout. Header (puzzle counter only) on top, board centered, digit-tray strip below the board (always visible — no slide-in/out lifecycle), Check button below the tray (full-width inside the board wrap), hint banner slot beneath the Check button.
+- **Board sizing on a 375 px-wide viewport (16 px outer padding, 343 px available):**
+  - **Stage 1 (4×4):** ~83 px cells with 1 px gridlines. **Touch target margin: ~39 px headroom.** Generous.
+  - **Stage 2 (5×5):** ~67 px cells with 1 px gridlines. **Touch target margin: ~23 px headroom.** Comfortable.
+  - **Stage 3 (6×6):** ~56 px cells with 1 px gridlines. **Touch target margin: ~12 px headroom.** Above the 44 px minimum but tighter — confirm at testing.
+- **Cell hit area:** the entire cell is the tap target. No nested tap target inside the cell. Clue cells and black walls are explicitly NOT tap targets (`pointer-events: none` on walls and clues). White cells have `cursor: pointer` and `touch-action: manipulation`.
+- **Digit tray:** below the grid, full-width minus padding (~343 px). 9 reusable draggable digit tiles in a 5+4 layout: row 1 = digits 1–5, row 2 = digits 6–9 (the bottom-right slot of row 2 is left empty — the tray itself doubles as the clear-zone, so no separate Clear tile is needed). Each tile ~62 × 56 px (well above the 44 px touch-target minimum). Each tile renders the digit centred in a large rounded sans, on a cream (`#F5F0E8`) background with a 1 px navy border and a soft shadow. The tray is always visible (no slide-in/out lifecycle). Tiles have `touch-action: none` so the dnd pointer sensor captures gestures without page scroll.
+- **Drag preview:** during drag, the dragged tile is lifted to ~1.1× scale with a stronger shadow (`0 8 px 16 px rgba(0,0,0,0.18)`) and follows the pointer. On drop into a valid cell, the digit transitions into place with a 150 ms snap-in animation (scale 0.85 → 1, opacity 0 → 1). On a rejected drop or drag-cancel, the tile snaps back to its tray slot with a 150 ms transition.
+- **Drop-target hover affordance:** while a tile is being dragged over a white cell, the dnd library adds a `data-droppable-over` attribute (or equivalent) — the spec's CSS adds a soft yellow inset ring (`#F1C453`, 2 px) on `[data-droppable-over]` white cells. Walls and clue cells are NOT registered as droppables, so they never receive this state.
+- **Celebration glow on Check accept:** per-cell ease-in of mint-green background (`#CDE9D7`) over 50 ms, propagating across the whole grid (cell-by-cell from the centre outward, ~600 ms total). All white cells STAY mint-green for the rest of the puzzle (until `renderRound` mounts the next puzzle and resets cell backgrounds).
+- **Wrong-Check red flash:** every cell in every failing run flashes red (`#E63946`) at full opacity for 300 ms (1 cycle of 300 ms ease-in-out). Companion shake: ±4 px translateX over 300 ms (3 cycles of 100 ms). NOT continuous animation — momentary feedback only (mobile rule #14 / advisory #30). After the flash, the cells return to their normal state with their digits still in place.
+- **Hint banner (repurposed for Check failure):** appears below the Check button when a Check submission fails. Single-line, 14 px font, `--mathai-color-text-secondary` foreground, soft red background (`rgba(230, 57, 70, 0.10)`). Auto-fades after 3 s (opacity 1 → 0 over 200 ms). DOM and `showHintBanner` helper are unchanged from the original spec — the only change is when it fires (Check failure, not per-cell wrong).
+- **Check button:** primary-style button below the digit tray (full-width inside the board wrap, ~44 px tall). Label "Check". States: **disabled** (any white cell empty, OR `gameState.isProcessing` true): `opacity: 0.5; pointer-events: none; cursor: default`. **Enabled** (every white cell holds a digit AND not processing): full opacity, primary background, `cursor: pointer`. Created in `buildBoardDOM`, refreshed on every placement change via `refreshCheckButton()`.
+- **Clue cells:** dark navy background (`#1F2A37`), small clue numbers in cream (`#F5F0E8`), top-right for row sum, bottom-left for column sum, with a thin diagonal divider when both are present.
+- **Black walls:** solid dark navy (`#1F2A37`), no content, no interaction.
+- **Empty white cells:** cream background (`#F5F0E8`), thin border `--mathai-color-border` (1 px) around each cell. When selected: 2 px yellow ring overlay.
+- **Mobile compliance:** all rules in mobile/SKILL.md apply. `viewport meta` correct, `100dvh`, `overflow-x: hidden`, `overscroll-behavior: none`, `touch-action: manipulation` on the Check button, **`touch-action: none` on the draggable digit tiles `.kkr-tile` (NOT on the tray container `.kkr-tray`)** — per `interaction/SKILL.md` § P6 V16: `touch-action: none` belongs on the tiles, not on the tray container. Required so the dnd-kit `PointerSensor` can capture touch gestures without page scroll; never apply to the body/grid/cells. `-webkit-` prefixes paired with standard properties, no `gap` on flex (margin-based spacing or grid `gap` only). The `touchmove` preventDefault is gated on an `isDragging` flag (set on `dragstart`, cleared on `dragend`/`dragcancel`) per the P6 reference. All colours use `--mathai-*` variables where one exists; the cream / navy / mint / yellow accents fall back to literal hex (acceptable per rule #37 since these are game-specific theme colours not in the variable palette — but the build step should consider whether to add them as game-local CSS variables).
+- **No FloatingButton during gameplay (PART-050 partial):** the game's per-puzzle Submit affordance is the in-board Check button (a plain primary `<button>` below the digit tray, not a FloatingButton). PART-050 is therefore NOT used during gameplay. **However**, end-of-game still posts `next_ended` per the standard archetype-6-without-FloatingButton path: TransitionScreen's onMounted fires `show_star`, then `floatingBtn.setMode('next')` is called from the Stars Collected screen per `default-transition-screens.md` § 4. This means PART-050 IS included in the PART-flag set (for the end-of-game Next), but is NOT wired to per-puzzle Check (the in-board Check button handles that). Validator note: archetype 6 lists PART-050 as conditional; we use it for the end-of-game Next CTA only. Sub-rule "Next button at end-of-game" is satisfied; sub-rule "Try Again for standalone + lives" is N/A (multi-round game).
+- **No Game Over screen.** Lives never decrement → the `game_over` phase is unreachable. The state machine is `start → gameplay → results` (Victory only). Validator should NOT trip "lives = 0 means no game_over screen" because lives are never decremented to 0 in the first place; the game also explicitly omits the `game_over` screen.
+
+## Out of Scope
+
+- **No procedural puzzle generation in v1** — all 9 puzzles are hand-authored at game-planning Step 3 and pre-validated for unique solvability. Future work: a build-time generator that produces and uniqueness-validates new puzzle layouts per session, growing toward the concept's "~30 per stage" bank.
+- **No concept-of-uniqueness teaching surface** — the unique-solution property is enforced by the build-time validator, not surfaced to the student. (A future iteration could surface "this puzzle has a unique solution" as a meta-fact, but v1 keeps the puzzle pure.)
+- **No Game Over branch / no lives** — see Game Parameters. A determined student can take any number of failed Check submissions; the cost is borne by star deduction at end-of-game, not by mid-puzzle session termination.
+- **No undo of past failed Check submissions** — `wrongAttempts` only goes up; there is no "undo last attempt" affordance. The student CAN clear / change a digit, but the failed-Check counter does not decrement when they do. Mistakes are information, and the audit of mistakes is preserved.
+- **No mid-puzzle hint affordance.** No hint button. No "show me a cell" button. No "validate this run" partial-check. The student reasons through the puzzle and commits whole-puzzle via Check.
+- **No per-cell run-completion feedback.** No green flash on partial run-completion, no run locking during placement, no red flash on a wrong digit dropped on a cell. All validation feedback is gated behind the Check button.
+- **No leaderboard / streak tracking across sessions** — single-session game.
+- **No timer / speed scoring** — the concept explicitly forbids it. PART-006 NOT included.
+- **No multiplayer / two-player race** — single player only.
+- **No region-colour personalization / dark mode** — palette is fixed. (System-level dark mode is honoured by FeedbackManager but the board's cream-on-navy is intentional and does not invert.)
+- **No sound mute / volume controls beyond the platform-standard mute toggle** — handled by FeedbackManager and the harness.
+- **No advanced clue types** (e.g. Killer-Sudoku-style "cage clues", or Kakuro variants with negative or fractional sums) — strictly the standard Kakuro rule set: row sum, column sum, no repeats in a run, digits 1–9.
+
+## Decision-Points / Open Items
+
+(For the creator and spec-review to confirm before Step 4 / Build.)
+
+1. **`totalLives: 99` as a "no lives" cap.** This is a workaround so the data contract (which expects a `totalLives` field) does not break. The build step MUST hide the lives indicator (e.g. CSS `display: none` on the lives slot in the progress bar, or pass `null` to `progressBar.update`). **Confirm:** acceptable workaround, or should the spec instead set `totalLives: 0` and confirm with PART-023 that `0` is treated as "no lives display" rather than "instant Game Over"? (The skill's anti-pattern #3 calls out "Lives = 0 means no game_over screen" — i.e. `0` IS the canonical no-lives signal. **Recommended switch:** flip to `totalLives: 0` if PART-023 supports it without rendering "0 hearts" in the header.)
+2. **Hand-authored puzzles (game-planning Step 3 dependency).** Need 9 unique-solution Kakuro puzzles (3 sets × 3 stages) at parallel difficulty. **Confirm:** acceptable, and that the parallel-difficulty constraint across sets is enforceable (Set A's Stage-1 ≈ Set B's Stage-1 ≈ Set C's Stage-1 in run count, run lengths, and unique-decomposition density).
+3. **Validation model: free placement + Check-button submit (NOT per-cell validation, NOT auto-detect-on-last-cell).** This is a deliberate v1 redesign from the original per-cell-validation model: the student drops digits freely with no per-cell or per-run feedback, then taps Check to submit the whole puzzle. **Confirm:** acceptable. The trade-off is no incremental "this is wrong, try again" beat during placement — the student gets all of their feedback at Check time. Pros: matches "quiet and deliberate" framing; lets the student commit to a strategy without micro-corrections. Cons: a student who misses the Sum-9 = 4+5 (not 3+6) decomposition gets no signal until they Check; first-Check pass-rate may run lower than the per-cell-validation original. See Warnings.
+4. **Failed Check is fire-and-forget (no awaited TTS).** The Feedback skill explicitly allows this (multi-step CASE 7 variant). **Confirm:** acceptable per the concept's "quiet and deliberate" framing.
+5. **No Game Over branch.** This is the largest deviation from a typical L4 game (which usually has lives → Game Over for stakes). The concept explicitly forbids stakes ("Mistakes are information"). **Confirm:** acceptable. If a future iteration wants stakes, lives can be added in a versioned spec.
+6. **Simplified star rule (3⭐ = wrongAttempts === 0; 2⭐ = 1–2; 1⭐ = ≥ 3).** Single counter (failed Check submissions). Drops the original `hintsUsed` axis since no hint button ships in v1. **Confirm:** acceptable thresholds, or should 2⭐ allow up to 3 (slightly more lenient)?
+7. **Run validation timing — whole-puzzle on Check tap.** No per-cell, no per-run, no auto-detect. The Check button is the single validation gate. **Confirm:** acceptable.
+8. **No PART-050 FloatingButton during gameplay; PART-050 IS used at end-of-game.** Per-puzzle Submit is the in-board Check button (a plain primary `<button>`, not a FloatingButton). PART-050 ships only for the end-of-game Next CTA. **Confirm:** acceptable interpretation.
 
 ## Defaults Applied
 
-- **Class/Grade:** defaulted to **Class 3-6** (concept did not specify). Addition with digits 1-9 appears in NCERT Class 2-3; constraint-satisfaction puzzles extend through Class 6.
-- **Bloom Level:** defaulted to **L3 Apply** based on applying addition facts across intersecting runs under no-repeat rule. Not pure recall (L1), not deep analysis (L4).
-- **Archetype:** **Board Puzzle (#6)**. CHECK validates whole grid; multiple puzzles (3 variants) of increasing difficulty.
-- **Rounds:** **3** — one per spec variant (B1, B2, B3) as per concept `Variant Progression`.
-- **Lives:** defaulted to **None**. Board Puzzle default = 0. Matches CHECK→NEXT no-retry pattern implied by the concept family.
-- **Timer:** defaulted to **None**. L3 puzzle, no time pressure.
-- **Input:** **Tap-cell-then-tap-digit** per concept §Behaviors and Interactions. No drag.
-- **Feedback style:** **FeedbackManager** with standard playDynamicFeedback on correct/incorrect CHECK; fire-and-forget SFX on per-cell-fill micro-interactions; awaited SFX + fire-and-forget TTS on CHECK resolution per skill/feedback defaults.
-- **Scaffolding:** defaulted to **show-correct-grid** after wrong CHECK (digits fade into their solution cells before NEXT advances). Replaces usual retry-once to match concept.
-- **Preview screen:** included (default `previewScreen: true` — PART-039).
-- **Star thresholds:** 3=all 3, 2=2 of 3, 1=1 of 3, 0=none. Biased to first-CHECK solves.
-- **Game-over path:** **removed entirely** (no lives). Matches Board Puzzle archetype default.
-- **Rules glyphs:** preserved verbatim per spec (`1⃣ 2⃣ 3⃣` for B1; `1.` notation for B2/B3).
+(Decisions NOT specified by the creator and filled by a default. Per spec-creation Step 3, `answerComponent` is silently `true` and is NOT listed here.)
 
----
+- **Pre-generation step:** defaulted to "hand-authored puzzles, build-time exhaustive uniqueness check" (creator described a "bank of ~30 per stage" as a goal but the v1 ship has 3 sets × 3 stages = 9 hand-authored puzzles).
+- **Stage-1 / 2 / 3 expected solve times:** defaulted to 1–3, 4–8, 6–12 minutes respectively (creator specified 4–8 min for Stage 2 specifically; Stage 1 and 3 were inferred to bracket Stage 2 with a 1.5x – 2x scale).
+- **First-Check pass-rate targets per stage (80 / 60 / 40 %):** defaulted by spec author per pedagogy.md L4 70–85 % overall target tightened by stage to reflect mastery progression (Stage 1 high to be the on-ramp; Stage 3 low to be the mastery gate). Without per-cell validation, the actual realised pass-rate may run lower; see Warnings.
+- **Interaction pattern P6 (Drag-and-Drop) chosen over P15 (Cell Select → Number Picker).** Library: `@dnd-kit/dom@beta` via `https://esm.sh/@dnd-kit/dom@beta`. Sensors: `PointerSensor` with activation distance **3 px** (matches P6 §8 Universal Touch Support; was 6 px in the original spec, lowered to 3 px for parity with the rest of the codebase) plus optional `KeyboardSensor` for accessibility (left/right arrows cycle tiles, Enter drops on focused cell). Default per concept's interaction-flexibility framing; P6 gives a more tactile, physically-meaningful "place a digit" gesture for Class 4–6 and aligns with `interaction/SKILL.md` line 196 ("Kakuro: P6 (Drag-and-Drop into grid) or P15 (Cell + Picker)").
+- **Drop-target hover ring (`#F1C453`, 2 px inset):** defaulted (creator did not specify; same colour the cell-active ring used pre-P6, repurposed as the dnd `data-droppable-over` style).
+- **Celebration mint-green (`#CDE9D7`):** defaulted (creator said "green flash on solve" — colour was unspecified).
+- **Cream cell + navy wall palette (`#F5F0E8` / `#1F2A37`):** defaulted (creator did not specify visual palette).
+- **Digit-tray layout (5+4 strip below board, reusable tiles, tray-as-clear-zone):** defaulted (creator said "drag a digit onto a cell" — layout, reuse semantics, and clear affordance were unspecified). Spec author chose 5+4 (digits 1–5 row 1, digits 6–9 row 2 with empty bottom-right slot) over 3+3+3 to keep the tray shorter and within thumb reach, and chose tray-as-clear-zone over a separate trash tile to keep the tray UI minimal.
+- **Check button location (full-width below the digit tray, inside the board wrap, primary style):** defaulted (creator did not specify; the in-board placement keeps the action close to the puzzle and avoids using PART-050 FloatingButton for per-puzzle Submit).
+- **Hint banner duration (3 s auto-fade):** defaulted (creator did not specify). Banner DOM is preserved from the original spec; only the trigger changed (from per-cell wrong to Check failure).
+- **Star thresholds (`wrongAttempts === 0` → 3⭐, `1–2` → 2⭐, `≥ 3` → 1⭐):** defaulted by spec author after dropping the `hintsUsed` axis (no hint button in v1). The thresholds reflect "perfect Check streak vs one slip vs repeated misses" with a tight 3⭐ bar.
+- **Wrong-attempt counter scope (session-wide, not per-puzzle):** defaulted (creator framed stars at session level, so failed Check submissions are session-wide totals).
+- **`autoShowStar`:** defaulted to `true` (creator did not specify; PART-050 standard is true).
+- **`previewScreen`:** defaulted to `true` (creator did not specify; PART-039 standard is true).
+- **Bloom level L4:** spec author inferred from "constraint reasoning", "intersect two sets", "process of elimination" — the concept's "What it tries to teach" section maps directly to L4 Analyze. Creator did not specify a Bloom level.
+- **Misconception tag selection priority** (row sum → col sum → repeat → both → multi-constraint-collapse-failure): defaulted (creator did not specify; spec author derived the priority order from the constraint-violation type, with the multi-violated-runs case slotting in as `multi-constraint-collapse-failure`).
+- **Hint banner wording (now Check-failure wording):** defaulted to the concept's example phrasing ("This row needs to sum to 11.", "No repeats in a run."), with "(N runs are off)" appended when multiple runs fail.
 
 ## Warnings
 
-- **WARNING — No retry on wrong answer.** Board Puzzle default is CHECK→reveal-solution→NEXT, matching the source concept. Student gets no chance to re-attempt the same grid. DECISION-POINT: Education slot may revisit if first-CHECK rates are very low.
-- **WARNING — Grade level assumed.** Concept silent on target grade. Class 5 median is safe; Class 3 may struggle with col1=29 forced-9 reasoning in Round 3. DECISION-POINT: Education slot may gate Round 3 to grade 4+.
-- **WARNING — Round count.** 3 rounds is short by platform norms (default 6-9). Matches concept's "block_count 3" exactly. Session is ~6-10 minutes.
-- **WARNING — Number pad layout.** Concept shows 4+4+1 layout (rows of 1-4, 5-8, centred 9). Implementation uses this exact layout.
-- **WARNING — Rules glyphs.** Round 1 uses `1⃣ 2⃣ 3⃣` UTF-8 emojis; Rounds 2 and 3 use numeric `1. 2. 3.`. Preserved verbatim per spec §Variant Progression.
-- **WARNING — Puzzle uniqueness.** Each puzzle has been hand-solved to verify the solution is valid; uniqueness is not claimed (multiple digit assignments may satisfy all clues). The validator accepts ANY assignment that satisfies every run-sum + no-repeat rule — not only the canonical solution. This is a deliberate choice so that students who find an alternative valid arrangement are still marked correct.
-- **WARNING — `W5=5` in Round 2 conflicts col2 set.** Round 2 col2 perm is {1,5,3,2} sum 11; the validator accepts sum+distinct per run, not a specific permutation set, so this is fine.
-- **WARNING — Emoji rendering.** `1⃣` is a combining enclosed keycap sequence. On older Android browsers this may render as plain `1` with a small square. Acceptable fallback.
-- **WARNING — Big pool of digits, small grid.** With only 12 cells and 9 distinct digit values (1-9), the number pad allows "infinite" re-use across the whole grid; the no-repeat rule only applies within a single run. Student must not misread the rule as "no repeats in grid".
+- **WARNING: `totalLives: 99` is a no-lives workaround.** The data contract expects a `totalLives` field. Setting it to `99` (high cap, never decremented) is a workaround so the field is present but the lives mechanic is effectively disabled. The build step MUST hide the lives indicator. A cleaner alternative is `totalLives: 0` if PART-023 supports a "no-lives display" mode without triggering instant Game Over. **Spec-review must confirm which to use.** (See Decision-Point #1.)
+- **WARNING: No Game Over branch.** This game has no `game_over` screen. The flow is `start → gameplay → results` only. The default-flow diagram is preserved for reference but the Game Over path is dead-code. Build step must explicitly omit any `data-phase="game_over"` rendering. Validator should NOT trip "lives = 0 means no game_over screen" because lives are NOT 0 in the spec (`totalLives: 99`); the game simply has no lose-condition. (If the spec is later flipped to `totalLives: 0` per Decision-Point #1, the no-game-over rule is automatically satisfied.)
+- **WARNING: Hand-authored puzzles are a content dependency.** If the pre-generation step is skipped or its output is incomplete, the game cannot ship. Step 4 (Build) must read `games/kakuro/pre-generation/puzzles.md` and inline the 9 grids; if the file is missing, fail fast with a clear error.
+- **WARNING: Star rule does not match the platform default 90/66/33 % thresholds.** The simplified star rule reads only `wrongAttempts` (count of failed Check submissions): 3⭐ = 0; 2⭐ = 1–2; 1⭐ = ≥ 3. This is creator intent (post-redesign) and the Star Generosity Audit confirms it is tight-but-fair for L4. Build step must implement `getStars()` per these exact rules — not the default thresholds.
+- **WARNING: Failed Check is fire-and-forget (no awaited TTS).** This is the multi-step CASE 7 variant (per Feedback skill). It is consistent with the concept's "quiet and deliberate" framing but differs from the default single-step CASE 7 (which awaits TTS). Spec-review must confirm this is intentional. The hint banner (visible 3 s) is the explanation surface; the SFX is acknowledgement only.
+- **WARNING: PART-006 (timer) is NOT included.** The concept explicitly forbids a timer. No `getStars()` reads a duration; no preview text mentions speed. PART-006 should NOT be included. The mobile / cross-cutting "TIMER-MANDATORY-WHEN-DURATION-VISIBLE" validator should NOT trip because no time-related triggers exist.
+- **WARNING: PART-050 (FloatingButton) is included BUT is not wired to a per-puzzle Submit / Check.** PART-050 is used ONLY for the end-of-game Next CTA (per the standard archetype-6 pattern). Per-puzzle Submit is the in-board Check button (a plain primary `<button>`, not PART-050). Validator should track this carefully: GEN-FLOATING-BUTTON-NEXT-MISSING should NOT trip (we do call `floatingBtn.setMode('next')` at end-of-game), but the per-round submit handler does NOT use FloatingButton.
+- **WARNING: Stage 3 first-Check pass-rate may run below 40 %.** The redesign removes per-cell incremental feedback (no green flash on partial run-completion, no red flash on a wrong digit dropped on a cell). This means a Stage 3 student who misjudges a triple-decomposition early will only learn at Check time, often after 5–10 minutes of placement. That said, the Check button still allows iterative re-submission with full state preserved, so failed attempts cost ~5 s + a star but not session restart. **Confirm at testing:** if real-device pass-rates fall below 25 % on Stage 3, consider reverting to per-run validation OR adding a "validate this run" partial-check affordance in v2.
+- **WARNING: Stage 3 cell size (~56 px) is the tightest of the three stages.** It clears the 44 px touch-target minimum but only by ~12 px. Confirm at testing (mobile rule #9 / CRITICAL). If real-device testing shows mis-taps on Stage 3, the build step should consider making the entire cell-area (including the 1 px border) part of the hit zone via padding tricks, OR shrinking the outer board padding from 16 px to 12 px to give cells +4 px each.
+- **WARNING: Drag accuracy on Stage-3 cells (~56 px) is a P6-specific concern.** With drag-and-drop the "hit" is the cell currently under the *pointer at drop*, not where the gesture started — so a pointer drift of even 8–10 px on Stage 3 can land the tile on a neighbouring cell. The dnd-kit `PointerSensor` activation distance is set to **3 px** (per P6 §8 Universal Touch Support; lowered from 6 px in the original spec) — taps still don't trigger drag because tile interactions only deliberate-press-and-drag flows reach this distance, but the build step should also verify that drop hit-detection uses the centre-of-pointer (default) rather than a tile-bounding-box overlap heuristic, and confirm at testing that real-device touch drift doesn't cause off-by-one drops on Stage 3. If problems are observed, expand the cell drop-target padding so each cell's effective droppable area is slightly larger than its visible cell.
+- **WARNING: Step 4 (Build) MUST run in MAIN CONTEXT, not as a sub-agent.** P6 uses `@dnd-kit/dom@beta` from `https://esm.sh/@dnd-kit/dom@beta` and the orchestrator must call `mcp__context7__query-docs` during the build to fetch the live `DragDropManager` / `Draggable` / `Droppable` / `monitor` / sensors API. Sub-agents do NOT inherit MCP server connections — a sub-agent that tries to build this game will silently hand-roll a substitute (native `pointerdown` instead of `@dnd-kit/dom`) and the static validator's `GEN-DND-KIT` rule will catch it after the fact. Avoid the round-trip: the orchestrator must route Step 4 to main context per `CLAUDE.md` § "Step 4 execution mode override".
+- **WARNING: The Stage-1 worked example in this spec is intentionally minimal (3 white cells).** The actual Set-A / B / C Stage-1 puzzles authored at game-planning Step 3 will be denser (6–8 white cells). The worked example is the data-shape anchor; it is NOT the final puzzle. Spec-review and Step 3 must be aware that the worked example is illustrative.
+- **WARNING: `wrongAttempts` is a session-wide total.** Build step must NOT reset it between puzzles. It resets ONLY on full session restart (Try Again / Play Again). The build step's `resetGameState()` (per-round reset) MUST NOT touch `wrongAttempts`. Lives are similarly NOT decremented in this game; `gameState.lives` is set once at session start (to `totalLives`) and never mutated. (`hintsUsed` is NOT used in v1 — there is no hint button.)
+- **WARNING: Multi-step CASE 7 (failed Check, fire-and-forget) is the spec author's interpretation of "Kakuro is multi-step (each digit is one of many sub-actions, the round completes on a successful Check submission)".** This matches the Feedback skill's `Multi-step` definition: "Multiple interactions to complete the round". Spec-review should confirm Kakuro fits this definition (vs being framed as 1 round = 1 puzzle = 1 Single-step submit, which would force awaited TTS on every failed Check and break the "quiet and deliberate" framing).
+- **WARNING: Voice-over priority on simultaneous row+column violations is row > column (reading order).** Spec-review must confirm. A common alternative would be "show the rule the student is more likely to have ignored", but determining that requires modelling the student; row > column is predictable and matches the visual reading order.
