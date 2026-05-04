@@ -34,8 +34,8 @@ The Next CTA contract is split between in-card buttons and the FloatingButton. G
 |---|---|---|---|---|---|---|
 | Multi-round, lives | > 1 | > 0 | yes | yes | yes | Full chain. Default. |
 | Multi-round, no lives | > 1 | 0 | no | yes | yes | Skip Game Over → Motivation path; <3★ Victory still has Play Again. |
-| Standalone, lives | 1 | > 0 | inline panel | inline panel | inline panel | TransitionScreen FORBIDDEN (`GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN`). End-flow is `#gameContent` panel + `floatingBtn.setMode('next')`. |
-| Standalone, no lives | 1 | 0 | n/a | inline panel | inline panel | Same — no TransitionScreen. |
+| Standalone, lives | 1 | > 0 | AnswerComponent | AnswerComponent | AnswerComponent | TransitionScreen FORBIDDEN (`GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN`). End-flow = AnswerComponent (PART-051 carousel showing solution) + `floatingBtn.setMode('next' / 'retry')` + header `show_star`. **No inline body-card** (`GEN-STANDALONE-END-PANEL-FORBIDDEN`). |
+| Standalone, no lives | 1 | 0 | n/a | AnswerComponent | AnswerComponent | TransitionScreen FORBIDDEN (`GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN`). End-flow = AnswerComponent (PART-051 carousel showing solution) + `floatingBtn.setMode('next')` + header `show_star`. **No inline body-card** (`GEN-STANDALONE-END-PANEL-FORBIDDEN`). |
 
 Standalone games skip ALL end-of-flow TransitionScreens. The remaining sections of this doc apply to multi-round games only.
 

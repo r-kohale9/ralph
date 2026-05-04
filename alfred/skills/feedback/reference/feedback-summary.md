@@ -28,7 +28,7 @@ What plays depends on the **game type** and the **moment**.
 
 | Game type       | How to identify                                                   | Correct/Wrong feedback                                                     |
 | --------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| **Single-step** | 1 interaction completes the round (MCQ, type answer, select one)  | **All rounds (1..N), all shapes:** SFX awaited (~1.5s floor) → dynamic TTS **awaited** (`try { await playDynamicFeedback(...); } catch(e){}`) with subtitle + sticker — explanation finishes BEFORE round advance, else it bleeds into next round (equivalent-ratios regression). Package bounds at 3 s API / 60 s streaming + try/catch prevents freezes. Validator: `GEN-FEEDBACK-TTS-AWAIT`. Standalone end-of-game (`totalRounds: 1`) uses the same awaited TTS as part of `endGame()`'s 5-beat orchestrator (PART-050). |
+| **Single-step** | 1 interaction completes the round (MCQ, type answer, select one)  | **All rounds (1..N), all shapes:** SFX awaited (~1.5s floor) → dynamic TTS **awaited** (`try { await playDynamicFeedback(...); } catch(e){}`) with subtitle + sticker — explanation finishes BEFORE round advance, else it bleeds into next round. Package bounds at 3 s API / 60 s streaming + try/catch prevents freezes. Validator: `GEN-FEEDBACK-TTS-AWAIT`. Standalone end-of-game (`totalRounds: 1`) uses the same awaited TTS as part of `endGame()`'s 5-step orchestrator (PART-050). |
 | **Multi-step**  | Multiple interactions per round (match pairs, sort, drag, chains) | Mid-round partial-match SFX + sticker only — **fire-and-forget, no TTS**. Round-complete: SFX awaited → TTS awaited (Case 6 in SKILL.md). |
 
 ### By Moment
@@ -248,7 +248,7 @@ try {
   });
 } catch (e) {}
 
-// ANTI-PATTERN — disconnected generic literal (cross-logic 2026-04-29 regression)
+// ANTI-PATTERN — disconnected generic literal
 // audio_content: round.keyInferenceTTS, subtitle: 'Nice deduction!'
 // audio_content: round.violatedClueTTS, subtitle: 'Check the clue again.'
 //   ↑ The audio carries L4 scaffolding; the subtitle is content-disconnected.
@@ -399,7 +399,7 @@ All worksheet questions use one of 16 base interaction patterns (or a compound c
 
 | Step Type | Patterns | Feedback Rule |
 |-----------|----------|---------------|
-| **Single-step** | P1, P7, P1+P7 | **All rounds (1..N), all shapes:** SFX awaited (~1.5s floor) → dynamic TTS **awaited** with subtitle + sticker (`try { await playDynamicFeedback(...); } catch(e){}`). Validator: `GEN-FEEDBACK-TTS-AWAIT`. Standalone end-of-game (`totalRounds: 1`) uses the same awaited TTS as part of `endGame()`'s 5-beat orchestrator (PART-050). |
+| **Single-step** | P1, P7, P1+P7 | **All rounds (1..N), all shapes:** SFX awaited (~1.5s floor) → dynamic TTS **awaited** with subtitle + sticker (`try { await playDynamicFeedback(...); } catch(e){}`). Validator: `GEN-FEEDBACK-TTS-AWAIT`. Standalone end-of-game (`totalRounds: 1`) uses the same awaited TTS as part of `endGame()`'s 5-step orchestrator (PART-050). |
 | **Multi-step** | P2, P3, P5, P6, P8, P9, P10, P11, P12, P13, P14, P15, P16, P6+P7, P8+P7, P9+P7, P8+P1, P10+P7, P6+P10 | Mid-round partial-match SFX + sticker only — fire-and-forget. Round-complete: SFX awaited → TTS awaited. |
 
 **Note:** P14 (Edge/Segment Toggle) and P16 (Sequence Replay) are defined but have zero occurrences across all 252 current worksheets.

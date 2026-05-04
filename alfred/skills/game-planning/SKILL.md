@@ -82,7 +82,7 @@ If the spec mentions a Submit button, you MUST plan the game to use `FloatingBut
 - ❌ *"No retry / next-round / submit-mode swap — in-form Submit is sufficient."* WRONG. PART-050 handles submit-only flows. `setMode('retry')` and `setMode('next')` are optional; the component works perfectly with `setMode('submit')` only. Standalone (`totalRounds: 1`) games still use PART-050.
 - ❌ *"Archetype flags list PART-050 but the game's interaction is a simple in-form button."* WRONG. The per-archetype PART-flags row is a default starting point. The spec's flow (presence of a Submit CTA) OVERRIDES it per game-archetypes constraint #8. If the spec mentions Submit, PART-050 is mandatory.
 - ❌ *"We pass `slots: { floatingButton: false }` because the Submit is inline."* WRONG. The slot flag exists to place the component; skipping the slot forces an inline button which the validator rejects (`GEN-FLOATING-BUTTON-MISSING`).
-- ❌ *"PART-050 is 'OMITTED as default' because no mode-swap CTA."* WRONG — this is the exact reasoning that produced the bodmas-blitz regression (2026-04-23). Do not write this in any plan.
+- ❌ *"PART-050 is 'OMITTED as default' because no mode-swap CTA."* WRONG
 - ❌ *"Sticky-bottom Submit is only a variant for keyboard-coverage mitigation."* WRONG. The fixed-bottom placement IS the canonical Submit pattern; "inline under the input" is not a supported variant when a Submit CTA exists.
 
 **The only valid reason to omit PART-050 from the plan** is when the spec declares `floatingButton: false` (PART-039-style opt-out — the spec author deliberately chose the PART-022 inline-button pattern for this game). The plan author (step 3) MUST NOT add a `floatingButton: false` line to `spec.md` — the spec is owned by step 1 + human review. If the spec describes a Submit CTA and does NOT have `floatingButton: false`, the plan MUST include PART-050.
@@ -102,20 +102,24 @@ What to write in each plan doc:
 
 ### Standalone variant — `totalRounds: 1` (Shape 1)
 
-Standalone games have NO TransitionScreen. The inline feedback panel in `#gameContent` (worked-example, result, stars) is the end-of-game display. TransitionScreen is architecturally redundant — there's nothing to transition between. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks any TransitionScreen usage in standalone games.
+Standalone games have NO TransitionScreen AND NO inline body-card. **The end-of-game display is `AnswerComponent` (PART-051 carousel showing the solution) + `FloatingButton` mode lifecycle (`submit` → `next` / `retry`) + the persistent preview-screen header (`show_star` animation).** The puzzle grid stays rendered in `#gameContent` unchanged — the player keeps seeing what they answered. TransitionScreen is architecturally redundant (validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN`); an inline body-card would duplicate AnswerComponent and visually mimic a Victory/Game-Over TS (validator `GEN-STANDALONE-END-PANEL-FORBIDDEN`).
 
-Four-step sequence:
+Five-step sequence (PART-050 Step 1-5):
 
-1. `await FeedbackManager.play(correct ? 'correct' : 'incorrect')` — full audio + sticker, awaited.
-2. Render the inline feedback panel in `#gameContent` (worked-example, stars if correct, final message).
-3. Post `{ type: 'game_complete', data: { metrics: ... } }`.
-4. `floatingBtn.setMode('next')` — Next appears directly on the same game screen, beneath the feedback panel.
+1. `await safePlaySound(correct ? 'correct_sound_effect' : 'incorrect_sound_effect', {sticker})` — SFX + sticker awaited (~1.5 s floor).
+2. Post `{ type: 'game_complete', data: { metrics: ... } }` SYNC. **No body-card render.** Puzzle grid in `#gameContent` stays untouched.
+3. `await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker})` — TTS awaited (if game uses dynamic TTS).
+4. On correct: `window.postMessage({type:'show_star', data:{count, ...}})` (header animation, ~1 s) AND `answerComponent.show({slides: getReviewSlides(result)})` (carousel slides in below puzzle grid). On wrong: skip `show_star`; still call `answerComponent.show()` so the player learns the solution.
+5. `setTimeout(() => floatingBtn.setMode(correct ? 'next' : 'retry'), 1100)` — CTA appears AFTER the star animation finishes.
 
 The plan for standalone MUST:
-- Declare `transitionScreen: false` in `ScreenLayout.inject()` slots (omit the key).
+- Declare `transitionScreen: false` in `ScreenLayout.inject()` slots (omit the key); keep `answerComponent: true`, `floatingButton: true`.
 - NOT reference `new TransitionScreenComponent(...)` or `transitionScreen.show(...)`.
-- Document the inline feedback panel's exact DOM structure in screens.md.
-- In round-flow.md, document the 4-step sequence above.
+- NOT describe an inline body-card / "Puzzle solved!" / "Try again!" / "Game over!" panel rendered into `#gameContent` at end-of-game. Validator `GEN-STANDALONE-END-PANEL-FORBIDDEN` catches `gameContent.innerHTML = ...` inside endGame / onCorrect / onWrong.
+- Document the AnswerComponent slide content (correct vs game-over) in screens.md.
+- In round-flow.md, document the 5-step sequence above.
+
+**Spec-vs-build mismatch.** If the spec drafted a TransitionScreen into a standalone game's flow, the plan MUST drop the TS and replace with the AnswerComponent + FloatingButton end-flow above. Do NOT translate the spec's TS into an inline body-card. Spec-review check Z8 catches the upstream spec drift.
 
 ### Multi-round variant — `totalRounds > 1` (Shape 2 / Shape 3)
 
@@ -133,7 +137,7 @@ Legacy 5-step sequence (`answerComponent: false` only):
 
 The plan for multi-round MUST include this sequence in screens.md (victory + game_over screens show Next as the floating CTA ONLY after the transition dismisses) and in round-flow.md (end-of-game handler chains the five steps above, with `await` on feedback and `onDismiss` wrapping the `setMode('next')`).
 
-**CRITICAL — the Next click handler is registered as `floatingBtn.on('next', ...)`, NOT `floatingBtn.on('submit', ...)`.** The component dispatches primary-button clicks to `this._handlers[this._mode]` — after `setMode('next')`, only the `'next'` handler fires. A common mis-pattern (seen in bodmas-blitz 2026-04-23) is to write:
+**CRITICAL — the Next click handler is registered as `floatingBtn.on('next', ...)`, NOT `floatingBtn.on('submit', ...)`.** The component dispatches primary-button clicks to `this._handlers[this._mode]` — after `setMode('next')`, only the `'next'` handler fires. A common mis-patternis to write:
 ```js
 floatingBtn.setMode('next');
 floatingBtn.on('submit', () => postMessage({type:'next_ended'}));  // WRONG — submit handler never fires in 'next' mode
@@ -151,10 +155,10 @@ If the plan's pseudocode shows `on('submit')` after a `setMode('next')`, that is
 - ❌ *"Standalone single-question game, no need for a Next screen."* WRONG. Standalone games end too. They still need the harness signal.
 - ❌ *"Pass `{type: 'game_complete'}` and skip `next_ended` — the host can infer from `game_complete`."* WRONG. The two messages are distinct signals (metrics vs navigation). The harness needs both.
 - ❌ *"Fire `next_ended` inside the submit handler alongside `game_complete`."* WRONG. `next_ended` fires in response to the user clicking Next AFTER viewing results. Not simultaneously with `game_complete`.
-- ❌ *"Call `setMode('next')` inside `endGame()` right after `postGameComplete(...)`."* WRONG. This makes Next appear during feedback audio. The bodmas-blitz regeneration (2026-04-23) produced exactly this bug — validator `GEN-FLOATING-BUTTON-NEXT-TIMING` now catches it. `setMode('next')` MUST be inside `transitionScreen.onDismiss(...)` or in a callback that runs after `await FeedbackManager.play(...)` AND after the results TransitionScreen has been dismissed.
+- ❌ *"Call `setMode('next')` inside `endGame()` right after `postGameComplete(...)`."* WRONG. This makes Next appear during feedback audio. Validator catches it — validator `GEN-FLOATING-BUTTON-NEXT-TIMING` now catches it. `setMode('next')` MUST be inside `transitionScreen.onDismiss(...)` or in a callback that runs after `await FeedbackManager.play(...)` AND after the results TransitionScreen has been dismissed.
 - ❌ *"Fire-and-forget the end-of-game feedback so the screen transitions quickly."* WRONG. End-of-game feedback MUST be awaited so the TransitionScreen + Next button appear only AFTER audio completes. Fire-and-forget at round boundaries is for mid-game, not for the final round.
-- ❌ *"Put a 'Next' / 'Continue' / 'Done' button inside the victory TransitionScreen's `buttons:` array."* WRONG. This produces a confusing double-Next UX: the player sees Next on the card, taps it, and sees ANOTHER Next appear at the bottom from the FloatingButton. Victory / game_over TransitionScreens MUST use `buttons: []` and rely on tap-to-dismiss. The Next CTA is the FloatingButton's role; the TransitionScreen is content-only. Validator `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN` catches this. (bodmas-blitz regression, 2026-04-23.)
-- ❌ *"Standalone game should still show a victory TransitionScreen card before Next."* WRONG. Standalone games (`totalRounds: 1`) MUST NOT use TransitionScreen at all — the inline feedback panel in `#gameContent` is the end-of-game display. Feedback → game_complete → setMode('next') directly. No card, no onDismiss callback. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks any TransitionScreen usage in standalone. (bodmas-blitz 2026-04-23 — sub-agent kept TransitionScreen for the victory/game_over display even though Shape 1 doesn't need it.)
+- ❌ *"Put a 'Next' / 'Continue' / 'Done' button inside the victory TransitionScreen's `buttons:` array."* WRONG. This produces a confusing double-Next UX: the player sees Next on the card, taps it, and sees ANOTHER Next appear at the bottom from the FloatingButton. Victory / game_over TransitionScreens MUST use `buttons: []` and rely on tap-to-dismiss. The Next CTA is the FloatingButton's role; the TransitionScreen is content-only. Validator `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN` catches this.
+- ❌ *"Standalone game should still show a victory TransitionScreen card before Next."* WRONG. Standalone games (`totalRounds: 1`) MUST NOT use TransitionScreen at all — the inline feedback panel in `#gameContent` is the end-of-game display. Feedback → game_complete → setMode('next') directly. No card, no onDismiss callback. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks any TransitionScreen usage in standalone.
 
 ### Step 2d: CRITICAL — Try Again planning (standalone + `totalLives > 1` only)
 
@@ -182,7 +186,7 @@ The plan MUST resolve four design decisions and document them in `pre-generation
 
 **New end-game chain (multi-round, with Victory + Stars Collected):**
 
-The celebration beat plays FIRST. AnswerComponent appears AFTER. Single-stage Next exits.
+The celebration step plays FIRST. AnswerComponent appears AFTER. Single-stage Next exits.
 
 1. `await FeedbackManager.play(...)` — final-round feedback, awaited.
 2. Post `game_complete` with metrics.
@@ -207,7 +211,7 @@ The celebration beat plays FIRST. AnswerComponent appears AFTER. Single-stage Ne
 - ❌ *"Reveal the AnswerComponent during the round so players can compare their answer with the correct one immediately."* WRONG. The component is end-of-game only. Per-round feedback uses the existing PART-017 inline patterns. Validator `GEN-ANSWER-COMPONENT-NOT-IN-PREVIEW` + the `.show-after-feedback` rule reject mid-round reveals.
 - ❌ *"Encode each slide as an HTML string (`{ html: '<div>...</div>' }`) so the spec can ship the rendered card directly."* WRONG. Slides MUST be `{ render(container) {...} }` callbacks. Validator `GEN-ANSWER-COMPONENT-SLIDE-SHAPE` rejects `html` and `element` keys. The component intentionally has one shape so behaviour is predictable across games.
 - ❌ *"Skip AnswerComponent for this game — it's an exploration game with no correct answer."* This is a valid reason to opt out, but the spec MUST declare `answerComponent: false` AND that opt-out must come from the human creator's explicit prompt (quoted in the spec) — NOT from any LLM step's judgment. **Spec-creation (step 1) MUST NOT auto-default `false`** (see spec-creation/SKILL.md "answerComponent exception"). **Spec-review (step 2) FAILs any spec with `answerComponent: false` lacking quoted creator opt-out** (see spec-review/SKILL.md H5). **Build (step 4) MUST NOT mutate spec.md** to silence the validator. The spec is the human creator's contract; no LLM at any step gets to opt out on their behalf.
-- ❌ *"Put the Victory transition's `Claim Stars` action straight to `showAnswerCarousel()` to skip the redundant Stars Collected screen."* WRONG. Stars Collected is the celebration beat that owns the yay sound + `show_star` animation. Skipping it loses the reward feedback. Victory's Claim Stars action MUST call `showStarsCollected()`, not the answer-reveal function.
+- ❌ *"Put the Victory transition's `Claim Stars` action straight to `showAnswerCarousel()` to skip the redundant Stars Collected screen."* WRONG. Stars Collected is the celebration step that owns the yay sound + `show_star` animation. Skipping it loses the reward feedback. Victory's Claim Stars action MUST call `showStarsCollected()`, not the answer-reveal function.
 
 **screens.md MUST include the Answer Panel wireframe** (one per round type) showing only the evaluated elements. **round-flow.md MUST include the end-game step that calls `answerComponent.show(...)`** with the slide-builder function name and the slide payload shape.
 

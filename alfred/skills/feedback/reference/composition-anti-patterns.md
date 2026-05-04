@@ -188,29 +188,29 @@ function finalizeAfterDwell() {
 **Right:**
 
 ```js
-// Single 5-beat endGame() — owns the full sequence end-to-end.
+// Single 5-step endGame() — owns the full sequence end-to-end.
 async function endGame(correct) {
-  // Beat 1
+  // Step 1
   await FeedbackManager.sound.play(correct ? 'sound_correct' : 'sound_incorrect', { sticker });
-  // Beat 2 (SYNC)
+  // Step 2 (SYNC)
   renderInlineFeedbackPanel(correct);
   postGameComplete();
-  // Beat 3
+  // Step 3
   try {
     await FeedbackManager.playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker });
   } catch (e) {}
-  // Beat 4
+  // Step 4
   if (correct) window.postMessage({ type: 'show_star', data: { count: getStars(), variant: 'yellow' } }, '*');
-  // Beat 5
+  // Step 5
   setTimeout(() => floatingBtn.setMode('next'), 1100);
 }
 ```
 
 **Caught by:** `GEN-ENDGAME-AFTER-TTS` (existing).
 
-**Why:** Splitting `endGame` across `runFeedbackSequence` / `finalizeAfterDwell` fires `game_complete` and reveals Next BEFORE TTS plays, stacking the star animation on top of the audio (bodmas-blitz regression). The 5-beat block is a single orchestrator precisely because every previous attempt to factor it into helpers reordered the beats.
+**Why:** Splitting `endGame` across `runFeedbackSequence` / `finalizeAfterDwell` fires `game_complete` and reveals Next BEFORE TTS plays, stacking the star animation on top of the audio. The 5-step block is a single orchestrator precisely because every previous attempt to factor it into helpers reordered the steps.
 
-### 7. Disconnected generic subtitle (cross-logic 2026-04-29)
+### 7. Disconnected generic subtitle
 
 **Wrong:**
 
@@ -249,6 +249,6 @@ await FeedbackManager.playDynamicFeedback({
 
 **Caught by:** `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO` (new); spec-review `Z7` (`SCOPE-CREEP-SUBTITLE-DISCONNECTED`).
 
-**Why:** The `subtitle` parameter is the on-screen caption rendered while the TTS audio plays — for students who can't hear the audio (mute, slow TTS network, deaf/HoH), it is the ONLY surface that carries the lesson. When `audio_content` is creator-supplied per-round narration (long inference / violated-clue + ask-back), a generic literal subtitle disconnected from that content strands the silent-mode learner. The cross-logic 2026-04-29 build shipped 12 puzzles where every correct submit showed `'Nice deduction!'` on screen while the audio narrated puzzle-specific scaffolding — an L4 game where the visible scaffold was unreachable without speakers.
+**Why:** The `subtitle` parameter is the on-screen caption rendered while the TTS audio plays — for students who can't hear the audio (mute, slow TTS network, deaf/HoH), it is the ONLY surface that carries the lesson. When `audio_content` is creator-supplied per-round narration (long inference / violated-clue + ask-back), a generic literal subtitle disconnected from that content strands the silent-mode learner. A puzzle-specific `audio_content` paired with a generic `subtitle` like `'Nice deduction!'` means the L4 visible scaffold is unreachable without speakers.
 
 The build agent picked the disconnected literal because the dominant example shape in this skill (`audio_content: 'Round 3', subtitle: 'Round 3'`) trained the wrong instinct: subtitle as a SEPARATE short thing, not a derivation of audio_content. The fix lives at the spec layer — author both strings together, pair them by `<X>TTS` ↔ `<X>Subtitle` convention, build inlines both. See feedback-summary.md "Per-round long-audio + paired short-subtitle" worked example.

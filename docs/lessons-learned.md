@@ -4,6 +4,70 @@ Accumulated insights from build failures, bug fixes, and proofs. Update immediat
 
 ---
 
+## Audio→side-effect ordering not statically enforced — `answerComponent.show` raced TTS in Beat 2 (2026-04-29 — kakuro)
+
+**Lesson L-FEEDBACK-ORDER-001: validators were content/presence checks; canon prescribed ordering through prose. Build agents satisfied "TTS is awaited" while violating "TTS-await comes BEFORE side-effects." kakuro placed `answerComponent.show()` in Beat 2 of the standalone 5-beat orchestrator (between `postGameComplete()` and the awaited `playDynamicFeedback` in Beat 3). Static validation passed. The carousel slid in mid-narration.** | Source: kakuro 2026-04-29 — `endGame()` body lines 1410-1440 (correct branch). The `await Promise.all([safePlaySound,...])` (Beat 1, line 1414) and `await FeedbackManager.playDynamicFeedback({...})` (Beat 3, line 1428) were both awaited correctly per `GEN-FEEDBACK-TTS-AWAIT`. But `answerComponent.show({slides: buildAnswerSlides()})` was placed in Beat 2 (line 1423) — between `postGameComplete()` and the TTS-await — meaning the carousel rendered while TTS was still streaming. Visual jank: player sees the solution carousel slide in while the voice narrates "You solved it!" — two parallel reveals racing each other instead of staged.
+
+**Five-instance pattern.** Same "creator-content slot needs canonical source + validator gate" family as L-TS-AUDIO / L-FB-SUBTITLE / L-SOUND-ID / L-STANDALONE-END-PANEL. The new layer this exposes is **execution-ordering enforcement**:
+
+| Layer | Pre-fix state | Effect |
+|---|---|---|
+| **Canon** (PART-050, code-patterns, feedback skill) | Described ordering through prose ("after the awaited TTS", "Beat 1 → Beat 2 → ..."). No explicit per-beat PERMITTED-calls list. | Build agents read prose, place calls in beats that read grammatically right but execute too early. |
+| **Validator** (`GEN-FEEDBACK-TTS-AWAIT`, `GEN-TS-TTS-MISSING`, `GEN-TS-AUDIO-AWAITED`, `GEN-FLOATING-BUTTON-NEXT-TIMING`) | Binary "is await present?" + regex-proximity ("setMode within 400 chars of game_complete needs a separator"). | Doesn't catch "side-effect placed BEFORE awaited TTS line" — proximity says "they're close" but doesn't say "in what order." |
+
+**Fix landed 2026-04-29:**
+
+1. **Canon tightened — PART-050 § Standalone variant.** Each of the 5 beats got an explicit PERMITTED-CALLS + FORBIDDEN-CALLS list. Beat 2 = `postGameComplete()` ONLY; `answerComponent.show()`, `setMode`, `show_star`, `transitionScreen.hide()`, destroys, body-card render are FORBIDDEN in Beat 2 (they belong in Beats 4-5). Beat 5 setMode MUST be deferred via `setTimeout(...,1100)`.
+2. **Code-patterns canonical snippets** got matching ordering callouts. The Canonical Standalone end-flow snippet now opens with "Beat ordering is enforced by `GEN-FEEDBACK-ORDER`. Each of the 5 beats has a PERMITTED-calls list..." The Canonical correct/wrong submit-handler snippet calls out the strict source order: SFX-await → TTS-await → advance.
+3. **Feedback skill CASE 4 / CASE 7** got a "Side-effect ordering" subsection alongside the "Subtitle parameter" subsection (Plan B) — names the validator and lists every side-effect category that must wait for TTS-await.
+4. **game-building/SKILL.md** got a checklist bullet: "Audio→side-effect ordering (strict source order)." Names `GEN-FEEDBACK-ORDER`. Sub-rule: setMode wrapped in setTimeout = Beat 5 (count the setTimeout call site).
+5. **Validator** (`alfred/scripts/validate-static.js`): new rule `GEN-FEEDBACK-ORDER`. Walks each feedback-emitting scope (function declarations matching `endGame|onCorrect|onWrong|handleSubmit|...` + `onMounted` callback bodies extracted from `tsShowBlocks`). Classifies calls as A (SFX-await) / T (TTS-await) / C (game_complete) / S (show_star) / F (setMode 'next'/'retry') / N (navigation/reveal) / D (destroy). Per-side-effect "nearest preceding T" check: each F/S/N/D MUST have a T at lower offset (when T exists in scope) OR an A at lower offset (R5 fallback when no T). R3: C-after-A (Beat 2 after Beat 1). Auto-skips Stars Collected (silent-by-canon). Setmode wrapped in setTimeout treated as setTimeout call site. Smoke-tested:
+   - kakuro: ONE clean violation flagged — answerComponent.show at line 1423 races TTS at line 1428.
+   - cross-logic / spot-the-pairs: PASS.
+   - hexa-numbers: pre-existing Plan A failures unchanged (no new false positives from this rule).
+6. **static-validation-rules.md** documents the new rule alongside other audio-rule cluster entries.
+
+**Per-game HTML fix forbidden — pipeline only.** The standing rule is no HTML edits in skill-update sessions. kakuro's Beat 2 race remains in the shipped HTML; validator catches it on next regeneration; canon's tightened beats guide the regen to emit clean output.
+
+**Sibling, not extension.** Fifth instance of the family — joining L-TS-AUDIO (TS narration content) / L-FB-SUBTITLE (per-attempt subtitle content) / L-SOUND-ID (sound id+URL canonical) / L-STANDALONE-END-PANEL (structural body-card forbidden). The new layer is execution-ordering enforcement — until now, validators have been content / presence / structural checks; this introduces statically-enforced beat ordering.
+
+**Open scope (not in this plan):**
+- Branched ordering: validator treats each scope as a flat call list. The "nearest preceding T" formulation handles most if/else cases conservatively but doesn't do per-branch flow analysis. Refine if false positives surface in real builds.
+- Cross-function dataflow: rule is shallow per-scope. Helpers like `postGameComplete()` are opaque. Trust their internal ordering.
+- Plan-level ordering enforcement: if game-planning starts naming explicit beats in `round-flow.md`, the same PERMITTED-calls language extends there. Defer until pattern hits the plan layer.
+
+---
+
+## Standalone end-flow shipped a TS-mimicking inline body-card — `renderInlineEndPanel` regression (2026-04-29 — kakuro)
+
+**Lesson L-STANDALONE-END-PANEL-001: standalone games (`totalRounds: 1`) shipped with TS-mimicking inline body-cards because the canon prescribed a silent translation from "spec drafted TransitionScreen" to "build renders inline panel."** | Source: kakuro 2026-04-29 — spec drafted `Welcome TS` + `Game Over TransitionScreen` in its Flow / Feedback sections (multi-round canon copied onto a standalone shape). Build hit validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocking actual `transitionScreen.show()` calls in standalone games. Build did NOT escalate — instead it translated each prescribed TS into `function renderInlineEndPanel(correct) { ... panel.innerHTML = '<div class="kak-screen-title">Puzzle solved!</div>...'; gc.appendChild(panel); }` — a TS-mimicking body-card rendered into `#gameContent`. The translation was actually *encouraged* by `PART-050` Beat 2 + `code-patterns.md § Canonical Standalone end-flow` at the time, both of which said "render inline feedback panel into `#gameContent`." Kakuro followed the canon; the canon was wrong.
+
+**Two-half failure** — both layers needed fixing:
+
+| Half | Today's state (before fix) | Effect |
+|---|---|---|
+| **Spec layer** — spec author drafts TS into a standalone spec | spec-creation followed canonical multi-round flow conventions; spec-review's Z1-Z7 didn't check flow/shape consistency | Standalone spec ships with `Welcome TS` / `Game Over TS` references |
+| **Build layer** — canon prescribed silent TS → inline-panel translation | `PART-050` Beat 2 + `code-patterns.md § Canonical Standalone end-flow` both said "render inline feedback panel into `#gameContent`" | Build silently translated the spec's TS into a body-card with sticker + title + subtitle, visually mimicking a Victory/Game-Over TransitionScreen the validator was supposed to be blocking |
+
+The shipped game had a "Puzzle solved!" + sticker + "You earned 3 stars." card and a "Try again!" card — both are TS-mimics. They duplicated AnswerComponent (which already shows the solution carousel for the correct path) and visually defeated the standalone shape's whole point.
+
+**Fix landed 2026-04-29:**
+
+1. **Canon rewritten — `PART-050` Beat 2** drops "render inline feedback panel"; Beat 2 = post `game_complete` SYNC only. New end-state UI = AnswerComponent + FloatingButton mode + header `show_star`. The puzzle grid stays in `#gameContent` unchanged.
+2. **`code-patterns.md § Canonical Standalone end-flow`** rewritten with the new shape. Added explicit "FORBIDDEN" anti-example showing the kakuro `<div class="kak-screen-title">Puzzle solved!</div>` translation captioned with the validator pointer.
+3. **Game-planning § 2c "Standalone variant"** rewritten — no inline panel; AnswerComponent + FloatingButton + header is the end-of-game display.
+4. **`default-transition-screens.md § Game shape` table** Standalone rows changed from "End-flow is `#gameContent` panel" to "End-flow is AnswerComponent + `floatingBtn.setMode('next' / 'retry')`."
+5. **`game-building/SKILL.md`** got a new explicit handoff rule: "If spec mentions TS in standalone game, IGNORE the spec's TS and emit the canon end-flow. Do NOT translate to inline body-card. Build's job is to emit canon, not silently translate spec drift."
+6. **`spec-creation/SKILL.md`** added "What you may NOT add silently" bullet — standalone end-state has no body-card AND no TransitionScreen.
+7. **Spec-review check Z8** — `SCOPE-CREEP-STANDALONE-END-PANEL` flags any non-negation body-card / TS phrasing in standalone specs at Step 2 (catches the bug 3 steps before the build).
+8. **Validator rule `GEN-STANDALONE-END-PANEL-FORBIDDEN`** in `alfred/scripts/validate-static.js`. Two detection branches: (a) direct `gameContent.innerHTML = ...` assignment inside endGame/onCorrect/onWrong; (b) function declarations whose name matches `renderInlineEndPanel` / `renderEndPanel` / `renderVictoryPanel` / `renderGameOverPanel` / `showPuzzleSolved` / `showTryAgain` / `renderInlineFeedbackPanel` / `renderEndScreen` / `renderResultsPanel` (function name alone is sufficient signal — these names get invented only as TS→body-card translations). Auto-skips per-round renders and clearing assignments. Smoke-tested: kakuro flags `renderInlineEndPanel` at line 1471; spot-the-pairs (multi-round) and hexa-numbers (multi-round) unaffected by this rule.
+
+**Sibling, not extension.** Fourth instance of the "creator-content slot needs a canonical source + validator gate" pattern, joining L-TS-AUDIO / L-FB-SUBTITLE / L-SOUND-ID. The new layer this exposes is "spec-shape consistency + build escalation policy" — Z-checks now cover content fabrication AND structural fabrication; build skill explicitly forbids silent translation when the spec contradicts the shape canon.
+
+**Affected games (not backfilled in this session):** kakuro. The new validator rule flags it at Step 5 on next regeneration. Per-game cleanup (drop the kakuro `renderInlineEndPanel` calls + fix kakuro spec drift) is a separate session.
+
+---
+
 ## Sound id invented + URL copied from previous preload row — `bubble_pop_sfx` regression (2026-04-29 — cross-logic)
 
 **Lesson L-SOUND-ID-001: planner invented a sound id; builder filled the URL by copy-pasting the previous preload row; cell taps played the round-intro sting instead of a bubble.** | Source: cross-logic 2026-04-29 — `plan.md:94, 180` named the cell-tap SFX `bubble_pop_sfx`. That id does NOT appear in `feedback/reference/feedbackmanager-api.md`'s canonical (id, URL) table. The planner LLM made up a name because the spec said "soft bubble micro-SFX" + "pop" felt natural. The build agent then registered the invented id at `index.html:2161` with a URL copied from the row above (`rounds_sound_effect → …1757506558124.mp3`), because the plan didn't supply a URL and the canonical table didn't either (the id wasn't in it). Result: every cell tap played the round-intro sting at the volume and tone of a transition cue. A 12-puzzle L4 logic-grid game with constant tapping turned into background-music-on-every-tap; the canonical CASE 9 sound is `sound_bubble_select` at `…1758162403784.mp3`, and the canonical table specifies it explicitly at `feedbackmanager-api.md:162`.

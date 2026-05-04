@@ -89,11 +89,12 @@ const specContext = (function readSpecContext() {
     }
 
     // totalRounds: `**Rounds:** 1`, `Rounds: 1`, `totalRounds: 1`.
-    const roundsMatch = spec.match(/(?:\*\*)?(?:total)?[Rr]ounds(?:\*\*)?\s*:?\s*\*?\*?\s*(\d+)/);
+    // Colon is REQUIRED to avoid matching stage headers like "(Rounds 1–3)".
+    const roundsMatch = spec.match(/(?:\*\*)?(?:total)?[Rr]ounds(?:\*\*)?\s*:\s*\*?\*?\s*(\d+)/);
     if (roundsMatch) out.totalRounds = parseInt(roundsMatch[1], 10);
 
     // totalLives: same shape.
-    const livesMatch = spec.match(/(?:\*\*)?(?:total)?[Ll]ives(?:\*\*)?\s*:?\s*\*?\*?\s*(\d+)/);
+    const livesMatch = spec.match(/(?:\*\*)?(?:total)?[Ll]ives(?:\*\*)?\s*:\s*\*?\*?\s*(\d+)/);
     if (livesMatch) out.totalLives = parseInt(livesMatch[1], 10);
 
     // retryPreservesInput: boolean.
@@ -534,7 +535,7 @@ if (hasFeedbackManager) {
   // FeedbackManager.sound.play('<id>', ...) MUST come from the canonical
   // (id, URL) table at alfred/skills/feedback/reference/feedbackmanager-api.md.
   //
-  // Cross-logic 2026-04-29 regression: the planner invented `bubble_pop_sfx`
+  // Failure mode: planner invents an id like `bubble_pop_sfx`
   // (not in the canonical table); the builder needed a URL for the invented
   // id and copied the URL from the previous preload row (rounds_sound_effect).
   // Result: cell taps played the round-intro sting instead of a bubble.
@@ -1677,7 +1678,7 @@ if (
 // ─── 5f3e. PreviewScreenComponent / FloatingButtonComponent / AnswerComponentComponent ───
 // Same as 5f3a-d, but for the components that were previously uncovered. These are the
 // late-loading components that PART-039, PART-050, PART-051 declare mandatory but
-// PART-003's stale baseline list does not name. The age-matters fail-open bug shipped
+// PART-003's stale baseline list does not name. A fail-open variant ships
 // because PreviewScreenComponent was not enforced by 5f3.
 if (
   /\bPreviewScreenComponent\b/.test(html) &&
@@ -1719,7 +1720,7 @@ if (
 
 // ─── 5f3h. GEN-WAITFORPACKAGES-NO-OR — strict: no `||` in the readiness expression. ───
 // The readiness expression is the boolean inside the waitForPackages function body that
-// determines when the gate resolves. The age-matters fail-open shape was:
+// determines when the gate resolves. The fail-open shape:
 //   var ok =
 //     typeof FeedbackManager !== 'undefined' &&
 //     (typeof PreviewScreenComponent !== 'undefined' || typeof ScreenLayout !== 'undefined');
@@ -1775,7 +1776,7 @@ if (
 // because a `typeof X` guard at instantiation time (e.g.
 // `if (typeof X !== 'undefined') new X(...)`) is NOT the same as gating init —
 // it silently skips the component when the class hasn't loaded yet, producing
-// the same null-reference bug as the age-matters fail-open. The cross-logic
+// the same null-reference fail-open. A related
 // game ships with this exact silent-skip pattern; this rule catches it.
 //
 // 5f3a-g cover the common components with file-wide regex (legacy). 5f3i
@@ -2739,6 +2740,57 @@ if (hasStartGame) {
     );
   }
 
+  // (3.5) GEN-FLOATING-BUTTON-SUBMIT-DEFAULT — Submit must be hidden by default.
+  //       The predicate must gate on REAL input. Two anti-patterns are forbidden:
+  //         (a) `setSubmittable(true)` as a literal — button is unconditionally shown.
+  //         (b) Predicates that accept empty input — `length >= 0`, `length >= -1`,
+  //             `length !== -1`. These were observed in target-sum (2026-05) where
+  //             Step 1 mis-defaulted "empty submit = wrong, -1 life" and Step 4
+  //             implemented `setSubmittable(gameState.selectedIds.length >= 0)`.
+  //       Allowed: any predicate that gates on `> 0` / `>= 1` / `=== N` / `trim().length`.
+  if (hasSubmittable) {
+    const submitDefaultErrors = [];
+    // Literal `setSubmittable(true)` is only an anti-pattern when there's no paired
+    // `setSubmittable(false)` — i.e. the button is shown unconditionally. If both
+    // literals appear, the game is using if/else dispatch (a valid predicate shape).
+    const literalTrueRe = /\.setSubmittable\s*\(\s*true\s*\)/;
+    const literalFalseRe = /\.setSubmittable\s*\(\s*false\s*\)/;
+    if (literalTrueRe.test(html) && !literalFalseRe.test(html)) {
+      submitDefaultErrors.push('setSubmittable(true) called without a paired setSubmittable(false) — button is unconditionally shown');
+    }
+    // Inspect every setSubmittable(...) argument expression for empty-accepting comparisons.
+    const callRe = /\.setSubmittable\s*\(/g;
+    let cm;
+    while ((cm = callRe.exec(html)) !== null) {
+      const start = cm.index + cm[0].length;
+      let depth = 1;
+      let i = start;
+      while (i < html.length && depth > 0) {
+        const ch = html[i];
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+        if (depth === 0) break;
+        i++;
+      }
+      const arg = html.slice(start, i);
+      // Forbidden: .length >= 0, .length > -1, .length >= -1, .length !== -1, .length != -1
+      if (/\.length\s*(?:>=\s*0|>\s*-1|>=\s*-1|!==?\s*-1)/.test(arg)) {
+        submitDefaultErrors.push('predicate accepts empty input: `' + arg.trim().slice(0, 80) + '`');
+        if (submitDefaultErrors.length >= 4) break;
+      }
+    }
+    if (submitDefaultErrors.length > 0) {
+      errors.push(
+        'ERROR [GEN-FLOATING-BUTTON-SUBMIT-DEFAULT]: Submit must be hidden by default and shown only ' +
+          'when input is valid. Forbidden pattern(s) found: ' + submitDefaultErrors.join('; ') + '. ' +
+          'Empty / no-input submits MUST be prevented by hiding the button (setSubmittable(false)) — ' +
+          'never by counting as a wrong attempt or costing a life. Use `length >= 1` / `length === N` / ' +
+          '`trim().length > 0`, never `length >= 0` or `setSubmittable(true)`. ' +
+          '(PART-050 Lifecycle § 2, GEN-FLOATING-BUTTON-SUBMIT-DEFAULT)'
+      );
+    }
+  }
+
   // (4) 5e0-FLOATING-BUTTON-DUP — no custom Submit/Retry/Next/Check/Done/Commit
   //     button anywhere in the source when FloatingButton is also in use. We
   //     scan the same attributes as GEN-FLOATING-BUTTON-MISSING (id / class /
@@ -2746,7 +2798,7 @@ if (hasStartGame) {
   //     Using a narrower scan here is a trap — the build sub-agent has been
   //     observed evading an id/class-only check by renaming to "bb-go" /
   //     "bbGoBtn" while keeping data-testid="bb-submit-btn" and inner text
-  //     "Submit" (bodmas-blitz regeneration, 2026-04-23). Match both rules'
+  //     "Submit". Match both rules'
   //     detection paths so whichever one fires (MISSING when FB absent, DUP
   //     when FB present) catches the same hand-rolled button.
   const dupCtaWord = /(submit|commit|retry|\bnext\b|\bcta\b|\bcheck\b|\bdone\b)/i;
@@ -3009,7 +3061,7 @@ if (hasStartGame) {
   // player can tap Next before results are visible, destroying the iframe
   // mid-audio. That defeats the whole point of the two-step UX.
   //
-  // Bad pattern (bodmas-blitz regression, 2026-04-23):
+  // Bad pattern:
   //   postGameComplete(sr, su);
   //   floatingBtn.setMode('next');          // <- appears immediately
   //
@@ -3065,7 +3117,7 @@ if (hasStartGame) {
   // ─── GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN ─────────────────────────────────
   // The Next/Continue/Done/Finish CTA — i.e. the "advance the lifecycle one
   // step" navigation verb — is owned by FloatingButton, NOT by a button inside
-  // a TransitionScreen card. A sub-agent regression (bodmas-blitz 2026-04-23)
+  // a TransitionScreen card. A sub-agent regression
   // put `text: 'Next'` inside the transitionScreen.show(...) buttons array,
   // producing a confusing two-step Next UX: (1) player sees Next on the card,
   // clicks it, (2) floating Next then appears at the bottom, player clicks
@@ -3122,7 +3174,7 @@ if (hasStartGame) {
   // ─── GEN-VICTORY-BUTTONS-REQUIRED ─────────────────────────────────────────
   // Positive enforcement of the canonical Victory template
   // (default-transition-screens.md § 3). Three sub-agent regressions
-  // (cross-logic, bodmas-blitz 2026-04-23, others) have stripped the Victory
+  // have stripped the Victory
   // buttons array entirely to silence GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN,
   // breaking the Play Again -> showMotivation loop. This rule catches that
   // regression directly: any `transitionScreen.show({...})` whose `title:`
@@ -3267,12 +3319,115 @@ if (hasStartGame) {
     );
   }
 
+  // ─── GEN-STANDALONE-END-PANEL-FORBIDDEN ───────────────────────────────────
+  // Standalone games (totalRounds === 1) MUST NOT render an inline body-card
+  // ("Puzzle solved!" / "Try again!" / sticker + title + subtitle) into
+  // #gameContent at end-of-game. The end-state UI is AnswerComponent +
+  // FloatingButton mode + header show_star animation; an inline body-card
+  // duplicates AnswerComponent and visually mimics a forbidden Victory/Game-Over
+  // TransitionScreen.
+  //
+  // Failure mode: spec drafts Welcome TS + Game Over TS;
+  // build hit GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN; build silently
+  // translated each TS into `gameContent.innerHTML = '<div class=...>Puzzle
+  // solved!</div>...'`. The translation was actually encouraged by PART-050
+  // Step 2 + code-patterns.md § Canonical Standalone end-flow at the time,
+  // both of which said "render inline feedback panel". Both have since been
+  // rewritten to drop that prescription.
+  //
+  // Detection: when totalRounds === 1, scan for any `gameContent.innerHTML
+  // = ...` (assignment, NOT clearing) inside endGame / endStandaloneGame /
+  // onCorrect / onWrong / renderInlineEndPanel / renderEndPanel. Auto-skips:
+  // - Clearing assignments (`= ''` or `= ""` or `= ` `).
+  // - Assignments inside loadRound / renderRound / setupGame / startGame /
+  //   restartGame / showRoundIntro (initial / per-round / reset render).
+  // Multi-round games auto-skip entirely.
+  if (isStandalone) {
+    const innerHTMLAssignRe = /(?:document\s*\.\s*getElementById\s*\(\s*['"]gameContent['"]\s*\)|gameContent)\s*\.\s*innerHTML\s*(\+?=)\s*([^;\n]+)/g;
+    const offendingPanel = [];
+    const carveOutFns = [
+      'loadround', 'renderround', 'renderquestion', 'setupgame', 'startgame',
+      'restartgame', 'resetgame', 'showroundintro', 'initgame', 'rendergame',
+      'renderpuzzle', 'renderboard', 'renderkakuro', 'renderpreview',
+      'rendertray', 'rendergrid', 'beginround',
+    ];
+    const flagFns = [
+      'endgame', 'endstandalonegame', 'finishgame', 'oncorrect', 'onwrong',
+      'onincorrect', 'oncomplete', 'handlecomplete', 'completegame',
+      'renderinlineendpanel', 'renderendpanel', 'rendervictorypanel',
+      'rendergameoverpanel', 'showpuzzlesolved', 'showtryagain', 'showvictory',
+      'showgameover', 'rendergameoverscreen', 'rendervictoryscreen',
+    ];
+    let am;
+    while ((am = innerHTMLAssignRe.exec(html)) !== null) {
+      const assignOp = am[1];
+      const rhs = am[2].trim();
+      // Skip clearing assignments.
+      if (assignOp === '=') {
+        if (rhs === "''" || rhs === '""' || rhs === '``' || /^['"`]\s*['"`]$/.test(rhs)) continue;
+      }
+      // Find enclosing function.
+      const ctx = html.slice(Math.max(0, am.index - 4000), am.index);
+      const fnNames = [...ctx.matchAll(/\bfunction\s+([A-Za-z_][\w]*)\s*\(/g)].map((m) => m[1]);
+      const arrowFnContext = [...ctx.matchAll(/\b([A-Za-z_][\w]*)\s*=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*=>)/g)].map((m) => m[1]);
+      const enclosing = (fnNames.concat(arrowFnContext)).pop() || '';
+      const lower = enclosing.toLowerCase();
+      // Skip if enclosing is one of the carve-out function families.
+      if (carveOutFns.some((c) => lower.includes(c))) continue;
+      // Flag if enclosing matches the end-of-game family OR file has no
+      // recognizable enclosing fn but the assignment lives in submit/feedback
+      // context (best-effort signal).
+      const flag =
+        flagFns.some((f) => lower.includes(f)) ||
+        /\bgameEnded\s*=\s*true|postGameComplete\s*\(|game_complete['"]/i.test(html.slice(Math.max(0, am.index - 800), am.index + 200));
+      if (!flag) continue;
+      const lineNo = html.slice(0, am.index).split('\n').length;
+      offendingPanel.push({ line: lineNo, fn: enclosing || '(unknown)', rhs: rhs.slice(0, 80) });
+      if (offendingPanel.length >= 5) break;
+    }
+    // Additional detection: function definitions whose name signals an end-of-game
+    // body-card renderer (renderInlineEndPanel / renderEndPanel / renderVictoryPanel /
+    // renderGameOverPanel / showPuzzleSolved / showTryAgain). The function NAME alone
+    // is sufficient signal in a standalone game — these names exist nowhere in the
+    // canon and only get invented when the build agent translates a spec's
+    // TransitionScreen into a body-card. Catches the kakuro `function renderInlineEndPanel(correct) { ... panel.innerHTML = '<div class="kak-screen-title">Puzzle solved!</div>' ... gc.appendChild(panel); }` pattern that the direct-innerHTML check misses.
+    const forbiddenFnNamesRe = /\bfunction\s+(renderInlineEndPanel|renderEndPanel|renderVictoryPanel|renderGameOverPanel|showPuzzleSolved|showTryAgain|renderInlineFeedbackPanel|renderEndScreen|renderResultsPanel)\s*\(/g;
+    let fm;
+    while ((fm = forbiddenFnNamesRe.exec(html)) !== null) {
+      const lineNo = html.slice(0, fm.index).split('\n').length;
+      offendingPanel.push({ line: lineNo, fn: fm[1] + ' (function declaration)', rhs: '' });
+      if (offendingPanel.length >= 5) break;
+    }
+    if (offendingPanel.length > 0) {
+      const lineList = offendingPanel
+        .map((o) => 'line ' + o.line + ' ' + (o.rhs ? 'in ' + o.fn + ' (innerHTML = ' + o.rhs + (o.rhs.length >= 80 ? '...' : '') + ')' : o.fn))
+        .join('; ');
+      errors.push(
+        'ERROR [GEN-STANDALONE-END-PANEL-FORBIDDEN]: Spec declares totalRounds=1 (Shape 1 Standalone) AND ' +
+          offendingPanel.length + ' end-state body-card render(s) found: ' +
+          lineList + '. ' +
+          'Standalone games render NO end-state body-card. The end-state UI is AnswerComponent (PART-051 ' +
+          'carousel showing the solution) + FloatingButton mode lifecycle (`submit` -> `next` / `retry`) + ' +
+          'header `show_star` animation. The puzzle grid stays in #gameContent unchanged. Rendering an inline ' +
+          'body-card ("Puzzle solved!" / "Try again!" / "Game over!" with sticker + title + subtitle) ' +
+          'duplicates AnswerComponent and visually mimics a Victory/Game-Over TransitionScreen that standalone ' +
+          'games are forbidden from rendering. ' +
+          'CORRECT (per code-patterns.md § Canonical Standalone end-flow): inside endGame, ' +
+          'omit any `gameContent.innerHTML = ...` assignment; instead call `answerComponent.show({slides})` ' +
+          'and `floatingBtn.setMode(correct ? "next" : "retry")`. ' +
+          'See PART-050 Step 2, code-patterns.md § Canonical Standalone end-flow, ' +
+          'spec-creation/SKILL.md § What you may NOT add silently, spec-review check Z8. ' +
+          '(GEN-STANDALONE-END-PANEL-FORBIDDEN)'
+      );
+    }
+  }
+
   // ─── GEN-ENDGAME-AFTER-TTS ────────────────────────────────────────────────
-  // endGame() is the SINGLE orchestrator owning all 5 beats — TTS must be
-  // awaited inside endGame() before show_star + Next. Splitting the beats
+  // endGame() is the SINGLE orchestrator owning all 5 steps — TTS must be
+  // awaited inside endGame() before show_star + Next. Splitting the steps
   // across runFeedbackSequence / finalizeAfterDwell / inner-endGame() causes
   // game_complete + Next to fire after only SFX while TTS is still playing
-  // (bodmas-blitz regression).
+  // 
   //
   // Heuristic: if the file uses playDynamicFeedback AND defines an endGame
   // function, look for an `await ... playDynamicFeedback` somewhere AFTER the
@@ -3303,7 +3458,7 @@ if (hasStartGame) {
         'ERROR [GEN-ENDGAME-AFTER-TTS]: `endGame(...)` is called BEFORE `await ... playDynamicFeedback(...)` — ' +
           'TTS plays AFTER endGame() has already posted game_complete and (likely) revealed Next. ' +
           'Call site near line ' + lineNumber + '. ' +
-          'Fix: `endGame()` is the SINGLE orchestrator owning all 5 beats. The submit handler is one line — ' +
+          'Fix: `endGame()` is the SINGLE orchestrator owning all 5 steps. The submit handler is one line — ' +
           '`await endGame(correct);`. Move the entire feedback sequence INTO endGame: ' +
           '(1) `await FeedbackManager.sound.play(sfxId, {sticker})` ' +
           '(2) renderInlineFeedbackPanel + postGameComplete (SYNC) ' +
@@ -3312,7 +3467,7 @@ if (hasStartGame) {
           '(5) `setTimeout(() => floatingBtn.setMode("next"), 1100)`. ' +
           'Do NOT split into runFeedbackSequence / finalizeAfterDwell / inner-endGame — ' +
           'TTS MUST be awaited inside endGame() before it returns. ' +
-          'Standalone end-of-game must be a single 5-beat block in endGame() (SFX await -> game_complete sync -> TTS await -> show_star -> setTimeout setMode(\'next\')). ' +
+          'Standalone end-of-game must be a single 5-step block in endGame() (SFX await -> game_complete sync -> TTS await -> show_star -> setTimeout setMode(\'next\')). ' +
           'Splitting into helper chains stacks animations on top of audio. ' +
           '(PART-050 "Next flow", flow-implementation.md beat sequence, GEN-ENDGAME-AFTER-TTS)'
       );
@@ -3338,7 +3493,7 @@ if (hasStartGame) {
       .join(', ');
     errors.push(
       'ERROR [GEN-SHOW-STAR-ONCE]: `show_star` postMessage found ' + showStarMatches.length + ' times — ' +
-        'it must fire EXACTLY ONCE per game session, at the end-of-game celebration beat, not on every correct answer. ' +
+        'it must fire EXACTLY ONCE per game session, at the end-of-game celebration step, not on every correct answer. ' +
         'Call sites near lines: ' + lineNumbers + '. ' +
         'Stars in the ActionBar represent overall game performance, not running progress. ' +
         'Reserve the show_star flying-star animation for the ONE end-of-game beat ' +
@@ -3354,7 +3509,7 @@ if (hasStartGame) {
   // streaming — if `showRoundIntro(N+1)` runs without first calling
   // `FeedbackManager.sound.stopAll()` + `stream.stopAll()`, the previous
   // round's subtitle/audio plays on top of the new round's `sound_round_n`
-  // and bleeds into N+1 gameplay (equivalent-ratios regression).
+  // and bleeds into N+1 gameplay.
   //
   // Heuristic: multi-round (totalRounds > 1) AND defines `showRoundIntro` AND
   // calls `playDynamicFeedback` AND the showRoundIntro body does NOT contain
@@ -3373,8 +3528,7 @@ if (hasStartGame) {
         'ERROR [GEN-ROUND-BOUNDARY-STOP]: Multi-round game (totalRounds=' +
           specContext.totalRounds + ') uses fire-and-forget `playDynamicFeedback` mid-round but ' +
           '`showRoundIntro(n)` does not stop in-flight audio at entry. The previous round\'s TTS ' +
-          'keeps streaming and bleeds into the new round\'s `sound_round_n` and gameplay ' +
-          '(equivalent-ratios regression). ' +
+          'keeps streaming and bleeds into the new round\'s `sound_round_n` and gameplay. ' +
           'Fix: add as the FIRST lines of showRoundIntro(n), before the new round\'s ' +
           '`transitionScreen.show()` / `sound_round_n` play call: ' +
           '`try { FeedbackManager.sound.stopAll(); } catch (e) {} ' +
@@ -3392,7 +3546,7 @@ if (hasStartGame) {
   // FeedbackManager.playDynamicFeedback(...) MUST be awaited in submit handlers
   // and at round-complete. Without await, the TTS streams in 200–800 ms after
   // the call returns, by which time `showRoundIntro(N+1)` has painted — the
-  // subtitle/audio bleed into the next round (equivalent-ratios regression).
+  // subtitle/audio bleed into the next round.
   //
   // Carve-outs (legitimate fire-and-forget):
   //   - showRoundIntro / roundStart contexts (round-start TTS)
@@ -3485,7 +3639,7 @@ if (hasStartGame) {
           (offending.length === 1 ? '' : 's') + ' (' + lineList + '). ' +
           'Without `await`, the TTS streams in 200–800 ms after the call returns — by which time the next ' +
           'round\'s transition has already painted, and the explanation\'s subtitle/audio bleeds into the ' +
-          'next round (equivalent-ratios regression). ' +
+          'next round. ' +
           'Fix: wrap each call in `try { await FeedbackManager.playDynamicFeedback({...}); } catch(e) {}`. ' +
           'The package already bounds resolution at 3 s (TTS API timeout) and 60 s (streaming), so awaiting ' +
           'can never freeze the game indefinitely; the `try/catch` swallows rejection so a network failure ' +
@@ -3504,7 +3658,7 @@ if (hasStartGame) {
   // Every prescribed TransitionScreen `onMounted` MUST chain SFX → TTS, both
   // awaited, per feedback/SKILL.md CASE 1/2/11/12 + default-transition-screens.md
   // § Default narration strings. The legacy SFX-only shape (cross-logic,
-  // spot-the-pairs, 2026-04-29) is the regression this rule catches.
+  // is the regression this rule catches.
   //
   // Trigger: a `transitionScreen.show({...})` call whose `title` matches one of
   // the prescribed-TS regexes AND whose body lacks a `playDynamicFeedback(`
@@ -3601,7 +3755,7 @@ if (hasStartGame) {
           'Every prescribed TS (Welcome / Round Intro / Victory / Game Over / Motivation) MUST chain ' +
           'SFX → TTS, both awaited, inside onMounted — per feedback/SKILL.md § Composition with screen primitives ' +
           '(rows 198-204) and default-transition-screens.md § Default narration strings. The SFX-only shape was the ' +
-          'cross-logic / spot-the-pairs regression (2026-04-29). ' +
+          'the SFX-only regression. ' +
           'CORRECT: onMounted: () => (async () => { ' +
             'try { await safePlaySound(sfxId, { sticker }); } catch (e) {} ' +
             'if (ttsText) try { await playDynamicFeedback({ audio_content: ttsText, subtitle: ttsText, sticker }); } catch (e) {} ' +
@@ -3666,6 +3820,319 @@ if (hasStartGame) {
           '(feedback/SKILL.md rule 9 line 267 "Sequential audio must await in order", GEN-TS-AUDIO-AWAITED)'
       );
     }
+  }
+
+  // ─── GEN-FEEDBACK-ORDER ───────────────────────────────────────────────────
+  // Enforce SOURCE-ORDER ordering of audio + side-effects within feedback-emitting
+  // scopes. The audio chain is `SFX-await → game_complete SYNC → TTS-await →
+  // reveal side-effects` (PART-050 5-step orchestrator). Today's binary "is await
+  // present" checks (GEN-FEEDBACK-TTS-AWAIT, GEN-TS-AUDIO-AWAITED) miss the
+  // ordering case where an advance side-effect is placed BEFORE the awaited TTS:
+  // the side-effect executes while audio is still streaming.
+  //
+  // Failure mode: `endGame` places `answerComponent.show()` in Step 2 (between
+  // `postGameComplete()` and the awaited `playDynamicFeedback` in Step 3). The
+  // carousel slides in mid-narration. Static validation passes — TTS IS awaited;
+  // just not first.
+  //
+  // Scopes:
+  //   1. Function declarations whose name matches feedback-emitting handlers
+  //      (endGame / endStandaloneGame / onCorrect / onWrong / handleSubmit /
+  //      onSubmit / evaluate / finishRound / roundComplete / completeRound /
+  //      handleAnswer / checkAnswer).
+  //   2. onMounted: function() {...} or onMounted: async () => {...} bodies
+  //      extracted from tsShowBlocks.
+  //
+  // Calls classified per scope (ordered by source offset):
+  //   A — SFX-await: await safePlaySound | FeedbackManager.sound.play | awaitedPlay | Promise.all([safePlaySound, ...])
+  //   T — TTS-await: await playDynamicFeedback | FeedbackManager.playDynamicFeedback | safeDynamic | safePlayDynamic
+  //   C — game_complete: postGameComplete() | parent.postMessage({type:'game_complete'})
+  //   S — show_star: postMessage({type:'show_star'})
+  //   F — setMode advance: floatingBtn.setMode('next' | 'retry')
+  //   N — navigation/reveal: nextRound | advanceOrFinish | showStarsCollected |
+  //       showVictory | showAnswerCarousel | answerComponent.show | transitionScreen.hide
+  //   D — destroy: floatingBtn.destroy | answerComponent.destroy | previewScreen.destroy
+  //
+  // Rules:
+  //   R1. A-before-T: if both A and T exist, FIRST A < FIRST T.
+  //   R2. T-before-side-effect: if T exists, every F/S/N/D MUST appear AFTER
+  //       LAST T. (setMode wrapped in setTimeout counts as the setTimeout call
+  //       site, not the inner setMode — see deferred-call detection below.)
+  //   R3. C-after-A: if both A and C exist, C MUST appear after FIRST A
+  //       (Step 2 after Step 1).
+  //
+  // Carve-outs:
+  //   - Stars Collected onMounted (title /Yay|Stars\s+collected/i): silent-by-canon;
+  //     no T expected; the show_star → setTimeout-deferred-setMode chain after
+  //     awaited SFX is the documented exception. R2 auto-skips when no T.
+  //   - Welcome / Round Intro onMounted with NO side-effect (pure SFX+TTS chain):
+  //     no F/S/N/D in scope means R2 is trivially satisfied.
+  //   - setMode/setTimeout-deferred: when setMode appears INSIDE a `setTimeout(
+  //     function() { ... }, ms)` callback, count the offset of `setTimeout`
+  //     itself, not the inner setMode. (The setTimeout schedule is a side-effect
+  //     itself; if setTimeout-call appears after T, the deferred setMode lands
+  //     after T resolves, which is canon.)
+
+  // Build a list of feedback-emitting scopes.
+  function _extractFnScopes(src) {
+    const out = [];
+    const fnNames = [
+      'endGame', 'endStandaloneGame', 'onCorrect', 'onWrong', 'handleSubmit',
+      'onSubmit', 'evaluate', 'finishRound', 'roundComplete', 'completeRound',
+      'handleAnswer', 'checkAnswer',
+    ];
+    const fnRe = new RegExp(
+      '\\b(?:async\\s+)?function\\s+(' + fnNames.join('|') + ')\\s*\\(',
+      'g'
+    );
+    let m;
+    while ((m = fnRe.exec(src)) !== null) {
+      // Find the body opening brace.
+      let i = m.index + m[0].length;
+      // Skip parameter list: walk until matching close paren.
+      let parenDepth = 1;
+      while (i < src.length && parenDepth > 0) {
+        const ch = src[i];
+        if (ch === '(') parenDepth += 1;
+        else if (ch === ')') parenDepth -= 1;
+        i += 1;
+      }
+      // Skip whitespace, expect `{`
+      while (i < src.length && /\s/.test(src[i])) i += 1;
+      if (src[i] !== '{') continue;
+      const bodyStart = i + 1;
+      // Walk balanced braces (with string/comment skipping).
+      let depth = 1;
+      let inStr = null;
+      let inLine = false;
+      let inBlock = false;
+      i += 1;
+      while (i < src.length && depth > 0) {
+        const ch = src[i];
+        const nx = src[i + 1];
+        if (inLine) {
+          if (ch === '\n') inLine = false;
+        } else if (inBlock) {
+          if (ch === '*' && nx === '/') { inBlock = false; i += 1; }
+        } else if (inStr) {
+          if (ch === '\\') { i += 1; }
+          else if (ch === inStr) inStr = null;
+        } else if (ch === '/' && nx === '/') { inLine = true; i += 1; }
+        else if (ch === '/' && nx === '*') { inBlock = true; i += 1; }
+        else if (ch === '"' || ch === "'" || ch === '`') inStr = ch;
+        else if (ch === '{') depth += 1;
+        else if (ch === '}') depth -= 1;
+        i += 1;
+      }
+      const body = src.slice(bodyStart, i - 1);
+      out.push({ kind: 'fn', name: m[1], body, bodyOffset: bodyStart });
+    }
+    return out;
+  }
+
+  // Extract onMounted callback bodies from tsShowBlocks (already computed above).
+  function _extractOnMountedScopes(blocks, src) {
+    const out = [];
+    const omRe = /onMounted\s*:\s*(?:async\s+)?(?:function\s*\(\s*\)|\(\s*\)\s*=>)\s*\{/g;
+    for (const { block, index: blockOffset } of blocks) {
+      let m;
+      while ((m = omRe.exec(block)) !== null) {
+        const localStart = m.index + m[0].length;
+        // Walk balanced braces in the block.
+        let depth = 1;
+        let inStr = null;
+        let inLine = false;
+        let inBlock = false;
+        let i = localStart;
+        while (i < block.length && depth > 0) {
+          const ch = block[i];
+          const nx = block[i + 1];
+          if (inLine) {
+            if (ch === '\n') inLine = false;
+          } else if (inBlock) {
+            if (ch === '*' && nx === '/') { inBlock = false; i += 1; }
+          } else if (inStr) {
+            if (ch === '\\') { i += 1; }
+            else if (ch === inStr) inStr = null;
+          } else if (ch === '/' && nx === '/') { inLine = true; i += 1; }
+          else if (ch === '/' && nx === '*') { inBlock = true; i += 1; }
+          else if (ch === '"' || ch === "'" || ch === '`') inStr = ch;
+          else if (ch === '{') depth += 1;
+          else if (ch === '}') depth -= 1;
+          i += 1;
+        }
+        const body = block.slice(localStart, i - 1);
+        // Detect Stars Collected silent-by-canon carve-out.
+        const isStarsCollected = /title\s*:\s*['"`][^'"`]*(?:Stars\s*collected|Yay)/i.test(block);
+        out.push({
+          kind: 'onMounted',
+          name: isStarsCollected ? 'StarsCollected onMounted (silent-by-canon)' : 'onMounted',
+          body,
+          bodyOffset: blockOffset + localStart,
+          isStarsCollected,
+        });
+      }
+    }
+    return out;
+  }
+
+  // Classify calls within a scope body.
+  function _classifyCalls(body, bodyOffset, src) {
+    const calls = [];
+    const patterns = [
+      // A — SFX-await
+      { type: 'A', re: /await\s+(?:safePlaySound|FeedbackManager\s*\.\s*sound\s*\.\s*play|awaitedPlay)\s*\(/g },
+      { type: 'A', re: /await\s+Promise\s*\.\s*all\s*\(\s*\[\s*(?:safePlaySound|FeedbackManager\s*\.\s*sound\s*\.\s*play|awaitedPlay)/g },
+      // T — TTS-await
+      { type: 'T', re: /await\s+(?:FeedbackManager\s*\.\s*)?(?:playDynamicFeedback|safeDynamic|safePlayDynamic)\s*\(/g },
+      // C — game_complete
+      { type: 'C', re: /\bpostGameComplete\s*\(/g },
+      { type: 'C', re: /(?:window\s*\.\s*)?parent\s*\.\s*postMessage\s*\(\s*\{\s*type\s*:\s*['"`]game_complete/g },
+      // S — show_star
+      { type: 'S', re: /(?:window\s*\.\s*)?postMessage\s*\(\s*\{\s*type\s*:\s*['"`]show_star/g },
+      // F — setMode 'next' / 'retry' (advance modes)
+      { type: 'F', re: /floatingBtn\s*\.\s*setMode\s*\(\s*['"`](?:next|retry)['"`]\s*\)/g },
+      // N — navigation/reveal
+      { type: 'N', re: /\b(?:nextRound|advanceOrFinish|showStarsCollected|showVictory|showAnswerCarousel)\s*\(/g },
+      { type: 'N', re: /\banswerComponent\s*\.\s*show\s*\(/g },
+      { type: 'N', re: /\btransitionScreen\s*\.\s*hide\s*\(/g },
+      // D — destroy
+      { type: 'D', re: /\b(?:floatingBtn|answerComponent|previewScreen)\s*\.\s*destroy\s*\(/g },
+    ];
+    for (const { type, re } of patterns) {
+      let m;
+      while ((m = re.exec(body)) !== null) {
+        const offsetInBody = m.index;
+        const absOffset = bodyOffset + offsetInBody;
+        // setTimeout-deferred setMode: if F is inside a `setTimeout(function() {...}, n)`
+        // callback, count the setTimeout call site, not the inner setMode.
+        if (type === 'F') {
+          // Walk back from m.index in body to find an enclosing `setTimeout(`.
+          const ctx = body.slice(Math.max(0, offsetInBody - 200), offsetInBody);
+          if (/\bsetTimeout\s*\(\s*function\s*\(\s*\)\s*\{[^}]*$/.test(ctx) ||
+              /\bsetTimeout\s*\(\s*\(\s*\)\s*=>\s*\{[^}]*$/.test(ctx)) {
+            // Find the setTimeout offset and use that as the call's source position.
+            const stMatch = ctx.match(/\bsetTimeout\s*\(/);
+            if (stMatch) {
+              const stOffsetInCtx = ctx.lastIndexOf('setTimeout');
+              const stAbsOffset = bodyOffset + Math.max(0, offsetInBody - 200) + stOffsetInCtx;
+              calls.push({ type: 'F-deferred', absOffset: stAbsOffset, lineNo: src.slice(0, stAbsOffset).split('\n').length });
+              continue;
+            }
+          }
+        }
+        const lineNo = src.slice(0, absOffset).split('\n').length;
+        calls.push({ type, absOffset, lineNo });
+      }
+    }
+    calls.sort((a, b) => a.absOffset - b.absOffset);
+    return calls;
+  }
+
+  // Apply rules to each scope.
+  const fnScopes = _extractFnScopes(html);
+  const onMountedScopes = _extractOnMountedScopes(tsShowBlocks, html);
+  const allScopes = fnScopes.concat(onMountedScopes);
+  const orderViolations = [];
+
+  for (const scope of allScopes) {
+    if (scope.isStarsCollected) continue; // canon exception
+    const calls = _classifyCalls(scope.body, scope.bodyOffset, html);
+    const firstA = calls.find((c) => c.type === 'A');
+    const firstT = calls.find((c) => c.type === 'T');
+    const lastT = [...calls].reverse().find((c) => c.type === 'T');
+    const firstC = calls.find((c) => c.type === 'C');
+
+    // R1: A-before-T
+    if (firstA && firstT && firstA.absOffset > firstT.absOffset) {
+      orderViolations.push({
+        scope: scope.name,
+        rule: 'R1',
+        msg: 'TTS-await at line ' + firstT.lineNo + ' precedes SFX-await at line ' + firstA.lineNo,
+      });
+    }
+
+    // R2: every side-effect MUST have a T (TTS-await) preceding it in source —
+    // OR (R5 fallback) when no T exists in scope, must have an A (SFX-await)
+    // preceding it. Per-side-effect "nearest preceding" check avoids false
+    // positives across if/else branches: a side-effect in branch A that's
+    // after branch A's TTS doesn't get flagged just because branch B's TTS
+    // is later in source.
+    const sideEffectTypes = ['F', 'F-deferred', 'S', 'N', 'D'];
+    const tCalls = calls.filter((c) => c.type === 'T');
+    const aCalls = calls.filter((c) => c.type === 'A');
+    for (const c of calls) {
+      if (!sideEffectTypes.includes(c.type)) continue;
+      const typeLabel = {
+        'F': "setMode('next'/'retry')",
+        'F-deferred': "setMode (deferred via setTimeout)",
+        'S': 'show_star postMessage',
+        'N': 'navigation/reveal call (answerComponent.show / nextRound / transitionScreen.hide / etc.)',
+        'D': 'destroy() call',
+      }[c.type];
+      if (tCalls.length > 0) {
+        // R2: nearest preceding T must exist before this side-effect.
+        const precedingT = tCalls.find((t) => t.absOffset < c.absOffset);
+        if (!precedingT) {
+          orderViolations.push({
+            scope: scope.name,
+            rule: 'R2',
+            msg: 'side-effect ' + typeLabel + ' at line ' + c.lineNo +
+              ' appears BEFORE the first awaited playDynamicFeedback in scope (line ' +
+              tCalls[0].lineNo + ') — side-effect races the TTS chain',
+          });
+        }
+      } else if (aCalls.length > 0) {
+        // R5: no T in scope → at least one A must precede the side-effect.
+        const precedingA = aCalls.find((a) => a.absOffset < c.absOffset);
+        if (!precedingA) {
+          orderViolations.push({
+            scope: scope.name,
+            rule: 'R5',
+            msg: 'side-effect ' + typeLabel + ' at line ' + c.lineNo +
+              ' appears BEFORE the first awaited SFX in scope (line ' +
+              aCalls[0].lineNo + ') — side-effect races the audio chain (no TTS in scope)',
+          });
+        }
+      }
+    }
+
+    // R3: C-after-A
+    if (firstA && firstC && firstC.absOffset < firstA.absOffset) {
+      orderViolations.push({
+        scope: scope.name,
+        rule: 'R3',
+        msg: 'game_complete (Step 2) at line ' + firstC.lineNo +
+          ' precedes SFX-await (Step 1) at line ' + firstA.lineNo,
+      });
+    }
+  }
+
+  if (orderViolations.length > 0) {
+    const lineList = orderViolations.slice(0, 8).map((v) =>
+      '[' + v.rule + '] in ' + v.scope + ': ' + v.msg
+    ).join('; ');
+    errors.push(
+      'ERROR [GEN-FEEDBACK-ORDER]: ' + orderViolations.length +
+        ' audio→side-effect ordering violation' + (orderViolations.length === 1 ? '' : 's') +
+        ' detected. ' + lineList + '. ' +
+        'The audio chain is strictly source-order: SFX-await (Step 1) → ' +
+        'game_complete SYNC (Step 2, postGameComplete only) → TTS-await (Step 3) → ' +
+        'reveal side-effects (Step 4: show_star + answerComponent.show) → ' +
+        'setTimeout-deferred setMode (Step 5). Advance side-effects (setMode, ' +
+        'nextRound, endGame, showStarsCollected, answerComponent.show, ' +
+        'transitionScreen.hide, destroys, show_star postMessage) MUST appear AFTER ' +
+        'the awaited playDynamicFeedback line in source. Placing any side-effect ' +
+        'between Step 1 SFX-await and Step 3 TTS-await means the side-effect ' +
+        'executes while TTS is still streaming — visual jank (e.g. AnswerComponent ' +
+        'slides in mid-narration). The only call permitted in Step 2 is postGameComplete(). ' +
+        'See PART-050 § Standalone variant per-step PERMITTED-calls table, ' +
+        'code-patterns.md § Canonical Standalone end-flow + § Canonical ' +
+        'correct/wrong submit handler, feedback/SKILL.md CASE 4/7 "Side-effect ' +
+        'ordering". Carve-outs: Stars Collected onMounted (silent-by-canon), ' +
+        'setMode wrapped in setTimeout (deferred — counts as setTimeout call ' +
+        'site, OK after T). (GEN-FEEDBACK-ORDER)'
+    );
   }
 
   // ─── GEN-FLOATING-BUTTON-RETRY-STANDALONE ─────────────────────────────────
@@ -4419,9 +4886,14 @@ if (styleBlocks.length === 0) {
       const fbBody = html.slice(objStart + 1, objEnd);
       // Extract totalRounds value from the fallbackContent body (e.g. totalRounds: 5).
       const totalRoundsMatch = /\btotalRounds\s*:\s*(\d+)/.exec(fbBody);
+      // Standalone games (totalRounds === 1) are exempt from the A/B/C cycling
+      // requirement — see alfred/skills/spec-creation/SKILL.md and spec-review/SKILL.md.
+      // A single-round game has no in-session retry-with-fresh-content expectation
+      // that the rotation serves.
+      const isStandalone = totalRoundsMatch && parseInt(totalRoundsMatch[1], 10) === 1;
       // Locate the rounds: [ ... ] array within the body.
       const roundsKeyRe = /\brounds\s*:\s*\[/;
-      const roundsMatch = roundsKeyRe.exec(fbBody);
+      const roundsMatch = !isStandalone && roundsKeyRe.exec(fbBody);
       if (roundsMatch) {
         // Walk forward from `[` with balanced bracket tracking.
         let j = roundsMatch.index + roundsMatch[0].length - 1; // index of `[`
@@ -5377,7 +5849,7 @@ if (/new\s+Audio\s*\(/.test(html)) {
         'ERROR [GEN-SHOW-STAR-REQUIRED]: PreviewScreen + FloatingButton game has no ' +
           '`show_star` postMessage with a numeric `count`. Without one, the ActionBar ' +
           'header numerator never advances and the player never earns stars. ' +
-          'Fix: at the end-of-game celebration beat (standalone: inside endGame after ' +
+          'Fix: at the end-of-game celebration step (standalone: inside endGame after ' +
           'all feedback audio; multi-round: inside the victory / stars-collected ' +
           'TransitionScreen onMounted), fire ' +
           '`window.postMessage({type:"show_star", data:{count: getStars(), variant:"yellow"}}, "*")`. ' +
@@ -5500,7 +5972,7 @@ if (/new\s+Audio\s*\(/.test(html)) {
         errors.push(
           'ERROR [GEN-ANSWER-COMPONENT-AFTER-CELEBRATION]: `answerComponent.show(...)` is called inside `endGame()`. ' +
             'For multi-round games that use TransitionScreen, the answer carousel must appear AFTER the Stars Collected ' +
-            'celebration beat — never alongside or before it. Pattern: `endGame()` posts `game_complete` and routes to ' +
+            'celebration step — never alongside or before it. Pattern: `endGame()` posts `game_complete` and routes to ' +
             '`showVictory()` / `showStarsCollected()`. Stars Collected\'s `onMounted` plays the yay sound + show_star ' +
             'animation, then via setTimeout calls a `showAnswerCarousel()` function (the Stars Collected TS stays mounted ' +
             'as the celebration backdrop — no `transitionScreen.hide()` in `onMounted`, per default-transition-screens.md). ' +

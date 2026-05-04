@@ -10,7 +10,7 @@ Every game MUST implement all patterns below. Each section either references a P
 
 Every game listens for `game_init` from a parent window. When running standalone (local server, Playwright tests, preview), there is no parent — `game_init` never arrives — and the game stays on a blank start screen forever.
 
-**Required pattern:** Add a fallback timer that runs **independently of `waitForPackages()`**. The fallback must be able to fire even if CDN packages never load. AND the fallback must re-verify that every required component is defined before booting — partial-component boot is the bug that shipped in age-matters.
+**Required pattern:** Add a fallback timer that runs **independently of `waitForPackages()`**. The fallback must be able to fire even if CDN packages never load. AND the fallback must re-verify that every required component is defined before booting — partial-component boot is a known fail-open shape.
 
 ```javascript
 // Inside DOMContentLoaded, AFTER registering the message listener and sending game_ready:
@@ -72,7 +72,7 @@ setTimeout(function() {
 
 **Anti-pattern (CRITICAL):** Never nest the standalone fallback inside `waitForPackages().then(...)`. If CDN packages fail to load, `waitForPackages` blocks for 180s — the standalone fallback never fires, and Playwright tests time out waiting for the game to start. The fallback MUST be a top-level `setTimeout` that runs regardless of CDN availability.
 
-**Anti-pattern (CRITICAL):** Never silently call `setupGame()` from the fallback when one or more required classes are still undefined. That's the age-matters fail-open shape — `previewScreen` ends up `null` and the game boots into Round 1 with no preview. The fallback MUST re-check the same set as `waitForPackages` (see [`mandatory-components.md`](./mandatory-components.md)) and surface a visible error if any are missing.
+**Anti-pattern (CRITICAL):** Never silently call `setupGame()` from the fallback when one or more required classes are still undefined. That is the fail-open shape — `previewScreen` ends up `null` and the game boots into Round 1 with no preview. The fallback MUST re-check the same set as `waitForPackages` (see [`mandatory-components.md`](./mandatory-components.md)) and surface a visible error if any are missing.
 
 ---
 
@@ -148,7 +148,7 @@ The ActionBar header `#previewScore` (e.g. `"2/3"`) and `#previewQuestionLabel` 
 
 `show_star` fires the flying-star animation into the header. It is a ONE-TIME celebration triggered at the end of the game — NOT per round. After the 1 s animation, the numerator increments by `count` (clamped at the locked denominator).
 
-Fire `show_star` exactly ONCE per game session, at the end-of-game celebration beat:
+Fire `show_star` exactly ONCE per game session, at the end-of-game celebration step:
 - **Standalone** (`totalRounds: 1`): inside `endGame` / feedback sequence, after all feedback audio completes.
 - **Multi-round** (`totalRounds > 1`): inside the victory / stars-collected TransitionScreen's `onMounted` (or `onDismiss`), after celebration audio — NOT inside the per-round correct handler.
 
@@ -193,13 +193,13 @@ window.postMessage({
 Per PART-040 + PART-050. Intra-frame postMessage that animates a flying star into the ActionBar header, plays an award chime, upgrades the header's static star image to match the awarded tier, and updates the header score text at animation end.
 
 - **Target is `window`, NOT `window.parent`.** ActionBar listens in the same frame as the game. `window.parent.postMessage(...)` goes to the host and ActionBar never sees it.
-- **Fire EXACTLY ONCE per game session, at the end-of-game celebration beat.** Stars in the ActionBar represent overall game performance. Mid-round `show_star` plays N stacked animations in a multi-round game and over-counts the displayed numerator (regression caught twice in QA). Spec opt-out: `spec.autoShowStar: false` suppresses the generator default.
+- **Fire EXACTLY ONCE per game session, at the end-of-game celebration step.** Stars in the ActionBar represent overall game performance. Mid-round `show_star` plays N stacked animations in a multi-round game and over-counts the displayed numerator (regression caught twice in QA). Spec opt-out: `spec.autoShowStar: false` suppresses the generator default.
 - **Serial ordering (MANDATORY).** At end-of-game, fire `show_star` ONLY after ALL feedback audio (SFX + dynamic TTS) has finished awaiting. The flying star is a visual follow-on to the spoken feedback, not a parallel effect. User-visible order is SFX → feedback panel → TTS (awaited) → star animation → Next.
-  - **Beat 1: `await FeedbackManager.sound.play(...)`** — SFX + sticker, min 1500 ms.
-  - **Beat 2: render feedback panel + `postGameComplete()`** — SYNC; never block on TTS.
-  - **Beat 3: `await FeedbackManager.playDynamicFeedback({...})`** — dynamic TTS, if the game uses it. AWAIT IT; fire-and-forget here causes the star animation and Next button to overlap with TTS audio (bodmas-blitz regression).
-  - **Beat 4: fire `show_star` postMessage** — animation plays ~1 s, score applied at animation end.
-  - **Beat 5: `setTimeout(function(){ floatingBtn.setMode('next'); }, 1100)`** — Next appears AFTER the animation finishes. Shorten to 300 ms only if `spec.autoShowStar === false`.
+  - **Step 1: `await FeedbackManager.sound.play(...)`** — SFX + sticker, min 1500 ms.
+  - **Step 2: render feedback panel + `postGameComplete()`** — SYNC; never block on TTS.
+  - **Step 3: `await FeedbackManager.playDynamicFeedback({...})`** — dynamic TTS, if the game uses it. AWAIT IT; fire-and-forget here causes the star animation and Next button to overlap with TTS audio.
+  - **Step 4: fire `show_star` postMessage** — animation plays ~1 s, score applied at animation end.
+  - **Step 5: `setTimeout(function(){ floatingBtn.setMode('next'); }, 1100)`** — Next appears AFTER the animation finishes. Shorten to 300 ms only if `spec.autoShowStar === false`.
 - **Claim-Stars button (opt-in).** TransitionScreen has no knowledge of the star protocol — authors fire `show_star` from the button's own `action()`. Fully customizable; pair with `spec.autoShowStar: false` to avoid the generator-emitted default firing as well.
 - **Score bump is part of the celebration.** Pass `score: gameState.score + '/' + gameState.totalRounds` in the payload — ActionBar updates `#previewScore` AFTER the 1 s animation finishes, so the celebration visibly precedes the number change (matches mathai-client UX).
 - **Dedupe + queue.** ActionBar swallows identical payloads within 500 ms; distinct payloads in flight are queued (max 3). Over-firing identical payloads is safe.
@@ -261,7 +261,7 @@ Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
   ```javascript
   // WRONG — invented id ('bubble_pop_sfx' is not in the canonical table) registered with a copy-pasted URL
   // (the builder copy-pasted the rounds_sound_effect URL because it had no canonical URL for the invented id).
-  // Cell taps now play the round-intro sting instead of a bubble (cross-logic 2026-04-29 regression).
+  // Cell taps would play the round-intro sting instead of a bubble.
   await FeedbackManager.sound.preload([
     { id: 'rounds_sound_effect', url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' },
     { id: 'bubble_pop_sfx',      url: 'https://cdn.mathai.ai/mathai-assets/dev/home-explore/document/1757506558124.mp3' }  // ← rejected by GEN-SOUND-ID-CANONICAL
@@ -272,7 +272,7 @@ Per PART-017 and `skills/feedback/SKILL.md`. Game-building rules:
 - **Static SFX:** `await FeedbackManager.sound.play(id, {sticker: STICKER_URL})` — sticker is a string URL. Awaited for terminal moments, fire-and-forget for mid-round
 - **CRITICAL — Minimum Feedback Duration:** `sound.play()` can resolve BEFORE audio finishes. ALL answer-feedback calls (`sound_life_lost`, `sound_correct`, `wrong_tap`, `correct_tap`, `sound_incorrect`, `all_correct`, `all_incorrect_*`, `partial_correct_*`) MUST use `Promise.all` with a 1500ms floor: `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ]);` — guarantees audio fully plays before round advance / tile reset / game-over. Does NOT apply to VO or transition audio. Validator rule `5e0-FEEDBACK-MIN-DURATION`. See PART-026 Anti-Pattern 34.
 - **Dynamic VO:** all VO is dynamic TTS, never preloaded. **Usage depends on context:**
-  - **Submit/answer handlers (correct/wrong, single-step) AND round-complete (multi-step):** AWAIT — `try { await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker}); } catch(e){}`. The explanation MUST finish BEFORE the round advances; without await, the TTS subtitle/audio paints on top of the next round's transition (equivalent-ratios regression). Package already bounds resolution (3 s TTS API / 60 s streaming) so the await can never freeze the game indefinitely. Validator: `GEN-FEEDBACK-TTS-AWAIT`.
+  - **Submit/answer handlers (correct/wrong, single-step) AND round-complete (multi-step):** AWAIT — `try { await FeedbackManager.playDynamicFeedback({audio_content, subtitle, sticker}); } catch(e){}`. The explanation MUST finish BEFORE the round advances; without await, the TTS subtitle/audio paints on top of the next round's transition. Package already bounds resolution (3 s TTS API / 60 s streaming) so the await can never freeze the game indefinitely. Validator: `GEN-FEEDBACK-TTS-AWAIT`.
   - **Transition screens (level/round/game-over) with CTA:** `await FeedbackManager.playDynamicFeedback(...)` — same reason; CTA can interrupt at any time.
   - **Round-start dynamic TTS (welcome / contextual intro after round mounts):** fire-and-forget — student should be able to interact immediately.
   - **Partial progress / chain audio:** fire-and-forget — ambient acknowledgement, don't pause mid-chain.
@@ -301,7 +301,7 @@ Per PART-025. Game-building rules:
 ### TransitionScreen
 Per PART-024. Game-building rules:
 - `transitionScreen.show()` takes ONE argument -- an options object (GEN-TRANSITION-API).
-- `icons` array must contain **single-glyph emoji strings only** — never URLs, never SVG markup, never image paths, never multi-word text. The component renders each entry as **text inside a `.mathai-ts-icons` span**, NOT as an `<img src>`. Passing a URL surfaces the URL as giant text in the UI (a real failure shipped: kakuro 2026-Q2 — passed `icons: [STICKER_ROUNDS]` where `STICKER_ROUNDS` was a `https://cdn...gif` URL → the round-intro screen rendered the full URL at 80px font). Image / sticker URLs go on the **separate `sticker` prop of `safePlaySound` / `FeedbackManager.sound.play`**, NEVER on `icons[]`. Validator rules `GEN-TRANSITION-ICONS` (existing — SVG ban) and `TRANSITION-ICONS-NO-URL` (new — URL ban) enforce this.
+- `icons` array must contain **single-glyph emoji strings only** — never URLs, never SVG markup, never image paths, never multi-word text. The component renders each entry as **text inside a `.mathai-ts-icons` span**, NOT as an `<img src>`. Passing a URL surfaces the URL as giant text in the UI (e.g. passing `icons: [STICKER_ROUNDS]` where `STICKER_ROUNDS` is a `https://cdn...gif` URL renders the full URL at 80px font on the round-intro screen). Image / sticker URLs go on the **separate `sticker` prop of `safePlaySound` / `FeedbackManager.sound.play`**, NEVER on `icons[]`. Validator rules `GEN-TRANSITION-ICONS` (existing — SVG ban) and `TRANSITION-ICONS-NO-URL` (new — URL ban) enforce this.
 - ALL `transitionScreen.show()` calls MUST be awaited (returns a Promise).
 - **Every transition screen MUST play audio** (SFX ± dynamic VO). No silent transitions. Fire via the `onMounted` callback: `onMounted: () => FeedbackManager.sound.play('<id>', { sticker })`. Approved IDs per PART-024: `vo_game_start`, `sound_game_complete`, `sound_game_over`, `vo_level_start_N`, `vo_motivation`.
 - **`stars:` and `icons:` are mutually exclusive.** TransitionScreenComponent renders them into the same `.mathai-ts-icons` DOM element — `stars:` always wins, so any `icons: [...]` emoji silently disappears. Pick one per screen: Victory passes `stars: N`; Game Over / Round Intro / Motivation / Stars Collected pass `icons: ['<emoji>']`. Do NOT pass both. `test/content-match.test.js` fails the build if you do.
@@ -340,6 +340,19 @@ Per PART-050. Game-building rules:
 - **Slot:** `ScreenLayout.inject(...)` MUST include `slots: { floatingButton: true, ... }`. Missing slot → `GEN-FLOATING-BUTTON-SLOT`.
 - **Constructor:** `const floatingBtn = new FloatingButtonComponent({ slotId: 'mathai-floating-button-slot' });` — do NOT pass a different slotId; the slot is fixed-position and lives as a sibling of the layout root.
 - **Visibility is game-state-driven, NOT interaction-driven.** Component starts hidden. Define an `isSubmittable()` predicate over `gameState` (e.g. `return gameState.userInput.trim() !== '';`, or `return gameState.placedTiles.length === gameState.expectedTiles;`). Call `floatingBtn.setSubmittable(isSubmittable())` from EVERY handler that can change the predicate's value: `input`, `change`, `keyup` on inputs; `click` on option chips; `drop` / `dragend` on DnD targets; any programmatic state mutation (undo, reset, clear). Never show-once and rely on a single flip — the button must disappear again when the player clears their input. Missing predicate wiring → `GEN-FLOATING-BUTTON-PREDICATE`.
+- **Submit hidden by default — predicate must gate on real input.** Empty / no-input submits are prevented by hiding the button, NEVER by counting as a wrong attempt or costing a life. `setSubmittable(true)` as a literal is forbidden; so are predicates that accept empty input (`length >= 0`, `length >= -1`, `length !== -1`, untrimmed string-length checks). Validator: `GEN-FLOATING-BUTTON-SUBMIT-DEFAULT`. PART-050 Lifecycle § 2.
+
+  ```js
+  // WRONG — button always visible, penalises empty taps
+  floatingBtn.setSubmittable(true);
+  floatingBtn.setSubmittable(gameState.selectedIds.length >= 0);
+  floatingBtn.setSubmittable(gameState.userInput.length >= 0);
+
+  // RIGHT — predicate gates on real input
+  floatingBtn.setSubmittable(gameState.selectedIds.length >= 1);
+  floatingBtn.setSubmittable(gameState.placedTiles.length === gameState.expectedTiles);
+  floatingBtn.setSubmittable(gameState.userInput.trim().length > 0);
+  ```
 - **Submit handler (auto-hide on click):** when the player taps Submit, the component **auto-hides the button immediately** (internal `setMode(null)` before the handler runs). No need to return a Promise or manually call `setDisabled` — the hide is automatic, regardless of whether the handler is sync or async. The handler's job is to evaluate, await feedback, and then re-show the button in the NEXT mode: `setMode('retry')` (standalone + lives remaining), `setMode(null)` (multi-round mid-game — predicate re-drives on the next interaction), or continue to end-game flow. Register as `floatingBtn.on('submit', async () => { /* evaluate, await feedback, setMode('retry' | null) */ });`. Sync fire-and-forget is also safe: `floatingBtn.on('submit', () => { handleSubmit(...); })` — the button hides immediately and the async `handleSubmit` flips mode when done. Do NOT directly flip `setMode('next')` from the submit handler — Next appears AFTER the end TransitionScreen dismisses (multi-round) or AFTER the inline-feedback renders (standalone), not as a reaction to submit.
 - **Next flow — Next is the LAST thing the player sees.** Every FloatingButton-using game MUST wire the Next button, AND `setMode('next')` MUST happen only AFTER feedback audio has completed. The sequence differs by shape:
 
@@ -377,7 +390,7 @@ Per PART-050. Game-building rules:
   });
   ```
   **BANNED patterns (validator `GEN-FLOATING-BUTTON-NEXT-TIMING` / `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN` / `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` will block these):**
-  - ❌ `postGameComplete(...); floatingBtn.setMode('next');` in the body of `endGame()` — Next appears during feedback audio (bodmas-blitz regression 2026-04-23).
+  - ❌ `postGameComplete(...); floatingBtn.setMode('next');` in the body of `endGame()` — Next appears during feedback audio.
   - ❌ `setMode('next')` in the same function as a `game_complete` postMessage without any `await` / `transitionScreen.onDismiss(` / `transitionScreen.hide()` separating them.
   - ❌ Fire-and-forget end-of-game feedback (`FeedbackManager.play(...).catch(...)` without `await`) — end-of-game feedback MUST be awaited so the TransitionScreen and Next button appear AFTER audio completes, not simultaneously.
   - ❌ **`transitionScreen.show({ buttons: [{ text: 'Next', action: function() { floatingBtn.setMode('next'); } }] })` — WRONG.** This produces a confusing double-Next UX (the card has a Next button whose click reveals ANOTHER Next button at the bottom). Victory / game_over TransitionScreens MUST use `buttons: []` (empty array). The player tap-dismisses the card; the FloatingButton Next appears only then. Any `text: 'Next' / 'Continue' / 'Done' / 'Finish' / 'Play Again'` inside a TransitionScreen's `buttons:` array fires `GEN-FLOATING-BUTTON-TS-CTA-FORBIDDEN`. Welcome / round-intro / motivation screens may still have buttons (`I'm ready`, `Let's go`, `Skip`) — those labels are not reserved.
@@ -428,7 +441,7 @@ Per PART-051. Game-building rules:
 - **Slide payload — `render(container)` callbacks ONLY.** Each slide is `{ render(container) { /* mount evaluated answer view */ } }`. Validator `GEN-ANSWER-COMPONENT-SLIDE-SHAPE` rejects `html:` and `element:` keys. The component clears the container before each render — games can construct DOM from `gameState` / round data without leak concerns.
 - **Render only the EVALUATED elements.** For drag-drop questions the slide must show the drop-zones in their solved state, NOT the draggable bank. For grid questions, the solved grid. For tables, the rows in their correct state. Anything that is "input affordance" (drag bank, MCQ option chips, text input box) is NOT shown — only the parts that were graded.
 - **Use the `.mathai-answer-stack` and `.mathai-answer-row` utility classes** (provided by the component, no game CSS needed) to lay out multi-section answer views. The slide container itself is plain block flow with auto `> * + *` margins, so loose children get a 14 px rhythm by default; for richer layouts wrap content in `<div class="mathai-answer-stack">` (vertical column with `gap`) and use `<div class="mathai-answer-row">` for horizontal chip groups. Avoid emitting tightly-packed sibling `<div>`s with no wrapper — they default to centred block flow but games that need horizontal grouping or richer spacing should use the helpers. See PART-051 § "Layout helpers".
-- **End-game multi-round chain (REQUIRED — supersedes the FloatingButton "Multi-round Next flow" pattern when AnswerComponent is in use):** the celebration beat (Stars Collected yay + `show_star` animation) plays FIRST, hands off to AnswerComponent via its `onMounted` setTimeout, and the floating Next is single-stage exit. `answerComponent.show(...)` MUST NOT appear inside `endGame()`.
+- **End-game multi-round chain (REQUIRED — supersedes the FloatingButton "Multi-round Next flow" pattern when AnswerComponent is in use):** the celebration step (Stars Collected yay + `show_star` animation) plays FIRST, hands off to AnswerComponent via its `onMounted` setTimeout, and the floating Next is single-stage exit. `answerComponent.show(...)` MUST NOT appear inside `endGame()`.
   ```js
   async function endGame(/* called after the final round resolves */) {
     await FeedbackManager.play(/* final round */);                          // 1. await feedback
@@ -453,7 +466,7 @@ Per PART-051. Game-building rules:
     });
   }
 
-  // Stars Collected — the celebration beat. Plays the yay sound + show_star
+  // Stars Collected — the celebration step. Plays the yay sound + show_star
   // animation, then HANDS OFF to the answer carousel via setTimeout.
   async function showStarsCollected() {
     await transitionScreen.show({
@@ -643,10 +656,32 @@ The core game loop MUST follow this order:
 5. Update internal `score`/`lives` counters and call `syncDOM()`. Do NOT touch the ActionBar header here — the header is locked at boot by `game_init.data.score` and updated only by the end-of-game `show_star` celebration. `setScore` and `setQuestionLabel` are not part of the public API.
 6. Visual feedback (selected-wrong/selected-correct classes, correct-reveal)
 7. FeedbackManager audio (per `skills/feedback/SKILL.md`):
-   - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → then **AWAIT** `try { await FeedbackManager.playDynamicFeedback({audio_content: round.<X>TTS, subtitle: round.<X>Subtitle, sticker}); } catch(e){}`. SFX awaited (~1.5s floor) for predictable visual flash; TTS awaited so the explanation finishes BEFORE round advance — without await, the subtitle/audio paints over the next round's transition (equivalent-ratios regression). Package bounds TTS resolution at 3 s (API timeout) / 60 s (streaming) so it can never freeze the game indefinitely; `try/catch` swallows rejection so a network failure still advances. **Subtitle pairing rule:** `subtitle` MUST come from a paired authored field on the same round object (`<X>TTS` ↔ `<X>Subtitle` convention; see spec-creation/SKILL.md § 5e-i). NEVER hard-code a generic literal like `'Great job!'` or `'Try again!'` while `audio_content` reads `round.<X>TTS` — that strands students who can't hear the audio (cross-logic 2026-04-29 regression). Validators: `GEN-FEEDBACK-TTS-AWAIT` (await), `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO` (subtitle pairing).
+   - **Single-step correct/wrong (DEFAULT):** `await Promise.all([ FeedbackManager.sound.play(id, {sticker}), new Promise(function(r) { setTimeout(r, 1500); }) ])` → then **AWAIT** `try { await FeedbackManager.playDynamicFeedback({audio_content: round.<X>TTS, subtitle: round.<X>Subtitle, sticker}); } catch(e){}`. SFX awaited (~1.5s floor) for predictable visual flash; TTS awaited so the explanation finishes BEFORE round advance — without await, the subtitle/audio paints over the next round's transition. Package bounds TTS resolution at 3 s (API timeout) / 60 s (streaming) so it can never freeze the game indefinitely; `try/catch` swallows rejection so a network failure still advances. **Subtitle pairing rule:** `subtitle` MUST come from a paired authored field on the same round object (`<X>TTS` ↔ `<X>Subtitle` convention; see spec-creation/SKILL.md § 5e-i). NEVER hard-code a generic literal like `'Great job!'` or `'Try again!'` while `audio_content` reads `round.<X>TTS` — that strands students who can't hear the audio. **Side-effect ordering rule:** the chain is strictly `SFX-await → TTS-await → advance` in source order. Any side-effect that advances the game lifecycle — `setMode('next' / 'retry')`, `nextRound()`, `endGame()`, `showStarsCollected()`, `answerComponent.show()`, `transitionScreen.hide()`, `floatingBtn.destroy()`, `window.postMessage({type:'show_star',...})` — MUST appear AFTER the awaited `playDynamicFeedback` line. Placing any side-effect between the awaited SFX and the awaited TTS (or before the awaited SFX) means it executes while audio is still in flight. Validators: `GEN-FEEDBACK-TTS-AWAIT` (await), `GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO` (subtitle pairing), `GEN-FEEDBACK-ORDER` (side-effect ordering).
    - **Multi-step mid-round match:** `FeedbackManager.sound.play(id, {sticker}).catch(...)` — fire-and-forget. NO dynamic TTS, NO subtitle. SFX + sticker only.
    - Last-life wrong: ALWAYS play wrong SFX (awaited, Promise.all 1500ms min) BEFORE endGame(false) — never skip
 8. **Advance to next round** via `renderRound()` / `loadRound()` / `endGame()`. DO NOT set `isProcessing = false` here and DO NOT re-enable inputs in the handler after audio. `renderRound()` / `loadRound()` is the single source of truth: it sets `isProcessing = false`, re-enables inputs (buttons, voice input), clears marks, and resets state for the new round. Exception: API-failure path and terminal game-over are the only places the handler itself unblocks (so the user can retry or see the end screen).
+
+### Round mount narration (renderRound) — shape-conditional
+
+When the round DOM mounts inside `renderRound(n)`, the build MAY emit a fire-and-forget question-narration call (CASE 3 in feedback/SKILL.md):
+
+```javascript
+// Inside renderRound(n), AFTER the question DOM is in the DOM tree:
+if (round.questionTTS) {
+  FeedbackManager.playDynamicFeedback({
+    audio_content: round.questionTTS,
+    subtitle:      round.questionSubtitle,   // PAIRED — see Z7 / GEN-FEEDBACK-SUBTITLE-LINKED-TO-AUDIO
+    sticker:       STICKER_NEUTRAL
+  }).catch(function(){});                     // fire-and-forget; .catch() only, NEVER await, NEVER Promise.race
+}
+```
+
+**Whether to emit this block depends on the game shape:**
+
+- **Multi-round (`totalRounds > 1`):** emit unconditionally. The block is a no-op when the round has no `questionTTS`, so it's safe to leave in for every multi-round game.
+- **Standalone (`totalRounds: 1`):** emit ONLY if the spec sets `roundMountNarration: true`. When the flag is absent or `false`, do NOT emit the block at all (not even a guarded `if (round.questionTTS)` form). The single puzzle is the entire payoff and the PreviewScreen instruction TTS just finished — auto-narrating the question on top clutters first interaction. See spec-creation/SKILL.md § Optional `roundMountNarration` flag and spec-review Z9.
+
+The `.catch()` shape (NEVER `await`, NEVER `Promise.race`) is enforced by `5e0-FEEDBACK-RACE-FORBIDDEN` and the fire-and-forget convention in feedback/SKILL.md § CASE 3. Side-effect ordering rules (`GEN-FEEDBACK-ORDER`) do NOT apply here — this is fire-and-forget mount narration, not the awaited submit-handler chain.
 
 ### resetGame (restartGame)
 
@@ -867,23 +902,80 @@ function showAnswerCarousel() {
 }
 ```
 
-### Canonical Standalone end-flow (`totalRounds === 1`, no TransitionScreen)
+### Canonical Standalone end-flow (`totalRounds === 1`, no TransitionScreen, no body-card)
+
+**End-state UI = AnswerComponent (PART-051) + FloatingButton mode + header `show_star`.** The puzzle grid stays rendered in `#gameContent` unchanged; AnswerComponent reveals the solution carousel below; FloatingButton drives the advance/retry CTA. **Do NOT render an inline body-card** ("Puzzle solved!" / "Try again!" / "Game over!" with sticker + title + subtitle) — that duplicates AnswerComponent and visually mimics a Victory/Game-Over TransitionScreen that standalone games are forbidden from rendering. Validators: `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` (no `transitionScreen.show()`) + `GEN-STANDALONE-END-PANEL-FORBIDDEN` (no `gameContent.innerHTML = '<...>'` inside endGame / onCorrect / onWrong).
+
+**Step ordering is enforced by `GEN-FEEDBACK-ORDER`.** Each of the 5 steps below has a PERMITTED-calls list (see PART-050 § Standalone variant) and validator flags any call placed in the wrong beat. Common regression: `answerComponent.show()` placed in Step 2 (between `postGameComplete` and awaited TTS) — the carousel slides in mid-narration. The audio chain is strictly `SFX-await → game_complete SYNC → TTS-await → reveal side-effects (show_star, answerComponent.show) → setMode-deferred-via-setTimeout`. Source order matters; the validator does not reason about runtime semantics — it checks where calls appear in the file.
+
 ```javascript
-// TransitionScreen is FORBIDDEN in standalone games (GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN).
-// The end state lives inline in #gameContent — worked example, stars, message — and FloatingButton's
-// `next` mode is the ONLY navigation verb.
+// CORRECT — puzzle stays, AnswerComponent reveals solution, FloatingButton advances.
 async function endStandaloneGame(result) {
-  postGameComplete();                                                   // BEFORE audio
-  await safePlaySound(result.correct ? 'correct_sound_effect' : 'incorrect_sound_effect',
-                       { sticker: result.correct ? STICKER_CORRECT : STICKER_INCORRECT });
-  document.getElementById('gameContent').innerHTML = renderEndPanel(result);
+  // Step 1 — SFX awaited (~1.5 s floor).
+  try {
+    await safePlaySound(
+      result.correct ? 'correct_sound_effect' : 'incorrect_sound_effect',
+      { sticker: result.correct ? STICKER_CORRECT : STICKER_INCORRECT }
+    );
+  } catch (e) {}
+
+  // Step 2 — game_complete SYNC. NO body-card render.
+  postGameComplete();
+
+  // Step 3 — TTS awaited (if game uses dynamic TTS).
+  try {
+    await FeedbackManager.playDynamicFeedback({
+      audio_content: result.ttsText,                                     // from spec round content
+      subtitle:      result.ttsSubtitle,                                 // paired *Subtitle field
+      sticker:       result.correct ? STICKER_CORRECT : STICKER_INCORRECT
+    });
+  } catch (e) {}
+
+  // Step 4 — show_star (correct only) + AnswerComponent reveal.
+  if (result.correct) {
+    window.postMessage({
+      type: 'show_star',
+      data: {
+        count: gameState.stars,
+        variant: 'yellow',
+        score: gameState.score + '/' + gameState.totalRounds
+      }
+    }, '*');
+  }
+  if (answerComponent) {
+    answerComponent.show({ slides: getReviewSlides(result) });
+  }
+
+  // Step 5 — reveal Next (or Retry on wrong-with-lives-remaining).
+  setTimeout(function () {
+    floatingBtn.setMode(result.correct ? 'next' : 'retry');
+  }, 1100);
+}
+
+floatingBtn.on('next', function () {
+  window.parent.postMessage({ type: 'next_ended' }, '*');
+  try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
+  try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
+  floatingBtn.destroy();
+});
+```
+
+```javascript
+// FORBIDDEN — duplicates AnswerComponent and visually mimics a Victory TS.
+// Validator: GEN-STANDALONE-END-PANEL-FORBIDDEN.
+async function endStandaloneGame(result) {
+  await safePlaySound(...);
+  // ❌ Do NOT do this. Renders a TS-mimicking body-card into #gameContent.
+  document.getElementById('gameContent').innerHTML =
+    '<div class="kak-screen-title">Puzzle solved!</div>' +
+    '<div class="kak-screen-sticker"><img src="..."></div>' +
+    '<div class="kak-screen-subtitle">You earned 3 stars.</div>';
   floatingBtn.setMode('next');
-  floatingBtn.on('next', () => {
-    window.parent.postMessage({ type: 'next_ended' }, '*');
-    floatingBtn.destroy();
-  });
+  // ...
 }
 ```
+
+**Spec-vs-build mismatch handling.** If the spec mentions a TransitionScreen anywhere in a standalone game (`Welcome TS` / `Game Over TransitionScreen` / etc. drafted by the spec author), the build MUST IGNORE the spec's TransitionScreen and emit the canonical AnswerComponent + FloatingButton end-flow above. Do NOT translate the TS into an inline body-card. Do NOT call `transitionScreen.show()` (validator blocks it). The spec-vs-build drift surfaces at Step 9 human review or earlier at Step 2 spec-review check Z8 (`SCOPE-CREEP-STANDALONE-END-PANEL`). Build's job is to emit canon, not to silently translate spec drift.
 
 ```javascript
 // showVictory — see "Canonical Victory snippet" above for the full shape with
@@ -1126,7 +1218,7 @@ harness helper. If that helper calls back into `showRoundIntro(n)` (the common
 pattern), you get unbounded recursion: 40,000+ `/generate-audio` calls per
 30 seconds and the game never reaches gameplay. Use `function renderRound(n)`
 for the internal function and reference it from `window.loadRound` as shown
-above. Caught and fixed in target-sum-game (2026-04-28).
+above.
 
 ### getRounds with Fallback
 
@@ -1150,7 +1242,7 @@ function getRounds() {
 }
 ```
 
-`fallbackContent.rounds` MUST contain rounds for at least 3 distinct `set` values (`'A'`, `'B'`, `'C'`), each with exactly `totalRounds` rounds — so total array length is `totalRounds × 3` (or more), NOT `totalRounds`. Every round object carries a `set: 'A'|'B'|'C'` key. All `id` values globally unique across sets (prefix convention `A_r1_…`, `B_r1_…`, `C_r1_…`). Validator rule `GEN-ROUNDSETS-MIN-3` blocks build-time. Never empty. See game-building SKILL.md Step 4 for the canonical skeleton.
+For multi-round games, `fallbackContent.rounds` MUST contain rounds for at least 3 distinct `set` values (`'A'`, `'B'`, `'C'`), each with exactly `totalRounds` rounds — so total array length is `totalRounds × 3` (or more), NOT `totalRounds`. Every round object carries a `set: 'A'|'B'|'C'` key. All `id` values globally unique across sets (prefix convention `A_r1_…`, `B_r1_…`, `C_r1_…`). Validator rule `GEN-ROUNDSETS-MIN-3` blocks build-time. Never empty. **Standalone games (`totalRounds: 1`) are exempt:** ship a single round with no `set` key — the validator skips the rule, and `getAvailableSets()` falls back to `['A']` so `getRounds()` and `restartGame()` continue to work as no-ops. See game-building SKILL.md Step 4 for the canonical skeleton.
 
 ### getStars
 

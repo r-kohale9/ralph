@@ -79,15 +79,19 @@ Text colour: `#333333` (dark-charcoal). Secondary button (dual-button variant): 
 ## Lifecycle
 
 1. **Page load:** component instantiated, starts hidden (`mode = null`). NOT shown on page load.
-2. **Submittable predicate (owned by game code):** define `isSubmittable()` over `gameState`. Call `floatingBtn.setSubmittable(isSubmittable())` from EVERY handler that can change submittability:
+2. **Submit hidden by default — MANDATORY contract.** The Submit button starts hidden on page load AND at the start of every new round. It is shown ONLY when a predicate over real input returns true. This is non-negotiable, regardless of what the spec says about empty-submit semantics.
+   - `setSubmittable(true)` as a literal (no conditional) is **forbidden**.
+   - Predicates that accept empty input — `length >= 0`, `length >= -1`, `length !== -1`, untrimmed string-length checks on text inputs — are **forbidden**. Use `length >= 1` / `length === N` / `trim().length > 0`.
+   - Empty / no-input submit semantics are **"Submit hidden"**, never "wrong attempt + life lost". A spec that penalises empty submits has been mis-defaulted at Step 1 — send it back to spec-review (rule `Z10`). Statically enforced by validator `GEN-FLOATING-BUTTON-SUBMIT-DEFAULT`.
+3. **Submittable predicate (owned by game code):** define `isSubmittable()` over `gameState`. Call `floatingBtn.setSubmittable(isSubmittable())` from EVERY handler that can change submittability:
    - `input`, `change`, `keyup` on text / number inputs
    - `click` on MCQ option chips
    - `drop`, `dragend` on DnD targets
    - Any programmatic state mutation (reset, undo, clear)
-3. **On submit click:** the component **auto-hides the button immediately** — internal `setMode(null)` fires BEFORE the `on('submit')` handler runs, so the player sees the button disappear the instant they tap it. The player's focus shifts to feedback audio / inline results, not a still-visible CTA. The handler runs after the auto-hide; its job is to evaluate, await feedback, then re-show the button in the next appropriate mode via `setMode('retry')` / `setMode('next')` / `setMode(null)` (which keeps it hidden and lets the submittable-predicate re-fire on next interaction). The handler can be sync or async — the auto-hide happens regardless, so returning a Promise is not required.
-4. **On retry click:** clear feedback, reset input, set mode to `null` (back to predicate-driven).
-5. **On next click:** advance round, set mode to `null` until the player re-enters a submittable state.
-6. **End-of-game teardown (Next-tap, NOT `endGame()`):** the `on('next', ...)` handler posts `next_ended`, then destroys `previewScreen`, then `floatingBtn`. `endGame()` MUST NOT call any `.destroy()` — destroys move into the Next handler so the header survives the end-screen view.
+4. **On submit click:** the component **auto-hides the button immediately** — internal `setMode(null)` fires BEFORE the `on('submit')` handler runs, so the player sees the button disappear the instant they tap it. The player's focus shifts to feedback audio / inline results, not a still-visible CTA. The handler runs after the auto-hide; its job is to evaluate, await feedback, then re-show the button in the next appropriate mode via `setMode('retry')` / `setMode('next')` / `setMode(null)` (which keeps it hidden and lets the submittable-predicate re-fire on next interaction). The handler can be sync or async — the auto-hide happens regardless, so returning a Promise is not required.
+5. **On retry click:** clear feedback, reset input, set mode to `null` (back to predicate-driven).
+6. **On next click:** advance round, set mode to `null` until the player re-enters a submittable state.
+7. **End-of-game teardown (Next-tap, NOT `endGame()`):** the `on('next', ...)` handler posts `next_ended`, then destroys `previewScreen`, then `floatingBtn`. `endGame()` MUST NOT call any `.destroy()` — destroys move into the Next handler so the header survives the end-screen view.
 
 ## Lifecycle diagram
 
@@ -128,37 +132,47 @@ The secondary button is only rendered in `mode === 'submit'`. Secondary backgrou
 
 **The sequence differs by shape.** Pick the right one based on `totalRounds`.
 
-### Standalone variant (`totalRounds: 1`, Shape 1) — NO TransitionScreen
+### Standalone variant (`totalRounds: 1`, Shape 1) — NO TransitionScreen, NO inline body-card
 
-Standalone games have ONE question, ONE submit, ONE end state. There is nothing to transition between — TransitionScreen is architecturally redundant. The round's inline feedback panel in `#gameContent` (worked-example, stars if correct, final message) IS the end-of-game display. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks any TransitionScreen usage when `totalRounds === 1`.
+Standalone games have ONE question, ONE submit, ONE end state. There is nothing to transition between — TransitionScreen is architecturally redundant. **The end-of-game display is `AnswerComponent` (PART-051 carousel showing the solution) + `FloatingButton` mode lifecycle (`submit` → `next` / `retry`) + the persistent preview-screen header (`show_star` animation).** The puzzle grid stays rendered in `#gameContent` unchanged — the player keeps seeing what they answered. Validator `GEN-FLOATING-BUTTON-STANDALONE-TS-FORBIDDEN` blocks `transitionScreen.show()` usage when `totalRounds === 1`.
 
-**`endGame()` is the SINGLE orchestrator function — it owns all 5 beats end-to-end.** The submit handler `await`s `endGame(correct)` and that's it. Do NOT split the sequence into a `runFeedbackSequence` / `finalizeAfterDwell` / inner-`endGame()` chain that calls `endGame()` after Beat 1 (SFX) finishes — that fires `game_complete` + Next while TTS is still playing (bodmas-blitz regression). All five beats live inside `endGame()`; TTS is awaited BEFORE `endGame()` returns.
+**Do NOT render an inline body-card** ("Puzzle solved!" / "Try again!" / "Game over!" with sticker + title + subtitle into `#gameContent`). It duplicates AnswerComponent and visually mimics a Victory/Game-Over TransitionScreen, defeating the standalone shape's whole point. Validator `GEN-STANDALONE-END-PANEL-FORBIDDEN` blocks `gameContent.innerHTML = '<...>'` assignments inside `endGame` / `endStandaloneGame` / `onCorrect` / `onWrong` for standalone games.
 
-**This 5-beat orchestrator is the STANDALONE (`totalRounds: 1`) shape only.** Multi-round games (`totalRounds > 1`) await SFX **and** TTS in the round-N submit handler (same as every round, validator: `GEN-FEEDBACK-TTS-AWAIT`) before transitioning. End-of-game audio is owned by the Stars Collected `onMounted` (which awaits `sound_stars_collected`, fires `show_star`, and reveals Next via `setTimeout → setMode('next')`). See the Multi-round variant section below + `default-transition-screens.md` § 4.
+**`endGame()` is the SINGLE orchestrator function — it owns all 5 steps end-to-end.** The submit handler `await`s `endGame(correct)` and that's it. Do NOT split the sequence into a `runFeedbackSequence` / `finalizeAfterDwell` / inner-`endGame()` chain that calls `endGame()` after Step 1 (SFX) finishes — that fires `game_complete` + Next while TTS is still playing. All five steps live inside `endGame()`; TTS is awaited BEFORE `endGame()` returns.
 
-Five-beat sequence:
+**This 5-step orchestrator is the STANDALONE (`totalRounds: 1`) shape only.** Multi-round games (`totalRounds > 1`) await SFX **and** TTS in the round-N submit handler (same as every round, validator: `GEN-FEEDBACK-TTS-AWAIT`) before transitioning. End-of-game audio is owned by the Stars Collected `onMounted` (which awaits `sound_stars_collected`, fires `show_star`, and reveals Next via `setTimeout → setMode('next')`). See the Multi-round variant section below + `default-transition-screens.md` § 4.
 
-1. **Beat 1 — SFX** — `await FeedbackManager.play(correct ? 'correct' : 'incorrect')` (min 1500 ms).
-2. **Beat 2 — inline feedback panel + `game_complete`** — render the inline feedback panel in `#gameContent` (persists on-screen; no card overlay), then post `{ type: 'game_complete', data: { metrics: ... } }`. SYNC so `game_complete` fires even if TTS stalls (host-harness safety).
-3. **Beat 3 — TTS** — `await FeedbackManager.playDynamicFeedback({...})` if the game uses dynamic TTS. AWAIT IT. Skip this beat only if the spec has no TTS.
-4. **Beat 4 — `show_star`** — `window.postMessage({type:'show_star', ...}, '*')` (animation plays ~1 s, score applied at animation end).
-5. **Beat 5 — reveal Next** — `setTimeout(function(){ floatingBtn.setMode('next'); }, 1100)` so Next appears AFTER the animation finishes.
+Five-step sequence:
 
-The `await` chain through Beats 1+3 is the separator that satisfies `GEN-FLOATING-BUTTON-NEXT-TIMING` — `setMode('next')` is safe inside Beat 5's `setTimeout` because all feedback has already completed.
+**Step ordering is statically enforced by validator `GEN-FEEDBACK-ORDER`.** Every step below names its PERMITTED calls and explicitly forbids calls that belong in later beats. Build agents MUST place each call in its prescribed beat — placing a Step 4 call (e.g. `answerComponent.show`) in Step 2 makes the side-effect race the awaited TTS in Step 3. The audio chain is `SFX-await → game_complete SYNC → TTS-await → reveal side-effects`, in that source order.
+
+1. **Step 1 — SFX awaited.** PERMITTED: `await safePlaySound(...)` / `await FeedbackManager.sound.play(...)` / `await Promise.all([safePlaySound(...), setTimeout(1500)])`. FORBIDDEN: any `setMode`, `show_star`, `answerComponent.show`, navigation, destroy. Min 1500 ms floor.
+
+2. **Step 2 — `game_complete` SYNC.** PERMITTED: `postGameComplete()` ONLY (which internally posts `{type:'game_complete', data:{metrics}}`). FORBIDDEN: `answerComponent.show(...)`, `floatingBtn.setMode(...)`, `window.postMessage({type:'show_star', ...})`, `transitionScreen.hide()`, any `*.destroy()`, body-card render (`gameContent.innerHTML = ...` — `GEN-STANDALONE-END-PANEL-FORBIDDEN`). Those calls belong in Steps 4-5 (post-TTS). Placing `answerComponent.show()` in Step 2 is visually a TS-mimic and semantically a TTS race.
+
+3. **Step 3 — TTS awaited.** PERMITTED: `await FeedbackManager.playDynamicFeedback({...})` ONLY. FORBIDDEN: any `setMode`, `show_star`, `answerComponent.show`, navigation, destroy, body-card render. Skip this beat entirely (no TTS call) only when the spec has no TTS — in which case Steps 4-5 still must not appear before Step 1 SFX.
+
+4. **Step 4 — `show_star` + AnswerComponent reveal.** PERMITTED: `window.postMessage({type:'show_star', data:{count, ...}}, '*')` (header star animation, ~1 s) AND `answerComponent.show({slides: getReviewSlides()})` (carousel below puzzle grid). FORBIDDEN: `setMode` directly (deferred via `setTimeout` is Step 5), `transitionScreen.hide()` (standalone has no TS), navigation calls. Skip the `show_star` half on game-over (`correct === false`); still call `answerComponent.show()` so the player learns the solution.
+
+5. **Step 5 — reveal Next / Retry.** PERMITTED: `setTimeout(function(){ floatingBtn.setMode(correct ? 'next' : 'retry'); }, 1100)`. FORBIDDEN: bare `floatingBtn.setMode(...)` outside a setTimeout (would race the star animation), any further audio calls, body-card render. The setTimeout delay (~1100 ms) lets the Step 4 star animation finish before the CTA appears. For last-life-wrong / single-life games, use `'next'` so the player can advance to game_exit; the harness owns retry semantics.
+
+The `await` chain through Steps 1+3 is the separator that satisfies `GEN-FLOATING-BUTTON-NEXT-TIMING` — `setMode('next')` is safe inside Step 5's `setTimeout` because all feedback has already completed.
 
 Canonical wiring:
 
 ```js
 async function endGame(correct) {
-  // Beat 1 — SFX + sticker (minimum 1500 ms, awaited).
+  // Step 1 — SFX + sticker (minimum 1500 ms, awaited).
   await FeedbackManager.play(correct ? 'correct' : 'incorrect');
 
-  // Beat 2 — render inline feedback panel + post game_complete. SYNC so
-  // game_complete fires even if TTS stalls (host-harness safety).
-  renderInlineFeedbackPanel(correct);                               // update #gameContent
+  // Step 2 — post game_complete SYNC. NO body-card render in #gameContent.
+  // The puzzle grid stays as-is; AnswerComponent (Step 4) is the end-state UI.
+  // Rendering an inline "Puzzle solved!" card here duplicates AnswerComponent
+  // and visually mimics a forbidden Victory TransitionScreen.
+  // Validator: GEN-STANDALONE-END-PANEL-FORBIDDEN.
   window.parent.postMessage({ type: 'game_complete', data: {...} }, '*');
 
-  // Beat 3 — dynamic TTS (if the game uses playDynamicFeedback). AWAIT IT.
+  // Step 3 — dynamic TTS (if the game uses playDynamicFeedback). AWAIT IT.
   // The star-award animation must play AFTER feedback audio ends, not on top.
   // Omit this block entirely if the game has no TTS.
   try {
@@ -169,27 +183,35 @@ async function endGame(correct) {
     });
   } catch (e) { /* TTS failures must never block the end sequence */ }
 
-  // Beat 4 — star-award animation. Omit if spec.autoShowStar === false.
+  // Step 4 — star-award animation + AnswerComponent reveal. The carousel slides
+  // in below the puzzle grid showing the solution; the header animates 3/3 ⭐.
+  // Skip show_star on wrong (correct === false); still reveal AnswerComponent
+  // so the player learns the solution.
   if (correct) {
     window.postMessage({
       type: 'show_star',
       data: {
         count: gameState.stars || 1,
         variant: 'yellow',
-        score: gameState.score + '/' + gameState.totalRounds  // applied AFTER the 1 s animation
+        score: gameState.score + '/' + gameState.totalRounds
       }
     }, '*');
   }
+  if (answerComponent) {
+    answerComponent.show({ slides: getReviewSlides(correct) });
+  }
 
-  // Beat 5 — reveal Next. setTimeout(1100) so Next appears AFTER the 1 s
-  // flying-star animation finishes. If `spec.autoShowStar === false` (no
-  // animation fires), shorten to 300 ms — that still satisfies
-  // GEN-FLOATING-BUTTON-NEXT-TIMING's separator requirement.
-  setTimeout(function () { floatingBtn.setMode('next'); }, 1100);
+  // Step 5 — reveal Next / Retry. setTimeout(1100) so the CTA appears AFTER
+  // the star-award animation finishes. Use 'retry' on wrong (lives remain) or
+  // 'next' on correct / last-life-wrong so the player can advance to game_exit.
+  setTimeout(function () {
+    floatingBtn.setMode(correct ? 'next' : 'retry');
+  }, 1100);
 }
 
 floatingBtn.on('next', function () {
   window.parent.postMessage({ type: 'next_ended' }, '*');
+  try { if (answerComponent) answerComponent.destroy(); } catch (e) {}
   try { if (previewScreen) previewScreen.destroy(); } catch (e) {}
   floatingBtn.destroy();
 });

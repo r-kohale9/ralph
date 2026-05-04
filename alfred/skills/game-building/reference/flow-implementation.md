@@ -180,24 +180,24 @@ Fire location by shape:
 End-of-game sequencing — MANDATORY serial order:
 
 ```
-Beat 1: SFX + sticker (await, min 1500 ms)
-Beat 2: render inline feedback panel + post game_complete (SYNC — never
+Step 1: SFX + sticker (await, min 1500 ms)
+Step 2: render inline feedback panel + post game_complete (SYNC — never
         block on TTS for this, host harness relies on it)
-Beat 3: await dynamic TTS (if the game uses playDynamicFeedback)
-Beat 4: fire show_star (animation takes ~1 s; score applied at END)
+Step 3: await dynamic TTS (if the game uses playDynamicFeedback)
+Step 4: fire show_star (animation takes ~1 s; score applied at END)
         — for multi-round, this fires WHILE Stars Collected is still visible
           (NOT after its hide); animation lands on the celebration screen
-Beat 5: setTimeout(1100) → setMode('next')   ← Next appears AFTER animation,
+Step 5: setTimeout(1100) → setMode('next')   ← Next appears AFTER animation,
         on top of the still-visible Stars Collected (multi-round). Stars
         Collected hides on the Next tap, NOT on audio end (exception to the
         no-button auto-dismiss rule).
 ```
 
-Do NOT overlap these. User-visible order: SFX → feedback panel renders → TTS audio → star animation → Next button. The GEN-FLOATING-BUTTON-NEXT-TIMING validator accepts `await` and `setTimeout(` as separators, so Beat 3's await and Beat 5's setTimeout both satisfy it.
+Do NOT overlap these. User-visible order: SFX → feedback panel renders → TTS audio → star animation → Next button. The GEN-FLOATING-BUTTON-NEXT-TIMING validator accepts `await` and `setTimeout(` as separators, so Step 3's await and Step 5's setTimeout both satisfy it.
 
-**STANDALONE only (`totalRounds: 1`):** `endGame()` is the SINGLE orchestrator — all 5 beats live inside it. The submit handler is one line: `await endGame(correct);`. Do NOT split the beats across multiple async helpers (`runFeedbackSequence`, `finalizeAfterDwell`, etc.) — that fires `game_complete` + Next while TTS is still playing (bodmas-blitz regression). TTS MUST be awaited BEFORE `endGame()` returns.
+**STANDALONE only (`totalRounds: 1`):** `endGame()` is the SINGLE orchestrator — all 5 steps live inside it. The submit handler is one line: `await endGame(correct);`. Do NOT split the steps across multiple async helpers (`runFeedbackSequence`, `finalizeAfterDwell`, etc.) — that fires `game_complete` + Next while TTS is still playing. TTS MUST be awaited BEFORE `endGame()` returns.
 
-**Multi-round (`totalRounds > 1`):** round-N feedback awaits SFX (~1.5 s floor) AND awaits dynamic TTS in the submit handler before advancing — the explanation must finish attached to the answer it explains. End-of-game audio lives in the Stars Collected `onMounted` callback (`sound_stars_collected` awaited → `show_star` → `setTimeout → setMode('next')`) — the round-N submit handler just transitions into Stars Collected after its own SFX + TTS complete. The 5-beat block below applies ONLY when there's no Stars Collected screen, i.e. standalone games.
+**Multi-round (`totalRounds > 1`):** round-N feedback awaits SFX (~1.5 s floor) AND awaits dynamic TTS in the submit handler before advancing — the explanation must finish attached to the answer it explains. End-of-game audio lives in the Stars Collected `onMounted` callback (`sound_stars_collected` awaited → `show_star` → `setTimeout → setMode('next')`) — the round-N submit handler just transitions into Stars Collected after its own SFX + TTS complete. The 5-step block below applies ONLY when there's no Stars Collected screen, i.e. standalone games.
 
 **Round-boundary audio cleanup — MANDATORY (multi-round, defensive).** With awaited TTS, the explanation normally finishes before `showRoundIntro(N+1)` runs, so there's no audio to bleed. But the cleanup remains mandatory as defense-in-depth: TTS streaming can hit its 60 s upper bound, the API can throw mid-stream (caught by the `try/catch`, advancing the flow), or a tail of `sound_round_n` from a previous transition can linger. The first lines of `showRoundIntro(n)` MUST still stop in-flight audio:
 
@@ -224,14 +224,14 @@ async function runFeedbackSequence(sfx, tts, ...) {
   await playDynamicFeedback(tts); // TTS now plays AFTER game ended
 }
 
-// ✅ RIGHT — single endGame() owns all 5 beats end-to-end
+// ✅ RIGHT — single endGame() owns all 5 steps end-to-end
 async function endGame(correct) {
-  await FeedbackManager.sound.play(sfxId, { sticker });    // Beat 1
-  renderInlineFeedbackPanel(correct);                       // Beat 2 (SYNC)
-  postGameComplete();                                       // Beat 2 (SYNC)
-  await FeedbackManager.playDynamicFeedback({...});         // Beat 3
-  if (correct) window.postMessage({ type: 'show_star', data: {...} }, '*');  // Beat 4
-  setTimeout(() => floatingBtn.setMode('next'), 1100);      // Beat 5
+  await FeedbackManager.sound.play(sfxId, { sticker });    // Step 1
+  renderInlineFeedbackPanel(correct);                       // Step 2 (SYNC)
+  postGameComplete();                                       // Step 2 (SYNC)
+  await FeedbackManager.playDynamicFeedback({...});         // Step 3
+  if (correct) window.postMessage({ type: 'show_star', data: {...} }, '*');  // Step 4
+  setTimeout(() => floatingBtn.setMode('next'), 1100);      // Step 5
 }
 ```
 
@@ -241,14 +241,14 @@ Canonical snippet — standalone:
 async function endGame(correct) {
   // ... existing phase / sync / trackEvent updates ...
 
-  // Beat 1 — SFX + sticker.
+  // Step 1 — SFX + sticker.
   await FeedbackManager.sound.play(correct ? 'sound_correct' : 'sound_incorrect', { sticker });
 
-  // Beat 2 — render feedback panel, post game_complete (SYNC).
+  // Step 2 — render feedback panel, post game_complete (SYNC).
   renderInlineFeedbackPanel(correct);
   postGameComplete();
 
-  // Beat 3 — dynamic TTS (awaited, never fire-and-forget at end-of-game).
+  // Step 3 — dynamic TTS (awaited, never fire-and-forget at end-of-game).
   // Omit the block entirely if the game has no TTS.
   try {
     await FeedbackManager.playDynamicFeedback({
@@ -258,7 +258,7 @@ async function endGame(correct) {
     });
   } catch (e) { /* TTS failures must not block the end sequence */ }
 
-  // Beat 4 — star-award animation (applied to header at animation end).
+  // Step 4 — star-award animation (applied to header at animation end).
   if (correct) {
     try {
       window.postMessage({
@@ -272,7 +272,7 @@ async function endGame(correct) {
     } catch (e) {}
   }
 
-  // Beat 5 — reveal Next AFTER the 1 s animation. (Shorten to 300 ms if
+  // Step 5 — reveal Next AFTER the 1 s animation. (Shorten to 300 ms if
   // spec.autoShowStar === false.)
   setTimeout(function () {
     if (floatingBtn) {

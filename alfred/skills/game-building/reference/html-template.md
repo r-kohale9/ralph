@@ -60,7 +60,7 @@ The exact document structure every game must follow. Do not deviate from the ele
     /* ====== Function & variable definitions (global scope) ====== */
     /* 1. gameState initialization (gameId MUST be first field; include `setIndex: 0` for round-set cycling) */
     /* 2. window.gameState = gameState */
-    /* 3. fallbackContent — rounds for ≥ 3 sets (A, B, C), each `totalRounds` long, every round carries a `set: 'A'|'B'|'C'` key. Total array length = `totalRounds × 3` (or more). All `id`s globally unique across sets (`A_r1_…`, `B_r1_…`, `C_r1_…`). Validator: GEN-ROUNDSETS-MIN-3. See game-building SKILL Step 4. */
+    /* 3. fallbackContent — multi-round: rounds for ≥ 3 sets (A, B, C), each `totalRounds` long, every round carries a `set: 'A'|'B'|'C'` key (total length = `totalRounds × 3` or more, ids globally unique across sets `A_r1_…`/`B_r1_…`/`C_r1_…`). Standalone (`totalRounds: 1`) is exempt — single round, no `set` key. Validator: GEN-ROUNDSETS-MIN-3 (skipped for standalone). See game-building SKILL Step 4. */
     /* 4. Module-scope vars: timer, visibilityTracker, signalCollector, progressBar, transitionScreen, previewScreen */
     /* 5. syncDOM */
     /* 6. trackEvent */
