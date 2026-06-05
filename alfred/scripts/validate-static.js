@@ -2226,6 +2226,142 @@ function _balancedParenBlock(src, openParenIdx) {
   }
 }
 
+// ─── Boot-handshake rules: shared comment/string masking ────────────────────
+// Both GEN-PM-NO-SELF-INIT and GEN-BOOT-WAIT-FOR-INIT scan for tokens that also
+// legitimately appear in COMMENTS (the canonical template now instructs builds to
+// write comments like "do NOT call setupGame() here"). Scanning raw HTML would
+// false-positive on those. maskBoot() returns a length-preserving copy where
+// comment interiors (and optionally string interiors) are replaced with spaces,
+// so character indices, brace balance, and line numbers all stay identical.
+function maskBoot(src, blankStrings) {
+  const out = src.split('');
+  const n = src.length;
+  let i = 0, mode = 'code';
+  const blank = (j) => { if (src[j] !== '\n') out[j] = ' '; };
+  while (i < n) {
+    const c = src[i], c2 = src[i + 1];
+    if (mode === 'code') {
+      if (c === '/' && c2 === '/') { blank(i); blank(i + 1); i += 2; mode = 'line'; continue; }
+      if (c === '/' && c2 === '*') { blank(i); blank(i + 1); i += 2; mode = 'block'; continue; }
+      if (c === "'") { i++; mode = 'sq'; continue; }
+      if (c === '"') { i++; mode = 'dq'; continue; }
+      if (c === '`') { i++; mode = 'tpl'; continue; }
+      i++; continue;
+    }
+    if (mode === 'line') { if (c === '\n') mode = 'code'; else blank(i); i++; continue; }
+    if (mode === 'block') { if (c === '*' && c2 === '/') { blank(i); blank(i + 1); i += 2; mode = 'code'; continue; } blank(i); i++; continue; }
+    // string modes
+    if (c === '\\') { if (blankStrings) { blank(i); blank(i + 1); } i += 2; continue; }
+    if ((mode === 'sq' && c === "'") || (mode === 'dq' && c === '"') || (mode === 'tpl' && c === '`')) { mode = 'code'; i++; continue; }
+    if (blankStrings) blank(i);
+    i++;
+  }
+  return out.join('');
+}
+const _bootNoComments = maskBoot(html, false); // comments blanked, strings kept (string literals like 'game_init' must survive)
+const _bootCodeOnly = maskBoot(html, true);    // comments AND strings blanked (clean brace balance + no token matches inside strings)
+
+// ─── GEN-PM-NO-SELF-INIT ────────────────────────────────────────────────────
+// game_init is INBOUND only (host → game, per PART-008). The game must NEVER
+// SEND a game_init postMessage. A self-posted game_init is caught by the game's
+// own handlePostMessage listener and boots setupGame() on fallbackContent —
+// defeating the iframe handshake (the game proceeds without ever waiting for the
+// host's real content/signalConfig). This is the exact failure that shipped in a
+// live game: a self-post seeded the ActionBar header but silently short-circuited
+// the wait-for-host boot. See code-patterns.md § ActionBar header ("Do NOT
+// re-post game_init from the game") and PART-008.
+//   Detection: a `postMessage(` call whose payload sets `type: 'game_init'`.
+//   The receive side (`msg.type === 'game_init'` / `event.data.type === ...`)
+//   is a comparison (uses `===`, not `:`), so it is NOT matched. Comments are
+//   masked; the `'game_init'` string literal is preserved.
+{
+  const selfPostsGameInit = /postMessage\s*\([\s\S]{0,300}?type\s*:\s*['"]game_init['"]/.test(_bootNoComments);
+  if (selfPostsGameInit) {
+    errors.push(
+      "ERROR [GEN-PM-NO-SELF-INIT]: The game SENDS a `game_init` postMessage. game_init is INBOUND only " +
+      "(host → game, PART-008); the game must only RECEIVE it via handlePostMessage, never post it. " +
+      "A self-posted game_init is caught by the game's own message listener and runs setupGame() on " +
+      "fallbackContent, so the game never waits for the host's real content/signalConfig (broken iframe handshake). " +
+      "To seed the ActionBar header in standalone runs, rely on the component defaults (Q1, 0/3) or the host's " +
+      "game_init — do NOT re-post it. " +
+      "(code-patterns.md § ActionBar header \"Do NOT re-post game_init from the game\", PART-008)"
+    );
+  }
+}
+
+// ─── GEN-BOOT-WAIT-FOR-INIT ─────────────────────────────────────────────────
+// The game boot must be reached ONLY via (a) handlePostMessage on the host's
+// game_init, or (b) the standalone setTimeout fallback. Triggering it
+// synchronously inside the waitForPackages().then() boot callback (right after
+// game_ready) boots the game immediately on fallbackContent without waiting for
+// the host — the same bug as GEN-PM-NO-SELF-INIT, from the other direction. In
+// an iframe the host's later game_init then re-runs setup (no re-entrancy guard)
+// → double preview/inject.
+//   Detection: a setupGame() / startGame() CALL located inside the
+//   waitForPackages().then(...) callback body (the boot path), excluding any
+//   nested setTimeout body (the fallback must live OUTSIDE .then, but exclude it
+//   defensively). Scoping to the .then() body — rather than "anywhere outside
+//   handlePostMessage/setTimeout" — avoids false-positives on legit wrappers
+//   (e.g. a top-level `function startGame() { setupGame(); }` invoked from the
+//   proper path). The fallback (outside .then) and handlePostMessage (top-level
+//   fn) are never inside the .then() body, so they are not scanned.
+{
+  const isPmInit = /function\s+setupGame\s*\(/.test(_bootCodeOnly) && /handlePostMessage/.test(_bootCodeOnly);
+  // Anchor on the waitForPackages().then( <callback> ) body. await-style boots
+  // (no `.then(`) are not matched — canon uses .then(); a deviation would be
+  // caught by other boot-order rules. No anchor → no report (no false positives).
+  const thenRe = /waitForPackages\s*\(\s*\)\s*\.\s*then\s*\(\s*(?:function\s*\**\s*[\w$]*\s*\([^)]*\)|\([^)]*\)\s*=>)\s*\{/;
+  const thenM = isPmInit ? thenRe.exec(_bootCodeOnly) : null;
+  if (thenM) {
+    const thenStart = thenM.index + thenM[0].length;
+    let depth = 1, i = thenStart;
+    while (i < _bootCodeOnly.length && depth > 0) {
+      if (_bootCodeOnly[i] === '{') depth++;
+      else if (_bootCodeOnly[i] === '}') depth--;
+      i++;
+    }
+    const thenEnd = i - 1;
+
+    // setTimeout callback body spans (defensive: exclude a fallback nested in .then).
+    const stSpans = [];
+    const stRe = /setTimeout\s*\(\s*(?:function\s*\**\s*[\w$]*\s*\([^)]*\)|\([^)]*\)\s*=>)\s*\{/g;
+    let sm;
+    while ((sm = stRe.exec(_bootCodeOnly)) !== null) {
+      const s = sm.index + sm[0].length;
+      let d = 1, j = s;
+      while (j < _bootCodeOnly.length && d > 0) {
+        if (_bootCodeOnly[j] === '{') d++;
+        else if (_bootCodeOnly[j] === '}') d--;
+        j++;
+      }
+      stSpans.push([s, j - 1]);
+    }
+    const inAnySetTimeout = (pos) => stSpans.some((sp) => pos >= sp[0] && pos < sp[1]);
+
+    // Boot-trigger calls inside the .then() body.
+    const callRe = /\b(?:setupGame|startGame)\s*\(/g;
+    callRe.lastIndex = thenStart;
+    let cm;
+    while ((cm = callRe.exec(_bootCodeOnly)) !== null) {
+      const pos = cm.index;
+      if (pos >= thenEnd) break;                 // past the .then() body
+      if (/function\s+$/.test(_bootCodeOnly.slice(Math.max(0, pos - 16), pos))) continue; // a definition, not a call
+      if (inAnySetTimeout(pos)) continue;        // deferred (fallback), not sync boot
+      errors.push(
+        "ERROR [GEN-BOOT-WAIT-FOR-INIT]: the game is booted synchronously inside the waitForPackages().then() " +
+        "callback (a setupGame()/startGame() call right after game_ready). This boots on fallbackContent without " +
+        "waiting for the host's game_init — inside an iframe the game never waits for real content/signalConfig, " +
+        "and the host's later game_init re-runs setup (no re-entrancy guard) → double preview/inject. " +
+        "After registering the message listener and sending game_ready, WAIT: do NOT call setupGame()/startGame() " +
+        "in the .then() callback. The game boots only via handlePostMessage (host game_init) or the standalone " +
+        "setTimeout fallback (gated on window.self === window.top). " +
+        "(code-patterns.md § Standalone fallback pattern, html-template.md step 16 + rule 11, PART-008)"
+      );
+      break; // one report per file is enough
+    }
+  }
+}
+
 // 2. GEN-PM-READY-AFTER-WAITFOR: every game_ready site must sit in the post-waitForPackages region;
 //    a message listener must be registered in-region before each site;
 //    game_ready must NOT appear inside any .catch(...) body.

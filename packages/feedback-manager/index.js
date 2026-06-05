@@ -138,19 +138,39 @@
     },
     showAudioPermission: async function (config) {
       config = config || {};
+      console.log("[AudioPermission] PopupManager.showAudioPermission() entered");
       if (!this.isLoaded) {
         var loaded = await this.load();
         if (!loaded) {
-          console.error("[AudioKit] Popup component not available");
+          console.error(
+            "[AudioPermission] NO POPUP → popup component failed to load. [AudioKit] Popup component not available"
+          );
 
           return false;
         }
       }
-      if (!window.PopupComponent) return false;
-      if (window.PopupComponent.isVisible && window.PopupComponent.isVisible())
+      if (!window.PopupComponent) {
+        console.log(
+          "[AudioPermission] NO POPUP → window.PopupComponent is undefined"
+        );
         return false;
-      if (this.isShowing) return false;
+      }
+      if (window.PopupComponent.isVisible && window.PopupComponent.isVisible()) {
+        console.log(
+          "[AudioPermission] NO POPUP → a PopupComponent is already visible"
+        );
+        return false;
+      }
+      if (this.isShowing) {
+        console.log(
+          "[AudioPermission] NO POPUP → audio-permission popup is already showing"
+        );
+        return false;
+      }
 
+      console.log(
+        "[AudioPermission] ✅ POPUP NOW RENDERING (calling PopupComponent.show)"
+      );
       this.isShowing = true;
 
       var defaultConfig = {
@@ -995,46 +1015,174 @@
     return this.audioKit.isReady();
   };
 
-  SoundManager.prototype.unlock = async function (options) {
-    options = options || {};
-    if (this.unlocked) return true;
-
-    // Probe: if the browser already permits playback (e.g. parent harness has
-    // user activation and the iframe was granted allow="autoplay"), the
-    // AudioContext will reach state "running" without any popup. Skip the
-    // popup in that case — works for both same-origin and cross-origin
-    // iframes since it relies on the browser's autoplay decision rather than
-    // navigator.userActivation (which doesn't cross origins).
+  // Resume the AudioContext but NEVER block forever. On mobile, resume() called
+  // while the context is suspended *without a user gesture* returns a promise
+  // that stays pending indefinitely (it only settles once the context can truly
+  // start, i.e. after a real tap). Racing it against a timeout lets unlock()
+  // observe isReady() and move on to show the permission popup instead of
+  // hanging. Resolves to { timedOut, error? } — never rejects.
+  SoundManager.prototype._resumeWithTimeout = function (ms) {
+    var resumeP;
     try {
-      await this.audioKit.resume();
+      resumeP = this.audioKit.resume();
+    } catch (e) {
+      return Promise.resolve({ timedOut: false, error: e });
+    }
+    return Promise.race([
+      Promise.resolve(resumeP).then(
+        function () {
+          return { timedOut: false };
+        },
+        function (e) {
+          return { timedOut: false, error: e };
+        }
+      ),
+      new Promise(function (resolve) {
+        setTimeout(function () {
+          resolve({ timedOut: true });
+        }, ms);
+      }),
+    ]);
+  };
+
+  // Public entry point. Collapses concurrent unlock() calls (init + multiple
+  // play()/preload paths all fire it) into ONE in-flight attempt so they don't
+  // each spawn a probe and a competing popup.
+  SoundManager.prototype.unlock = function (options) {
+    options = options || {};
+    console.log(
+      "[AudioPermission] unlock() called →",
+      JSON.stringify({
+        alreadyUnlocked: this.unlocked,
+        unlockAttempted: this.unlockAttempted,
+        showPopupOption: options.showPopup,
+        autoShowPermissionPopup: this.config.autoShowPermissionPopup,
+        audioKitReady: this.audioKit ? this.audioKit.isReady() : null,
+      })
+    );
+    if (this.unlocked) {
+      console.log(
+        "[AudioPermission] NO POPUP → already unlocked, returning early"
+      );
+      return Promise.resolve(true);
+    }
+    if (this._unlockInFlight) {
+      console.log(
+        "[AudioPermission] unlock() already in flight — awaiting the existing attempt (no second popup)"
+      );
+      return this._unlockInFlight;
+    }
+    var self = this;
+    this._unlockInFlight = this._doUnlock(options);
+    // clear the latch whether it resolves or rejects, so a later gesture can retry
+    this._unlockInFlight.then(
+      function () {
+        self._unlockInFlight = null;
+      },
+      function () {
+        self._unlockInFlight = null;
+      }
+    );
+    return this._unlockInFlight;
+  };
+
+  SoundManager.prototype._doUnlock = async function (options) {
+    options = options || {};
+
+    // Probe: if the browser already permits playback (e.g. desktop autoplay, or
+    // parent harness has user activation and the iframe was granted
+    // allow="autoplay"), the AudioContext reaches "running" without any popup.
+    // Skip the popup in that case. The timeout is essential on mobile, where the
+    // probe resume() would otherwise hang forever and the popup would never show.
+    try {
+      var probe = await this._resumeWithTimeout(400);
+      console.log(
+        "[AudioPermission] autoplay probe: resume settled (timedOut=" +
+          probe.timedOut +
+          (probe.error
+            ? ", error=" + (probe.error.message || probe.error)
+            : "") +
+          "), isReady=" +
+          this.audioKit.isReady()
+      );
       if (this.audioKit.isReady()) {
         this.unlocked = true;
         this.unlockAttempted = true;
-        console.log("[AudioKit] Audio unlocked via autoplay probe");
+        console.log(
+          "[AudioPermission] NO POPUP → autoplay probe succeeded (AudioContext reached 'running' without a gesture). [AudioKit] Audio unlocked via autoplay probe"
+        );
         return true;
       }
-    } catch (_) {
-      // Fall through to popup flow
+    } catch (e) {
+      console.log(
+        "[AudioPermission] autoplay probe threw, falling through to popup flow:",
+        e && e.message ? e.message : e
+      );
     }
 
     if (this.config.autoShowPermissionPopup && options.showPopup !== false) {
       var needsInteraction = !this.canPlayAudio();
+      console.log(
+        "[AudioPermission] popup gate passed (autoShow=true, showPopup!==false). canPlayAudio()=" +
+          this.canPlayAudio() +
+          " → needsInteraction=" +
+          needsInteraction
+      );
       if (needsInteraction) {
         var popupConfig = Object.assign(
           {},
           this.config.popupConfig,
           options.popupConfig || {}
         );
+        console.log(
+          "[AudioPermission] ⚠️ SHOWING POPUP → audio is locked and a user gesture is required"
+        );
         var userClicked = await PopupManager.showAudioPermission(popupConfig);
+        console.log(
+          "[AudioPermission] popup resolved, userClicked=" + userClicked
+        );
         if (!userClicked)
           throw new Error("User did not grant audio permission");
+      } else {
+        console.log(
+          "[AudioPermission] NO POPUP → canPlayAudio() already true, no user interaction needed"
+        );
       }
+    } else {
+      console.log(
+        "[AudioPermission] NO POPUP → popup gate skipped (autoShowPermissionPopup=" +
+          this.config.autoShowPermissionPopup +
+          ", showPopup option=" +
+          options.showPopup +
+          ")"
+      );
     }
     try {
-      await this.audioKit.resume();
+      // This resume runs right after the popup's primary click, so it's now
+      // backed by a user gesture and should reach "running". Still timed so a
+      // skipped-popup path (autoShowPermissionPopup=false) can't hang.
+      var after = await this._resumeWithTimeout(3000);
       this.unlocked = this.audioKit.isReady();
       this.unlockAttempted = true;
-      console.log("[AudioKit] Audio unlocked");
+      if (!this.unlocked) {
+        var lockedErr = new Error(
+          "Audio still locked after unlock flow (resume timedOut=" +
+            after.timedOut +
+            ")"
+        );
+        console.warn(
+          "[AudioPermission] post-flow resume did NOT reach running — still locked. " +
+            lockedErr.message
+        );
+        _logFeedbackHealth("feedback.autoplay.blocked", {
+          status: "locked",
+          error: lockedErr.message,
+        });
+        throw lockedErr;
+      }
+      console.log(
+        "[AudioPermission] post-flow resume done, unlocked=true. [AudioKit] Audio unlocked"
+      );
       return true;
     } catch (e) {
       this.unlockAttempted = true;

@@ -158,6 +158,8 @@ Before outputting, verify against every check:
 - [ ] GEN-PM-001: `game_complete` postMessage uses exact type string
 - [ ] GEN-PM-DUAL-PATH: `game_complete` fires on both victory AND game-over paths
 - [ ] GEN-PM-READY: `game_ready` postMessage exists
+- [ ] GEN-PM-NO-SELF-INIT: the game NEVER sends a `game_init` postMessage (`game_init` is inbound only — host → game). Self-posting it is caught by the game's own listener and boots `setupGame()` on fallbackContent, skipping the wait for the host's real content. Seed the standalone ActionBar header via component defaults, not a re-posted `game_init`.
+- [ ] GEN-BOOT-WAIT-FOR-INIT: `setupGame()` is NOT called inline in the boot path. After registering the message listener and sending `game_ready`, WAIT. `setupGame()` is reached ONLY via `handlePostMessage` (host `game_init`) or the standalone `setTimeout` fallback (gated on `window.self === window.top`). See html-template.md step 16 + rule 11.
 - [ ] GEN-PHASE-INIT: `#app` initial `data-phase` matches `gameState.phase` init
 - [ ] GEN-PHASE-SEQUENCE: endGame sets phase BEFORE syncDOM
 - [ ] GEN-PHASE-MCQ: At least 3 syncDOM calls exist

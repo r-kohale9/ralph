@@ -96,8 +96,8 @@ The exact document structure every game must follow. Do not deviate from the ele
         /* 12. PreviewScreenComponent creation: new PreviewScreenComponent({ slotId: 'mathai-preview-slot' }) -- SKIP entirely when spec previewScreen=false */
         /* 13. Audio preloading: FeedbackManager.sound.preload([{id, url}]) -- include previewAudio when preview is enabled */
         /* 14. Register handlePostMessage listener -- BEFORE game_ready */
-        /* 15. Send game_ready postMessage */
-        /* 16. setupGame() -- when preview enabled, setupGame() renders #gameContent first then calls previewScreen.show() last. When spec previewScreen=false, DOMContentLoaded calls the first TransitionScreen (level/round intro) directly instead of setupGame()/showPreviewScreen() */
+        /* 15. Send game_ready postMessage -- then WAIT. Do NOT call setupGame() here. */
+        /* 16. setupGame() is NOT called inline in the boot path. It is reached ONLY via handlePostMessage (host game_init) or the standalone setTimeout fallback (rule 11). Calling it inline boots the game on fallbackContent without waiting for the host's game_init (broken iframe handshake) -- validator GEN-BOOT-WAIT-FOR-INIT. NEVER send a game_init postMessage from the game (game_init is inbound only) -- validator GEN-PM-NO-SELF-INIT. When setupGame() does run (via game_init or fallback) and preview is enabled, it renders #gameContent first then calls previewScreen.show() last; when spec previewScreen=false, the handler/fallback shows the first TransitionScreen (level/round intro) directly instead of setupGame()/showPreviewScreen() */
       } catch (e) {
         console.error('[init] ' + e.message);
       }
@@ -211,17 +211,20 @@ The `DOMContentLoaded` handler runs 16 steps in order (see template above). Crit
 4. `PreviewScreenComponent` is instantiated AFTER `ScreenLayout.inject()` with only `{ slotId: 'mathai-preview-slot' }` -- do NOT pass `autoInject`, `gameContentId`, `questionLabel`, `score`, or `showStar`
 5. PostMessage listener + `game_ready` follow the canonical boot order — see [PART-008 § Boot ordering](../../../parts/PART-008.md#boot-ordering).
 6. Entire init block wrapped in try/catch
-7. `setupGame()` is the last call. **DOMContentLoaded MUST NOT show a TransitionScreen before `setupGame()`** — no `Let's go!`, no `Start`, no `Welcome` screen before preview. The PreviewScreen **is** the first user-facing content. Any `transitionScreen.show(...)` invocation inside DOMContentLoaded, ahead of `setupGame()`, is a bug (5e0-DOMCL-TRANSITION).
+7. The boot path ends at `game_ready` — **do NOT call `setupGame()` inline** (validator `GEN-BOOT-WAIT-FOR-INIT`). It runs later, only via `handlePostMessage` (host `game_init`) or the standalone fallback (rule 11). Likewise, **never SEND a `game_init` postMessage from the game** — `game_init` is inbound only (validator `GEN-PM-NO-SELF-INIT`); a self-post is caught by the game's own listener and boots `setupGame()` on `fallbackContent`, defeating the wait-for-host handshake. **DOMContentLoaded MUST NOT show a TransitionScreen during boot** — no `Let's go!`, no `Start`, no `Welcome` screen before preview. The PreviewScreen **is** the first user-facing content. Any `transitionScreen.show(...)` invocation inside the DOMContentLoaded boot path is a bug (5e0-DOMCL-TRANSITION).
 8. `setupGame()` must (a) render the full round DOM into `#gameContent` then (b) call `previewScreen.show(...)` as its last step. Reversing this order produces an empty preview area when `showGameOnPreview: true`
 9. The FloatingButton `on('next', ...)` handler must call `previewScreen.destroy()` AFTER posting `next_ended` — `endGame()` MUST NOT call `destroy()` (that kills the async `show_star` animation before it lands). `restartGame()` must NOT call `previewScreen.show()` or `setupGame()` -- the preview shows once per session.
 10. Window exposures (`window.gameState`, `window.endGame`, `window.restartGame`, `window.nextRound`, `window.startGame`) at bottom of DOMContentLoaded
-11. **Standalone-fallback gate (5e0-FALLBACK-GATE-WEAK).** Any `setTimeout` standalone fallback (inside OR after `DOMContentLoaded`) that calls `startGame()`, `showRoundIntro()`, or `injectGameHTML()` MUST, as its first statement, check:
+11. **Standalone-fallback gate (5e0-FALLBACK-GATE-WEAK).** The `setTimeout` fallback (inside OR after `DOMContentLoaded`, and **NEVER** nested inside `waitForPackages().then(...)`) serves two roles: it recovers from `waitForPackages()` timeout / CDN failure, AND it is the only place the game self-boots when running standalone (no host to send `game_init`). It re-verifies the required classes, then calls `setupGame()` (and `startGame()`). It MUST open with these gates, in order:
 
     ```javascript
-    if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return;
+    if (previewScreen && previewScreen.isActive && previewScreen.isActive()) return; // preview already live
+    if (gameState.isActive || gameState.gameEnded) return;
+    // ...re-verify required classes; render the failure UI and return if any are missing...
+    if (window.self !== window.top) return; // embedded: keep waiting for the host's game_init
     ```
 
-    The fallback exists *only* to recover from `waitForPackages()` timeout / CDN failure. If `previewScreen` is instantiated and active, the preview path is live and the fallback must abort. Do NOT rely on `gameState.phase === 'start_screen'` alone — preview does not mutate game state, so phase stays `'start_screen'` for the entire preview duration. Symptom if omitted: preview audio and Round 1 intro audio overlap; the welcome transition is silently skipped because `startGameAfterPreview` early-returns on `gameState.isActive === true`.
+    The `previewScreen.isActive()` gate prevents the fallback firing on top of a live preview — preview does not mutate `gameState.phase`, so `phase === 'start_screen'` alone stays true for the whole preview (symptom if omitted: preview + Round 1 intro audio overlap; the welcome transition is silently skipped because `startGameAfterPreview` early-returns on `gameState.isActive === true`). The `window.self !== window.top` gate makes an embedded game **wait** for the host's `game_init` rather than self-boot on `fallbackContent`; only a true top-level window (local server, Playwright, preview) self-boots. This is the standalone half of the same handshake enforced by `GEN-BOOT-WAIT-FOR-INIT` / `GEN-PM-NO-SELF-INIT` (rule 7).
 
 ## Preview Header / Wrapper Invariants
 

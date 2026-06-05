@@ -17,8 +17,11 @@ Every game listens for `game_init` from a parent window. When running standalone
 
 // 1. Start waitForPackages (may take up to 180s if CDN is down)
 waitForPackages().then(function(loaded) {
-  // ... init CDN components ...
-  setupGame();
+  // ... init CDN components, register the `message` listener, send game_ready ...
+  // Do NOT call setupGame() here. After game_ready, WAIT for the host's game_init.
+  // setupGame() is reached ONLY via handlePostMessage (host game_init) or the
+  // standalone fallback below. An inline call boots on fallbackContent without
+  // waiting for the host (broken iframe handshake) — validator GEN-BOOT-WAIT-FOR-INIT.
 });
 
 // 2. Standalone fallback — runs INDEPENDENTLY, not nested inside waitForPackages
@@ -56,7 +59,13 @@ setTimeout(function() {
     return;
   }
 
-  // 2c. All classes defined → boot.
+  // 2b5. Only self-boot when TRULY standalone (a top-level window with no host).
+  //      Inside an iframe, keep waiting for the host's game_init — handlePostMessage
+  //      boots setupGame() with the host's real content. This is the standalone half
+  //      of the wait-for-host handshake (see GEN-BOOT-WAIT-FOR-INIT / GEN-PM-NO-SELF-INIT).
+  if (window.self !== window.top) return;
+
+  // 2c. All classes defined AND standalone → boot.
   if (!document.getElementById('gameContent')) {
     buildFallbackLayout();
     // ... populate slots with innerHTML ...
@@ -65,8 +74,10 @@ setTimeout(function() {
   gameState.totalRounds = fallbackContent.rounds.length;
   setupGame();
   startGame();
-}, 2000);
+}, 30000);  // 30s, NOT 2s — see "Fallback delay" note below
 ```
+
+**Fallback delay — use `30000` (30s), never `2000`.** This timer's missing-class branch is what renders the user-visible "Game failed to load — please refresh." error, and it runs in the iframe too (the `window.self !== window.top` gate only blocks the *self-boot* half, not the error half). A 2s deadline declares failure while the shared CDN packages are still legitimately loading — common on slow mobile networks and in fresh Playwright browsers (CDN cold-start is 30–120s; this is the same reason `waitForPackages()` uses a 120s+ timeout). Use 30s so a slow-but-healthy load is not misreported as a failure. Trade-off accepted: in true standalone mode (preview/Playwright with no host `game_init`) the self-boot now waits up to 30s before booting on `fallbackContent` — tests that need an immediate start should send `game_init` rather than rely on the fallback.
 
 **Why CRITICAL:** Without this, the game is untestable locally and unrenderable in standalone preview. This bug appeared in THREE Alfred-built games before being corrected.
 
@@ -273,7 +284,7 @@ window.postMessage({
 
 **Do NOT fire `show_star` per round.** Validator `GEN-SHOW-STAR-ONCE` blocks it. The flying-star animation is a one-time end-of-game celebration; multi-fire stacks the animation N times and over-counts the displayed numerator.
 
-**Do NOT re-post `game_init` from the game.** The game's own `handlePostMessage` listener catches `game_init` and runs `setupGame()` — a re-fire would reset state with fallback content.
+**Do NOT re-post `game_init` from the game** (validator `GEN-PM-NO-SELF-INIT`). `game_init` is inbound only (host → game, PART-008). The game's own `handlePostMessage` listener catches any `game_init` and runs `setupGame()` — a self-post boots `setupGame()` on fallback content and short-circuits the wait for the host's real content. To seed the standalone ActionBar header, rely on the component defaults (`Q1`, `0/3`) or the host's `game_init`.
 
 **Game-internal counters live in `#gameContent`.** If your game needs a running widget (e.g., a fast-tap star meter, a live point counter), render it inside `#gameContent` — never in the platform header. The platform header is reserved for end-of-game performance.
 
