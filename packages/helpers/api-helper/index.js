@@ -13,9 +13,12 @@
 
   class APIHelper {
     constructor(config = {}) {
-      // Default configuration
+      // Default configuration. baseUrl points at the user-facing backend
+      // (claude-core-public — staging at test-api.homeworkapp.ai/cc-public).
+      // Override via the constructor config for local dev (http://localhost:4000)
+      // or other environments.
       this.config = {
-        baseUrl: 'https://c.c.mathai.ai',
+        baseUrl: 'https://c.c.mathai.ai/cc-public',
         timeout: 10000,
         headers: {
           'Content-Type': 'application/json'

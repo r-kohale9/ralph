@@ -4,4 +4,4 @@
 **API:** `new MathAIHelpers.APIHelper()` -> `.configure({ baseUrl, timeout, headers })` -> `.submitResults({ session_id, game_id, ... })`
 **Key rules:**
 - Available via Helpers package (`MathAIHelpers.APIHelper`)
-- Default baseUrl: `https://c.c.mathai.ai`
+- Default baseUrl: `https://c.c.mathai.ai/cc-public`
