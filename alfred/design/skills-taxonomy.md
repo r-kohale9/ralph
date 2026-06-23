@@ -809,7 +809,7 @@ Game HTML uploaded to GCP, registered with Core API, content sets created.
 **Questions:**
 
 - What is the deployment target? (GCP bucket → CDN URL?)
-- What does Core API registration include? (game metadata, inputSchema, artifactContent)
+- What does Core API registration include? (game metadata, inputSchema, artifactContent, llmReadable — a free-form JSON brief, no fixed schema, that lets any LLM understand the game and reconstruct representative questions without the HTML; general-purpose, not tied to one consumer like report generation)
 - How are content sets created and linked to a game?
 - What is the game URL format? (`https://learn.mathai.ai/game/<gameId>/<contentSetId>`)
 

@@ -66,12 +66,32 @@
       try { FeedbackManager._currentAbort.abort(); } catch (_) {}
     }
   }
+  // Unified audio-lifecycle logger. Everything about "what is being played and
+  // when it starts / ends / pauses / resumes / is preempted / stops / errors"
+  // goes through here, so the whole lifecycle is greppable under ONE keyword:
+  //   [FeedbackManager:event] audio_<event> {"id":..,"name":..,"url":..,...}
+  function _fmAudioLog(event, data) {
+    try {
+      console.log(
+        "[FeedbackManager:event] audio_" + event,
+        JSON.stringify(data || {})
+      );
+    } catch (_) {
+      try { console.log("[FeedbackManager:event] audio_" + event); } catch (__) {}
+    }
+  }
   function _logFeedbackHealth(tag, data) {
+    // Keep the dedicated health/analytics channel (console.error) AND mirror it
+    // under the unified audio keyword so a single [FeedbackManager:event] grep
+    // surfaces failures alongside the play/pause/end lifecycle.
     try {
       console.error(tag, JSON.stringify(data || {}));
     } catch (_) {
       try { console.error(tag); } catch (__) {}
     }
+    try {
+      _fmAudioLog("error", Object.assign({ tag: tag }, data || {}));
+    } catch (_) {}
   }
 
   // ----- Timer State Management -----
@@ -454,8 +474,15 @@
     // Memory Management Config
     var MAX_MEMORY_BYTES = 32 * 1024 * 1024; // 32 MB Limit
     var store = new Map(); // Map<id, AudioBuffer>
+    var meta = new Map(); // Map<id, {url, name}> — kept so playback logs carry url/name
     var order = []; // LRU tracking array
     var decodedBytes = 0;
+
+    // Resolve loggable identity for an id (name falls back to the id itself).
+    function metaOf(id) {
+      var m = meta.get(id);
+      return { id: id, name: (m && m.name) || id, url: (m && m.url) || null };
+    }
 
     // Audio Context
     var AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -503,6 +530,7 @@
         if (buf) {
           decodedBytes -= sizeOf(buf);
           store.delete(victimId);
+          meta.delete(victimId); // keep meta bounded to the buffer store
           console.log("[AudioKit] Evicted " + victimId + " to free memory");
         }
       }
@@ -621,6 +649,9 @@
         url = init.cdnBase.replace(/\/$/, "") + "/" + it.base + ".mp3";
       }
 
+      // Remember url/name so every later play/pause/end log can report them.
+      meta.set(it.id, { url: url || null, name: it.name || it.id });
+
       // Each item bounded at 2.5s — fetchWithRetry has 3 attempts + 600ms backoff,
       // a single 404 retry chain can take 3-6s on a real network. The 2.5s cap
       // makes failure detection deterministic and matches the universal audio
@@ -686,6 +717,12 @@
 
     function finalizeVoice(status, id, error) {
       if (!voice || voice.finalized) return;
+
+      _fmAudioLog("end", Object.assign(metaOf(id), {
+        type: "sound",
+        status: status,
+        error: (error && (error.message || String(error))) || null,
+      }));
 
       try {
         if (voice.timer) clearTimeout(voice.timer);
@@ -795,6 +832,14 @@
       voice = ctrl;
       src.start(0);
 
+      _fmAudioLog("play", Object.assign(metaOf(id), {
+        type: "sound",
+        duration: Math.round(duration * 100) / 100,
+        volume: gain.gain.value,
+        rate: opts.rate || 1,
+        timerPaused: !shouldSkipTimer,
+      }));
+
       // Update usage for Memory Management
       touch(id);
     }
@@ -814,6 +859,11 @@
         resolve: voice.resolve,
         feedbackId: voice.feedbackId,
       };
+
+      _fmAudioLog("pause", Object.assign(metaOf(voice.id), {
+        type: "sound",
+        offset: Math.round(pausedVoice.pausedOffset * 100) / 100,
+      }));
 
       try {
         voice.src.onended = null;
@@ -866,6 +916,12 @@
 
       voice = ctrl;
       src.start(0, pv.pausedOffset);
+
+      _fmAudioLog("resume", Object.assign(metaOf(pv.id), {
+        type: "sound",
+        fromOffset: Math.round(pv.pausedOffset * 100) / 100,
+      }));
+
       pausedVoice = null;
       return true;
     }
@@ -895,11 +951,18 @@
 
     function play(id, opts) {
       playAndWait(id, opts).catch(function (e) {
-        console.error("Play error", e);
+        _fmAudioLog("error", Object.assign(metaOf(id), {
+          type: "sound",
+          error: (e && (e.message || String(e))) || "play error",
+        }));
       });
     }
 
     function stopAll() {
+      var stoppedId = (voice && voice.id) || (pausedVoice && pausedVoice.id) || null;
+      if (stoppedId) {
+        _fmAudioLog("stop", Object.assign(metaOf(stoppedId), { type: "sound" }));
+      }
       if (voice) preemptActive("stopAll");
       if (pausedVoice && pausedVoice.resolve) {
         pausedVoice.resolve({ status: "stopped", id: pausedVoice.id });
@@ -1208,10 +1271,11 @@
       self.sounds[item.id] = {
         path: url,
         url: url,
+        name: item.name || item.id,
         loaded: false,
         duration: 5,
       };
-      return { id: item.id, url: url };
+      return { id: item.id, url: url, name: item.name || item.id };
     });
 
     try {
@@ -1305,7 +1369,7 @@
       var JIT_TIMEOUT = "__fm_jit_timeout__";
       try {
         var loadPromise = this.audioKit.preloadCritical([
-          { id: id, url: this.sounds[id].url },
+          { id: id, url: this.sounds[id].url, name: this.sounds[id].name || id },
         ]);
         var loadResult = await Promise.race([
           loadPromise.then(function () { return "ok"; }),
@@ -1368,9 +1432,11 @@
     }
 
     try {
-      console.log("[FeedbackManager:event] audio_play", JSON.stringify({ id: id, type: "sound", volume: opts.volume !== undefined ? opts.volume : 1 }));
+      // The canonical "play" line (with url/name/duration) is emitted by
+      // AudioKit.startVoice once the buffer actually starts; here we only fire
+      // the analytics hook so we don't double-log the play event.
       if (typeof FeedbackManager !== "undefined" && FeedbackManager._onAudioPlayed) {
-        try { FeedbackManager._onAudioPlayed({ id: id, type: "sound", volume: opts.volume !== undefined ? opts.volume : 1 }); } catch (_) {}
+        try { FeedbackManager._onAudioPlayed({ id: id, type: "sound", url: (this.sounds[id] && this.sounds[id].url) || null, volume: opts.volume !== undefined ? opts.volume : 1 }); } catch (_) {}
       }
       var result = await this.audioKit.playAndWait(id, {
         volume: opts.volume !== undefined ? opts.volume : 1,
@@ -1873,6 +1939,13 @@
       if (stream.playingNodes.length === 0 && stream.isStreamFinished) {
         self._clearTimeout(stream);
         stream.isPlaying = false;
+        _fmAudioLog("end", {
+          id: stream.id,
+          name: stream.name || stream.id,
+          url: stream.url || null,
+          type: "stream",
+          status: "ok",
+        });
         try {
           if (typeof stream.onComplete === "function") stream.onComplete();
         } catch (_) {}
@@ -2024,9 +2097,18 @@
         this.audioCtx.resume();
       if (s.isPlaying) this.stop(id);
       s.isPlaying = true;
-      console.log("[FeedbackManager:event] audio_play", JSON.stringify({ id: id, type: "stream" }));
+      if (options.name) s.name = options.name;
+      if (options.url) s.url = options.url;
+      _fmAudioLog("play", {
+        id: id,
+        name: s.name || id,
+        url: s.url || (options.url || null),
+        type: "stream",
+        subtitle: options.subtitle || null,
+        sticker: options.sticker ? (options.sticker.image || options.sticker) : null,
+      });
       if (typeof FeedbackManager !== "undefined" && FeedbackManager._onAudioPlayed) {
-        try { FeedbackManager._onAudioPlayed({ id: id, type: "stream" }); } catch (_) {}
+        try { FeedbackManager._onAudioPlayed({ id: id, name: s.name || id, url: s.url || null, type: "stream" }); } catch (_) {}
       }
       var originalComplete = callbacks.complete || null;
       var originalFirstChunk = callbacks.onFirstChunk || null;
@@ -2173,6 +2255,12 @@
       s.feedbackId = null;
     }
     if (!s.isPlaying) return false;
+    _fmAudioLog("stop", {
+      id: id,
+      name: s.name || id,
+      url: s.url || null,
+      type: "stream",
+    });
     this._clearTimeout(s);
     s.playingNodes.forEach(function (node) {
       try {
@@ -2515,17 +2603,32 @@
         "https://asia-south1-mathai-449208.cloudfunctions.net/generate-audio?text=" +
         encodedText;
 
+      // Human-readable name for logs: the spoken text, truncated.
+      var ttsName =
+        params.audio_content.length > 80
+          ? params.audio_content.slice(0, 80) + "…"
+          : params.audio_content;
+
       var feedbackOptions = {
         subtitle: params.subtitle || null,
         sticker: params.sticker
           ? { type: "IMAGE_GIF", image: params.sticker, alignment: "RIGHT" }
           : null,
+        name: ttsName,
+        url: apiUrl,
       };
 
       var abortSignal = _getAbortSignal();
 
       var TIMEOUT_API = "__fm_timeout_api__";
       try {
+        _fmAudioLog("request", {
+          name: ttsName,
+          url: apiUrl,
+          type: "dynamic",
+          subtitle: params.subtitle || null,
+          sticker: params.sticker || null,
+        });
         console.log(
           "[FeedbackManager] Fetching dynamic audio for:",
           params.audio_content
@@ -2552,7 +2655,7 @@
       if (response === TIMEOUT_API) {
         console.warn("[FeedbackManager] API response timeout (2.5s)");
         self._stopCurrentDynamic();
-        _logFeedbackHealth("feedback.tts.error", { status: "timeout", reason: "api" });
+        _logFeedbackHealth("feedback.tts.error", { name: ttsName, url: apiUrl, status: "timeout", reason: "api" });
         return { status: "timeout", reason: "api" };
       }
 
@@ -2561,7 +2664,7 @@
       if (!response.ok) {
         console.warn("[FeedbackManager] API returned " + response.status);
         self._stopCurrentDynamic();
-        _logFeedbackHealth("feedback.tts.error", { status: "error", reason: "api-status", code: response.status });
+        _logFeedbackHealth("feedback.tts.error", { name: ttsName, url: apiUrl, status: "error", reason: "api-status", code: response.status });
         return { status: "error", reason: "api-status", code: response.status };
       }
 
@@ -2577,7 +2680,7 @@
           self._currentDynamicId = audioId;
           self._currentDynamicType = "sound";
 
-          await _sound.preload([{ id: audioId, url: jsonData.audio_url }]);
+          await _sound.preload([{ id: audioId, url: jsonData.audio_url, name: ttsName }]);
 
           _throwIfAborted();
 
@@ -2621,11 +2724,11 @@
             self._currentDynamicType = null;
           }
           FeedbackComponentsManager.hideAll();
-          _logFeedbackHealth("feedback.tts.error", { status: "timeout", reason: "stream-setup" });
+          _logFeedbackHealth("feedback.tts.error", { name: ttsName, url: apiUrl, status: "timeout", reason: "stream-setup" });
           return { status: "timeout", reason: "stream-setup" };
         }
         if (setupResult === "failed") {
-          _logFeedbackHealth("feedback.tts.error", { status: "error", reason: "stream-setup" });
+          _logFeedbackHealth("feedback.tts.error", { name: ttsName, url: apiUrl, status: "error", reason: "stream-setup" });
           return { status: "error", reason: "stream-setup" };
         }
 
@@ -2670,7 +2773,7 @@
                   self._currentDynamicType = null;
               }
               FeedbackComponentsManager.hideAll();
-              _logFeedbackHealth("feedback.tts.error", { status: "timeout", reason: "first-chunk" });
+              _logFeedbackHealth("feedback.tts.error", { name: ttsName, url: apiUrl, status: "timeout", reason: "first-chunk" });
               resolve({ status: "timeout", reason: "first-chunk" });
             }
             }, 2500);
@@ -2724,7 +2827,7 @@
                   self._currentDynamicId = null;
                   self._currentDynamicType = null;
                 }
-                _logFeedbackHealth("feedback.tts.error", { status: "error", reason: "stream", message: msg || "Stream playback error" });
+                _logFeedbackHealth("feedback.tts.error", { name: ttsName, url: apiUrl, status: "error", reason: "stream", message: msg || "Stream playback error" });
                 resolve({ status: "error", reason: "stream", message: msg || "Stream playback error" });
               },
               },
@@ -2735,7 +2838,7 @@
             if (!settled) {
               settled = true;
               cleanup();
-              _logFeedbackHealth("feedback.tts.error", { status: "error", reason: "stream-start-failed" });
+              _logFeedbackHealth("feedback.tts.error", { name: ttsName, url: apiUrl, status: "error", reason: "stream-start-failed" });
               resolve({ status: "error", reason: "stream-start-failed" });
             }
             }
@@ -2759,7 +2862,7 @@
         // Clean up
         self._stopCurrentDynamic();
 
-      _logFeedbackHealth("feedback.tts.error", { status: "error", reason: "unexpected", message: error && error.message ? error.message : String(error) });
+      _logFeedbackHealth("feedback.tts.error", { name: ttsName, url: apiUrl, status: "error", reason: "unexpected", message: error && error.message ? error.message : String(error) });
       return { status: "error", reason: "unexpected", message: error && error.message ? error.message : String(error) };
       }
     },

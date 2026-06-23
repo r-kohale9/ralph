@@ -26,6 +26,10 @@ window.AnalyticsConfig = {
   // Server-side fallback URL (used when all client SDKs fail to load)
   fallbackUrl: "https://asia-south1-mathai-449208.cloudfunctions.net/analyticsFallback",
 
+  // notification-service events ingest endpoint. Every tracked event is mirrored
+  // here; the ingest filters against its own allow-list (unmatched are dropped).
+  ingestUrl: "https://asia-south1-mathai-449208.cloudfunctions.net/ingestEvents",
+
   // Sentry integration
   sentry: {
     enabled: true,

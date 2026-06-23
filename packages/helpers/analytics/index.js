@@ -84,6 +84,9 @@
       this.fallbackMode = false;
       this.fallbackUrl = config.fallbackUrl || "https://asia-south1-mathai-449208.cloudfunctions.net/analyticsFallback";
 
+      // notification-service events ingest endpoint — every event is mirrored here
+      this.ingestUrl = config.ingestUrl || "https://asia-south1-mathai-449208.cloudfunctions.net/ingestEvents";
+
       // Store current user context
       this.currentUserId = null;
       this.currentTraits = null;
@@ -117,6 +120,7 @@
         this.region = config.region || "unknown";
         this.sentryEnabled = (config.sentry && config.sentry.enabled) || false;
         this.fallbackUrl = config.fallbackUrl || this.fallbackUrl;
+        this.ingestUrl = config.ingestUrl || this.ingestUrl;
         console.log("[AnalyticsManager] Config applied:", { platforms: this.platforms, region: this.region });
       } catch (configError) {
         console.error("[AnalyticsManager] Config load failed, using defaults:", configError);
@@ -268,6 +272,10 @@
         current_href: window.location.href,
         ...properties
       };
+
+      // Mirror every event to the notification-service ingest. Independent of the
+      // analytics SDKs / fallback mode — always fires (when a user id is known).
+      this._sendIngest(event, enrichedProps);
 
       // Use server-side fallback if all client SDKs failed
       if (this.fallbackMode) {
@@ -763,6 +771,64 @@
       });
 
       return flattened;
+    }
+
+    /**
+     * Resolve the personalized_learning_user.id (integer) the ingest keys on.
+     * Prefers currentTraits.id; falls back to the numeric tail of a distinct_id
+     * of the form `{mobile}_{name}_{id}` (e.g. "..._114254" -> "114254").
+     * Returns null when no numeric id is available (e.g. UUID distinct_id).
+     * @returns {string|null}
+     */
+    _resolveIngestUserId() {
+      var traits = this.currentTraits || {};
+      var id = traits.id;
+      if (id !== undefined && id !== null && id !== "" && /^\d+$/.test(String(id))) {
+        return String(id);
+      }
+      var distinctId = traits.distinct_id;
+      if (typeof distinctId === "string" && distinctId) {
+        var last = distinctId.split("_").pop();
+        if (last && /^\d+$/.test(last)) return last;
+      }
+      return null;
+    }
+
+    /**
+     * Fire-and-forget mirror of a tracked event to the notification-service
+     * ingest API. The ingest filters against its own allow-list, so sending
+     * every event is intentional — unmatched events are dropped server-side.
+     * Prefers sendBeacon (non-blocking, survives unload), falls back to fetch.
+     * @param {string} event - Event name
+     * @param {object} properties - Enriched event properties
+     */
+    _sendIngest(event, properties) {
+      if (!this.ingestUrl || !event) return;
+
+      var userId = this._resolveIngestUserId();
+      // No numeric profile id available — can't key the user, skip.
+      if (!userId) return;
+
+      var payload = JSON.stringify({ event: event, user_id: userId, data: properties || {} });
+
+      try {
+        if (navigator.sendBeacon) {
+          var blob = new Blob([payload], { type: "application/json" });
+          if (navigator.sendBeacon(this.ingestUrl, blob)) return;
+        }
+
+        fetch(this.ingestUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+          keepalive: true
+        }).catch(function (err) {
+          console.error("[AnalyticsManager] Ingest fetch failed:", err);
+        });
+      } catch (error) {
+        console.error("[AnalyticsManager] Ingest send failed:", error);
+        this._captureError(error, "_sendIngest", { event: event });
+      }
     }
 
     /**
